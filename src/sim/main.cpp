@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include "../app/qrscan.h"
 #include "../app/ui.h"
+#include "../app/wallet.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
@@ -36,6 +37,7 @@ static uint32_t now_ms() {
 static uint8_t cam_frame[CAM_W * CAM_H];
 static bool cam_ok;
 static time_t cam_mtime;
+static char cam_loaded_path[512];
 static const char *cam_path() {
     const char *p = getenv("SIM_CAMERA");
     return p ? p : "sim/camera.png";
@@ -58,8 +60,9 @@ static void cam_load(const char *path) {
 const uint8_t *platform_camera_frame(int *width, int *height) {
     struct stat st;
     if (stat(cam_path(), &st) == 0) {
-        if (st.st_mtime != cam_mtime || !cam_ok) {
+        if (st.st_mtime != cam_mtime || !cam_ok || strcmp(cam_loaded_path, cam_path()) != 0) {
             cam_mtime = st.st_mtime;
+            snprintf(cam_loaded_path, sizeof(cam_loaded_path), "%s", cam_path());
             cam_load(cam_path());
         }
     } else {
@@ -105,16 +108,33 @@ static int run_shots(const char *dir) {
 
     setenv("SIM_CAMERA", "sim/samples/does-not-exist.png", 1);
     ui_build();
-    pump(100); save(dir, "1_home");
+    pump(300); save(dir, "1_home");
     ui_goto(UI_SCAN_SEED);
     pump(300); save(dir, "2_scan_waiting");
     setenv("SIM_CAMERA", "sim/samples/vector4_standard_12word.png", 1);
     for (int i = 0; i < 100 && ui_current() == UI_SCAN_SEED; i++) pump(50);
     if (ui_current() != UI_SEED_LOADED) { fprintf(stderr, "SeedQR was not decoded\n"); return 1; }
-    pump(100); save(dir, "3_seed_loaded");
-    ui_goto(UI_SEED_MENU);    pump(100); save(dir, "4_seed_menu");
-    ui_goto(UI_EXPORT_XPUB);  pump(100); save(dir, "5_export_xpub");
-    ui_goto(UI_WIPE_CONFIRM); pump(100); save(dir, "6_wipe_confirm");
+    pump(300); save(dir, "3_seed_loaded");
+    ui_goto(UI_SEED_MENU);    pump(300); save(dir, "4_seed_menu");
+    ui_goto(UI_EXPORT_XPUB);  pump(300); save(dir, "5_export_xpub");
+    ui_goto(UI_WIPE_CONFIRM); pump(300); save(dir, "6_wipe_confirm");
+
+    // Transaction: SeedSigner's single-sig testnet vector and its seed.
+    wallet_wipe();
+    ui_goto(UI_SCAN_SEED);
+    setenv("SIM_CAMERA", "sim/samples/testseed_height_demise_standard_12word.png", 1);
+    for (int i = 0; i < 100 && ui_current() == UI_SCAN_SEED; i++) pump(50);
+    if (ui_current() != UI_SEED_LOADED) { fprintf(stderr, "test seed was not decoded\n"); return 1; }
+    ui_goto(UI_SCAN_PSBT);
+    setenv("SIM_CAMERA", "sim/samples/testpsbt_height_demise_base64.png", 1);
+    for (int i = 0; i < 100 && ui_current() == UI_SCAN_PSBT; i++) pump(50);
+    if (ui_current() != UI_PSBT_OVERVIEW) { save(dir, "debug_psbt_scan"); fprintf(stderr, "PSBT was not accepted (screen %d)\n", ui_current()); return 1; }
+    pump(300); save(dir, "7_psbt_overview");
+    ui_goto(UI_PSBT_OUTPUT); pump(300); save(dir, "8_psbt_output_1");
+    ui_next_output();        pump(300); save(dir, "9_psbt_output_2");
+    ui_next_output();        pump(300); save(dir, "10_psbt_sign");
+    if (!ui_swipe_sign()) { fprintf(stderr, "signing failed\n"); return 1; }
+    pump(400); save(dir, "11_psbt_signed");
     return 0;
 }
 

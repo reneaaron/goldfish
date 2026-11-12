@@ -6,7 +6,7 @@
 // or simulator image loader) supplies frames; the app only sees decoded payloads.
 
 struct QrPayload {
-    uint8_t data[1024];
+    uint8_t data[3072];     // enough for a single-frame base64 PSBT
     size_t len;
 };
 

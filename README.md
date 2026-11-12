@@ -4,24 +4,32 @@ Firmware for a stateless, camera-based Bitcoin signer on the Waveshare
 RP2350-Touch-LCD-2 (RP2350A, 16MB flash, 2" 240×320 touch screen, OV5640
 camera connector). The board has no Wi-Fi or Bluetooth hardware.
 
-Status: early. Seed loading from SeedQR and xpub export work in the
-simulator; the camera driver and transaction signing don't exist yet. Not for
-real funds.
+Status: early. Seed loading, xpub export and PSBT review/signing work in the
+simulator; the board's camera driver isn't ported yet. Not for real funds.
 
-![Flow in the simulator](docs/screens/flow.png)
+![Seed flow in the simulator](docs/screens/flow.png)
+![Transaction flow in the simulator](docs/screens/flow_psbt.png)
 
 ## How it works
 
 Seeds come in only as a SeedQR (Standard or Compact, 12 or 24 words), the
-format SeedSigner uses. There is no manual word entry and no passphrase yet.
+format SeedSigner uses; the UI just calls it a seed QR. There is no manual word entry and no passphrase yet.
 The seed lives in RAM only: "Wipe seed" or unplugging removes it.
 
 1. Home: Scan SeedQR
 2. Seed loaded: shows the fingerprint to check against your wallet
-3. Seed menu: Scan transaction (PSBT detection only for now), Export xpub,
-   Wipe seed
-4. Export xpub: native segwit `[fingerprint/84h/0h/0h]zpub…`, the same static
-   format SeedSigner exports, readable by Sparrow
+3. Wallet: Sign transaction, Connect wallet, Wipe now
+4. Connect wallet: shows the native segwit xpub as `[fingerprint/84h/0h/0h]zpub…`, the
+   same static format SeedSigner exports, readable by Sparrow
+5. Sign transaction: scan a PSBT (animated UR `crypto-psbt`, or a single
+   base64 frame), review the amount, fee and change, check each output's
+   address, slide to sign, then show the signed PSBT as an animated UR
+
+Review follows SeedSigner's rules: every input must belong to the loaded seed,
+change counts as change only if the seed re-derives that exact output script,
+and an output that claims our fingerprint but doesn't verify blocks signing.
+Single-sig native segwit only, mainnet or testnet (from the PSBT's derivation
+paths). BBQr input isn't supported yet.
 
 ## Stack
 
@@ -29,6 +37,7 @@ The seed lives in RAM only: "Wipe seed" or unplugging removes it.
 - LVGL 9.2 for the UI
 - uBitcoin for BIP39/BIP32/PSBT
 - quirc for QR decoding (vendored in `lib/quirc`)
+- Inter and JetBrains Mono, converted for LVGL (`src/app/fonts`, SIL OFL)
 
 ## Build
 
@@ -44,8 +53,11 @@ The firmware ends up at `.pio/build/rp2350_touch_lcd_2/firmware.uf2`.
 pio test -e test
 ```
 
-SeedQR decoding is checked against the vectors in SeedSigner's SeedQR spec;
-key derivation against the BIP84 test vector (fingerprint `73c5da0a`).
+- SeedQR decoding: the vectors in SeedSigner's SeedQR spec
+- Key derivation: the BIP84 test vector (fingerprint `73c5da0a`, zpub)
+- UR: SeedSigner's 29-part `crypto-psbt` vector, plus an encode/decode round trip
+- PSBT review: SeedSigner's single-sig testnet vector (25,000 in, 24,857 out,
+  143 fee), signing, wrong seed and garbage input
 
 ## Desktop simulator
 
@@ -63,8 +75,10 @@ Camera: the simulator "sees" the image at `sim/camera.png` (or
 cp sim/samples/vector4_standard_12word.png sim/camera.png
 ```
 
-`sim/samples` holds SeedSigner's public test SeedQRs, plus a photo of a
-stamped plate.
+`sim/samples` holds SeedSigner's public test SeedQRs, a photo of a stamped
+plate, and `testseed_height_demise_*` / `testpsbt_height_demise_base64.png`, a
+matching seed and testnet PSBT from SeedSigner's tests for trying the signing
+flow.
 
 Screenshots of the whole flow, no window:
 
@@ -109,7 +123,7 @@ example (`C/02-CAM`, OV5640 over PIO) to port next.
 ## Next steps
 
 - Camera: port Waveshare's PIO capture into `src/board/camera.cpp`
-- Animated QR input (UR `crypto-psbt`, BBQr) for PSBTs
-- PSBT review (recipients, change verification, fee) and hold-to-sign
-- Signed PSBT output as animated UR
+- Test against Sparrow end to end (testnet)
+- Testnet xpub export (m/84'/1'/0', vpub)
+- BBQr input
 - Secure boot with picotool

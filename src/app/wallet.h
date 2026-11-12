@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include "seedqr.h"
 
+class HDPrivateKey;
+
 // The one seed this device holds, in RAM only. Nothing is ever written to flash:
 // unplugging the device, or wallet_wipe(), removes it.
 
@@ -11,6 +13,8 @@ bool wallet_has_seed();
 // BIP39 runs 2048 rounds of PBKDF2-HMAC-SHA512.
 bool wallet_load(const SeedEntropy &e);
 void wallet_wipe();
+// The root key, for signing. nullptr without a seed. Don't copy it.
+const HDPrivateKey *wallet_root();
 
 void wallet_fingerprint(uint8_t out[4]);
 void wallet_fingerprint_hex(char out[9]);

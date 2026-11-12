@@ -22,8 +22,9 @@ bool qrscan_frame(const uint8_t *gray, QrPayload *out) {
     bool found = false;
     int n = quirc_count(q);
     for (int i = 0; i < n && !found; i++) {
-        struct quirc_code code;
-        struct quirc_data data;
+        // static: quirc_data holds an 8.9KB payload, too big for the RP2350 stack
+        static struct quirc_code code;
+        static struct quirc_data data;
         quirc_extract(q, i, &code);
         if (quirc_decode(&code, &data) == QUIRC_SUCCESS && size_t(data.payload_len) <= sizeof(out->data)) {
             memcpy(out->data, data.payload, data.payload_len);

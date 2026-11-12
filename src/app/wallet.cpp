@@ -18,6 +18,7 @@ static HDPrivateKey *root;
 static int words;
 
 bool wallet_has_seed() { return root != nullptr; }
+const HDPrivateKey *wallet_root() { return root; }
 
 void wallet_wipe() {
     if (root) {
