@@ -6,18 +6,21 @@
 #include "wallet.h"
 
 // BIP-21 amounts are decimal BTC ("0.001"); BIP177 shows them as whole
-// bitcoins, so parse exactly (no floating point). 0 if absent or malformed.
-static uint64_t uri_amount(const char *q, size_t len) {
+// bitcoins, so parse exactly (no floating point). Sets bad for an amount= that
+// isn't a plain decimal, has more than 8 decimals or exceeds 21M BTC.
+static uint64_t uri_amount(const char *q, size_t len, bool *bad) {
     const char *end = q + len;
     while (q < end) {
         const char *amp = (const char *)memchr(q, '&', end - q);
         if (!amp) amp = end;
-        if (amp - q > 7 && strncasecmp(q, "amount=", 7) == 0) {
+        if (amp - q >= 7 && strncasecmp(q, "amount=", 7) == 0) {
             uint64_t whole = 0, frac = 0;
-            int fd = -1;   // fraction digits seen, -1 before the dot
+            int fd = -1, digits = 0;   // fd: fraction digits seen, -1 before the dot
+            *bad = true;
             for (const char *p = q + 7; p < amp; p++) {
                 if (*p == '.' && fd < 0) { fd = 0; continue; }
                 if (!isdigit((unsigned char)*p)) return 0;
+                digits++;
                 if (fd < 0) {
                     whole = whole * 10 + uint64_t(*p - '0');
                     if (whole > 21000000) return 0;
@@ -28,7 +31,9 @@ static uint64_t uri_amount(const char *q, size_t len) {
             }
             for (int i = fd < 0 ? 0 : fd; i < 8; i++) frac *= 10;
             uint64_t v = whole * 100000000ull + frac;
-            return v <= 2100000000000000ull ? v : 0;
+            if (!digits || v > 2100000000000000ull) return 0;
+            *bad = false;
+            return v;
         }
         q = amp + 1;
     }
@@ -45,7 +50,7 @@ AddressParse address_parse(const uint8_t *data, size_t len, AddressCheck *out) {
         n++;
     }
     out->address[n] = 0;
-    if (n < len && s[n] == '?') out->amount = uri_amount(s + n + 1, len - n - 1);
+    if (n < len && s[n] == '?') out->amount = uri_amount(s + n + 1, len - n - 1, &out->amount_bad);
     for (size_t i = 0; i < n; i++)
         if (!isalnum((unsigned char)out->address[i])) return ADDR_NOT_ADDRESS;
 

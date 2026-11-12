@@ -1,4 +1,5 @@
 #include "theme.h"
+#include "amount.h"
 #include <initializer_list>
 #include <stdio.h>
 #include <string.h>
@@ -120,8 +121,8 @@ lv_obj_t *card(lv_obj_t *parent, int w, int h) {
     lv_obj_set_style_radius(c, 14, 0);
     lv_obj_set_style_border_color(c, BORDER, 0);
     lv_obj_set_style_border_width(c, 1, 0);
-    lv_obj_set_style_pad_hor(c, 14, 0);
-    lv_obj_set_style_pad_ver(c, 12, 0);
+    lv_obj_set_style_pad_hor(c, CARD_PX, 0);
+    lv_obj_set_style_pad_ver(c, CARD_PY, 0);
     return c;
 }
 
@@ -152,21 +153,63 @@ lv_obj_t *icon_badge(lv_obj_t *parent, const char *icon, lv_color_t fg, lv_color
     return c;
 }
 
-int kv_room(const char *k) { return CW - 2 * 14 - lv_text_get_width(k, strlen(k), &inter_15, 0) - 10; }
+static int width(const char *s, const lv_font_t *f) { return lv_text_get_width(s, strlen(s), f, 0); }
+static int line_h(const lv_font_t *f) { return lv_font_get_line_height(f); }
 
-const lv_font_t *fit(const char *s, int w, std::initializer_list<const lv_font_t *> fonts) {
-    for (const lv_font_t *f : fonts)
-        if (lv_text_get_width(s, strlen(s), f, 0) <= w) return f;
-    return nullptr;
+constexpr int KV_GAP = 10;    // between a key and a value beside it
+constexpr int KV_UNDER = 14;  // a value under its key starts this far down
+constexpr int KV_STEP = 8;    // between rows, and again after a divider
+
+static bool kv_beside(const KvRow &r, const lv_font_t *f) {
+    return width(r.v, f) <= CARD_IW - width(r.k, &inter_15) - KV_GAP;
 }
 
-void kv(lv_obj_t *c, int y, const char *k, const char *v, lv_color_t vc, const lv_font_t *vf) {
-    lv_obj_t *kl = text(c, k, &inter_15, TEXT_2, LV_TEXT_ALIGN_LEFT);
-    lv_obj_align(kl, LV_ALIGN_TOP_LEFT, 0, y);
-    // Shrink a long value (a big amount) rather than let it run into the key.
-    const lv_font_t *f = fit(v, kv_room(k), {vf, &inter_15, &inter_13});
-    lv_obj_t *vl = text(c, v, f ? f : &inter_13, vc, LV_TEXT_ALIGN_RIGHT);
-    lv_obj_align(vl, LV_ALIGN_TOP_RIGHT, 0, y);
+// The one font for these values, and whether they go under their keys.
+static const lv_font_t *kv_font(const KvRow *rows, int n, const lv_font_t *vf, bool *under) {
+    const lv_font_t *chain[] = {vf, &inter_15, &inter_13};
+    for (int pass = 0; pass < 2; pass++) {
+        for (const lv_font_t *f : chain) {
+            bool ok = true;
+            for (int i = 0; i < n && ok; i++) ok = pass ? width(rows[i].v, f) <= CARD_IW : kv_beside(rows[i], f);
+            if (ok) { *under = pass; return f; }
+        }
+    }
+    *under = true;   // wider than the card even in inter_13: can't happen for amounts
+    return &inter_13;
+}
+
+static int kv_row_h(const lv_font_t *f, bool under) {
+    return under ? KV_UNDER + line_h(f) : LV_MAX(line_h(&inter_15), line_h(f));
+}
+
+static void kv_place(lv_obj_t *c, int y, const KvRow &r, const lv_font_t *f, bool under) {
+    lv_obj_align(text(c, r.k, under ? &inter_13 : &inter_15, TEXT_2, LV_TEXT_ALIGN_LEFT), LV_ALIGN_TOP_LEFT, 0, y);
+    lv_obj_align(text(c, r.v, f, r.c, LV_TEXT_ALIGN_RIGHT), LV_ALIGN_TOP_RIGHT, 0, under ? y + KV_UNDER : y);
+}
+
+int kv(lv_obj_t *c, int y, const char *k, const char *v, lv_color_t vc, const lv_font_t *vf) {
+    KvRow r = {k, v, vc, false};
+    bool under;
+    const lv_font_t *f = kv_font(&r, 1, vf, &under);
+    kv_place(c, y, r, f, under);
+    return kv_row_h(f, under);
+}
+
+lv_obj_t *kv_card(lv_obj_t *parent, const KvRow *rows, int n, const lv_font_t *vf) {
+    bool under;
+    const lv_font_t *f = kv_font(rows, n, vf, &under);
+    int rh = kv_row_h(f, under), ys[8], y = 0;
+    for (int i = 0; i < n && i < 8; i++) {
+        if (i) y += rh + (under ? KV_STEP / 2 : KV_STEP);   // stacked rows are already airy
+        if (rows[i].rule) y += KV_STEP;
+        ys[i] = y;
+    }
+    lv_obj_t *c = card(parent, CW, y + rh + 2 * CARD_PY);
+    for (int i = 0; i < n && i < 8; i++) {
+        if (rows[i].rule) divider(c, ys[i] - KV_STEP);
+        kv_place(c, ys[i], rows[i], f, under);
+    }
+    return c;
 }
 
 void divider(lv_obj_t *c, int y) {
@@ -178,34 +221,6 @@ void divider(lv_obj_t *c, int y) {
     lv_obj_align(d, LV_ALIGN_TOP_LEFT, 0, y);
 }
 
-// "24,857"
-static size_t group(unsigned long long v, char *out, size_t cap) {
-    char raw[24];
-    snprintf(raw, sizeof(raw), "%llu", v);
-    size_t n = strlen(raw), o = 0;
-    for (size_t i = 0; i < n && o + 2 < cap; i++) {
-        if (i && (n - i) % 3 == 0) out[o++] = ',';
-        out[o++] = raw[i];
-    }
-    out[o] = 0;
-    return o;
-}
-
-void fmt_btc(uint64_t v, char *out, size_t cap) {
-    size_t o = snprintf(out, cap, "\xE2\x82\xBF");   // U+20BF
-    group(v, out + o, cap - o);
-}
-
-void fmt_btc_legacy(uint64_t v, char *out, size_t cap) {
-    size_t o = group(v / 100000000ull, out, cap);
-    char f[9];
-    snprintf(f, sizeof(f), "%08llu", (unsigned long long)(v % 100000000ull));
-    int n = 8;
-    while (n && f[n - 1] == '0') n--;
-    if (n) snprintf(out + o, cap - o, ".%.*s BTC", n, f);
-    else snprintf(out + o, cap - o, " BTC");
-}
-
 lv_obj_t *amount(lv_obj_t *parent, uint64_t v, lv_color_t c) {
     lv_obj_t *col = lv_obj_create(parent);
     plain(col);
@@ -215,8 +230,10 @@ lv_obj_t *amount(lv_obj_t *parent, uint64_t v, lv_color_t c) {
     lv_obj_set_style_pad_row(col, 2, 0);
     char b[40];
     fmt_btc(v, b, sizeof(b));
-    const lv_font_t *f = fit(b, CW, {&mono_22, &mono_16, &inter_15});
-    text(col, b, f ? f : &inter_13, c);
+    const lv_font_t *f = &inter_13;
+    for (const lv_font_t *g : {&mono_22, &mono_16, &inter_15})
+        if (width(b, g) <= CW) { f = g; break; }
+    text(col, b, f, c);
     fmt_btc_legacy(v, b, sizeof(b));
     text(col, b, &inter_13, TEXT_3);
     return col;

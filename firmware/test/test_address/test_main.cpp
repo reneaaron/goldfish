@@ -93,32 +93,32 @@ void test_parse_rejects() {
     TEST_ASSERT_EQUAL(ADDR_NOT_ADDRESS, address_parse((const uint8_t *)junk, strlen(junk), &c));
 }
 
-static uint64_t amount_of(const char *uri) {
-    AddressCheck c;
-    TEST_ASSERT_EQUAL(ADDR_OK, address_parse((const uint8_t *)uri, strlen(uri), &c));
-    return c.amount;
-}
-
 // BIP-21 amounts are BTC; BIP177 shows them in bitcoins (x 100,000,000).
 void test_uri_amount() {
     const char *a = "bitcoin:bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu";
     char u[160];
-    struct { const char *q; uint64_t v; } cases[] = {
-        {"", 0},
-        {"?amount=0.001", 100000ull},
-        {"?AMOUNT=1.5", 150000000ull},
-        {"?label=x&amount=1234.56789&message=y", 123456789000ull},
-        {"?amount=21000000", 2100000000000000ull},
-        {"?amount=0.00000001", 1ull},
-        {"?amount=12", 1200000000ull},
-        {"?amount=21000000.00000001", 0},   // above the supply cap
-        {"?amount=0.000000001", 0},         // finer than the base unit
-        {"?amount=1e3", 0},
-        {"?amount=-1", 0},
+    struct { const char *q; uint64_t v; bool bad; } cases[] = {
+        {"", 0, false},
+        {"?label=x", 0, false},
+        {"?amount=0.001", 100000ull, false},
+        {"?AMOUNT=1.5", 150000000ull, false},
+        {"?label=x&amount=1234.56789&message=y", 123456789000ull, false},
+        {"?amount=21000000", 2100000000000000ull, false},
+        {"?amount=0.00000001", 1ull, false},
+        {"?amount=12", 1200000000ull, false},
+        {"?amount=21000000.00000001", 0, true},   // above the supply cap
+        {"?amount=0.000000001", 0, true},         // finer than the base unit
+        {"?amount=1e3", 0, true},
+        {"?amount=-1", 0, true},
+        {"?amount=", 0, true},
+        {"?amount=.", 0, true},
     };
     for (auto &c : cases) {
         snprintf(u, sizeof(u), "%s%s", a, c.q);
-        TEST_ASSERT_EQUAL_UINT64_MESSAGE(c.v, amount_of(u), c.q);
+        AddressCheck r;
+        TEST_ASSERT_EQUAL(ADDR_OK, address_parse((const uint8_t *)u, strlen(u), &r));
+        TEST_ASSERT_EQUAL_UINT64_MESSAGE(c.v, r.amount, c.q);
+        TEST_ASSERT_EQUAL_MESSAGE(c.bad, r.amount_bad, c.q);
     }
 }
 
