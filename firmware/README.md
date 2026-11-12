@@ -4,20 +4,21 @@ Firmware for a stateless, camera-based Bitcoin signer on the Waveshare
 RP2350-Touch-LCD-2 (RP2350A, 16MB flash, 2" 240×320 touch screen, OV5640
 camera connector). The board has no Wi-Fi or Bluetooth hardware.
 
-Status: early. Seed loading, xpub export and PSBT review/signing work in the
-simulator; the board's camera driver isn't ported yet. Not for real funds.
+Status: early. Seed loading, new seeds with a SeedQR backup, xpub export and
+PSBT review/signing work in the simulator; the board's camera driver isn't ported yet. Not for real funds.
 
 ![Seed flow in the simulator](docs/screens/flow.png)
 ![Transaction flow in the simulator](docs/screens/flow_psbt.png)
 ![Verify address in the simulator](docs/screens/flow_verify.png)
+![New seed in the simulator](docs/screens/flow_new_seed.png)
 
 ## How it works
 
-Seeds come in only as a SeedQR (Standard or Compact, 12 or 24 words), the
-format SeedSigner uses; the UI just calls it a seed QR. There is no manual word entry and no passphrase yet.
+Seeds come in as a SeedQR (Standard or Compact, 12 or 24 words), the
+format SeedSigner uses; the UI just calls it a seed QR. There is no passphrase yet.
 The seed lives in RAM only: "Wipe seed" or unplugging removes it.
 
-1. Home: Scan SeedQR
+1. Home: Scan SeedQR, or Create new seed
 2. Seed loaded: shows the fingerprint to check against your wallet
 3. Wallet: Sign transaction, Verify address, Connect wallet, Wipe now
 4. Connect wallet: shows the native segwit xpub as `[fingerprint/84h/0h/0h]zpub…`, the
@@ -28,6 +29,22 @@ The seed lives in RAM only: "Wipe seed" or unplugging removes it.
 6. Sign transaction: scan a PSBT (animated UR `crypto-psbt`, or a single
    base64 frame), review the amount, fee and change, check each output's
    address, slide to sign, then show the signed PSBT as an animated UR
+
+Create new seed makes a 12 or 24 word seed from entropy the user supplies.
+The device has no RNG of any kind, not even in tests: every bit comes from
+the user and can be re-checked offline.
+
+- Dice: 50 or 99 rolls, Coins: 128 or 256 flips (heads = 1). The input string
+  is hashed with SHA256, same as SeedSigner and bitcoiner.guide/seed, so the
+  result can be checked there.
+- Enter words: words picked by the user. The keyboard only offers letters
+  that lead to a word; on the last word, only words with a valid checksum.
+
+The new seed is never shown as words. It goes straight to a SeedQR backup:
+pick Compact (21×21 / 25×25) or Standard (25×25 / 29×29), see the whole QR,
+then copy it onto a card one 5×5 block at a time, labelled with column
+letters and row numbers like the card's grid. Finally scan the card: only
+if it holds the same seed is the seed loaded. Leaving the flow wipes it.
 
 Review follows SeedSigner's rules: every input must belong to the loaded seed,
 change counts as change only if the seed re-derives that exact output script,

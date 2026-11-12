@@ -7,6 +7,9 @@
 //   Seed menu -> Sign transaction | Verify address | Connect wallet | Wipe
 //   Scan transaction -> Review -> each output -> Swipe to sign -> Signed QR
 //   Verify address -> scan address QR -> searching -> verified / not from this seed
+//   Home -> New seed (12/24 words) -> dice rolls | coin flips | enter words
+//        -> grid format -> offline warning -> whole SeedQR -> each 5x5 block
+//        -> scan the finished card -> Seed loaded
 
 enum UiScreen {
     UI_HOME,
@@ -23,6 +26,15 @@ enum UiScreen {
     UI_PSBT_SIGNED,
     UI_SCAN_ADDRESS,
     UI_VERIFY_RESULT,    // shows progress while searching, then the result
+    UI_NEW_SEED,         // 12/24 words and how to make the seed
+    UI_ENTROPY_DICE,
+    UI_ENTROPY_COINS,
+    UI_ENTER_WORDS,      // one screen per word
+    UI_BACKUP_FORMAT,    // Compact or Standard SeedQR
+    UI_BACKUP_WARNING,
+    UI_BACKUP_QR,        // the whole SeedQR
+    UI_BACKUP_BLOCK,     // one 5x5 block per screen
+    UI_BACKUP_SCAN,      // scan the hand-made card; must hold the new seed
 };
 
 void ui_build();               // shows the home screen
@@ -33,3 +45,7 @@ UiScreen ui_current();
 void ui_next_output();         // "Next" on an output screen
 bool ui_swipe_sign();          // completes the swipe; false if signing failed
 bool verify_done();            // the address check has a result
+void ui_new_seed(UiScreen method, int words);   // start a new seed: UI_ENTROPY_DICE, _COINS or UI_ENTER_WORDS
+void ui_entropy_input(char c); // a dice key ('1'..'6') or coin key ('1' heads, '0' tails)
+bool ui_enter_word(const char *word);           // tap the suggestion for this word
+void ui_backup_next();         // "Next block"

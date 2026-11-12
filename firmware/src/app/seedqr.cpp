@@ -43,6 +43,24 @@ static SeedQrResult decode_standard(const uint8_t *d, size_t len, SeedEntropy *o
     return ok ? SEEDQR_OK : SEEDQR_BAD_CHECKSUM;
 }
 
+size_t seedqr_standard_digits(const SeedEntropy &e, char out[97]) {
+    uint8_t bits[33] = {0};
+    memcpy(bits, e.bytes, e.len);
+    uint8_t hash[32];
+    sha256(e.bytes, e.len, hash);
+    bits[e.len] = hash[0];                         // checksum: first len/4 bits of the hash
+    const size_t words = e.len * 3 / 4;
+    for (size_t w = 0; w < words; w++) {
+        uint16_t idx = 0;
+        for (size_t b = w * 11; b < w * 11 + 11; b++) idx = uint16_t(idx << 1 | ((bits[b / 8] >> (7 - b % 8)) & 1));
+        for (int k = 3; k >= 0; k--, idx /= 10) out[w * 4 + k] = char('0' + idx % 10);
+    }
+    out[words * 4] = 0;
+    secure_zero(bits, sizeof(bits));
+    secure_zero(hash, sizeof(hash));
+    return words * 4;
+}
+
 SeedQrResult seedqr_decode(const uint8_t *data, size_t len, SeedEntropy *out) {
     memset(out, 0, sizeof(*out));
     if (len == 48 || len == 96) {

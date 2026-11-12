@@ -6,19 +6,23 @@
 #include <Conversion.h>   // fromBase64 (uBitcoin)
 #include "address_verify.h"
 #include "psbt_review.h"
+#include "seed_create.h"
 #include "qrscan.h"
 #include "seedqr.h"
 #include "theme.h"
 #include "ur.h"
 #include "wallet.h"
+#include "src/libs/qrcode/qrcodegen.h"
 
 using namespace th;
 
 static UiScreen current = UI_HOME;
+static bool fresh_backup;                // Seed loaded screen follows a checked backup
 
 static void show(lv_obj_t *scr) { lv_screen_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_IN, 120, 0, true); }
 static void go_cb(lv_event_t *e) { ui_goto((UiScreen)(intptr_t)lv_event_get_user_data(e)); }
 static void to_menu_cb(lv_event_t *) { ui_goto(UI_SEED_MENU); }
+static void to_home_cb(lv_event_t *) { ui_goto(UI_HOME); }
 #define GO(s) ((void *)(intptr_t)(s))
 
 static void place_bottom(lv_obj_t *o) { lv_obj_align(o, LV_ALIGN_BOTTOM_MID, 0, -M); }
@@ -54,9 +58,12 @@ static lv_obj_t *qr_card(lv_obj_t *parent, int y, lv_obj_t **qr_out) {
 // ---------------------------------------------------------------- home
 static void build_home() {
     lv_obj_t *scr = screen();
-    lv_obj_align(icon_badge(scr, ICON_QR, ACCENT, ACCENT_DIM, 76), LV_ALIGN_TOP_MID, 0, 40);
-    lv_obj_align(text(scr, "Signer", &inter_30_semi, TEXT), LV_ALIGN_TOP_MID, 0, 130);
-    lv_obj_align(para(scr, "Scan your seed QR to begin. Nothing is saved: unplug and it's gone."), LV_ALIGN_TOP_MID, 0, 172);
+    lv_obj_align(icon_badge(scr, ICON_QR, ACCENT, ACCENT_DIM, 76), LV_ALIGN_TOP_MID, 0, 28);
+    lv_obj_align(text(scr, "Signer", &inter_30_semi, TEXT), LV_ALIGN_TOP_MID, 0, 114);
+    lv_obj_align(para(scr, "Nothing is saved. Unplug and it's gone."), LV_ALIGN_TOP_MID, 0, 158);
+    lv_obj_t *create = btn_ghost(scr, "Create new seed", go_cb, GO(UI_NEW_SEED), TEXT);
+    lv_obj_set_style_bg_opa(create, LV_OPA_COVER, 0);
+    lv_obj_align(create, LV_ALIGN_BOTTOM_MID, 0, -M - 48 - 8);
     place_bottom(btn_primary(scr, ICON_CAMERA "   Scan QR", go_cb, GO(UI_SCAN_SEED)));
     show(scr);
 }
@@ -68,7 +75,7 @@ static uint8_t preview_buf[PREV_W * PREV_H];
 static lv_image_dsc_t preview_dsc;
 static lv_obj_t *preview_img, *scan_msg, *scan_sub, *scan_bar;
 static lv_timer_t *scan_timer;
-enum ScanMode { SCAN_SEED, SCAN_PSBT, SCAN_ADDRESS };
+enum ScanMode { SCAN_SEED, SCAN_PSBT, SCAN_ADDRESS, SCAN_CONFIRM };
 static ScanMode scan_mode;
 static AddressCheck check;
 static int qr_w, qr_h;
@@ -174,6 +181,8 @@ static void handle_address_payload(QrPayload &p) {
     else scan_status("Not an address", "Show the receive address QR", AMBER);
 }
 
+static void handle_confirm_payload(QrPayload &p);
+
 static void scan_tick(lv_timer_t *) {
     int w, h;
     const uint8_t *frame = platform_camera_frame(&w, &h);
@@ -191,6 +200,7 @@ static void scan_tick(lv_timer_t *) {
     if (!qrscan_frame(frame, &p)) return;
     if (scan_mode == SCAN_SEED) handle_seed_payload(p);
     else if (scan_mode == SCAN_PSBT) handle_psbt_payload(p);
+    else if (scan_mode == SCAN_CONFIRM) handle_confirm_payload(p);
     else handle_address_payload(p);
     memset(&p, 0, sizeof(p));
 }
@@ -198,7 +208,7 @@ static void scan_tick(lv_timer_t *) {
 static void scan_back_cb(lv_event_t *) {
     scan_stop();
     ur_decoder_reset(&ur_dec);
-    ui_goto(scan_mode == SCAN_SEED ? UI_HOME : UI_SEED_MENU);
+    ui_goto(scan_mode == SCAN_SEED ? UI_HOME : scan_mode == SCAN_CONFIRM ? UI_BACKUP_BLOCK : UI_SEED_MENU);
 }
 
 // Viewfinder corner brackets around the target area of the preview.
@@ -225,10 +235,11 @@ static void build_scan(ScanMode mode) {
     bool seed = mode == SCAN_SEED;
     if (mode == SCAN_PSBT) ur_decoder_reset(&ur_dec);
     lv_obj_t *scr = screen();
-    static const char *titles[] = {"Scan seed", "Scan transaction", "Verify address"};
-    static const char *prompts[] = {"Point at your seed QR", "Point at your wallet's QR", "Point at the address QR"};
+    static const char *titles[] = {"Scan seed", "Scan transaction", "Verify address", "Check card"};
+    static const char *prompts[] = {"Point at your seed QR", "Point at your wallet's QR", "Point at the address QR",
+                                    "Point at your new card"};
     static const char *hints[] = {"Hold it flat and well lit", "Sparrow, Nunchuk or any PSBT wallet",
-                                  "The receive address in your wallet"};
+                                  "The receive address in your wallet", "It must hold the seed you just made"};
     topbar(scr, titles[mode], scan_back_cb);
 
     preview_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
@@ -281,7 +292,7 @@ static lv_obj_t *quiet_link(lv_obj_t *parent, const char *s, lv_event_cb_t cb, v
 static void build_seed_loaded() {
     lv_obj_t *scr = screen();
     lv_obj_align(icon_badge(scr, ICON_CHECK, GREEN, GREEN_DIM, 52), LV_ALIGN_TOP_MID, 0, 28);
-    lv_obj_align(text(scr, "Seed loaded", &inter_22_semi, TEXT), LV_ALIGN_TOP_MID, 0, 92);
+    lv_obj_align(text(scr, fresh_backup ? "Backup checked" : "Seed loaded", &inter_22_semi, TEXT), LV_ALIGN_TOP_MID, 0, 92);
 
     // The fingerprint is what the user checks, so it gets the space.
     lv_obj_align(caption(scr, "FINGERPRINT"), LV_ALIGN_TOP_MID, 0, 138);
@@ -289,6 +300,8 @@ static void build_seed_loaded() {
     wallet_fingerprint_hex(fp);
     snprintf(spaced, sizeof(spaced), "%.4s %.4s", fp, fp + 4);
     lv_obj_align(text(scr, spaced, &mono_26, TEXT), LV_ALIGN_TOP_MID, 0, 156);
+    if (fresh_backup) lv_obj_align(para(scr, "Write it on your card.", &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, 194);
+    fresh_backup = false;
 
     place_bottom(btn_primary(scr, "Continue", go_cb, GO(UI_SEED_MENU)));
     show(scr);
@@ -364,6 +377,539 @@ static void build_wipe_confirm() {
     lv_obj_align(para(scr, msg), LV_ALIGN_TOP_MID, 0, 162);
     bottom_pair(btn_ghost(scr, "Cancel", go_cb, GO(UI_SEED_MENU), TEXT), btn_danger(scr, "Wipe", wipe_cb));
     show(scr);
+}
+
+// ---------------------------------------------------------------- new seed
+// Entropy only ever comes from the user (dice, coins or words they pick), see
+// seed_create.h. The new seed stays in `pending` until the user has copied it
+// onto a SeedQR card and the device has scanned that card back.
+static int new_words = 12;               // 12 or 24
+static char entropy_in[257];             // dice '1'..'6' or coins '1'/'0' so far
+static int entropy_n;
+static bool entropy_dice;
+static uint16_t word_idx[24];
+static int word_n;
+static char word_prefix[9];
+static uint8_t last_ok[256];             // bitmap: valid last words for word_idx
+static SeedEntropy pending;              // len 0: none
+static bool backup_compact = true;
+static uint8_t qr_buf[qrcodegen_BUFFER_LEN_FOR_VERSION(3)];   // the pending seed's SeedQR
+static int qr_n;                         // modules per side, 0: none
+static int block_i;
+
+static void secure_zero(void *p, size_t n) {
+    volatile uint8_t *v = (volatile uint8_t *)p;
+    while (n--) *v++ = 0;
+}
+
+static void new_seed_wipe() {
+    seedqr_wipe(&pending);
+    secure_zero(entropy_in, sizeof(entropy_in));
+    secure_zero(word_idx, sizeof(word_idx));
+    secure_zero(word_prefix, sizeof(word_prefix));
+    secure_zero(last_ok, sizeof(last_ok));
+    secure_zero(qr_buf, sizeof(qr_buf));
+    entropy_n = word_n = qr_n = block_i = 0;
+}
+
+void ui_new_seed(UiScreen method, int words) {
+    new_seed_wipe();
+    new_words = words == 24 ? 24 : 12;
+    ui_goto(method);
+}
+
+static void words_cb(lv_event_t *e) {
+    new_words = (int)(intptr_t)lv_event_get_user_data(e);
+    ui_goto(UI_NEW_SEED);
+}
+static void method_cb(lv_event_t *e) { ui_new_seed((UiScreen)(intptr_t)lv_event_get_user_data(e), new_words); }
+static void to_new_seed_cb(lv_event_t *) { ui_new_seed(UI_NEW_SEED, new_words); }
+
+// Two-way toggle, e.g. 12 / 24 words.
+static void segmented(lv_obj_t *parent, int y, const char *a, const char *b, bool a_on, lv_event_cb_t cb, void *ua,
+                      void *ub) {
+    lv_obj_t *seg = lv_obj_create(parent);
+    lv_obj_remove_style_all(seg);
+    lv_obj_set_size(seg, CW, 40);
+    lv_obj_set_style_radius(seg, 12, 0);
+    lv_obj_set_style_bg_color(seg, SURFACE_2, 0);
+    lv_obj_set_style_bg_opa(seg, LV_OPA_COVER, 0);
+    lv_obj_align(seg, LV_ALIGN_TOP_MID, 0, y);
+    for (int i = 0; i < 2; i++) {
+        bool on = i == 0 ? a_on : !a_on;
+        lv_obj_t *o = lv_button_create(seg);
+        lv_obj_remove_style_all(o);
+        lv_obj_set_size(o, (CW - 8) / 2, 32);
+        lv_obj_set_pos(o, 4 + i * (CW - 8) / 2, 4);
+        lv_obj_set_style_radius(o, 9, 0);
+        lv_obj_set_style_bg_color(o, ACCENT_DIM, 0);
+        lv_obj_set_style_bg_opa(o, on ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
+        lv_obj_add_event_cb(o, cb, LV_EVENT_CLICKED, i == 0 ? ua : ub);
+        lv_obj_center(text(o, i == 0 ? a : b, &inter_15, on ? ACCENT : TEXT_2));
+    }
+}
+
+static void build_new_seed() {
+    lv_obj_t *scr = screen();
+    topbar(scr, "New seed", to_home_cb);
+    segmented(scr, BAR + 4, "12 words", "24 words", new_words == 12, words_cb, (void *)12, (void *)24);
+
+    lv_obj_t *c = card(scr, CW, 3 * 62 + 2);
+    lv_obj_set_style_pad_all(c, 0, 0);
+    lv_obj_set_style_clip_corner(c, true, 0);
+    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 56);
+    char dice[24], coins[24];
+    snprintf(dice, sizeof(dice), "%d rolls of one die", seed_dice_rolls(new_words));
+    snprintf(coins, sizeof(coins), "%d coin flips", seed_coin_flips(new_words));
+    lv_obj_align(list_row(c, "6", "Dice rolls", dice, method_cb, GO(UI_ENTROPY_DICE)), LV_ALIGN_TOP_MID, 0, 0);
+    divider(c, 62);
+    lv_obj_align(list_row(c, "01", "Coin flips", coins, method_cb, GO(UI_ENTROPY_COINS)), LV_ALIGN_TOP_MID, 0, 63);
+    divider(c, 125);
+    lv_obj_align(list_row(c, "Aa", "Enter words", "Your own words", method_cb, GO(UI_ENTER_WORDS)),
+                 LV_ALIGN_TOP_MID, 0, 126);
+    lv_obj_align(text(scr, "No random numbers: you make it.", &inter_13, TEXT_3), LV_ALIGN_BOTTOM_MID, 0, -12);
+    show(scr);
+}
+
+// ---------------------------------------------------------------- dice / coins
+static lv_obj_t *ent_count, *ent_tail, *ent_bar;
+
+static int entropy_needed() { return entropy_dice ? seed_dice_rolls(new_words) : seed_coin_flips(new_words); }
+
+static void entropy_refresh() {
+    int need = entropy_needed();
+    lv_label_set_text_fmt(ent_count, "%d of %d", entropy_n, need);
+    lv_bar_set_value(ent_bar, entropy_n * 100 / need, LV_ANIM_OFF);
+    // The most recent entries, so a mistyped one is easy to spot and undo.
+    char t[40];
+    int show_n = entropy_dice ? 10 : 16, from = entropy_n > show_n ? entropy_n - show_n : 0, o = 0;
+    for (int i = from; i < entropy_n; i++) {
+        if (i > from && (entropy_dice || (i % 4) == 0)) t[o++] = ' ';
+        t[o++] = entropy_in[i];
+    }
+    t[o] = 0;
+    lv_label_set_text(ent_tail, t);
+    secure_zero(t, sizeof(t));
+}
+
+void ui_entropy_input(char c) {
+    if ((ui_current() != UI_ENTROPY_DICE && ui_current() != UI_ENTROPY_COINS) || entropy_n >= entropy_needed()) return;
+    entropy_in[entropy_n++] = c;
+    if (entropy_n < entropy_needed()) { entropy_refresh(); return; }
+    bool ok = entropy_dice ? seed_from_dice(entropy_in, entropy_n, new_words, &pending)
+                           : seed_from_coins(entropy_in, entropy_n, new_words, &pending);
+    secure_zero(entropy_in, sizeof(entropy_in));
+    entropy_n = 0;
+    ui_goto(ok ? UI_BACKUP_FORMAT : UI_NEW_SEED);
+}
+
+static void entropy_key_cb(lv_event_t *e) { ui_entropy_input((char)(intptr_t)lv_event_get_user_data(e)); }
+static void entropy_undo_cb(lv_event_t *) {
+    if (entropy_n) entropy_in[--entropy_n] = 0;
+    entropy_refresh();
+}
+
+static lv_obj_t *entropy_key(lv_obj_t *scr, int x, int y, int w, int h, const char *big, const char *small, char v) {
+    lv_obj_t *b = lv_button_create(scr);
+    lv_obj_remove_style_all(b);
+    lv_obj_set_size(b, w, h);
+    lv_obj_set_pos(b, x, y);
+    lv_obj_set_style_radius(b, 14, 0);
+    lv_obj_set_style_bg_color(b, SURFACE, 0);
+    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(b, BORDER, 0);
+    lv_obj_set_style_border_width(b, 1, 0);
+    lv_obj_set_style_bg_color(b, ACCENT_DIM, LV_STATE_PRESSED);
+    lv_obj_add_event_cb(b, entropy_key_cb, LV_EVENT_CLICKED, (void *)(intptr_t)v);
+    lv_obj_t *l = text(b, big, &mono_26, TEXT);
+    lv_obj_align(l, LV_ALIGN_CENTER, 0, small ? -10 : 0);
+    if (small) lv_obj_align(text(b, small, &inter_13, TEXT_3), LV_ALIGN_CENTER, 0, 20);
+    return b;
+}
+
+static void build_entropy(bool dice) {
+    entropy_dice = dice;
+    lv_obj_t *scr = screen();
+    topbar(scr, dice ? "Dice rolls" : "Coin flips", to_new_seed_cb);
+    ent_count = text(scr, "", &inter_22_semi, TEXT);
+    lv_obj_align(ent_count, LV_ALIGN_TOP_MID, 0, BAR + 2);
+    ent_bar = lv_bar_create(scr);
+    lv_obj_set_size(ent_bar, CW, 4);
+    lv_bar_set_range(ent_bar, 0, 100);
+    lv_obj_set_style_bg_color(ent_bar, SURFACE_2, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ent_bar, ACCENT, LV_PART_INDICATOR);
+    lv_obj_align(ent_bar, LV_ALIGN_TOP_MID, 0, BAR + 36);
+    ent_tail = text(scr, "", &mono_16, TEXT_2);
+    lv_obj_align(ent_tail, LV_ALIGN_TOP_MID, 0, BAR + 50);
+    lv_obj_align(text(scr, dice ? "Roll one die, tap what it shows" : "Flip a coin, tap what it shows", &inter_13,
+                      TEXT_3),
+                 LV_ALIGN_TOP_MID, 0, BAR + 76);
+
+    const int y0 = BAR + 104;
+    if (dice) {
+        static const char *faces[] = {"1", "2", "3", "4", "5", "6"};
+        const int kw = (CW - 16) / 3, kh = 56;
+        for (int i = 0; i < 6; i++)
+            entropy_key(scr, M + (i % 3) * (kw + 8), y0 + (i / 3) * (kh + 8), kw, kh, faces[i], nullptr, char('1' + i));
+    } else {
+        const int kw = (CW - 8) / 2;
+        entropy_key(scr, M, y0, kw, 120, "H", "Heads = 1", '1');
+        entropy_key(scr, M + kw + 8, y0, kw, 120, "T", "Tails = 0", '0');
+    }
+    lv_obj_align(quiet_link(scr, "Undo", entropy_undo_cb, nullptr), LV_ALIGN_BOTTOM_MID, 0, -8);
+    entropy_refresh();
+    show(scr);
+}
+
+// ---------------------------------------------------------------- enter words
+static lv_obj_t *word_field, *word_kb, *word_sugg[2];
+static int sugg_idx[2];
+static const char *kb_map[] = {"q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "\n",
+                               "a", "s", "d", "f", "g", "h", "j", "k", "l", "\n",
+                               "z", "x", "c", "v", "b", "n", "m", "Del", ""};
+
+static bool word_is_last() { return word_n == new_words - 1; }
+static bool word_allowed(int i) { return !word_is_last() || ((last_ok[i >> 3] >> (i & 7)) & 1); }
+
+// Words the user may pick with this prefix: count, and the first `max` of them.
+static int word_matches(const char *prefix, int *out, int max) {
+    int first, cnt = seed_words_with_prefix(prefix, &first), n = 0;
+    for (int i = first; cnt && i < first + cnt; i++) {
+        if (!word_allowed(i)) continue;
+        if (n < max) out[n] = i;
+        n++;
+    }
+    return n;
+}
+
+static void words_refresh() {
+    char f[16];
+    snprintf(f, sizeof(f), "%s_", word_prefix);
+    lv_label_set_text(word_field, f);
+    int n = word_prefix[0] ? word_matches(word_prefix, sugg_idx, 2) : 0;
+    for (int i = 0; i < 2; i++) {
+        if (i < n) {
+            lv_obj_remove_flag(word_sugg[i], LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text(lv_obj_get_child(word_sugg[i], 0), seed_word(sugg_idx[i]));
+        } else {
+            lv_obj_add_flag(word_sugg[i], LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    // Only letters that still lead to a word (on the last word: one with a valid checksum).
+    size_t l = strlen(word_prefix);
+    for (int b = 0; b < 26; b++) {
+        char p[10];
+        memcpy(p, word_prefix, l);
+        p[l] = lv_buttonmatrix_get_button_text(word_kb, b)[0];
+        p[l + 1] = 0;
+        bool ok = l + 1 < sizeof(word_prefix) && word_matches(p, nullptr, 0) > 0;
+        if (ok) lv_buttonmatrix_clear_button_ctrl(word_kb, b, LV_BUTTONMATRIX_CTRL_DISABLED);
+        else lv_buttonmatrix_set_button_ctrl(word_kb, b, LV_BUTTONMATRIX_CTRL_DISABLED);
+    }
+}
+
+static bool word_accept(int idx) {
+    if (idx < 0 || !word_allowed(idx)) return false;
+    word_idx[word_n++] = uint16_t(idx);
+    word_prefix[0] = 0;
+    if (word_n == new_words) {
+        bool ok = seed_from_words(word_idx, word_n, &pending);
+        secure_zero(word_idx, sizeof(word_idx));
+        word_n = 0;
+        ui_goto(ok ? UI_BACKUP_FORMAT : UI_NEW_SEED);
+        return ok;
+    }
+    if (word_is_last()) {
+        memset(last_ok, 0, sizeof(last_ok));
+        for (int i = 0; i < 2048; i++)
+            if (seed_last_word_ok(word_idx, new_words, uint16_t(i))) last_ok[i >> 3] |= 1 << (i & 7);
+    }
+    ui_goto(UI_ENTER_WORDS);
+    return true;
+}
+
+bool ui_enter_word(const char *w) {
+    int first;
+    if (ui_current() != UI_ENTER_WORDS || !seed_words_with_prefix(w, &first) || strcmp(seed_word(first), w)) return false;
+    return word_accept(first);
+}
+
+static void sugg_cb(lv_event_t *e) { word_accept(sugg_idx[(intptr_t)lv_event_get_user_data(e)]); }
+
+static void kb_cb(lv_event_t *e) {
+    uint32_t b = lv_buttonmatrix_get_selected_button(word_kb);
+    if (b == LV_BUTTONMATRIX_BUTTON_NONE) return;
+    size_t l = strlen(word_prefix);
+    if (b == 26) { if (l) word_prefix[l - 1] = 0; }
+    else if (l + 1 < sizeof(word_prefix)) { word_prefix[l] = lv_buttonmatrix_get_button_text(word_kb, b)[0]; word_prefix[l + 1] = 0; }
+    words_refresh();
+}
+
+static void words_back_cb(lv_event_t *) {
+    if (!word_n) { to_new_seed_cb(nullptr); return; }
+    word_idx[--word_n] = 0;
+    word_prefix[0] = 0;
+    ui_goto(UI_ENTER_WORDS);
+}
+
+static void build_enter_words() {
+    lv_obj_t *scr = screen();
+    char title[24];
+    snprintf(title, sizeof(title), "Word %d of %d", word_n + 1, new_words);
+    topbar(scr, title, words_back_cb);
+
+    lv_obj_t *f = card(scr, CW, 40);
+    lv_obj_set_style_pad_ver(f, 0, 0);
+    lv_obj_align(f, LV_ALIGN_TOP_MID, 0, BAR + 2);
+    word_field = text(f, "", &mono_22, TEXT, LV_TEXT_ALIGN_LEFT);
+    lv_obj_align(word_field, LV_ALIGN_LEFT_MID, 0, 0);
+    if (word_is_last()) lv_obj_align(text(f, "checksum", &inter_13, TEXT_3), LV_ALIGN_RIGHT_MID, 0, 0);
+
+    for (int i = 0; i < 2; i++) {
+        lv_obj_t *s = lv_button_create(scr);
+        lv_obj_remove_style_all(s);
+        lv_obj_set_size(s, (CW - 8) / 2, 40);
+        lv_obj_set_pos(s, M + i * ((CW - 8) / 2 + 8), BAR + 50);
+        lv_obj_set_style_radius(s, 12, 0);
+        lv_obj_set_style_bg_color(s, ACCENT_DIM, 0);
+        lv_obj_set_style_bg_opa(s, LV_OPA_COVER, 0);
+        lv_obj_set_style_bg_color(s, ACCENT, LV_STATE_PRESSED);
+        lv_obj_add_event_cb(s, sugg_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+        lv_obj_center(text(s, "", &inter_17_semi, ACCENT));
+        word_sugg[i] = s;
+    }
+
+    word_kb = lv_buttonmatrix_create(scr);
+    lv_buttonmatrix_set_map(word_kb, kb_map);
+    lv_obj_set_size(word_kb, W, 3 * 44 + 8);
+    lv_obj_align(word_kb, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_opa(word_kb, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(word_kb, 0, 0);
+    lv_obj_set_style_pad_all(word_kb, 4, 0);
+    lv_obj_set_style_pad_gap(word_kb, 3, 0);
+    lv_obj_set_style_bg_color(word_kb, SURFACE_2, LV_PART_ITEMS);
+    lv_obj_set_style_bg_opa(word_kb, LV_OPA_COVER, LV_PART_ITEMS);
+    lv_obj_set_style_radius(word_kb, 7, LV_PART_ITEMS);
+    lv_obj_set_style_border_width(word_kb, 0, LV_PART_ITEMS);
+    lv_obj_set_style_shadow_width(word_kb, 0, LV_PART_ITEMS);
+    lv_obj_set_style_text_font(word_kb, &inter_17_semi, LV_PART_ITEMS);
+    lv_obj_set_style_text_color(word_kb, TEXT, LV_PART_ITEMS);
+    lv_obj_set_style_bg_color(word_kb, ACCENT_DIM, LV_PART_ITEMS | LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(word_kb, LV_OPA_30, LV_PART_ITEMS | LV_STATE_DISABLED);
+    lv_obj_set_style_text_color(word_kb, TEXT_3, LV_PART_ITEMS | LV_STATE_DISABLED);
+    lv_buttonmatrix_set_button_width(word_kb, 26, 2);   // "Del" spans two keys
+    lv_obj_add_event_cb(word_kb, kb_cb, LV_EVENT_VALUE_CHANGED, nullptr);
+    words_refresh();
+    show(scr);
+}
+
+// ---------------------------------------------------------------- backup
+// Sizes per SeedQR spec: Standard 25x25 / 29x29, Compact 21x21 / 25x25 (ECC L).
+static int backup_size(bool compact) { return compact ? (new_words == 24 ? 25 : 21) : (new_words == 24 ? 29 : 25); }
+
+static bool backup_make_qr() {
+    static uint8_t tmp[sizeof(qr_buf)], seg_buf[sizeof(qr_buf)];
+    char digits[97];
+    qrcodegen_Segment seg;
+    if (backup_compact) seg = qrcodegen_makeBytes(pending.bytes, pending.len, seg_buf);
+    else seg = qrcodegen_makeNumeric((seedqr_standard_digits(pending, digits), digits), seg_buf);
+    bool ok = qrcodegen_encodeSegmentsAdvanced(&seg, 1, qrcodegen_Ecc_LOW, 1, 3, qrcodegen_Mask_AUTO, false, tmp, qr_buf);
+    secure_zero(tmp, sizeof(tmp));
+    secure_zero(seg_buf, sizeof(seg_buf));
+    secure_zero(digits, sizeof(digits));
+    qr_n = ok ? qrcodegen_getSize(qr_buf) : 0;
+    return ok && qr_n == backup_size(backup_compact);
+}
+
+static void format_cb(lv_event_t *e) {
+    backup_compact = lv_event_get_user_data(e) != nullptr;
+    ui_goto(UI_BACKUP_FORMAT);
+}
+
+static void build_backup_format() {
+    lv_obj_t *scr = screen();
+    topbar(scr, "Back up");
+    lv_obj_align(text(scr, "Copy it onto a SeedQR card", &inter_15, TEXT_2), LV_ALIGN_TOP_MID, 0, BAR + 4);
+
+    lv_obj_t *c = card(scr, CW, 2 * 62 + 1);
+    lv_obj_set_style_pad_all(c, 0, 0);
+    lv_obj_set_style_clip_corner(c, true, 0);
+    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 34);
+    char a[40], b[40];
+    snprintf(a, sizeof(a), "%dx%d  \xC2\xB7  fewest squares", backup_size(true), backup_size(true));
+    snprintf(b, sizeof(b), "%dx%d  \xC2\xB7  word numbers", backup_size(false), backup_size(false));
+    lv_obj_align(list_row(c, backup_compact ? ICON_CHECK : "", "Compact", a, format_cb, (void *)1), LV_ALIGN_TOP_MID, 0, 0);
+    divider(c, 62);
+    lv_obj_align(list_row(c, backup_compact ? "" : ICON_CHECK, "Standard", b, format_cb, nullptr), LV_ALIGN_TOP_MID, 0, 63);
+    lv_obj_align(text(scr, "Unplugging now loses this seed.", &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, BAR + 34 + 125 + 12);
+    bottom_pair(btn_ghost(scr, "Discard", to_new_seed_cb, nullptr, TEXT), btn_primary(scr, "Continue", go_cb, GO(UI_BACKUP_WARNING)));
+    show(scr);
+}
+
+static void build_backup_warning() {
+    lv_obj_t *scr = screen();
+    lv_obj_align(icon_badge(scr, ICON_WARNING, AMBER, AMBER_DIM, 64), LV_ALIGN_TOP_MID, 0, 36);
+    lv_obj_align(text(scr, "Keep it offline", &inter_22_semi, TEXT), LV_ALIGN_TOP_MID, 0, 118);
+    lv_obj_align(para(scr, "This QR is your private key. Never photograph it or scan it with a phone or anything "
+                           "that goes online."),
+                 LV_ALIGN_TOP_MID, 0, 154);
+    bottom_pair(btn_ghost(scr, "Back", go_cb, GO(UI_BACKUP_FORMAT), TEXT),
+                btn_primary(scr, "I understand", go_cb, GO(UI_BACKUP_QR)));
+    show(scr);
+}
+
+// Part of the SeedQR, drawn module by module: dark squares, light grid lines
+// (darker every 5 modules, like the lines on the paper card).
+struct GridView { int c0, r0, cols, rows, cell; bool minor; };
+static GridView whole_view, block_view;
+
+static void grid_draw_cb(lv_event_t *e) {
+    const GridView *g = (const GridView *)lv_event_get_user_data(e);
+    lv_layer_t *layer = lv_event_get_layer(e);
+    lv_area_t a;
+    lv_obj_get_coords((lv_obj_t *)lv_event_get_target(e), &a);
+    lv_draw_rect_dsc_t d;
+    lv_draw_rect_dsc_init(&d);
+    d.bg_opa = LV_OPA_COVER;
+    d.radius = 0;
+    auto rect = [&](int x1, int y1, int x2, int y2, lv_color_t c) {
+        lv_area_t r = {a.x1 + x1, a.y1 + y1, a.x1 + x2, a.y1 + y2};
+        d.bg_color = c;
+        lv_draw_rect(layer, &d, &r);
+    };
+    for (int r = 0; r < g->rows; r++)
+        for (int c = 0; c < g->cols; c++)
+            if (qrcodegen_getModule(qr_buf, g->c0 + c, g->r0 + r))
+                rect(c * g->cell, r * g->cell, (c + 1) * g->cell, (r + 1) * g->cell, lv_color_black());
+    const lv_color_t major = LV_COLOR_MAKE(0x9A, 0x96, 0x8E), minor = LV_COLOR_MAKE(0xD4, 0xD0, 0xC8);
+    for (int i = 0; i <= g->cols; i++) {
+        bool m = (g->c0 + i) % 5 == 0 || g->c0 + i == qr_n;
+        if (m || g->minor) rect(i * g->cell, 0, i * g->cell, g->rows * g->cell, m ? major : minor);
+    }
+    for (int i = 0; i <= g->rows; i++) {
+        bool m = (g->r0 + i) % 5 == 0 || g->r0 + i == qr_n;
+        if (m || g->minor) rect(0, i * g->cell, g->cols * g->cell, i * g->cell, m ? major : minor);
+    }
+}
+
+static lv_obj_t *grid(lv_obj_t *parent, GridView *g) {
+    lv_obj_t *o = lv_obj_create(parent);
+    lv_obj_remove_style_all(o);
+    lv_obj_set_size(o, g->cols * g->cell + 1, g->rows * g->cell + 1);
+    lv_obj_add_event_cb(o, grid_draw_cb, LV_EVENT_DRAW_MAIN, g);
+    return o;
+}
+
+static lv_obj_t *white_card(lv_obj_t *parent, int w, int h) {
+    lv_obj_t *c = lv_obj_create(parent);
+    lv_obj_remove_style_all(c);
+    lv_obj_set_size(c, w, h);
+    lv_obj_set_style_bg_color(c, LV_COLOR_MAKE(0xF6, 0xF3, 0xEC), 0);
+    lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(c, 14, 0);
+    return c;
+}
+
+static void to_format_cb(lv_event_t *) { ui_goto(UI_BACKUP_FORMAT); }
+static void to_whole_qr_cb(lv_event_t *) { ui_goto(UI_BACKUP_QR); }
+
+static int blocks_per_side() { return (qr_n + 4) / 5; }
+
+static void block_start_cb(lv_event_t *) { block_i = 0; ui_goto(UI_BACKUP_BLOCK); }
+
+static void build_backup_qr() {
+    if (!backup_make_qr()) { ui_new_seed(UI_NEW_SEED, new_words); return; }
+    lv_obj_t *scr = screen();
+    char title[32];
+    snprintf(title, sizeof(title), "%s %dx%d", backup_compact ? "Compact" : "Standard", qr_n, qr_n);
+    topbar(scr, title, to_format_cb);
+    const int cell = 180 / qr_n;
+    whole_view = {0, 0, qr_n, qr_n, cell, false};
+    lv_obj_t *c = white_card(scr, qr_n * cell + 17, qr_n * cell + 17);
+    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 2);
+    lv_obj_center(grid(c, &whole_view));
+    char b[32];
+    snprintf(b, sizeof(b), "Copy %d blocks", blocks_per_side() * blocks_per_side());
+    place_bottom(btn_primary(scr, b, block_start_cb));
+    show(scr);
+}
+
+static void col_label(int col, char out[4]) {
+    if (col < 26) snprintf(out, 4, "%c", 'A' + col);
+    else snprintf(out, 4, "A%c", 'A' + col - 26);
+}
+
+void ui_backup_next() {
+    int n = blocks_per_side() * blocks_per_side();
+    if (block_i + 1 < n) { block_i++; ui_goto(UI_BACKUP_BLOCK); }
+    else ui_goto(UI_BACKUP_SCAN);
+}
+static void block_next_cb(lv_event_t *) { ui_backup_next(); }
+static void block_prev_cb(lv_event_t *) {
+    if (block_i > 0) { block_i--; ui_goto(UI_BACKUP_BLOCK); }
+    else ui_goto(UI_BACKUP_QR);
+}
+static void block_gesture_cb(lv_event_t *) {
+    lv_dir_t d = lv_indev_get_gesture_dir(lv_indev_active());
+    if (d == LV_DIR_LEFT) ui_backup_next();
+    else if (d == LV_DIR_RIGHT) block_prev_cb(nullptr);
+}
+
+// One 5x5 block at a time, labelled with the card's column letters and row numbers.
+static void build_backup_block() {
+    lv_obj_t *scr = screen();
+    int bs = blocks_per_side(), n = bs * bs;
+    char title[32];
+    snprintf(title, sizeof(title), "Block %d of %d", block_i + 1, n);
+    topbar(scr, title, to_whole_qr_cb);
+
+    const int cell = 32;
+    int c0 = (block_i % bs) * 5, r0 = (block_i / bs) * 5;
+    block_view = {c0, r0, qr_n - c0 < 5 ? qr_n - c0 : 5, qr_n - r0 < 5 ? qr_n - r0 : 5, cell, true};
+    lv_obj_t *c = white_card(scr, CW, 5 * cell + 36);
+    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 2);
+    const int gx = 30, gy = 24;
+    lv_obj_set_pos(grid(c, &block_view), gx, gy);
+    const lv_color_t lab = LV_COLOR_MAKE(0x6E, 0x6A, 0x62);
+    for (int i = 0; i < block_view.cols; i++) {
+        char l[4];
+        col_label(c0 + i, l);
+        lv_obj_t *t = text(c, l, &inter_13, lab);
+        lv_obj_set_width(t, cell);
+        lv_obj_set_pos(t, gx + i * cell, 4);
+    }
+    for (int i = 0; i < block_view.rows; i++) {
+        char l[12];
+        snprintf(l, sizeof(l), "%d", r0 + i + 1);
+        lv_obj_t *t = text(c, l, &inter_13, lab, LV_TEXT_ALIGN_RIGHT);
+        lv_obj_set_width(t, 22);
+        lv_obj_set_pos(t, 2, gy + i * cell + cell / 2 - 8);
+    }
+    lv_obj_add_event_cb(scr, block_gesture_cb, LV_EVENT_GESTURE, nullptr);
+    bottom_pair(btn_ghost(scr, ICON_LEFT, block_prev_cb, nullptr, TEXT),
+                btn_primary(scr, block_i + 1 < n ? "Next block" : "Check card", block_next_cb));
+    show(scr);
+}
+
+static void handle_confirm_payload(QrPayload &p) {
+    SeedEntropy e;
+    SeedQrResult r = seedqr_decode(p.data, p.len, &e);
+    memset(&p, 0, sizeof(p));
+    bool same = r == SEEDQR_OK && e.len == pending.len && memcmp(e.bytes, pending.bytes, e.len) == 0;
+    seedqr_wipe(&e);
+    if (same) {
+        scan_stop();
+        scan_status("Loading seed" "\xE2\x80\xA6", "This takes a few seconds", TEXT);
+        lv_refr_now(nullptr);
+        bool ok = wallet_load(pending);
+        new_seed_wipe();
+        fresh_backup = ok;
+        ui_goto(ok ? UI_SEED_LOADED : UI_HOME);
+        return;
+    }
+    if (r == SEEDQR_OK) scan_status("Wrong seed", "This card holds a different seed", RED);
+    else if (r == SEEDQR_BAD_CHECKSUM || r == SEEDQR_BAD_WORD_INDEX) scan_status("Damaged QR", "Check the squares again", RED);
+    else scan_status("No seed found", "Some squares are probably off", AMBER);
 }
 
 // ---------------------------------------------------------------- transaction
@@ -676,13 +1222,24 @@ static void build_verify() {
 }
 
 // ---------------------------------------------------------------- navigation
+static bool new_seed_screen(UiScreen s) {
+    return s == UI_NEW_SEED || s == UI_ENTROPY_DICE || s == UI_ENTROPY_COINS || s == UI_ENTER_WORDS ||
+           s == UI_BACKUP_FORMAT || s == UI_BACKUP_WARNING || s == UI_BACKUP_QR || s == UI_BACKUP_BLOCK ||
+           s == UI_BACKUP_SCAN;
+}
+
 void ui_goto(UiScreen s) {
-    if (s != UI_SCAN_SEED && s != UI_SCAN_PSBT && s != UI_SCAN_ADDRESS) scan_stop();
+    if (s != UI_SCAN_SEED && s != UI_SCAN_PSBT && s != UI_SCAN_ADDRESS && s != UI_BACKUP_SCAN) scan_stop();
+    // The new seed lives only inside its own flow: leaving it wipes everything.
+    if (!new_seed_screen(s)) new_seed_wipe();
+    bool needs_pending = s == UI_BACKUP_FORMAT || s == UI_BACKUP_WARNING || s == UI_BACKUP_QR;
+    bool needs_qr = s == UI_BACKUP_BLOCK || s == UI_BACKUP_SCAN;
+    if ((needs_pending && !pending.len) || (needs_qr && (!pending.len || !qr_n))) { new_seed_wipe(); s = UI_HOME; }
     if (s != UI_VERIFY_RESULT && verify_timer) { lv_timer_delete(verify_timer); verify_timer = nullptr; }
     if (s != UI_PSBT_SIGNED && anim_timer) { lv_timer_delete(anim_timer); anim_timer = nullptr; }
-    bool needs_seed = s != UI_HOME && s != UI_SCAN_SEED;
-    if (needs_seed && !wallet_has_seed()) s = UI_HOME;
-    if ((s == UI_HOME || s == UI_SCAN_SEED) && wallet_has_seed()) s = UI_SEED_MENU;
+    bool no_seed_yet = s == UI_HOME || s == UI_SCAN_SEED || new_seed_screen(s);
+    if (!no_seed_yet && !wallet_has_seed()) s = UI_HOME;
+    if (no_seed_yet && wallet_has_seed()) { new_seed_wipe(); s = UI_SEED_MENU; }
     current = s;
     switch (s) {
         case UI_HOME: build_home(); break;
@@ -699,6 +1256,15 @@ void ui_goto(UiScreen s) {
         case UI_PSBT_OUTPUT: build_psbt_output(); break;
         case UI_PSBT_SIGN: build_psbt_sign(); break;
         case UI_PSBT_SIGNED: build_psbt_signed(); break;
+        case UI_NEW_SEED: build_new_seed(); break;
+        case UI_ENTROPY_DICE: build_entropy(true); break;
+        case UI_ENTROPY_COINS: build_entropy(false); break;
+        case UI_ENTER_WORDS: build_enter_words(); break;
+        case UI_BACKUP_FORMAT: build_backup_format(); break;
+        case UI_BACKUP_WARNING: build_backup_warning(); break;
+        case UI_BACKUP_QR: build_backup_qr(); break;
+        case UI_BACKUP_BLOCK: build_backup_block(); break;
+        case UI_BACKUP_SCAN: build_scan(SCAN_CONFIRM); break;
     }
 }
 

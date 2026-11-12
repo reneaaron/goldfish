@@ -19,6 +19,7 @@
 #include "../app/ui.h"
 #include "../app/wallet.h"
 #include "../app/address_verify.h"
+#include "../app/seed_create.h"
 #include "src/libs/qrcode/qrcodegen.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -66,6 +67,21 @@ static void cam_show_qr(const char *text) {
     if (!qrcodegen_encodeText(text, tmp, qr, qrcodegen_Ecc_LOW, qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX,
                               qrcodegen_Mask_AUTO, true))
         return;
+    int n = qrcodegen_getSize(qr), scale = 200 / (n + 8);
+    int ox = (CAM_W - n * scale) / 2, oy = (CAM_H - n * scale) / 2;
+    memset(cam_frame, 235, sizeof(cam_frame));
+    for (int y = 0; y < n * scale; y++)
+        for (int x = 0; x < n * scale; x++)
+            cam_frame[(oy + y) * CAM_W + ox + x] = qrcodegen_getModule(qr, x / scale, y / scale) ? 20 : 235;
+    cam_ok = true;
+    cam_override = true;
+}
+
+// Script helper: show a hand-made card, i.e. a Compact SeedQR of `e`.
+static void cam_show_seedqr(const SeedEntropy &e) {
+    static uint8_t qr[qrcodegen_BUFFER_LEN_MAX], tmp[qrcodegen_BUFFER_LEN_MAX], buf[qrcodegen_BUFFER_LEN_MAX];
+    qrcodegen_Segment seg = qrcodegen_makeBytes(e.bytes, e.len, buf);
+    if (!qrcodegen_encodeSegmentsAdvanced(&seg, 1, qrcodegen_Ecc_LOW, 1, 40, qrcodegen_Mask_AUTO, false, tmp, qr)) return;
     int n = qrcodegen_getSize(qr), scale = 200 / (n + 8);
     int ox = (CAM_W - n * scale) / 2, oy = (CAM_H - n * scale) / 2;
     memset(cam_frame, 235, sizeof(cam_frame));
@@ -170,6 +186,52 @@ static int run_shots(const char *dir) {
     cam_show_qr("tb1q6rz28mcfaxtmd6v789l9rrlrusdprr9pqcpvkl");   // "abandon" seed, not ours
     for (int i = 0; i < 400 && !(ui_current() == UI_VERIFY_RESULT && verify_done()); i++) pump(30);
     pump(300); save(dir, "14_verify_not_found");
+
+    // New seed from 50 dice rolls (SeedSigner's test vector), backed up as a
+    // Compact SeedQR and checked by scanning the "card".
+    wallet_wipe();
+    cam_override = false;
+    ui_goto(UI_NEW_SEED); pump(300); save(dir, "15_new_seed");
+    const char *rolls = "12345612345612345612345612345612345612345612345612";
+    ui_new_seed(UI_ENTROPY_DICE, 12);
+    for (int i = 0; i < 23; i++) ui_entropy_input(rolls[i]);
+    pump(300); save(dir, "16_dice");
+    for (int i = 23; i < 50; i++) ui_entropy_input(rolls[i]);
+    if (ui_current() != UI_BACKUP_FORMAT) { fprintf(stderr, "dice did not make a seed\n"); return 1; }
+    pump(300); save(dir, "17_backup_format");
+    ui_goto(UI_BACKUP_WARNING); pump(300); save(dir, "18_backup_warning");
+    ui_goto(UI_BACKUP_QR);      pump(300); save(dir, "19_backup_qr");
+    ui_goto(UI_BACKUP_BLOCK);   pump(300); save(dir, "20_backup_block_1");
+    ui_backup_next();           pump(300); save(dir, "21_backup_block_2");
+    while (ui_current() == UI_BACKUP_BLOCK) ui_backup_next();
+    if (ui_current() != UI_BACKUP_SCAN) { fprintf(stderr, "no card check after the last block\n"); return 1; }
+    setenv("SIM_CAMERA", "sim/samples/vector4_compact_12word.png", 1);   // somebody else's seed
+    for (int i = 0; i < 40; i++) pump(50);
+    save(dir, "22_check_wrong_card");
+    SeedEntropy e;
+    seed_from_dice(rolls, 50, 12, &e);
+    cam_show_seedqr(e);
+    seedqr_wipe(&e);
+    for (int i = 0; i < 100 && ui_current() == UI_BACKUP_SCAN; i++) pump(50);
+    if (ui_current() != UI_SEED_LOADED) { fprintf(stderr, "card check failed (screen %d)\n", ui_current()); return 1; }
+    pump(300); save(dir, "23_backup_checked");
+    char fp[9];
+    wallet_fingerprint_hex(fp);
+    printf("dice seed fingerprint %s\n", fp);
+
+    // Coin flips and entered words, up to the backup.
+    wallet_wipe();
+    cam_override = false;
+    ui_new_seed(UI_ENTROPY_COINS, 12);
+    for (int i = 0; i < 37; i++) ui_entropy_input("1101"[i % 4]);
+    pump(300); save(dir, "24_coins");
+    ui_new_seed(UI_ENTER_WORDS, 12);
+    const char *words[] = {"crew", "marble", "private", "differ", "race", "truly", "blush", "basket", "crater", "affair", "prepare"};
+    for (const char *w : words)
+        if (!ui_enter_word(w)) { fprintf(stderr, "word %s refused\n", w); return 1; }
+    pump(300); save(dir, "25_words_last");
+    if (ui_enter_word("zoo")) { fprintf(stderr, "invalid last word accepted\n"); return 1; }
+    if (!ui_enter_word("unique") || ui_current() != UI_BACKUP_FORMAT) { fprintf(stderr, "words did not make a seed\n"); return 1; }
     return 0;
 }
 

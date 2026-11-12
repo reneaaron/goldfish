@@ -2,7 +2,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// SeedQR decoding (https://github.com/SeedSigner/seedsigner/blob/dev/docs/seed_qr/README.md)
+// SeedQR encoding and decoding (https://github.com/SeedSigner/seedsigner/blob/dev/docs/seed_qr/README.md)
 //
 // Standard SeedQR: numeric QR, each BIP39 word as its 4-digit index (0000-2047),
 //                  48 digits for 12 words, 96 for 24.
@@ -29,5 +29,9 @@ SeedQrResult seedqr_decode(const uint8_t *data, size_t len, SeedEntropy *out);
 
 // Number of BIP39 words for the decoded entropy (12 or 24).
 inline int seedqr_word_count(const SeedEntropy &e) { return int(e.len * 3 / 4); }
+
+// Standard SeedQR payload for `e`: each word's index as 4 digits, NUL-terminated.
+// Returns 48 or 96. The Compact payload is e.bytes itself.
+size_t seedqr_standard_digits(const SeedEntropy &e, char out[97]);
 
 void seedqr_wipe(SeedEntropy *e);
