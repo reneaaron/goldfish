@@ -432,9 +432,6 @@ static void build_psbt_overview() {
     lv_obj_align(cl, LV_ALIGN_TOP_MID, 0, BAR + 12);
     lv_obj_align(amount(scr, headline, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 32);
     char s[32], b[48];
-    fmt_sats(headline, s, sizeof(s));
-    snprintf(b, sizeof(b), "%s sats", s);
-    lv_obj_align(text(scr, b, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, BAR + 64);
 
     lv_obj_t *c = card(scr, CW, 112);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 92);
@@ -442,14 +439,12 @@ static void build_psbt_overview() {
     snprintf(b, sizeof(b), "%d", nrec);
     kv(c, 0, nrec == 1 ? "Recipient" : "Recipients", b);
     divider(c, 26);
-    fmt_sats(review.fee, s, sizeof(s));
-    snprintf(b, sizeof(b), "%s sats", s);
+    fmt_btc(review.fee, b, sizeof(b));
     kv(c, 34, "Network fee", b);
     divider(c, 60);
     if (review.change) {
-        char btc[32];
-        fmt_btc_grouped(review.change, btc, sizeof(btc));
-        snprintf(b, sizeof(b), ICON_CHECK " %s", btc);
+        fmt_btc(review.change, s, sizeof(s));
+        snprintf(b, sizeof(b), ICON_CHECK " %s", s);
         kv(c, 68, "Change", b, GREEN);
     } else {
         kv(c, 68, "Change", "None", TEXT_3);
@@ -503,7 +498,7 @@ static void build_psbt_output() {
     lv_obj_align(amount(scr, o.amount, ours ? GREEN : TEXT), LV_ALIGN_TOP_MID, 0, BAR + 36);
 
     lv_obj_t *c = card(scr, CW, ours ? 112 : 96);
-    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 84);
+    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 90);
     lv_obj_align(caption(c, "ADDRESS"), LV_ALIGN_TOP_LEFT, 0, 0);
     address_chunks(c, o.address);
     if (ours) {
@@ -560,17 +555,32 @@ static void build_psbt_sign() {
         lv_obj_align(t, LV_ALIGN_TOP_MID, 0, BAR - 2);
     }
 
-    lv_obj_t *c = card(scr, CW, 106);
-    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 18);
     uint64_t send = review.spend ? review.spend : review.self;
-    char b[32];
-    fmt_btc_grouped(send, b, sizeof(b));
-    kv(c, 0, review.spend ? "Send" : "Move", b, TEXT, &mono_16);
-    fmt_btc_grouped(review.fee, b, sizeof(b));
-    kv(c, 28, "Fee", b, TEXT_2, &mono_16);
-    divider(c, 56);
-    fmt_btc_grouped(send + review.fee, b, sizeof(b));
-    kv(c, 64, "Total", b, ACCENT, &mono_16);
+    const char *keys[3] = {review.spend ? "Send" : "Move", "Fee", "Total"};
+    const lv_color_t colors[3] = {TEXT, TEXT_2, ACCENT};
+    char vals[3][40];
+    fmt_btc(send, vals[0], sizeof(vals[0]));
+    fmt_btc(review.fee, vals[1], sizeof(vals[1]));
+    fmt_btc(send + review.fee, vals[2], sizeof(vals[2]));
+    // One font for all three so the digits line up. Total is the longest; if it
+    // can't sit beside its key even small (a million BTC and up), each value
+    // goes under its key instead.
+    const lv_font_t *f = fit(vals[2], kv_room("Total"), {&mono_16, &inter_15, &inter_13});
+    bool beside = f != nullptr;
+    if (!beside) f = fit(vals[2], CW - 2 * 14, {&mono_16, &inter_15, &inter_13});
+    int row = beside ? 28 : 36, card_h = beside ? 106 : 138;
+    lv_obj_t *c = card(scr, CW, card_h);
+    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 18);
+    for (int i = 0; i < 3; i++) {
+        int y = i * row + (i == 2 ? 8 : 0);
+        if (beside) {
+            kv(c, y, keys[i], vals[i], colors[i], f);
+        } else {
+            lv_obj_align(text(c, keys[i], &inter_13, TEXT_2, LV_TEXT_ALIGN_LEFT), LV_ALIGN_TOP_LEFT, 0, y);
+            lv_obj_align(text(c, vals[i], f ? f : &inter_13, colors[i], LV_TEXT_ALIGN_RIGHT), LV_ALIGN_TOP_RIGHT, 0, y + 15);
+        }
+    }
+    divider(c, 2 * row);
 
     lv_obj_t *sl = lv_slider_create(scr);
     lv_obj_remove_style_all(sl);
@@ -592,7 +602,7 @@ static void build_psbt_sign() {
     lv_obj_set_style_text_color(sl, LV_COLOR_MAKE(0x14, 0x0C, 0x02), LV_PART_KNOB);
     lv_obj_add_event_cb(sl, swipe_cb, LV_EVENT_RELEASED, nullptr);
     lv_obj_add_event_cb(sl, swipe_cb, LV_EVENT_VALUE_CHANGED, nullptr);
-    lv_obj_align(sl, LV_ALIGN_TOP_MID, 0, BAR + 18 + 106 + 18);
+    lv_obj_align(sl, LV_ALIGN_TOP_MID, 0, BAR + 18 + card_h + 18);
     swipe_hint = text(sl, "Slide to sign", &inter_15, TEXT_2);
     lv_obj_align(swipe_hint, LV_ALIGN_CENTER, 14, 0);
 
@@ -655,10 +665,15 @@ static void verify_tick(lv_timer_t *) {
     }
 }
 
-static lv_obj_t *address_card(lv_obj_t *scr, int y, const char *addr) {
+static lv_obj_t *address_card(lv_obj_t *scr, int y, const char *addr, uint64_t amount = 0) {
     lv_obj_t *c = card(scr, CW, 96);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, y);
-    lv_obj_align(caption(c, "ADDRESS"), LV_ALIGN_TOP_LEFT, 0, 0);
+    char b[40] = "";
+    if (amount) fmt_btc(amount, b, sizeof(b));   // requested in the URI
+    // A long amount takes the caption's room rather than run into it.
+    if (lv_text_get_width(b, strlen(b), &inter_13, 0) <= CW - 2 * 14 - 80)
+        lv_obj_align(caption(c, "ADDRESS"), LV_ALIGN_TOP_LEFT, 0, 0);
+    if (amount) lv_obj_align(text(c, b, &inter_13, TEXT_2, LV_TEXT_ALIGN_RIGHT), LV_ALIGN_TOP_RIGHT, 0, -1);
     address_chunks(c, addr);
     return c;
 }
@@ -670,7 +685,7 @@ static void build_verify() {
     if (check.status == VERIFY_SEARCHING) {
         topbar(scr, "Verify address");
         lv_obj_align(text(scr, "Checking" "\xE2\x80\xA6", &inter_22_semi, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 12);
-        address_card(scr, BAR + 52, check.address);
+        address_card(scr, BAR + 52, check.address, check.amount);
         verify_bar = lv_bar_create(scr);
         lv_obj_set_size(verify_bar, CW, 6);
         lv_bar_set_range(verify_bar, 0, 100);
@@ -694,12 +709,12 @@ static void build_verify() {
         snprintf(tag, sizeof(tag), ICON_CHECK "  %s #%d%s", check.chain ? "CHANGE" : "RECEIVE", check.index,
                  check.testnet ? "  \xC2\xB7  TESTNET" : "");
         lv_obj_align(chip(scr, tag, GREEN, GREEN_DIM), LV_ALIGN_TOP_MID, 0, 104);
-        address_card(scr, 140, check.address);
+        address_card(scr, 140, check.address, check.amount);
     } else {
         char m[96];
         snprintf(m, sizeof(m), "Checked %d addresses. Don't send here unless you're sure.", check.total);
         lv_obj_align(para(scr, m, &inter_13, TEXT_2), LV_ALIGN_TOP_MID, 0, 100);
-        address_card(scr, 146, check.address);
+        address_card(scr, 146, check.address, check.amount);
     }
     bottom_pair(btn_ghost(scr, "Scan", go_cb, GO(UI_SCAN_ADDRESS), TEXT), btn_primary(scr, "Done", to_menu_cb));
     show(scr);

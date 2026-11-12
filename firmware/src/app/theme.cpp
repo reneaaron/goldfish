@@ -1,4 +1,5 @@
 #include "theme.h"
+#include <initializer_list>
 #include <stdio.h>
 #include <string.h>
 
@@ -151,10 +152,20 @@ lv_obj_t *icon_badge(lv_obj_t *parent, const char *icon, lv_color_t fg, lv_color
     return c;
 }
 
+int kv_room(const char *k) { return CW - 2 * 14 - lv_text_get_width(k, strlen(k), &inter_15, 0) - 10; }
+
+const lv_font_t *fit(const char *s, int w, std::initializer_list<const lv_font_t *> fonts) {
+    for (const lv_font_t *f : fonts)
+        if (lv_text_get_width(s, strlen(s), f, 0) <= w) return f;
+    return nullptr;
+}
+
 void kv(lv_obj_t *c, int y, const char *k, const char *v, lv_color_t vc, const lv_font_t *vf) {
     lv_obj_t *kl = text(c, k, &inter_15, TEXT_2, LV_TEXT_ALIGN_LEFT);
     lv_obj_align(kl, LV_ALIGN_TOP_LEFT, 0, y);
-    lv_obj_t *vl = text(c, v, vf, vc, LV_TEXT_ALIGN_RIGHT);
+    // Shrink a long value (a big amount) rather than let it run into the key.
+    const lv_font_t *f = fit(v, kv_room(k), {vf, &inter_15, &inter_13});
+    lv_obj_t *vl = text(c, v, f ? f : &inter_13, vc, LV_TEXT_ALIGN_RIGHT);
     lv_obj_align(vl, LV_ALIGN_TOP_RIGHT, 0, y);
 }
 
@@ -167,37 +178,48 @@ void divider(lv_obj_t *c, int y) {
     lv_obj_align(d, LV_ALIGN_TOP_LEFT, 0, y);
 }
 
-void fmt_btc_grouped(uint64_t sats, char *out, size_t cap) {
-    unsigned long long whole = sats / 100000000ull, frac = sats % 100000000ull;
-    char f[9];
-    snprintf(f, sizeof(f), "%08llu", frac);
-    snprintf(out, cap, "%llu.%.2s %.3s %.3s", whole, f, f + 2, f + 5);
-}
-
-void fmt_sats(uint64_t sats, char *out, size_t cap) {
+// "24,857"
+static size_t group(unsigned long long v, char *out, size_t cap) {
     char raw[24];
-    snprintf(raw, sizeof(raw), "%llu", (unsigned long long)sats);
+    snprintf(raw, sizeof(raw), "%llu", v);
     size_t n = strlen(raw), o = 0;
     for (size_t i = 0; i < n && o + 2 < cap; i++) {
         if (i && (n - i) % 3 == 0) out[o++] = ',';
         out[o++] = raw[i];
     }
     out[o] = 0;
+    return o;
 }
 
-lv_obj_t *amount(lv_obj_t *parent, uint64_t sats, lv_color_t c) {
-    lv_obj_t *row = lv_obj_create(parent);
-    plain(row);
-    lv_obj_set_size(row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
-    lv_obj_set_style_pad_column(row, 6, 0);
-    char b[32];
-    fmt_btc_grouped(sats, b, sizeof(b));
-    text(row, b, &mono_22, c);
-    lv_obj_t *u = text(row, "BTC", &inter_15, TEXT_2);
-    lv_obj_set_style_pad_bottom(u, 3, 0);
-    return row;
+void fmt_btc(uint64_t v, char *out, size_t cap) {
+    size_t o = snprintf(out, cap, "\xE2\x82\xBF");   // U+20BF
+    group(v, out + o, cap - o);
+}
+
+void fmt_btc_legacy(uint64_t v, char *out, size_t cap) {
+    size_t o = group(v / 100000000ull, out, cap);
+    char f[9];
+    snprintf(f, sizeof(f), "%08llu", (unsigned long long)(v % 100000000ull));
+    int n = 8;
+    while (n && f[n - 1] == '0') n--;
+    if (n) snprintf(out + o, cap - o, ".%.*s BTC", n, f);
+    else snprintf(out + o, cap - o, " BTC");
+}
+
+lv_obj_t *amount(lv_obj_t *parent, uint64_t v, lv_color_t c) {
+    lv_obj_t *col = lv_obj_create(parent);
+    plain(col);
+    lv_obj_set_size(col, CW, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(col, 2, 0);
+    char b[40];
+    fmt_btc(v, b, sizeof(b));
+    const lv_font_t *f = fit(b, CW, {&mono_22, &mono_16, &inter_15});
+    text(col, b, f ? f : &inter_13, c);
+    fmt_btc_legacy(v, b, sizeof(b));
+    text(col, b, &inter_13, TEXT_3);
+    return col;
 }
 
 lv_obj_t *list_row(lv_obj_t *parent, const char *icon, const char *title, const char *sub, lv_event_cb_t cb,

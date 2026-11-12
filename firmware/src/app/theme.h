@@ -1,4 +1,5 @@
 #pragma once
+#include <initializer_list>
 // Visual system for the 240x320 screen: colour tokens, fonts and the few
 // components every screen is built from. Layout grid: 16px side margins,
 // 208px content width, 48px top bar, primary action pinned 16px from the bottom.
@@ -57,10 +58,15 @@ lv_obj_t *icon_badge(lv_obj_t *parent, const char *icon, lv_color_t fg, lv_color
 void kv(lv_obj_t *card, int y, const char *k, const char *v, lv_color_t vc = TEXT,
         const lv_font_t *vf = &inter_15);
 void divider(lv_obj_t *card, int y);
-// Bitcoin amount in mono with a small "BTC" suffix; returns the row container.
-lv_obj_t *amount(lv_obj_t *parent, uint64_t sats, lv_color_t c = TEXT);
-void fmt_btc_grouped(uint64_t sats, char *out, size_t cap);   // "0.00 024 857"
-void fmt_sats(uint64_t sats, char *out, size_t cap);          // "24,857"
+int kv_room(const char *k);   // width left for a kv() value beside key k
+// First font in which s fits into w pixels, nullptr if none does.
+const lv_font_t *fit(const char *s, int w, std::initializer_list<const lv_font_t *> fonts);
+// BIP177: amounts are whole bitcoins (the base unit), shown as "₿24,857".
+// Headline amount with the legacy BTC value under it, for checking against
+// wallets that still show BTC. Shrinks to fit; never truncates.
+lv_obj_t *amount(lv_obj_t *parent, uint64_t v, lv_color_t c = TEXT);
+void fmt_btc(uint64_t v, char *out, size_t cap);          // "₿150,000,000"
+void fmt_btc_legacy(uint64_t v, char *out, size_t cap);   // "1.5 BTC"
 // List row for menus: icon, title, optional subtitle (nullptr). Whole row is the button.
 lv_obj_t *list_row(lv_obj_t *parent, const char *icon, const char *title, const char *sub,
                    lv_event_cb_t cb, void *ud = nullptr);

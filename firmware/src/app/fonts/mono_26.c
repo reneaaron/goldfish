@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 26 px
  * Bpp: 4
- * Opts: --no-compress --bpp 4 --format lvgl --lv-include lvgl.h --size 26 --font /tmp/claude-1000/-home-reneaaron-projects-3d/7dfd6bbf-72ce-4e7e-b54b-e7dfa00d3dd9/scratchpad/fonts/jbm/fonts/ttf/JetBrainsMono-Medium.ttf -r 0x20-0x7E,0xB7,0x2026 -o /home/reneaaron/projects/rp2350-signer-fw/src/app/fonts/mono_26.c
+ * Opts: --no-compress --bpp 4 --format lvgl --lv-include lvgl.h --size 26 --font /tmp/claude-1000/-home-reneaaron-projects-stateless-signer--claude-worktrees-bip177-implementation-1988c9/fd1c02a5-5d3d-43e6-828d-4cf0ee53b7da/scratchpad/dl/jbm/fonts/ttf/JetBrainsMono-Medium.ttf -r 0x20-0x7E,0xB7,0x2026,0x20BF -o /home/reneaaron/projects/stateless-signer/.claude/worktrees/bip177-implementation-1988c9/firmware/src/app/fonts/mono_26.c
  ******************************************************************************/
 
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE
@@ -1567,7 +1567,30 @@ static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap[] = {
     0xf2, 0x8, 0xff, 0x10, 0x9f, 0xf0, 0x7f, 0xf3,
     0x8, 0xff, 0x20, 0x9f, 0xf1, 0x7f, 0xf3, 0x8,
     0xff, 0x20, 0x9f, 0xf1, 0x2e, 0xc0, 0x3, 0xeb,
-    0x0, 0x4e, 0xa0
+    0x0, 0x4e, 0xa0,
+
+    /* U+20BF "₿" */
+    0x0, 0x28, 0x10, 0x75, 0x0, 0x0, 0x0, 0x5f,
+    0x30, 0xfa, 0x0, 0x0, 0x0, 0x5f, 0x30, 0xfa,
+    0x0, 0x0, 0x0, 0x5f, 0x30, 0xfa, 0x0, 0x0,
+    0xbf, 0xff, 0xff, 0xfe, 0x70, 0x0, 0xbf, 0xff,
+    0xff, 0xff, 0xfd, 0x10, 0xbf, 0xe5, 0x55, 0x7c,
+    0xff, 0xc0, 0xbf, 0xd0, 0x0, 0x0, 0xbf, 0xf3,
+    0xbf, 0xd0, 0x0, 0x0, 0x4f, 0xf6, 0xbf, 0xd0,
+    0x0, 0x0, 0x2f, 0xf6, 0xbf, 0xd0, 0x0, 0x0,
+    0x4f, 0xf4, 0xbf, 0xd0, 0x0, 0x0, 0xbf, 0xe0,
+    0xbf, 0xe4, 0x44, 0x5b, 0xff, 0x50, 0xbf, 0xff,
+    0xff, 0xff, 0xd3, 0x0, 0xbf, 0xff, 0xff, 0xff,
+    0xfc, 0x20, 0xbf, 0xd0, 0x0, 0x15, 0xef, 0xe1,
+    0xbf, 0xd0, 0x0, 0x0, 0x3f, 0xf8, 0xbf, 0xd0,
+    0x0, 0x0, 0xd, 0xfc, 0xbf, 0xd0, 0x0, 0x0,
+    0xb, 0xfe, 0xbf, 0xd0, 0x0, 0x0, 0xd, 0xfd,
+    0xbf, 0xd0, 0x0, 0x0, 0x6f, 0xf9, 0xbf, 0xe5,
+    0x55, 0x6a, 0xff, 0xf2, 0xbf, 0xff, 0xff, 0xff,
+    0xff, 0x50, 0xbf, 0xff, 0xff, 0xfe, 0x92, 0x0,
+    0x0, 0x5f, 0x30, 0xfa, 0x0, 0x0, 0x0, 0x5f,
+    0x30, 0xfa, 0x0, 0x0, 0x0, 0x5f, 0x30, 0xfa,
+    0x0, 0x0, 0x0, 0x28, 0x10, 0x75, 0x0, 0x0
 };
 
 
@@ -1673,7 +1696,8 @@ static const lv_font_fmt_txt_glyph_dsc_t glyph_dsc[] = {
     {.bitmap_index = 10252, .adv_w = 250, .box_w = 12, .box_h = 25, .ofs_x = 2, .ofs_y = -3},
     {.bitmap_index = 10402, .adv_w = 250, .box_w = 13, .box_h = 6, .ofs_x = 1, .ofs_y = 7},
     {.bitmap_index = 10441, .adv_w = 250, .box_w = 6, .box_h = 5, .ofs_x = 5, .ofs_y = 7},
-    {.bitmap_index = 10456, .adv_w = 250, .box_w = 14, .box_h = 5, .ofs_x = 1, .ofs_y = 0}
+    {.bitmap_index = 10456, .adv_w = 250, .box_w = 14, .box_h = 5, .ofs_x = 1, .ofs_y = 0},
+    {.bitmap_index = 10491, .adv_w = 250, .box_w = 12, .box_h = 28, .ofs_x = 2, .ofs_y = -4}
 };
 
 /*---------------------
@@ -1681,7 +1705,7 @@ static const lv_font_fmt_txt_glyph_dsc_t glyph_dsc[] = {
  *--------------------*/
 
 static const uint16_t unicode_list_1[] = {
-    0x0, 0x1f6f
+    0x0, 0x1f6f, 0x2008
 };
 
 /*Collect the unicode lists and glyph_id offsets*/
@@ -1692,8 +1716,8 @@ static const lv_font_fmt_txt_cmap_t cmaps[] =
         .unicode_list = NULL, .glyph_id_ofs_list = NULL, .list_length = 0, .type = LV_FONT_FMT_TXT_CMAP_FORMAT0_TINY
     },
     {
-        .range_start = 183, .range_length = 8048, .glyph_id_start = 96,
-        .unicode_list = unicode_list_1, .glyph_id_ofs_list = NULL, .list_length = 2, .type = LV_FONT_FMT_TXT_CMAP_SPARSE_TINY
+        .range_start = 183, .range_length = 8201, .glyph_id_start = 96,
+        .unicode_list = unicode_list_1, .glyph_id_ofs_list = NULL, .list_length = 3, .type = LV_FONT_FMT_TXT_CMAP_SPARSE_TINY
     }
 };
 
@@ -1737,7 +1761,7 @@ lv_font_t mono_26 = {
 #endif
     .get_glyph_dsc = lv_font_get_glyph_dsc_fmt_txt,    /*Function pointer to get glyph's data*/
     .get_glyph_bitmap = lv_font_get_bitmap_fmt_txt,    /*Function pointer to get glyph's bitmap*/
-    .line_height = 28,          /*The maximum line height required by the font*/
+    .line_height = 29,          /*The maximum line height required by the font*/
     .base_line = 5,             /*Baseline measured from the bottom of the line*/
 #if !(LVGL_VERSION_MAJOR == 6 && LVGL_VERSION_MINOR == 0)
     .subpx = LV_FONT_SUBPX_NONE,
