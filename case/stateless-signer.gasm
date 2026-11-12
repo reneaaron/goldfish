@@ -1,0 +1,22 @@
+let clip=1
+part case parts/case.gcad clip=clip
+part board parts/board.gcad
+if clip==0 part s1 shcs:M2x8
+if clip==0 part s2 shcs:M2x8
+if clip==0 part s3 shcs:M2x8
+if clip==0 part s4 shcs:M2x8
+if clip==0 concentric s1:shank.side case:screws.side near=14.5,21.1,-16.8 flip
+if clip==0 flush s1:head.start case:screws.cbore_floor
+if clip==0 concentric s2:shank.side case:screws.side near=-14.5,21.1,-16.8 flip
+if clip==0 flush s2:head.start case:screws.cbore_floor
+if clip==0 concentric s3:shank.side case:screws.side near=14.5,-21.1,-16.8 flip
+if clip==0 flush s3:head.start case:screws.cbore_floor
+if clip==0 concentric s4:shank.side case:screws.side near=-14.5,-21.1,-16.8 flip
+if clip==0 flush s4:head.start case:screws.cbore_floor
+explode board.main 0,0,25
+explode board.cam 0,0,12
+if clip==0 explode s1 0,0,-10
+if clip==0 explode s2 0,0,-10
+if clip==0 explode s3 0,0,-10
+if clip==0 explode s4 0,0,-10
+interference none

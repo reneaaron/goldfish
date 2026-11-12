@@ -1,3 +1,3 @@
-.pio/
-.vscode/
-sim/camera.png
+# per-folder ignores live in firmware/.gitignore
+__pycache__/
+*.blend1
