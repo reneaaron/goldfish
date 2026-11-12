@@ -799,6 +799,12 @@ static void build_backup_warning() {
     show(scr);
 }
 
+// Blocks of 5 modules; a remainder joins the last block instead of making a
+// sliver (21 = 5+5+5+6). Lines on screen and on the card sit on these edges.
+static int blocks_per_side() { return qr_n / 5; }
+static bool block_edge(int m) { return m == qr_n || (m % 5 == 0 && m / 5 < blocks_per_side()); }
+static int block_len(int b) { return b + 1 < blocks_per_side() ? 5 : qr_n - 5 * b; }
+
 // Part of the SeedQR, drawn module by module: dark squares, light grid lines
 // (darker every 5 modules, like the lines on the paper card).
 struct GridView { int c0, r0, cols, rows, cell; bool minor; };
@@ -824,11 +830,11 @@ static void grid_draw_cb(lv_event_t *e) {
                 rect(c * g->cell, r * g->cell, (c + 1) * g->cell, (r + 1) * g->cell, lv_color_black());
     const lv_color_t major = LV_COLOR_MAKE(0x9A, 0x96, 0x8E), minor = LV_COLOR_MAKE(0xD4, 0xD0, 0xC8);
     for (int i = 0; i <= g->cols; i++) {
-        bool m = (g->c0 + i) % 5 == 0 || g->c0 + i == qr_n;
+        bool m = block_edge(g->c0 + i);
         if (m || g->minor) rect(i * g->cell, 0, i * g->cell, g->rows * g->cell, m ? major : minor);
     }
     for (int i = 0; i <= g->rows; i++) {
-        bool m = (g->r0 + i) % 5 == 0 || g->r0 + i == qr_n;
+        bool m = block_edge(g->r0 + i);
         if (m || g->minor) rect(0, i * g->cell, g->cols * g->cell, i * g->cell, m ? major : minor);
     }
 }
@@ -854,7 +860,6 @@ static lv_obj_t *white_card(lv_obj_t *parent, int w, int h) {
 static void to_warning_cb(lv_event_t *) { ui_goto(UI_BACKUP_WARNING); }
 static void to_whole_qr_cb(lv_event_t *) { ui_goto(UI_BACKUP_QR); }
 
-static int blocks_per_side() { return (qr_n + 4) / 5; }
 
 static void block_start_cb(lv_event_t *) { block_i = 0; ui_goto(UI_BACKUP_BLOCK); }
 
@@ -902,10 +907,11 @@ static void build_backup_block() {
     snprintf(title, sizeof(title), "Block %d of %d", block_i + 1, n);
     topbar(scr, title, to_whole_qr_cb);
 
-    const int cell = 32;
+    // One cell size per QR, so squares don't change size between blocks.
+    const int cell = qr_n % 5 ? 28 : 32;
     int c0 = (block_i % bs) * 5, r0 = (block_i / bs) * 5;
-    block_view = {c0, r0, qr_n - c0 < 5 ? qr_n - c0 : 5, qr_n - r0 < 5 ? qr_n - r0 : 5, cell, true};
-    lv_obj_t *c = white_card(scr, CW, 5 * cell + 36);
+    block_view = {c0, r0, block_len(block_i % bs), block_len(block_i / bs), cell, true};
+    lv_obj_t *c = white_card(scr, CW, (qr_n % 5 ? 6 : 5) * cell + 32);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 2);
     const int gx = 30, gy = 24;
     lv_obj_set_pos(grid(c, &block_view), gx, gy);
