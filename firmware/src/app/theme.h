@@ -13,6 +13,7 @@ LV_FONT_DECLARE(mono_16);
 LV_FONT_DECLARE(mono_22);
 LV_FONT_DECLARE(mono_26);
 LV_FONT_DECLARE(icons_34);
+LV_FONT_DECLARE(icons_40);
 
 // Font Awesome glyphs available in inter_13/15/17 and icons_34
 #define ICON_CHECK        "\xEF\x80\x8C"
@@ -30,6 +31,16 @@ LV_FONT_DECLARE(icons_34);
 #define ICON_WALLET       "\xEF\x95\x95"
 #define ICON_CAMERA       "\xEF\x80\xB0"
 #define ICON_EYE          "\xEF\x81\xAE"
+
+// icons_40 only: dice faces and the two sides of a coin
+#define ICON_DICE_1       "\xEF\x94\xA5"
+#define ICON_DICE_2       "\xEF\x94\xA8"
+#define ICON_DICE_3       "\xEF\x94\xA7"
+#define ICON_DICE_4       "\xEF\x94\xA4"
+#define ICON_DICE_5       "\xEF\x94\xA3"
+#define ICON_DICE_6       "\xEF\x94\xA6"
+#define ICON_HEADS        "\xEF\x80\x87"   // user (a head)
+#define ICON_TAILS        "\xEF\x92\xBA"   // dove, like the bird on a coin's reverse
 
 namespace th {
 extern const lv_color_t BG, SURFACE, SURFACE_2, BORDER, TEXT, TEXT_2, TEXT_3;

@@ -60,7 +60,7 @@ static void build_home() {
     lv_obj_t *scr = screen();
     lv_obj_align(icon_badge(scr, ICON_QR, ACCENT, ACCENT_DIM, 76), LV_ALIGN_TOP_MID, 0, 20);
     lv_obj_align(text(scr, "Signer", &inter_30_semi, TEXT), LV_ALIGN_TOP_MID, 0, 104);
-    lv_obj_align(para(scr, "Nothing is saved. Unplug and it's gone."), LV_ALIGN_TOP_MID, 0, 146);
+    lv_obj_align(para(scr, "Your seed stays in memory only, until you unplug."), LV_ALIGN_TOP_MID, 0, 146);
     // Same size as the primary, so the two read as a pair.
     lv_obj_t *create = btn_ghost(scr, "Create new seed", go_cb, GO(UI_NEW_SEED), TEXT);
     lv_obj_set_height(create, 48);
@@ -509,7 +509,7 @@ static void entropy_undo_cb(lv_event_t *) {
     entropy_refresh();
 }
 
-static lv_obj_t *entropy_key(lv_obj_t *scr, int x, int y, int w, int h, const char *big, const char *small, char v) {
+static lv_obj_t *entropy_key(lv_obj_t *scr, int x, int y, int w, int h, const char *icon, const char *small, char v) {
     lv_obj_t *b = lv_button_create(scr);
     lv_obj_remove_style_all(b);
     lv_obj_set_size(b, w, h);
@@ -521,9 +521,23 @@ static lv_obj_t *entropy_key(lv_obj_t *scr, int x, int y, int w, int h, const ch
     lv_obj_set_style_border_width(b, 1, 0);
     lv_obj_set_style_bg_color(b, ACCENT_DIM, LV_STATE_PRESSED);
     lv_obj_add_event_cb(b, entropy_key_cb, LV_EVENT_CLICKED, (void *)(intptr_t)v);
-    lv_obj_t *l = text(b, big, &mono_26, TEXT);
-    lv_obj_align(l, LV_ALIGN_CENTER, 0, small ? -10 : 0);
-    if (small) lv_obj_align(text(b, small, &inter_13, TEXT_3), LV_ALIGN_CENTER, 0, 20);
+    if (!small) {
+        lv_obj_center(text(b, icon, &icons_40, TEXT));   // a die face
+        return b;
+    }
+    // A coin: round, with the side's picture, and its value underneath.
+    lv_obj_t *coin = lv_obj_create(b);
+    lv_obj_remove_style_all(coin);
+    lv_obj_remove_flag(coin, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_size(coin, 68, 68);
+    lv_obj_set_style_radius(coin, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(coin, ACCENT_DIM, 0);
+    lv_obj_set_style_bg_opa(coin, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(coin, ACCENT, 0);
+    lv_obj_set_style_border_width(coin, 2, 0);
+    lv_obj_align(coin, LV_ALIGN_CENTER, 0, -12);
+    lv_obj_center(text(coin, icon, &icons_40, ACCENT));
+    lv_obj_align(text(b, small, &inter_13, TEXT_3), LV_ALIGN_CENTER, 0, 40);
     return b;
 }
 
@@ -547,14 +561,14 @@ static void build_entropy(bool dice) {
 
     const int y0 = BAR + 104;
     if (dice) {
-        static const char *faces[] = {"1", "2", "3", "4", "5", "6"};
+        static const char *faces[] = {ICON_DICE_1, ICON_DICE_2, ICON_DICE_3, ICON_DICE_4, ICON_DICE_5, ICON_DICE_6};
         const int kw = (CW - 16) / 3, kh = 56;
         for (int i = 0; i < 6; i++)
             entropy_key(scr, M + (i % 3) * (kw + 8), y0 + (i / 3) * (kh + 8), kw, kh, faces[i], nullptr, char('1' + i));
     } else {
         const int kw = (CW - 8) / 2;
-        entropy_key(scr, M, y0, kw, 120, "H", "Heads = 1", '1');
-        entropy_key(scr, M + kw + 8, y0, kw, 120, "T", "Tails = 0", '0');
+        entropy_key(scr, M, y0, kw, 120, ICON_HEADS, "Heads = 1", '1');
+        entropy_key(scr, M + kw + 8, y0, kw, 120, ICON_TAILS, "Tails = 0", '0');
     }
     lv_obj_align(quiet_link(scr, "Undo", entropy_undo_cb, nullptr), LV_ALIGN_BOTTOM_MID, 0, -8);
     entropy_refresh();
