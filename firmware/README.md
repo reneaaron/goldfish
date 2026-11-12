@@ -21,7 +21,10 @@ The seed lives in RAM only: "Wipe seed" or unplugging removes it.
 2. Seed loaded: shows the fingerprint to check against your wallet
 3. Wallet: Sign transaction, Verify address, Connect wallet, Wipe now
 4. Connect wallet: shows the native segwit xpub as `[fingerprint/84h/0h/0h]zpub…`, the
-   same static format SeedSigner exports, readable by Sparrow
+   same static format SeedSigner exports, readable by Sparrow. "Network" switches it
+   to testnet (`[fingerprint/84h/1h/0h]vpub…`), which also serves signet and
+   Mutinynet. The choice is kept in RAM, so every boot starts on mainnet. Signing and
+   Verify address don't use it: they read the network from the PSBT or the address
 5. Verify address: scan a receive address (plain or `bitcoin:` URI) from your
    wallet app; the device checks the first 500 receive and 100 change
    addresses of this seed and says which one it is, or that it isn't yours
@@ -58,7 +61,7 @@ pio test -e test
 ```
 
 - SeedQR decoding: the vectors in SeedSigner's SeedQR spec
-- Key derivation: the BIP84 test vector (fingerprint `73c5da0a`, zpub)
+- Key derivation: the BIP84 test vector (fingerprint `73c5da0a`, zpub, testnet vpub)
 - UR: SeedSigner's 29-part `crypto-psbt` vector, plus an encode/decode round trip
 - PSBT review: SeedSigner's single-sig testnet vector (25,000 in, 24,857 out,
   143 fee), signing, wrong seed and garbage input
@@ -130,6 +133,5 @@ example (`C/02-CAM`, OV5640 over PIO) to port next.
 
 - Camera: port Waveshare's PIO capture into `src/board/camera.cpp`
 - Test against Sparrow end to end (testnet)
-- Testnet xpub export (m/84'/1'/0', vpub)
 - BBQr input
 - Secure boot with picotool

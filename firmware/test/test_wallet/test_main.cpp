@@ -29,6 +29,19 @@ void test_zpub() {
         out);
 }
 
+void test_vpub() {
+    TEST_ASSERT_TRUE(wallet_load(zero_entropy_12()));
+    wallet_set_testnet(true);
+    char out[200];
+    size_t n = wallet_export_xpub(out, sizeof(out));
+    wallet_set_testnet(false);
+    TEST_ASSERT_GREATER_THAN(0, n);
+    // m/84'/1'/0' of the same seed, the account Sparrow derives on testnet/signet
+    TEST_ASSERT_EQUAL_STRING(
+        "[73c5da0a/84h/1h/0h]vpub5Y6cjg78GGuNLsaPhmYsiw4gYX3HoQiRBiSwDaBXKUafCt9bNwWQiitDk5VZ5BVxYnQdwoTyXSs2JHRPAgjAvtbBrf8ZhDYe2jWAqvZVnsc",
+        out);
+}
+
 void test_wipe() {
     TEST_ASSERT_TRUE(wallet_load(zero_entropy_12()));
     wallet_wipe();
@@ -41,6 +54,7 @@ int main() {
     UNITY_BEGIN();
     RUN_TEST(test_fingerprint);
     RUN_TEST(test_zpub);
+    RUN_TEST(test_vpub);
     RUN_TEST(test_wipe);
     return UNITY_END();
 }
