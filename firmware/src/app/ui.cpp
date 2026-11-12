@@ -462,9 +462,13 @@ static void build_new_seed() {
     char dice[24], coins[24];
     snprintf(dice, sizeof(dice), "%d rolls of one die", seed_dice_rolls(new_words));
     snprintf(coins, sizeof(coins), "%d coin flips", seed_coin_flips(new_words));
-    lv_obj_align(list_row(c, "6", "Dice rolls", dice, method_cb, GO(UI_ENTROPY_DICE)), LV_ALIGN_TOP_MID, 0, 0);
+    lv_obj_t *r1 = list_row(c, ICON_DICE, "Dice rolls", dice, method_cb, GO(UI_ENTROPY_DICE));
+    lv_obj_align(r1, LV_ALIGN_TOP_MID, 0, 0);
     divider(c, 62);
-    lv_obj_align(list_row(c, "01", "Coin flips", coins, method_cb, GO(UI_ENTROPY_COINS)), LV_ALIGN_TOP_MID, 0, 63);
+    lv_obj_t *r2 = list_row(c, ICON_COINS, "Coin flips", coins, method_cb, GO(UI_ENTROPY_COINS));
+    lv_obj_align(r2, LV_ALIGN_TOP_MID, 0, 63);
+    // These two glyphs live in icons_18, not in list_row's font.
+    for (lv_obj_t *r : {r1, r2}) lv_obj_set_style_text_font(lv_obj_get_child(lv_obj_get_child(r, 0), 0), &icons_18, 0);
     divider(c, 125);
     lv_obj_align(list_row(c, "Aa", "Enter words", "Your own words", method_cb, GO(UI_ENTER_WORDS)),
                  LV_ALIGN_TOP_MID, 0, 126);
@@ -536,7 +540,8 @@ static lv_obj_t *entropy_key(lv_obj_t *scr, int x, int y, int w, int h, const ch
     lv_obj_set_style_border_color(coin, ACCENT, 0);
     lv_obj_set_style_border_width(coin, 2, 0);
     lv_obj_align(coin, LV_ALIGN_CENTER, 0, -12);
-    lv_obj_center(text(coin, icon, &icons_40, ACCENT));
+    // Heads is a head; tails is the number side, showing its bit.
+    lv_obj_center(text(coin, icon, v == '1' ? &icons_40 : &inter_30_semi, ACCENT));
     lv_obj_align(text(b, small, &inter_13, TEXT_3), LV_ALIGN_CENTER, 0, 40);
     return b;
 }
@@ -568,7 +573,7 @@ static void build_entropy(bool dice) {
     } else {
         const int kw = (CW - 8) / 2;
         entropy_key(scr, M, y0, kw, 120, ICON_HEADS, "Heads = 1", '1');
-        entropy_key(scr, M + kw + 8, y0, kw, 120, ICON_TAILS, "Tails = 0", '0');
+        entropy_key(scr, M + kw + 8, y0, kw, 120, "0", "Tails = 0", '0');
     }
     lv_obj_align(quiet_link(scr, "Undo", entropy_undo_cb, nullptr), LV_ALIGN_BOTTOM_MID, 0, -8);
     entropy_refresh();
