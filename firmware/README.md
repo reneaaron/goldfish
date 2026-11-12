@@ -41,8 +41,8 @@ the user and can be re-checked offline.
   that lead to a word; on the last word, only words with a valid checksum.
 
 The new seed is never shown as words. It goes straight to a SeedQR backup:
-pick Compact (21×21 / 25×25) or Standard (25×25 / 29×29), see the whole QR,
-then copy it onto a card one 5×5 block at a time, labelled with column
+a Compact SeedQR (21×21 for 12 words, 25×25 for 24, the fewest squares).
+After an offline warning it shows the whole QR, then you copy it onto a card one 5×5 block at a time, labelled with column
 letters and row numbers like the card's grid. Finally scan the card: only
 if it holds the same seed is the seed loaded. Leaving the flow wipes it.
 

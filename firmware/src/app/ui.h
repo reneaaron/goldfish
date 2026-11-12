@@ -8,7 +8,7 @@
 //   Scan transaction -> Review -> each output -> Swipe to sign -> Signed QR
 //   Verify address -> scan address QR -> searching -> verified / not from this seed
 //   Home -> New seed (12/24 words) -> dice rolls | coin flips | enter words
-//        -> grid format -> offline warning -> whole SeedQR -> each 5x5 block
+//        -> offline warning -> whole SeedQR (Compact) -> each 5x5 block
 //        -> scan the finished card -> Seed loaded
 
 enum UiScreen {
@@ -30,7 +30,6 @@ enum UiScreen {
     UI_ENTROPY_DICE,
     UI_ENTROPY_COINS,
     UI_ENTER_WORDS,      // one screen per word
-    UI_BACKUP_FORMAT,    // Compact or Standard SeedQR
     UI_BACKUP_WARNING,
     UI_BACKUP_QR,        // the whole SeedQR
     UI_BACKUP_BLOCK,     // one 5x5 block per screen

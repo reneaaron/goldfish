@@ -58,10 +58,12 @@ static lv_obj_t *qr_card(lv_obj_t *parent, int y, lv_obj_t **qr_out) {
 // ---------------------------------------------------------------- home
 static void build_home() {
     lv_obj_t *scr = screen();
-    lv_obj_align(icon_badge(scr, ICON_QR, ACCENT, ACCENT_DIM, 76), LV_ALIGN_TOP_MID, 0, 28);
-    lv_obj_align(text(scr, "Signer", &inter_30_semi, TEXT), LV_ALIGN_TOP_MID, 0, 114);
-    lv_obj_align(para(scr, "Nothing is saved. Unplug and it's gone."), LV_ALIGN_TOP_MID, 0, 158);
+    lv_obj_align(icon_badge(scr, ICON_QR, ACCENT, ACCENT_DIM, 76), LV_ALIGN_TOP_MID, 0, 20);
+    lv_obj_align(text(scr, "Signer", &inter_30_semi, TEXT), LV_ALIGN_TOP_MID, 0, 104);
+    lv_obj_align(para(scr, "Nothing is saved. Unplug and it's gone."), LV_ALIGN_TOP_MID, 0, 146);
+    // Same size as the primary, so the two read as a pair.
     lv_obj_t *create = btn_ghost(scr, "Create new seed", go_cb, GO(UI_NEW_SEED), TEXT);
+    lv_obj_set_height(create, 48);
     lv_obj_set_style_bg_opa(create, LV_OPA_COVER, 0);
     lv_obj_align(create, LV_ALIGN_BOTTOM_MID, 0, -M - 48 - 8);
     place_bottom(btn_primary(scr, ICON_CAMERA "   Scan QR", go_cb, GO(UI_SCAN_SEED)));
@@ -392,8 +394,7 @@ static int word_n;
 static char word_prefix[9];
 static uint8_t last_ok[256];             // bitmap: valid last words for word_idx
 static SeedEntropy pending;              // len 0: none
-static bool backup_compact = true;
-static uint8_t qr_buf[qrcodegen_BUFFER_LEN_FOR_VERSION(3)];   // the pending seed's SeedQR
+static uint8_t qr_buf[qrcodegen_BUFFER_LEN_FOR_VERSION(2)];   // the pending seed's SeedQR
 static int qr_n;                         // modules per side, 0: none
 static int block_i;
 
@@ -467,7 +468,6 @@ static void build_new_seed() {
     divider(c, 125);
     lv_obj_align(list_row(c, "Aa", "Enter words", "Your own words", method_cb, GO(UI_ENTER_WORDS)),
                  LV_ALIGN_TOP_MID, 0, 126);
-    lv_obj_align(text(scr, "No random numbers: you make it.", &inter_13, TEXT_3), LV_ALIGN_BOTTOM_MID, 0, -12);
     show(scr);
 }
 
@@ -500,7 +500,7 @@ void ui_entropy_input(char c) {
                            : seed_from_coins(entropy_in, entropy_n, new_words, &pending);
     secure_zero(entropy_in, sizeof(entropy_in));
     entropy_n = 0;
-    ui_goto(ok ? UI_BACKUP_FORMAT : UI_NEW_SEED);
+    ui_goto(ok ? UI_BACKUP_WARNING : UI_NEW_SEED);
 }
 
 static void entropy_key_cb(lv_event_t *e) { ui_entropy_input((char)(intptr_t)lv_event_get_user_data(e)); }
@@ -616,7 +616,7 @@ static bool word_accept(int idx) {
         bool ok = seed_from_words(word_idx, word_n, &pending);
         secure_zero(word_idx, sizeof(word_idx));
         word_n = 0;
-        ui_goto(ok ? UI_BACKUP_FORMAT : UI_NEW_SEED);
+        ui_goto(ok ? UI_BACKUP_WARNING : UI_NEW_SEED);
         return ok;
     }
     if (word_is_last()) {
@@ -704,56 +704,25 @@ static void build_enter_words() {
 }
 
 // ---------------------------------------------------------------- backup
-// Sizes per SeedQR spec: Standard 25x25 / 29x29, Compact 21x21 / 25x25 (ECC L).
-static int backup_size(bool compact) { return compact ? (new_words == 24 ? 25 : 21) : (new_words == 24 ? 29 : 25); }
-
+// Always a Compact SeedQR (byte mode, ECC L): 21x21 for 12 words, 25x25 for 24,
+// the fewest squares to copy by hand.
 static bool backup_make_qr() {
     static uint8_t tmp[sizeof(qr_buf)], seg_buf[sizeof(qr_buf)];
-    char digits[97];
-    qrcodegen_Segment seg;
-    if (backup_compact) seg = qrcodegen_makeBytes(pending.bytes, pending.len, seg_buf);
-    else seg = qrcodegen_makeNumeric((seedqr_standard_digits(pending, digits), digits), seg_buf);
-    bool ok = qrcodegen_encodeSegmentsAdvanced(&seg, 1, qrcodegen_Ecc_LOW, 1, 3, qrcodegen_Mask_AUTO, false, tmp, qr_buf);
+    qrcodegen_Segment seg = qrcodegen_makeBytes(pending.bytes, pending.len, seg_buf);
+    bool ok = qrcodegen_encodeSegmentsAdvanced(&seg, 1, qrcodegen_Ecc_LOW, 1, 2, qrcodegen_Mask_AUTO, false, tmp, qr_buf);
     secure_zero(tmp, sizeof(tmp));
     secure_zero(seg_buf, sizeof(seg_buf));
-    secure_zero(digits, sizeof(digits));
     qr_n = ok ? qrcodegen_getSize(qr_buf) : 0;
-    return ok && qr_n == backup_size(backup_compact);
-}
-
-static void format_cb(lv_event_t *e) {
-    backup_compact = lv_event_get_user_data(e) != nullptr;
-    ui_goto(UI_BACKUP_FORMAT);
-}
-
-static void build_backup_format() {
-    lv_obj_t *scr = screen();
-    topbar(scr, "Back up");
-    lv_obj_align(text(scr, "Copy it onto a SeedQR card", &inter_15, TEXT_2), LV_ALIGN_TOP_MID, 0, BAR + 4);
-
-    lv_obj_t *c = card(scr, CW, 2 * 62 + 1);
-    lv_obj_set_style_pad_all(c, 0, 0);
-    lv_obj_set_style_clip_corner(c, true, 0);
-    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 34);
-    char a[40], b[40];
-    snprintf(a, sizeof(a), "%dx%d  \xC2\xB7  fewest squares", backup_size(true), backup_size(true));
-    snprintf(b, sizeof(b), "%dx%d  \xC2\xB7  word numbers", backup_size(false), backup_size(false));
-    lv_obj_align(list_row(c, backup_compact ? ICON_CHECK : "", "Compact", a, format_cb, (void *)1), LV_ALIGN_TOP_MID, 0, 0);
-    divider(c, 62);
-    lv_obj_align(list_row(c, backup_compact ? "" : ICON_CHECK, "Standard", b, format_cb, nullptr), LV_ALIGN_TOP_MID, 0, 63);
-    lv_obj_align(text(scr, "Unplugging now loses this seed.", &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, BAR + 34 + 125 + 12);
-    bottom_pair(btn_ghost(scr, "Discard", to_new_seed_cb, nullptr, TEXT), btn_primary(scr, "Continue", go_cb, GO(UI_BACKUP_WARNING)));
-    show(scr);
+    return ok && qr_n == (new_words == 24 ? 25 : 21);
 }
 
 static void build_backup_warning() {
     lv_obj_t *scr = screen();
     lv_obj_align(icon_badge(scr, ICON_WARNING, AMBER, AMBER_DIM, 64), LV_ALIGN_TOP_MID, 0, 36);
     lv_obj_align(text(scr, "Keep it offline", &inter_22_semi, TEXT), LV_ALIGN_TOP_MID, 0, 118);
-    lv_obj_align(para(scr, "This QR is your private key. Never photograph it or scan it with a phone or anything "
-                           "that goes online."),
+    lv_obj_align(para(scr, "Your seed QR is your private key. Never photograph it or scan it with a phone."),
                  LV_ALIGN_TOP_MID, 0, 154);
-    bottom_pair(btn_ghost(scr, "Back", go_cb, GO(UI_BACKUP_FORMAT), TEXT),
+    bottom_pair(btn_ghost(scr, "Discard", to_new_seed_cb, nullptr, TEXT),
                 btn_primary(scr, "I understand", go_cb, GO(UI_BACKUP_QR)));
     show(scr);
 }
@@ -810,7 +779,7 @@ static lv_obj_t *white_card(lv_obj_t *parent, int w, int h) {
     return c;
 }
 
-static void to_format_cb(lv_event_t *) { ui_goto(UI_BACKUP_FORMAT); }
+static void to_warning_cb(lv_event_t *) { ui_goto(UI_BACKUP_WARNING); }
 static void to_whole_qr_cb(lv_event_t *) { ui_goto(UI_BACKUP_QR); }
 
 static int blocks_per_side() { return (qr_n + 4) / 5; }
@@ -820,9 +789,7 @@ static void block_start_cb(lv_event_t *) { block_i = 0; ui_goto(UI_BACKUP_BLOCK)
 static void build_backup_qr() {
     if (!backup_make_qr()) { ui_new_seed(UI_NEW_SEED, new_words); return; }
     lv_obj_t *scr = screen();
-    char title[32];
-    snprintf(title, sizeof(title), "%s %dx%d", backup_compact ? "Compact" : "Standard", qr_n, qr_n);
-    topbar(scr, title, to_format_cb);
+    topbar(scr, "Back up", to_warning_cb);
     const int cell = 180 / qr_n;
     whole_view = {0, 0, qr_n, qr_n, cell, false};
     lv_obj_t *c = white_card(scr, qr_n * cell + 17, qr_n * cell + 17);
@@ -1224,7 +1191,7 @@ static void build_verify() {
 // ---------------------------------------------------------------- navigation
 static bool new_seed_screen(UiScreen s) {
     return s == UI_NEW_SEED || s == UI_ENTROPY_DICE || s == UI_ENTROPY_COINS || s == UI_ENTER_WORDS ||
-           s == UI_BACKUP_FORMAT || s == UI_BACKUP_WARNING || s == UI_BACKUP_QR || s == UI_BACKUP_BLOCK ||
+           s == UI_BACKUP_WARNING || s == UI_BACKUP_QR || s == UI_BACKUP_BLOCK ||
            s == UI_BACKUP_SCAN;
 }
 
@@ -1232,7 +1199,7 @@ void ui_goto(UiScreen s) {
     if (s != UI_SCAN_SEED && s != UI_SCAN_PSBT && s != UI_SCAN_ADDRESS && s != UI_BACKUP_SCAN) scan_stop();
     // The new seed lives only inside its own flow: leaving it wipes everything.
     if (!new_seed_screen(s)) new_seed_wipe();
-    bool needs_pending = s == UI_BACKUP_FORMAT || s == UI_BACKUP_WARNING || s == UI_BACKUP_QR;
+    bool needs_pending = s == UI_BACKUP_WARNING || s == UI_BACKUP_QR;
     bool needs_qr = s == UI_BACKUP_BLOCK || s == UI_BACKUP_SCAN;
     if ((needs_pending && !pending.len) || (needs_qr && (!pending.len || !qr_n))) { new_seed_wipe(); s = UI_HOME; }
     if (s != UI_VERIFY_RESULT && verify_timer) { lv_timer_delete(verify_timer); verify_timer = nullptr; }
@@ -1260,7 +1227,6 @@ void ui_goto(UiScreen s) {
         case UI_ENTROPY_DICE: build_entropy(true); break;
         case UI_ENTROPY_COINS: build_entropy(false); break;
         case UI_ENTER_WORDS: build_enter_words(); break;
-        case UI_BACKUP_FORMAT: build_backup_format(); break;
         case UI_BACKUP_WARNING: build_backup_warning(); break;
         case UI_BACKUP_QR: build_backup_qr(); break;
         case UI_BACKUP_BLOCK: build_backup_block(); break;

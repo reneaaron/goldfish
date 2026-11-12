@@ -71,17 +71,6 @@ void test_not_seedqr() {
     TEST_ASSERT_EQUAL(SEEDQR_NOT_SEEDQR, seedqr_decode((const uint8_t *)url, strlen(url), &e));
 }
 
-void test_encode_standard() {
-    SeedEntropy e;
-    char out[97];
-    TEST_ASSERT_EQUAL(SEEDQR_OK, seedqr_decode((const uint8_t *)V1_STANDARD, 96, &e));
-    TEST_ASSERT_EQUAL(96, seedqr_standard_digits(e, out));
-    TEST_ASSERT_EQUAL_STRING(V1_STANDARD, out);
-    TEST_ASSERT_EQUAL(SEEDQR_OK, seedqr_decode((const uint8_t *)SPEC12_STANDARD, 48, &e));
-    TEST_ASSERT_EQUAL(48, seedqr_standard_digits(e, out));
-    TEST_ASSERT_EQUAL_STRING(SPEC12_STANDARD, out);
-}
-
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_standard_24);
@@ -90,6 +79,5 @@ int main() {
     RUN_TEST(test_bad_checksum);
     RUN_TEST(test_bad_index);
     RUN_TEST(test_not_seedqr);
-    RUN_TEST(test_encode_standard);
     return UNITY_END();
 }
