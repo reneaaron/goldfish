@@ -4,6 +4,7 @@
 #include <strings.h>
 #include <stdio.h>
 #include <Conversion.h>   // fromBase64 (uBitcoin)
+#include "address_verify.h"
 #include "psbt_review.h"
 #include "qrscan.h"
 #include "seedqr.h"
@@ -67,7 +68,9 @@ static uint8_t preview_buf[PREV_W * PREV_H];
 static lv_image_dsc_t preview_dsc;
 static lv_obj_t *preview_img, *scan_msg, *scan_sub, *scan_bar;
 static lv_timer_t *scan_timer;
-static bool scanning_seed;
+enum ScanMode { SCAN_SEED, SCAN_PSBT, SCAN_ADDRESS };
+static ScanMode scan_mode;
+static AddressCheck check;
 static int qr_w, qr_h;
 static UrDecoder ur_dec;
 static PsbtReview review;
@@ -155,6 +158,22 @@ static void handle_psbt_payload(QrPayload &p) {
     else scan_status("Not a transaction", "Show the transaction QR instead", AMBER);
 }
 
+static void handle_address_payload(QrPayload &p) {
+    AddressParse r = address_parse(p.data, p.len, &check);
+    if (r == ADDR_OK) {
+        scan_stop();
+        ui_goto(UI_VERIFY_RESULT);
+        return;
+    }
+    if (r == ADDR_UNSUPPORTED) { scan_status("Not supported yet", "Only bc1q addresses for now", AMBER); return; }
+    if (looks_like_psbt(p)) { scan_status("That's a transaction", "Use Sign transaction instead", AMBER); return; }
+    SeedEntropy e;
+    bool seed = seedqr_decode(p.data, p.len, &e) == SEEDQR_OK;
+    seedqr_wipe(&e);
+    if (seed) scan_status("That's a seed", "Show a receive address instead", AMBER);
+    else scan_status("Not an address", "Show the receive address QR", AMBER);
+}
+
 static void scan_tick(lv_timer_t *) {
     int w, h;
     const uint8_t *frame = platform_camera_frame(&w, &h);
@@ -170,15 +189,16 @@ static void scan_tick(lv_timer_t *) {
 
     static QrPayload p;   // static: 3KB is a lot of stack on the RP2350
     if (!qrscan_frame(frame, &p)) return;
-    if (scanning_seed) handle_seed_payload(p);
-    else handle_psbt_payload(p);
+    if (scan_mode == SCAN_SEED) handle_seed_payload(p);
+    else if (scan_mode == SCAN_PSBT) handle_psbt_payload(p);
+    else handle_address_payload(p);
     memset(&p, 0, sizeof(p));
 }
 
 static void scan_back_cb(lv_event_t *) {
     scan_stop();
     ur_decoder_reset(&ur_dec);
-    ui_goto(scanning_seed ? UI_HOME : UI_SEED_MENU);
+    ui_goto(scan_mode == SCAN_SEED ? UI_HOME : UI_SEED_MENU);
 }
 
 // Viewfinder corner brackets around the target area of the preview.
@@ -200,11 +220,16 @@ static void corners(lv_obj_t *parent, int cx, int cy, int size) {
     }
 }
 
-static void build_scan(bool seed) {
-    scanning_seed = seed;
-    if (!seed) ur_decoder_reset(&ur_dec);
+static void build_scan(ScanMode mode) {
+    scan_mode = mode;
+    bool seed = mode == SCAN_SEED;
+    if (mode == SCAN_PSBT) ur_decoder_reset(&ur_dec);
     lv_obj_t *scr = screen();
-    topbar(scr, seed ? "Scan seed" : "Scan transaction", scan_back_cb);
+    static const char *titles[] = {"Scan seed", "Scan transaction", "Verify address"};
+    static const char *prompts[] = {"Point at your seed QR", "Point at your wallet's QR", "Point at the address QR"};
+    static const char *hints[] = {"Hold it flat and well lit", "Sparrow, Nunchuk or any PSBT wallet",
+                                  "The receive address in your wallet"};
+    topbar(scr, titles[mode], scan_back_cb);
 
     preview_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
     preview_dsc.header.cf = LV_COLOR_FORMAT_L8;
@@ -218,10 +243,10 @@ static void build_scan(bool seed) {
     lv_obj_set_pos(preview_img, 0, BAR);
     corners(scr, W / 2, BAR + PREV_H / 2, 150);
 
-    scan_msg = text(scr, seed ? "Point at your seed QR" : "Point at your wallet's QR", &inter_17_semi, TEXT);
+    scan_msg = text(scr, prompts[mode], &inter_17_semi, TEXT);
     lv_obj_align(scan_msg, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + 14);
-    scan_sub = text(scr, seed ? "Hold it flat and well lit" : "Sparrow, Nunchuk or any PSBT wallet",
-                    &inter_13, TEXT_3);
+    scan_sub = text(scr, hints[mode], &inter_13, TEXT_3);
+    (void)seed;
     lv_obj_align(scan_sub, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + 40);
 
     scan_bar = lv_bar_create(scr);
@@ -289,15 +314,18 @@ static void build_seed_menu() {
     lv_obj_t *sub = text(scr, spaced, &mono_16, TEXT_2, LV_TEXT_ALIGN_LEFT);
     lv_obj_set_pos(sub, M + 52, 36);
 
-    lv_obj_t *c = card(scr, CW, 126);
+    lv_obj_t *c = card(scr, CW, 3 * 62 + 2);
     lv_obj_set_style_pad_all(c, 0, 0);
     lv_obj_set_style_clip_corner(c, true, 0);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, 72);
     lv_obj_t *r1 = list_row(c, ICON_SIGN, "Sign transaction", nullptr, go_cb, GO(UI_SCAN_PSBT));
     lv_obj_align(r1, LV_ALIGN_TOP_MID, 0, 0);
     divider(c, 62);
-    lv_obj_t *r2 = list_row(c, ICON_WALLET, "Connect wallet", nullptr, go_cb, GO(UI_EXPORT_XPUB));
+    lv_obj_t *r2 = list_row(c, ICON_CHECK_CIRCLE, "Verify address", nullptr, go_cb, GO(UI_SCAN_ADDRESS));
     lv_obj_align(r2, LV_ALIGN_TOP_MID, 0, 63);
+    divider(c, 125);
+    lv_obj_t *r3 = list_row(c, ICON_WALLET, "Connect wallet", nullptr, go_cb, GO(UI_EXPORT_XPUB));
+    lv_obj_align(r3, LV_ALIGN_TOP_MID, 0, 126);
 
 
     lv_obj_align(quiet_link(scr, ICON_TRASH "  Wipe now", go_cb, GO(UI_WIPE_CONFIRM)), LV_ALIGN_BOTTOM_MID, 0, -12);
@@ -582,9 +610,75 @@ static void build_psbt_signed() {
     anim_timer = lv_timer_create(anim_tick, 200, nullptr);
 }
 
+// ---------------------------------------------------------------- verify address
+static lv_timer_t *verify_timer;
+static lv_obj_t *verify_bar, *verify_lbl;
+
+static void verify_tick(lv_timer_t *) {
+    bool done = address_verify_step(&check, 25);
+    lv_bar_set_value(verify_bar, check.checked * 100 / check.total, LV_ANIM_OFF);
+    lv_label_set_text_fmt(verify_lbl, "%d of %d addresses", check.checked, check.total);
+    if (done) {
+        lv_timer_delete(verify_timer);
+        verify_timer = nullptr;
+        ui_goto(UI_VERIFY_RESULT);   // rebuild with the result
+    }
+}
+
+static lv_obj_t *address_card(lv_obj_t *scr, int y, const char *addr) {
+    lv_obj_t *c = card(scr, CW, 96);
+    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, y);
+    lv_obj_align(caption(c, "ADDRESS"), LV_ALIGN_TOP_LEFT, 0, 0);
+    address_chunks(c, addr);
+    return c;
+}
+
+bool verify_done() { return check.status != VERIFY_SEARCHING; }
+
+static void build_verify() {
+    lv_obj_t *scr = screen();
+    if (check.status == VERIFY_SEARCHING) {
+        topbar(scr, "Verify address");
+        lv_obj_align(text(scr, "Checking" "\xE2\x80\xA6", &inter_22_semi, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 12);
+        address_card(scr, BAR + 52, check.address);
+        verify_bar = lv_bar_create(scr);
+        lv_obj_set_size(verify_bar, CW, 6);
+        lv_bar_set_range(verify_bar, 0, 100);
+        lv_obj_set_style_bg_color(verify_bar, SURFACE_2, LV_PART_MAIN);
+        lv_obj_set_style_bg_color(verify_bar, ACCENT, LV_PART_INDICATOR);
+        lv_obj_align(verify_bar, LV_ALIGN_TOP_MID, 0, BAR + 52 + 96 + 24);
+        verify_lbl = text(scr, "", &inter_13, TEXT_3);
+        lv_obj_align(verify_lbl, LV_ALIGN_TOP_MID, 0, BAR + 52 + 96 + 40);
+        show(scr);
+        if (verify_timer) lv_timer_delete(verify_timer);
+        verify_timer = lv_timer_create(verify_tick, 30, nullptr);
+        return;
+    }
+
+    bool ok = check.status == VERIFY_FOUND;
+    lv_obj_align(icon_badge(scr, ok ? ICON_CHECK : ICON_WARNING, ok ? GREEN : RED, ok ? GREEN_DIM : RED_DIM, 44),
+                 LV_ALIGN_TOP_MID, 0, 16);
+    lv_obj_align(text(scr, ok ? "Address verified" : "Not from this seed", &inter_22_semi, TEXT), LV_ALIGN_TOP_MID, 0, 68);
+    if (ok) {
+        char tag[40];
+        snprintf(tag, sizeof(tag), ICON_CHECK "  %s #%d%s", check.chain ? "CHANGE" : "RECEIVE", check.index,
+                 check.testnet ? "  \xC2\xB7  TESTNET" : "");
+        lv_obj_align(chip(scr, tag, GREEN, GREEN_DIM), LV_ALIGN_TOP_MID, 0, 104);
+        address_card(scr, 140, check.address);
+    } else {
+        char m[96];
+        snprintf(m, sizeof(m), "Checked %d addresses. Don't send here unless you're sure.", check.total);
+        lv_obj_align(para(scr, m, &inter_13, TEXT_2), LV_ALIGN_TOP_MID, 0, 100);
+        address_card(scr, 146, check.address);
+    }
+    bottom_pair(btn_ghost(scr, "Scan", go_cb, GO(UI_SCAN_ADDRESS), TEXT), btn_primary(scr, "Done", to_menu_cb));
+    show(scr);
+}
+
 // ---------------------------------------------------------------- navigation
 void ui_goto(UiScreen s) {
-    if (s != UI_SCAN_SEED && s != UI_SCAN_PSBT) scan_stop();
+    if (s != UI_SCAN_SEED && s != UI_SCAN_PSBT && s != UI_SCAN_ADDRESS) scan_stop();
+    if (s != UI_VERIFY_RESULT && verify_timer) { lv_timer_delete(verify_timer); verify_timer = nullptr; }
     if (s != UI_PSBT_SIGNED && anim_timer) { lv_timer_delete(anim_timer); anim_timer = nullptr; }
     bool needs_seed = s != UI_HOME && s != UI_SCAN_SEED;
     if (needs_seed && !wallet_has_seed()) s = UI_HOME;
@@ -592,10 +686,12 @@ void ui_goto(UiScreen s) {
     current = s;
     switch (s) {
         case UI_HOME: build_home(); break;
-        case UI_SCAN_SEED: build_scan(true); break;
+        case UI_SCAN_SEED: build_scan(SCAN_SEED); break;
         case UI_SEED_LOADED: build_seed_loaded(); break;
         case UI_SEED_MENU: build_seed_menu(); break;
-        case UI_SCAN_PSBT: build_scan(false); break;
+        case UI_SCAN_PSBT: build_scan(SCAN_PSBT); break;
+        case UI_SCAN_ADDRESS: build_scan(SCAN_ADDRESS); break;
+        case UI_VERIFY_RESULT: build_verify(); break;
         case UI_EXPORT_XPUB: build_export_xpub(); break;
         case UI_WIPE_CONFIRM: build_wipe_confirm(); break;
         case UI_PSBT_ERROR: build_psbt_error(); break;

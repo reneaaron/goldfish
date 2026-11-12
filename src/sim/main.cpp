@@ -18,6 +18,8 @@
 #include "../app/qrscan.h"
 #include "../app/ui.h"
 #include "../app/wallet.h"
+#include "../app/address_verify.h"
+#include "src/libs/qrcode/qrcodegen.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
@@ -57,7 +59,25 @@ static void cam_load(const char *path) {
     stbi_image_free(img);
 }
 
+// Script helper: show `text` as a QR code to the camera, instead of a file.
+static bool cam_override;
+static void cam_show_qr(const char *text) {
+    static uint8_t qr[qrcodegen_BUFFER_LEN_MAX], tmp[qrcodegen_BUFFER_LEN_MAX];
+    if (!qrcodegen_encodeText(text, tmp, qr, qrcodegen_Ecc_LOW, qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX,
+                              qrcodegen_Mask_AUTO, true))
+        return;
+    int n = qrcodegen_getSize(qr), scale = 200 / (n + 8);
+    int ox = (CAM_W - n * scale) / 2, oy = (CAM_H - n * scale) / 2;
+    memset(cam_frame, 235, sizeof(cam_frame));
+    for (int y = 0; y < n * scale; y++)
+        for (int x = 0; x < n * scale; x++)
+            cam_frame[(oy + y) * CAM_W + ox + x] = qrcodegen_getModule(qr, x / scale, y / scale) ? 20 : 235;
+    cam_ok = true;
+    cam_override = true;
+}
+
 const uint8_t *platform_camera_frame(int *width, int *height) {
+    if (cam_override) { *width = CAM_W; *height = CAM_H; return cam_frame; }
     struct stat st;
     if (stat(cam_path(), &st) == 0) {
         if (st.st_mtime != cam_mtime || !cam_ok || strcmp(cam_loaded_path, cam_path()) != 0) {
@@ -135,6 +155,21 @@ static int run_shots(const char *dir) {
     ui_next_output();        pump(300); save(dir, "10_psbt_sign");
     if (!ui_swipe_sign()) { fprintf(stderr, "signing failed\n"); return 1; }
     pump(400); save(dir, "11_psbt_signed");
+
+    // Verify address: one of ours (testnet receive #7), then a foreign one.
+    ui_goto(UI_SEED_MENU); pump(300); save(dir, "12_wallet_menu");
+    char ours[96];
+    address_at(true, 0, 7, ours, sizeof(ours));
+    char uri[128];
+    snprintf(uri, sizeof(uri), "bitcoin:%s?amount=0.001", ours);
+    ui_goto(UI_SCAN_ADDRESS);
+    cam_show_qr(uri);
+    for (int i = 0; i < 200 && !(ui_current() == UI_VERIFY_RESULT && verify_done()); i++) pump(30);
+    pump(300); save(dir, "13_verify_found");
+    ui_goto(UI_SCAN_ADDRESS);
+    cam_show_qr("tb1q6rz28mcfaxtmd6v789l9rrlrusdprr9pqcpvkl");   // "abandon" seed, not ours
+    for (int i = 0; i < 400 && !(ui_current() == UI_VERIFY_RESULT && verify_done()); i++) pump(30);
+    pump(300); save(dir, "14_verify_not_found");
     return 0;
 }
 

@@ -9,6 +9,7 @@ simulator; the board's camera driver isn't ported yet. Not for real funds.
 
 ![Seed flow in the simulator](docs/screens/flow.png)
 ![Transaction flow in the simulator](docs/screens/flow_psbt.png)
+![Verify address in the simulator](docs/screens/flow_verify.png)
 
 ## How it works
 
@@ -18,10 +19,13 @@ The seed lives in RAM only: "Wipe seed" or unplugging removes it.
 
 1. Home: Scan SeedQR
 2. Seed loaded: shows the fingerprint to check against your wallet
-3. Wallet: Sign transaction, Connect wallet, Wipe now
+3. Wallet: Sign transaction, Verify address, Connect wallet, Wipe now
 4. Connect wallet: shows the native segwit xpub as `[fingerprint/84h/0h/0h]zpub…`, the
    same static format SeedSigner exports, readable by Sparrow
-5. Sign transaction: scan a PSBT (animated UR `crypto-psbt`, or a single
+5. Verify address: scan a receive address (plain or `bitcoin:` URI) from your
+   wallet app; the device checks the first 500 receive and 100 change
+   addresses of this seed and says which one it is, or that it isn't yours
+6. Sign transaction: scan a PSBT (animated UR `crypto-psbt`, or a single
    base64 frame), review the amount, fee and change, check each output's
    address, slide to sign, then show the signed PSBT as an animated UR
 
@@ -58,6 +62,8 @@ pio test -e test
 - UR: SeedSigner's 29-part `crypto-psbt` vector, plus an encode/decode round trip
 - PSBT review: SeedSigner's single-sig testnet vector (25,000 in, 24,857 out,
   143 fee), signing, wrong seed and garbage input
+- Verify address: BIP84 first receive/change addresses, URIs, testnet,
+  foreign addresses, and a different seed loaded afterwards
 
 ## Desktop simulator
 

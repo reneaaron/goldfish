@@ -4,8 +4,9 @@
 //
 // Flow (SeedQR only, one seed in RAM):
 //   Home -> Scan SeedQR -> Seed loaded (fingerprint) -> Seed menu
-//   Seed menu -> Scan transaction | Export xpub | Wipe seed
+//   Seed menu -> Sign transaction | Verify address | Connect wallet | Wipe
 //   Scan transaction -> Review -> each output -> Swipe to sign -> Signed QR
+//   Verify address -> scan address QR -> searching -> verified / not from this seed
 
 enum UiScreen {
     UI_HOME,
@@ -20,6 +21,8 @@ enum UiScreen {
     UI_PSBT_OUTPUT,      // one screen per output, see ui_output_index()
     UI_PSBT_SIGN,
     UI_PSBT_SIGNED,
+    UI_SCAN_ADDRESS,
+    UI_VERIFY_RESULT,    // shows progress while searching, then the result
 };
 
 void ui_build();               // shows the home screen
@@ -29,3 +32,4 @@ UiScreen ui_current();
 // For the simulator's scripted run: the same actions as the on-screen controls.
 void ui_next_output();         // "Next" on an output screen
 bool ui_swipe_sign();          // completes the swipe; false if signing failed
+bool verify_done();            // the address check has a result
