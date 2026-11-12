@@ -1,9 +1,10 @@
 """Lifestyle mockups: the real case in context (desk with a laptop, flat lay
-with a steel seed backup, close-up). Device geometry and screens come from
+with a paper SeedQR backup, close-up). Device geometry and screens come from
 device.py, i.e. the real case STL and the firmware's simulator screenshots.
 
 The laptop shows a generic wallet window (assets/laptop_screen.png), not any
-real app's UI. The steel plate carries SeedSigner's public 12-word test vector.
+real app's UI. The paper SeedQR card carries SeedSigner's public 12-word test vector
+(the same seed the device screens show, fingerprint 0948d268).
 
 Run from the repo root:
     blender -b -P marketing/renders/scenes.py
@@ -158,52 +159,33 @@ def laptop(loc, rz, open_deg=112):
     return root
 
 
-def steel_plate(loc, rz):
-    root = bpy.data.objects.new("plate", None)
-    link(root)
-    m, nt, p = node_mat("steel")
-    # brushed: anisotropic-ish streaks from stretched noise
+def seed_card(loc, rz):
+    """Paper SeedQR backup card, credit-card size, filled in by hand (assets/seedqr_card.png)."""
+    m, nt, p = node_mat("seedqr_card")
     tc = nt.nodes.new("ShaderNodeTexCoord")
-    mp = nt.nodes.new("ShaderNodeMapping"); mp.inputs["Scale"].default_value = (1, 120, 1)
-    noise = nt.nodes.new("ShaderNodeTexNoise"); noise.inputs["Scale"].default_value = 6.0
-    ramp = nt.nodes.new("ShaderNodeValToRGB")
-    ramp.color_ramp.elements[0].color = (0.55, 0.56, 0.58, 1)
-    ramp.color_ramp.elements[1].color = (0.75, 0.76, 0.78, 1)
-    nt.links.new(tc.outputs["Object"], mp.inputs["Vector"])
-    nt.links.new(mp.outputs["Vector"], noise.inputs["Vector"])
-    nt.links.new(noise.outputs["Fac"], ramp.inputs["Fac"])
-    nt.links.new(ramp.outputs["Color"], p.inputs["Base Color"])
-    p.inputs["Metallic"].default_value = 1.0
-    p.inputs["Roughness"].default_value = 0.3
-    p.inputs["Anisotropic"].default_value = 0.6
-    rounded_box("plate_body", 8.56, 5.4, 0.12, 0.35, 0.03, m, root, (0, 0, 0.06))
+    tex = nt.nodes.new("ShaderNodeTexImage")
+    tex.image = bpy.data.images.load(os.path.join(ASSETS, "seedqr_card.png"))
+    tex.extension = 'EXTEND'
+    nt.links.new(tc.outputs["UV"], tex.inputs["Vector"])
+    nt.links.new(tex.outputs["Color"], p.inputs["Base Color"])
+    noise = nt.nodes.new("ShaderNodeTexNoise"); noise.inputs["Scale"].default_value = 300.0
+    bump = nt.nodes.new("ShaderNodeBump"); bump.inputs["Strength"].default_value = 0.05
+    nt.links.new(noise.outputs["Fac"], bump.inputs["Height"])
+    nt.links.new(bump.outputs["Normal"], p.inputs["Normal"])
+    p.inputs["Roughness"].default_value = 0.85
+    p.inputs["Specular IOR Level"].default_value = 0.2
 
-    # punched dots: QR texture darkens and roughens the steel, plus a bump
-    qm, qt, qp = node_mat("plate_qr")
-    tex = qt.nodes.new("ShaderNodeTexImage")
-    tex.image = bpy.data.images.load(os.path.join(ASSETS, "plate_qr.png"))
-    tex.interpolation = 'Closest'
-    inv = qt.nodes.new("ShaderNodeInvert")
-    mixc = qt.nodes.new("ShaderNodeMix"); mixc.data_type = 'RGBA'
-    mixc.inputs["A"].default_value = (0.66, 0.67, 0.69, 1)
-    mixc.inputs["B"].default_value = (0.08, 0.08, 0.085, 1)
-    bump = qt.nodes.new("ShaderNodeBump"); bump.inputs["Strength"].default_value = 0.6
-    qt.links.new(tex.outputs["Color"], inv.inputs["Color"])
-    qt.links.new(inv.outputs["Color"], mixc.inputs["Factor"])
-    qt.links.new(mixc.outputs["Result"], qp.inputs["Base Color"])
-    qt.links.new(tex.outputs["Color"], bump.inputs["Height"])
-    qt.links.new(bump.outputs["Normal"], qp.inputs["Normal"])
-    qp.inputs["Metallic"].default_value = 1.0
-    qp.inputs["Roughness"].default_value = 0.35
     bpy.ops.mesh.primitive_plane_add(size=1)
-    q = bpy.context.object
-    q.scale = (4.4, 4.4, 1)
-    q.location = (1.6, 0, 0.1205)
-    q.data.materials.append(qm)
-    link(q, root)
-    root.location = loc
-    root.rotation_euler = (0, 0, rz)
-    return root
+    ob = bpy.context.object
+    ob.name = "seedqr_card"
+    ob.scale = (8.56, 5.4, 1)
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    bev = ob.modifiers.new("corners", 'BEVEL')
+    bev.affect = 'VERTICES'; bev.width = 0.3; bev.segments = 8
+    ob.data.materials.append(m)
+    ob.location = (loc[0], loc[1], 0.02)
+    ob.rotation_euler = (0, 0, rz)
+    return ob
 
 
 def usb_cable(dev_root, path_world):
@@ -278,23 +260,23 @@ if want("a"):   # desk: reviewing a transaction, laptop showing the QR behind
     cam_data.dof.aperture_fstop = 2.8
     shoot("10_desk.png", (2.5, -17, 10.5), (0.6, 5, 3.0), (0, 0.2, 1.7), lens=34)
 
-if want("b"):   # flat lay on slate: device, steel seed backup, cable
+if want("b"):   # flat lay on slate: device, paper SeedQR backup, cable
     clear_scene()
     world((0.5, 0.5, 0.52, 1), 0.4)
     ground(slate_mat())
     dev = device("dev_b", BONE, "4_seed_menu", (-3.2, 0.4, UP), (0, 0, math.radians(-6)))
     usb_cable(dev, [(-4.5, -9), (-1, -13), (6, -12), (14, -15)])
-    steel_plate((4.6, 1.6, 0), math.radians(9))
+    seed_card((4.6, 1.6, 0), math.radians(9))
     area("key", (-25, 20, 50), 35, 60000, (1.0, 0.97, 0.92))
     area("fill", (30, -25, 35), 25, 12000, (0.9, 0.95, 1.0))
     top_down("11_flatlay.png", (0.8, -0.6), 30, lens=50)
 
-if want("c"):   # close-up: seed loaded next to the steel backup it came from
+if want("c"):   # close-up: seed loaded next to the SeedQR card it came from
     clear_scene()
     world((0.75, 0.72, 0.68, 1), 0.5)
     ground(linen_mat())
     device("dev_c", SIGNAL, "3_seed_loaded", (-3.0, 0.8, UP), (0, 0, math.radians(8)))
-    steel_plate((3.3, -1.0, 0), math.radians(-10))
+    seed_card((3.3, -1.0, 0), math.radians(-10))
     area("window", (-40, -10, 35), 35, 60000, (1.0, 0.96, 0.9))
     area("rim", (25, 35, 20), 20, 14000, (0.9, 0.95, 1.0))
     cam_data.dof.aperture_fstop = 3.2

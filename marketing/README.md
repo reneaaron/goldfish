@@ -33,12 +33,14 @@ ONLY=a SAMPLES=64 PCT=50 blender -b -P marketing/renders/scenes.py
 | Scene | Shows |
 |---|---|
 | `out/10_desk.png` | On a desk with a USB-C cable, reviewing a transaction; a laptop behind shows the transaction QR |
-| `out/11_flatlay.png` | Flat lay on slate: wallet menu, steel seed backup, cable |
-| `out/12_backup_closeup.png` | Seed loaded, next to the steel plate it was scanned from |
+| `out/11_flatlay.png` | Flat lay on slate: wallet menu, paper SeedQR backup card, cable |
+| `out/12_backup_closeup.png` | Seed loaded, next to the SeedQR card it was scanned from |
 
 The laptop shows a generic wallet window (`renders/assets/laptop_screen.png`,
-drawn for these renders), not any real app's interface. The steel plate
-carries SeedSigner's public 12-word test vector. Shared device code lives in
+drawn for these renders), not any real app's interface. The SeedQR card
+(`renders/assets/seedqr_card.png`, drawn by `make_seedqr_card.py`) is a real,
+scannable QR of SeedSigner's public 12-word test vector, the same seed the
+screens show (fingerprint `0948 d268`). Shared device code lives in
 `renders/device.py`.
 
 Colours are plausible PLA colours, not tested prints. Screens show testnet
