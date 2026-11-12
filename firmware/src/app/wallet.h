@@ -20,6 +20,14 @@ void wallet_fingerprint(uint8_t out[4]);
 void wallet_fingerprint_hex(char out[9]);
 int wallet_word_count();
 
-// Native segwit single-sig account (m/84'/0'/0'), as SeedSigner's static
-// export: "[fingerprint/84h/0h/0h]zpub...". Returns length written.
+// Network for the xpub export. Testnet also covers signet and Mutinynet (same
+// coin type, xpub version and tb1 addresses). Kept in RAM like everything else:
+// back to mainnet on every boot. Signing and Verify address don't use it; they
+// read the network from the PSBT's derivation paths or from the address.
+bool wallet_testnet();
+void wallet_set_testnet(bool testnet);
+
+// Native segwit single-sig account, as SeedSigner's static export:
+// mainnet "[fingerprint/84h/0h/0h]zpub...", testnet "[fingerprint/84h/1h/0h]vpub...".
+// Returns length written.
 size_t wallet_export_xpub(char *out, size_t cap);

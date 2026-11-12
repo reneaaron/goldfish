@@ -5,6 +5,7 @@
 // Flow (SeedQR only, one seed in RAM):
 //   Home -> Scan SeedQR -> Seed loaded (fingerprint) -> Seed menu
 //   Seed menu -> Sign transaction | Verify address | Connect wallet | Wipe
+//   Connect wallet -> Network (Mainnet / Testnet), RAM only
 //   Scan transaction -> Review -> each output -> Swipe to sign -> Signed QR
 //   Verify address -> scan address QR -> searching -> verified / not from this seed
 
@@ -15,6 +16,7 @@ enum UiScreen {
     UI_SEED_MENU,
     UI_SCAN_PSBT,
     UI_EXPORT_XPUB,
+    UI_NETWORK,          // network for Connect wallet
     UI_WIPE_CONFIRM,
     UI_PSBT_ERROR,
     UI_PSBT_OVERVIEW,

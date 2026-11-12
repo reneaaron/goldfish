@@ -334,6 +334,7 @@ static void build_seed_menu() {
 
 static void build_export_xpub() {
     lv_obj_t *scr = screen();
+    bool tn = wallet_testnet();
     topbar(scr, "Connect wallet", to_menu_cb);
 
     static char xpub[180];
@@ -343,8 +344,37 @@ static void build_export_xpub() {
     lv_qrcode_update(qr, xpub, n);
 
     lv_obj_align(text(scr, "Scan with your wallet app", &inter_15, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 6 + 176 + 10);
-    lv_obj_align(text(scr, "xpub  \xC2\xB7  Native SegWit  \xC2\xB7  m/84'/0'/0'", &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0,
-                 BAR + 6 + 176 + 34);
+    lv_obj_align(text(scr, tn ? "vpub  \xC2\xB7  Native SegWit  \xC2\xB7  m/84'/1'/0'"
+                              : "zpub  \xC2\xB7  Native SegWit  \xC2\xB7  m/84'/0'/0'", &inter_13, tn ? AMBER : TEXT_3),
+                 LV_ALIGN_TOP_MID, 0, BAR + 6 + 176 + 32);
+    lv_obj_align(quiet_link(scr, tn ? "Network: Testnet  " ICON_RIGHT : "Network: Mainnet  " ICON_RIGHT, go_cb, GO(UI_NETWORK)),
+                 LV_ALIGN_BOTTOM_MID, 0, -2);
+    show(scr);
+}
+
+// ---------------------------------------------------------------- network
+static void to_export_cb(lv_event_t *) { ui_goto(UI_EXPORT_XPUB); }
+static void network_cb(lv_event_t *e) {
+    wallet_set_testnet(lv_event_get_user_data(e) != nullptr);
+    ui_goto(UI_EXPORT_XPUB);
+}
+
+static void build_network() {
+    lv_obj_t *scr = screen();
+    topbar(scr, "Network", to_export_cb);
+    lv_obj_t *c = card(scr, CW, 2 * 62 + 1);
+    lv_obj_set_style_pad_all(c, 0, 0);
+    lv_obj_set_style_clip_corner(c, true, 0);
+    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 8);
+    bool tn = wallet_testnet();
+    lv_obj_t *r1 = list_row(c, ICON_WALLET, "Mainnet", nullptr, network_cb, nullptr);
+    lv_obj_align(r1, LV_ALIGN_TOP_MID, 0, 0);
+    divider(c, 62);
+    lv_obj_t *r2 = list_row(c, ICON_WALLET, "Testnet", nullptr, network_cb, (void *)1);
+    lv_obj_align(r2, LV_ALIGN_TOP_MID, 0, 63);
+    lv_obj_align(text(tn ? r2 : r1, ICON_CHECK, &inter_17_semi, ACCENT), LV_ALIGN_RIGHT_MID, -16, 0);
+    lv_obj_align(para(scr, "Testnet also covers signet and Mutinynet.", &inter_13, TEXT_3),
+                 LV_ALIGN_TOP_MID, 0, BAR + 8 + 125 + 16);
     show(scr);
 }
 
@@ -693,6 +723,7 @@ void ui_goto(UiScreen s) {
         case UI_SCAN_ADDRESS: build_scan(SCAN_ADDRESS); break;
         case UI_VERIFY_RESULT: build_verify(); break;
         case UI_EXPORT_XPUB: build_export_xpub(); break;
+        case UI_NETWORK: build_network(); break;
         case UI_WIPE_CONFIRM: build_wipe_confirm(); break;
         case UI_PSBT_ERROR: build_psbt_error(); break;
         case UI_PSBT_OVERVIEW: build_psbt_overview(); break;
