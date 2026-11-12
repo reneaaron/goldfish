@@ -1,0 +1,66 @@
+#include "wallet.h"
+#include <new>
+#include <string.h>
+#include <stdio.h>
+#include <Bitcoin.h>
+
+extern "C" void mnemonic_clear(void);   // uBitcoin's trezor-crypto bip39.c
+
+static void secure_zero(void *p, size_t n) {
+    volatile uint8_t *v = (volatile uint8_t *)p;
+    while (n--) *v++ = 0;
+}
+
+// The root key lives in this buffer so the whole object can be zeroed after
+// its destructor runs, instead of trusting the class to clean up.
+alignas(HDPrivateKey) static uint8_t root_mem[sizeof(HDPrivateKey)];
+static HDPrivateKey *root;
+static int words;
+
+bool wallet_has_seed() { return root != nullptr; }
+
+void wallet_wipe() {
+    if (root) {
+        root->~HDPrivateKey();
+        root = nullptr;
+    }
+    secure_zero(root_mem, sizeof(root_mem));
+    words = 0;
+}
+
+bool wallet_load(const SeedEntropy &e) {
+    wallet_wipe();
+    const char *mn = mnemonicFromEntropy(e.bytes, e.len);
+    if (!mn) return false;
+    root = new (root_mem) HDPrivateKey(mn, strlen(mn), "", 0);
+    mnemonic_clear();                    // wipes the static mnemonic buffer
+    words = seedqr_word_count(e);
+    return true;
+}
+
+void wallet_fingerprint(uint8_t out[4]) {
+    memset(out, 0, 4);
+    if (root) root->fingerprint(out);
+}
+
+void wallet_fingerprint_hex(char out[9]) {
+    uint8_t fp[4];
+    wallet_fingerprint(fp);
+    snprintf(out, 9, "%02x%02x%02x%02x", fp[0], fp[1], fp[2], fp[3]);
+}
+
+int wallet_word_count() { return words; }
+
+size_t wallet_export_xpub(char *out, size_t cap) {
+    if (!root || cap == 0) return 0;
+    char fp[9];
+    wallet_fingerprint_hex(fp);
+    HDPrivateKey acct = root->derive("m/84h/0h/0h/");
+    HDPublicKey xpub = acct.xpub();
+    xpub.type = P2WPKH;                  // zpub version bytes
+    char key[120];
+    size_t n = xpub.toString(key, sizeof(key));
+    acct = HDPrivateKey();               // drop the account private key
+    if (n == 0) return 0;
+    return snprintf(out, cap, "[%s/84h/0h/0h]%s", fp, key);
+}
