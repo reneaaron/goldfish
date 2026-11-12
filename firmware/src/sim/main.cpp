@@ -193,7 +193,7 @@ static int run_shots(const char *dir) {
     cam_override = false;
     ui_goto(UI_NEW_SEED); pump(300); save(dir, "15_new_seed");
     const char *rolls = "12345612345612345612345612345612345612345612345612";
-    ui_new_seed(UI_ENTROPY_DICE, 12);
+    ui_seed_entry(UI_ENTROPY_DICE, 12);
     for (int i = 0; i < 23; i++) ui_entropy_input(rolls[i]);
     pump(300); save(dir, "16_dice");
     for (int i = 23; i < 50; i++) ui_entropy_input(rolls[i]);
@@ -218,19 +218,42 @@ static int run_shots(const char *dir) {
     wallet_fingerprint_hex(fp);
     printf("dice seed fingerprint %s\n", fp);
 
-    // Coin flips and entered words, up to the backup.
+    // Coin flips, up to the count.
     wallet_wipe();
     cam_override = false;
-    ui_new_seed(UI_ENTROPY_COINS, 12);
+    ui_seed_entry(UI_ENTROPY_COINS, 12);
     for (int i = 0; i < 37; i++) ui_entropy_input("1101"[i % 4]);
     pump(300); save(dir, "23_coins");
-    ui_new_seed(UI_ENTER_WORDS, 12);
+
+    // Restore from words: loads straight away, then "Back up as QR" with an
+    // optional card check.
+    ui_goto(UI_HOME);
+    ui_goto(UI_RESTORE); pump(300); save(dir, "24_restore");
+    ui_seed_entry(UI_ENTER_WORDS, 12);
     const char *words[] = {"crew", "marble", "private", "differ", "race", "truly", "blush", "basket", "crater", "affair", "prepare"};
     for (const char *w : words)
         if (!ui_enter_word(w)) { fprintf(stderr, "word %s refused\n", w); return 1; }
-    pump(300); save(dir, "24_words_last");
+    pump(300); save(dir, "25_words_last");
     if (ui_enter_word("zoo")) { fprintf(stderr, "invalid last word accepted\n"); return 1; }
-    if (!ui_enter_word("unique") || ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "words did not make a seed\n"); return 1; }
+    if (!ui_enter_word("unique") || ui_current() != UI_SEED_LOADED) { fprintf(stderr, "words did not load\n"); return 1; }
+    ui_goto(UI_SEED_MENU); pump(300); save(dir, "26_menu_backup");
+    ui_backup_loaded();
+    if (ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "backup did not start\n"); return 1; }
+    ui_goto(UI_BACKUP_QR);
+    ui_goto(UI_BACKUP_BLOCK);
+    while (true) {
+        ui_backup_next();
+        if (ui_current() != UI_BACKUP_BLOCK) break;
+    }
+    // ui_backup_next from the last block goes to the check; capture the last block first.
+    ui_goto(UI_BACKUP_BLOCK); pump(300); save(dir, "27_backup_last_block");
+    ui_backup_next();
+    SeedEntropy w;
+    wallet_entropy(&w);
+    cam_show_seedqr(w);
+    seedqr_wipe(&w);
+    for (int i = 0; i < 100 && ui_current() == UI_BACKUP_SCAN; i++) pump(50);
+    if (ui_current() != UI_SEED_LOADED || !wallet_has_seed()) { fprintf(stderr, "existing backup check failed\n"); return 1; }
     return 0;
 }
 

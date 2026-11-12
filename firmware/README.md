@@ -11,16 +11,18 @@ PSBT review/signing work in the simulator; the board's camera driver isn't porte
 ![Transaction flow in the simulator](docs/screens/flow_psbt.png)
 ![Verify address in the simulator](docs/screens/flow_verify.png)
 ![New seed in the simulator](docs/screens/flow_new_seed.png)
+![Enter words and back up as QR in the simulator](docs/screens/flow_restore_backup.png)
 
 ## How it works
 
 Seeds come in as a SeedQR (Standard or Compact, 12 or 24 words), the
-format SeedSigner uses; the UI just calls it a seed QR. There is no passphrase yet.
+format SeedSigner uses (the UI just calls it a seed QR), as typed BIP39
+words, or are made on the device. There is no passphrase yet.
 The seed lives in RAM only: "Wipe seed" or unplugging removes it.
 
-1. Home: Scan SeedQR, or Create new seed
+1. Home: Scan QR, Enter words, or New seed
 2. Seed loaded: shows the fingerprint to check against your wallet
-3. Wallet: Sign transaction, Verify address, Connect wallet, Wipe now
+3. Wallet: Sign transaction, Verify address, Connect wallet, Back up as QR, Wipe now
 4. Connect wallet: shows the native segwit xpub as `[fingerprint/84h/0h/0h]zpub…`, the
    same static format SeedSigner exports, readable by Sparrow
 5. Verify address: scan a receive address (plain or `bitcoin:` URI) from your
@@ -30,21 +32,26 @@ The seed lives in RAM only: "Wipe seed" or unplugging removes it.
    base64 frame), review the amount, fee and change, check each output's
    address, slide to sign, then show the signed PSBT as an animated UR
 
-Create new seed makes a 12 or 24 word seed from entropy the user supplies.
-The device has no RNG of any kind, not even in tests: every bit comes from
-the user and can be re-checked offline.
+Enter words restores from a words backup: pick 12 or 24, then type each
+word. The keyboard only offers letters that lead to a word and, on the last
+word, only words with a valid checksum. The seed loads right away.
 
-- Dice: 50 or 99 rolls, Coins: 128 or 256 flips (heads = 1). The input string
-  is hashed with SHA256, same as SeedSigner and bitcoiner.guide/seed, so the
-  result can be checked there.
-- Enter words: words picked by the user. The keyboard only offers letters
-  that lead to a word; on the last word, only words with a valid checksum.
+New seed makes a 12 or 24 word seed from entropy the user supplies. The
+device has no RNG of any kind, not even in tests: every bit comes from the
+user and can be re-checked offline. Dice: 50 or 99 rolls; coins: 128 or 256
+flips (heads = 1). The input string is hashed with SHA256, same as
+SeedSigner and bitcoiner.guide/seed, so the result can be checked there.
 
-The new seed is never shown as words. It goes straight to a SeedQR backup:
-a Compact SeedQR (21×21 for 12 words, 25×25 for 24, the fewest squares).
-After an offline warning it shows the whole QR, then you copy it onto a card one 5×5 block at a time, labelled with column
-letters and row numbers like the card's grid. Finally scan the card: only
-if it holds the same seed is the seed loaded. Leaving the flow wipes it.
+A new seed is never shown as words. It goes straight to a QR backup: a
+Compact SeedQR (21×21 for 12 words, 25×25 for 24, the fewest squares).
+After an offline warning it shows the whole QR, then you copy it onto a
+card one 5×5 block at a time, labelled with column letters and row numbers
+like the card's grid. Finally scan the card: only if it holds the same seed
+is the seed loaded. Leaving the flow wipes it.
+
+Back up as QR runs the same card flow for whatever seed is loaded, scanned
+or typed, e.g. to turn a words backup into a QR card. There the final scan
+is optional, since the seed already exists elsewhere.
 
 Review follows SeedSigner's rules: every input must belong to the loaded seed,
 change counts as change only if the seed re-derives that exact output script,

@@ -41,9 +41,10 @@ LV_FONT_DECLARE(icons_18);
 #define ICON_DICE_5       "\xEF\x94\xA3"
 #define ICON_DICE_6       "\xEF\x94\xA6"
 #define ICON_HEADS        "\xEF\x80\x87"   // user (a head)
-// icons_18 only: menu icons for the new seed methods
+// icons_18 only: menu icons for making or entering a seed
 #define ICON_DICE         "\xEF\x94\xA2"
 #define ICON_COINS        "\xEF\x94\x9E"
+#define ICON_KEYBOARD     "\xEF\x84\x9C"
 
 namespace th {
 extern const lv_color_t BG, SURFACE, SURFACE_2, BORDER, TEXT, TEXT_2, TEXT_3;

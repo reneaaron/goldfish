@@ -61,11 +61,15 @@ static void build_home() {
     lv_obj_align(icon_badge(scr, ICON_QR, ACCENT, ACCENT_DIM, 76), LV_ALIGN_TOP_MID, 0, 20);
     lv_obj_align(text(scr, "Signer", &inter_30_semi, TEXT), LV_ALIGN_TOP_MID, 0, 104);
     lv_obj_align(para(scr, "Your seed stays in memory only, until you unplug."), LV_ALIGN_TOP_MID, 0, 146);
-    // Same size as the primary, so the two read as a pair.
-    lv_obj_t *create = btn_ghost(scr, "Create new seed", go_cb, GO(UI_NEW_SEED), TEXT);
-    lv_obj_set_height(create, 48);
-    lv_obj_set_style_bg_opa(create, LV_OPA_COVER, 0);
-    lv_obj_align(create, LV_ALIGN_BOTTOM_MID, 0, -M - 48 - 8);
+    // Two secondary ways in, same height as the primary so the three read as a set.
+    const char *labels[] = {"Enter words", "New seed"};
+    const UiScreen dest[] = {UI_RESTORE, UI_NEW_SEED};
+    for (int i = 0; i < 2; i++) {
+        lv_obj_t *b = btn_ghost(scr, labels[i], go_cb, GO(dest[i]), TEXT);
+        lv_obj_set_size(b, (CW - 8) / 2, 48);
+        lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+        lv_obj_align(b, i ? LV_ALIGN_BOTTOM_RIGHT : LV_ALIGN_BOTTOM_LEFT, i ? -M : M, -M - 48 - 8);
+    }
     place_bottom(btn_primary(scr, ICON_CAMERA "   Scan QR", go_cb, GO(UI_SCAN_SEED)));
     show(scr);
 }
@@ -309,6 +313,8 @@ static void build_seed_loaded() {
     show(scr);
 }
 
+static void backup_existing_cb(lv_event_t *);
+
 static void build_seed_menu() {
     lv_obj_t *scr = screen();
     char fp[9];
@@ -329,21 +335,26 @@ static void build_seed_menu() {
     lv_obj_t *sub = text(scr, spaced, &mono_16, TEXT_2, LV_TEXT_ALIGN_LEFT);
     lv_obj_set_pos(sub, M + 52, 36);
 
-    lv_obj_t *c = card(scr, CW, 3 * 62 + 2);
+    // Four rows: a little shorter than list_row's default so Wipe still fits.
+    const int RH = 50;
+    lv_obj_t *c = card(scr, CW, 4 * RH + 3);
     lv_obj_set_style_pad_all(c, 0, 0);
     lv_obj_set_style_clip_corner(c, true, 0);
-    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, 72);
-    lv_obj_t *r1 = list_row(c, ICON_SIGN, "Sign transaction", nullptr, go_cb, GO(UI_SCAN_PSBT));
-    lv_obj_align(r1, LV_ALIGN_TOP_MID, 0, 0);
-    divider(c, 62);
-    lv_obj_t *r2 = list_row(c, ICON_CHECK_CIRCLE, "Verify address", nullptr, go_cb, GO(UI_SCAN_ADDRESS));
-    lv_obj_align(r2, LV_ALIGN_TOP_MID, 0, 63);
-    divider(c, 125);
-    lv_obj_t *r3 = list_row(c, ICON_WALLET, "Connect wallet", nullptr, go_cb, GO(UI_EXPORT_XPUB));
-    lv_obj_align(r3, LV_ALIGN_TOP_MID, 0, 126);
+    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, 66);
+    struct { const char *icon, *title; UiScreen s; } rows[] = {
+        {ICON_SIGN, "Sign transaction", UI_SCAN_PSBT},
+        {ICON_CHECK_CIRCLE, "Verify address", UI_SCAN_ADDRESS},
+        {ICON_WALLET, "Connect wallet", UI_EXPORT_XPUB},
+        {ICON_QR, "Back up as QR", UI_BACKUP_WARNING},
+    };
+    for (int i = 0; i < 4; i++) {
+        if (i) divider(c, i * (RH + 1) - 1);
+        lv_obj_t *r = list_row(c, rows[i].icon, rows[i].title, nullptr, i == 3 ? backup_existing_cb : go_cb, GO(rows[i].s));
+        lv_obj_set_height(r, RH);
+        lv_obj_align(r, LV_ALIGN_TOP_MID, 0, i * (RH + 1));
+    }
 
-
-    lv_obj_align(quiet_link(scr, ICON_TRASH "  Wipe now", go_cb, GO(UI_WIPE_CONFIRM)), LV_ALIGN_BOTTOM_MID, 0, -12);
+    lv_obj_align(quiet_link(scr, ICON_TRASH "  Wipe now", go_cb, GO(UI_WIPE_CONFIRM)), LV_ALIGN_BOTTOM_MID, 0, -6);
     show(scr);
 }
 
@@ -381,10 +392,12 @@ static void build_wipe_confirm() {
     show(scr);
 }
 
-// ---------------------------------------------------------------- new seed
-// Entropy only ever comes from the user (dice, coins or words they pick), see
-// seed_create.h. The new seed stays in `pending` until the user has copied it
-// onto a SeedQR card and the device has scanned that card back.
+// ---------------------------------------------------------------- new seed, restore, backup
+// Entropy only ever comes from the user (dice or coins), see seed_create.h.
+// A new seed stays in `pending` until the user has copied it onto a SeedQR
+// card and the device has scanned that card back. Entered words load
+// straight away. "Back up as QR" runs the same card flow for the loaded seed,
+// where the final scan is optional.
 static int new_words = 12;               // 12 or 24
 static char entropy_in[257];             // dice '1'..'6' or coins '1'/'0' so far
 static int entropy_n;
@@ -397,6 +410,7 @@ static SeedEntropy pending;              // len 0: none
 static uint8_t qr_buf[qrcodegen_BUFFER_LEN_FOR_VERSION(2)];   // the pending seed's SeedQR
 static int qr_n;                         // modules per side, 0: none
 static int block_i;
+static bool backup_existing;             // backing up the loaded seed, not a new one
 
 static void secure_zero(void *p, size_t n) {
     volatile uint8_t *v = (volatile uint8_t *)p;
@@ -411,9 +425,10 @@ static void new_seed_wipe() {
     secure_zero(last_ok, sizeof(last_ok));
     secure_zero(qr_buf, sizeof(qr_buf));
     entropy_n = word_n = qr_n = block_i = 0;
+    backup_existing = false;
 }
 
-void ui_new_seed(UiScreen method, int words) {
+void ui_seed_entry(UiScreen method, int words) {
     new_seed_wipe();
     new_words = words == 24 ? 24 : 12;
     ui_goto(method);
@@ -423,8 +438,42 @@ static void words_cb(lv_event_t *e) {
     new_words = (int)(intptr_t)lv_event_get_user_data(e);
     ui_goto(UI_NEW_SEED);
 }
-static void method_cb(lv_event_t *e) { ui_new_seed((UiScreen)(intptr_t)lv_event_get_user_data(e), new_words); }
-static void to_new_seed_cb(lv_event_t *) { ui_new_seed(UI_NEW_SEED, new_words); }
+static void method_cb(lv_event_t *e) { ui_seed_entry((UiScreen)(intptr_t)lv_event_get_user_data(e), new_words); }
+static void to_new_seed_cb(lv_event_t *) { ui_seed_entry(UI_NEW_SEED, new_words); }
+static void restore_cb(lv_event_t *e) { ui_seed_entry(UI_ENTER_WORDS, (int)(intptr_t)lv_event_get_user_data(e)); }
+
+void ui_backup_loaded() {
+    new_seed_wipe();
+    if (!wallet_entropy(&pending)) return;
+    new_words = wallet_word_count();
+    backup_existing = true;
+    ui_goto(UI_BACKUP_WARNING);
+}
+static void backup_existing_cb(lv_event_t *) { ui_backup_loaded(); }
+// Leaving the card flow: back to where it started.
+static void backup_exit_cb(lv_event_t *) {
+    if (backup_existing) ui_goto(UI_SEED_MENU);
+    else to_new_seed_cb(nullptr);
+}
+
+// Enter words: restore from a words backup. Keyboard icon from icons_18.
+static void build_restore() {
+    lv_obj_t *scr = screen();
+    topbar(scr, "Enter words", to_home_cb);
+    lv_obj_t *c = card(scr, CW, 2 * 62 + 1);
+    lv_obj_set_style_pad_all(c, 0, 0);
+    lv_obj_set_style_clip_corner(c, true, 0);
+    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 4);
+    lv_obj_t *r1 = list_row(c, ICON_KEYBOARD, "12 words", nullptr, restore_cb, (void *)12);
+    lv_obj_align(r1, LV_ALIGN_TOP_MID, 0, 0);
+    divider(c, 62);
+    lv_obj_t *r2 = list_row(c, ICON_KEYBOARD, "24 words", nullptr, restore_cb, (void *)24);
+    lv_obj_align(r2, LV_ALIGN_TOP_MID, 0, 63);
+    for (lv_obj_t *r : {r1, r2}) lv_obj_set_style_text_font(lv_obj_get_child(lv_obj_get_child(r, 0), 0), &icons_18, 0);
+    lv_obj_align(para(scr, "Type the words of your backup. The seed loads right away.", &inter_13, TEXT_3),
+                 LV_ALIGN_TOP_MID, 0, BAR + 4 + 125 + 14);
+    show(scr);
+}
 
 // Two-way toggle, e.g. 12 / 24 words.
 static void segmented(lv_obj_t *parent, int y, const char *a, const char *b, bool a_on, lv_event_cb_t cb, void *ua,
@@ -455,7 +504,7 @@ static void build_new_seed() {
     topbar(scr, "New seed", to_home_cb);
     segmented(scr, BAR + 4, "12 words", "24 words", new_words == 12, words_cb, (void *)12, (void *)24);
 
-    lv_obj_t *c = card(scr, CW, 3 * 62 + 2);
+    lv_obj_t *c = card(scr, CW, 2 * 62 + 1);
     lv_obj_set_style_pad_all(c, 0, 0);
     lv_obj_set_style_clip_corner(c, true, 0);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 56);
@@ -469,9 +518,6 @@ static void build_new_seed() {
     lv_obj_align(r2, LV_ALIGN_TOP_MID, 0, 63);
     // These two glyphs live in icons_18, not in list_row's font.
     for (lv_obj_t *r : {r1, r2}) lv_obj_set_style_text_font(lv_obj_get_child(lv_obj_get_child(r, 0), 0), &icons_18, 0);
-    divider(c, 125);
-    lv_obj_align(list_row(c, "Aa", "Enter words", "Your own words", method_cb, GO(UI_ENTER_WORDS)),
-                 LV_ALIGN_TOP_MID, 0, 126);
     show(scr);
 }
 
@@ -632,10 +678,17 @@ static bool word_accept(int idx) {
     word_idx[word_n++] = uint16_t(idx);
     word_prefix[0] = 0;
     if (word_n == new_words) {
-        bool ok = seed_from_words(word_idx, word_n, &pending);
+        SeedEntropy e;
+        bool ok = seed_from_words(word_idx, word_n, &e);
         secure_zero(word_idx, sizeof(word_idx));
         word_n = 0;
-        ui_goto(ok ? UI_BACKUP_WARNING : UI_NEW_SEED);
+        if (ok && word_field) {
+            lv_label_set_text(word_field, "Loading" "\xE2\x80\xA6");
+            lv_refr_now(nullptr);
+        }
+        ok = ok && wallet_load(e);
+        seedqr_wipe(&e);
+        ui_goto(ok ? UI_SEED_LOADED : UI_RESTORE);
         return ok;
     }
     if (word_is_last()) {
@@ -665,7 +718,7 @@ static void kb_cb(lv_event_t *e) {
 }
 
 static void words_back_cb(lv_event_t *) {
-    if (!word_n) { to_new_seed_cb(nullptr); return; }
+    if (!word_n) { ui_goto(UI_RESTORE); return; }
     word_idx[--word_n] = 0;
     word_prefix[0] = 0;
     ui_goto(UI_ENTER_WORDS);
@@ -741,7 +794,7 @@ static void build_backup_warning() {
     lv_obj_align(text(scr, "Keep it offline", &inter_22_semi, TEXT), LV_ALIGN_TOP_MID, 0, 118);
     lv_obj_align(para(scr, "Your seed QR is your private key. Never photograph it or scan it with a phone."),
                  LV_ALIGN_TOP_MID, 0, 154);
-    bottom_pair(btn_ghost(scr, "Discard", to_new_seed_cb, nullptr, TEXT),
+    bottom_pair(btn_ghost(scr, backup_existing ? "Cancel" : "Discard", backup_exit_cb, nullptr, TEXT),
                 btn_primary(scr, "I understand", go_cb, GO(UI_BACKUP_QR)));
     show(scr);
 }
@@ -806,7 +859,7 @@ static int blocks_per_side() { return (qr_n + 4) / 5; }
 static void block_start_cb(lv_event_t *) { block_i = 0; ui_goto(UI_BACKUP_BLOCK); }
 
 static void build_backup_qr() {
-    if (!backup_make_qr()) { ui_new_seed(UI_NEW_SEED, new_words); return; }
+    if (!backup_make_qr()) { backup_exit_cb(nullptr); return; }
     lv_obj_t *scr = screen();
     topbar(scr, "Back up", to_warning_cb);
     const int cell = 180 / qr_n;
@@ -872,8 +925,11 @@ static void build_backup_block() {
         lv_obj_set_pos(t, 2, gy + i * cell + cell / 2 - 8);
     }
     lv_obj_add_event_cb(scr, block_gesture_cb, LV_EVENT_GESTURE, nullptr);
-    bottom_pair(btn_ghost(scr, ICON_LEFT, block_prev_cb, nullptr, TEXT),
-                btn_primary(scr, block_i + 1 < n ? "Next block" : "Check card", block_next_cb));
+    bool last = block_i + 1 == n;
+    // The loaded seed already exists elsewhere, so checking its card is optional.
+    lv_obj_t *secondary = last && backup_existing ? btn_ghost(scr, "Done", backup_exit_cb, nullptr, TEXT)
+                                                  : btn_ghost(scr, ICON_LEFT, block_prev_cb, nullptr, TEXT);
+    bottom_pair(secondary, btn_primary(scr, last ? "Check card" : "Next block", block_next_cb));
     show(scr);
 }
 
@@ -883,6 +939,13 @@ static void handle_confirm_payload(QrPayload &p) {
     memset(&p, 0, sizeof(p));
     bool same = r == SEEDQR_OK && e.len == pending.len && memcmp(e.bytes, pending.bytes, e.len) == 0;
     seedqr_wipe(&e);
+    if (same && backup_existing) {
+        scan_stop();
+        new_seed_wipe();
+        fresh_backup = true;
+        ui_goto(UI_SEED_LOADED);
+        return;
+    }
     if (same) {
         scan_stop();
         scan_status("Loading seed" "\xE2\x80\xA6", "This takes a few seconds", TEXT);
@@ -1208,23 +1271,26 @@ static void build_verify() {
 }
 
 // ---------------------------------------------------------------- navigation
-static bool new_seed_screen(UiScreen s) {
-    return s == UI_NEW_SEED || s == UI_ENTROPY_DICE || s == UI_ENTROPY_COINS || s == UI_ENTER_WORDS ||
-           s == UI_BACKUP_WARNING || s == UI_BACKUP_QR || s == UI_BACKUP_BLOCK ||
-           s == UI_BACKUP_SCAN;
+// Making or entering a seed: only while none is loaded.
+static bool seed_entry_screen(UiScreen s) {
+    return s == UI_NEW_SEED || s == UI_ENTROPY_DICE || s == UI_ENTROPY_COINS || s == UI_RESTORE || s == UI_ENTER_WORDS;
+}
+// The card flow: for a new seed, or the loaded one.
+static bool backup_screen(UiScreen s) {
+    return s == UI_BACKUP_WARNING || s == UI_BACKUP_QR || s == UI_BACKUP_BLOCK || s == UI_BACKUP_SCAN;
 }
 
 void ui_goto(UiScreen s) {
     if (s != UI_SCAN_SEED && s != UI_SCAN_PSBT && s != UI_SCAN_ADDRESS && s != UI_BACKUP_SCAN) scan_stop();
     // The new seed lives only inside its own flow: leaving it wipes everything.
-    if (!new_seed_screen(s)) new_seed_wipe();
+    if (!seed_entry_screen(s) && !backup_screen(s)) new_seed_wipe();
     bool needs_pending = s == UI_BACKUP_WARNING || s == UI_BACKUP_QR;
     bool needs_qr = s == UI_BACKUP_BLOCK || s == UI_BACKUP_SCAN;
     if ((needs_pending && !pending.len) || (needs_qr && (!pending.len || !qr_n))) { new_seed_wipe(); s = UI_HOME; }
     if (s != UI_VERIFY_RESULT && verify_timer) { lv_timer_delete(verify_timer); verify_timer = nullptr; }
     if (s != UI_PSBT_SIGNED && anim_timer) { lv_timer_delete(anim_timer); anim_timer = nullptr; }
-    bool no_seed_yet = s == UI_HOME || s == UI_SCAN_SEED || new_seed_screen(s);
-    if (!no_seed_yet && !wallet_has_seed()) s = UI_HOME;
+    bool no_seed_yet = s == UI_HOME || s == UI_SCAN_SEED || seed_entry_screen(s);
+    if (!no_seed_yet && !backup_screen(s) && !wallet_has_seed()) s = UI_HOME;
     if (no_seed_yet && wallet_has_seed()) { new_seed_wipe(); s = UI_SEED_MENU; }
     current = s;
     switch (s) {
@@ -1245,6 +1311,7 @@ void ui_goto(UiScreen s) {
         case UI_NEW_SEED: build_new_seed(); break;
         case UI_ENTROPY_DICE: build_entropy(true); break;
         case UI_ENTROPY_COINS: build_entropy(false); break;
+        case UI_RESTORE: build_restore(); break;
         case UI_ENTER_WORDS: build_enter_words(); break;
         case UI_BACKUP_WARNING: build_backup_warning(); break;
         case UI_BACKUP_QR: build_backup_qr(); break;

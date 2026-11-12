@@ -19,6 +19,8 @@ const HDPrivateKey *wallet_root();
 void wallet_fingerprint(uint8_t out[4]);
 void wallet_fingerprint_hex(char out[9]);
 int wallet_word_count();
+// Copy of the loaded seed's entropy, for making a QR backup. The caller wipes it.
+bool wallet_entropy(SeedEntropy *out);
 
 // Native segwit single-sig account (m/84'/0'/0'), as SeedSigner's static
 // export: "[fingerprint/84h/0h/0h]zpub...". Returns length written.

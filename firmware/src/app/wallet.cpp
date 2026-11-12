@@ -16,6 +16,7 @@ static void secure_zero(void *p, size_t n) {
 alignas(HDPrivateKey) static uint8_t root_mem[sizeof(HDPrivateKey)];
 static HDPrivateKey *root;
 static int words;
+static SeedEntropy entropy;               // kept for the QR backup, wiped with the key
 
 bool wallet_has_seed() { return root != nullptr; }
 const HDPrivateKey *wallet_root() { return root; }
@@ -26,6 +27,7 @@ void wallet_wipe() {
         root = nullptr;
     }
     secure_zero(root_mem, sizeof(root_mem));
+    seedqr_wipe(&entropy);
     words = 0;
 }
 
@@ -36,6 +38,7 @@ bool wallet_load(const SeedEntropy &e) {
     root = new (root_mem) HDPrivateKey(mn, strlen(mn), "", 0);
     mnemonic_clear();                    // wipes the static mnemonic buffer
     words = seedqr_word_count(e);
+    entropy = e;
     return true;
 }
 
@@ -51,6 +54,11 @@ void wallet_fingerprint_hex(char out[9]) {
 }
 
 int wallet_word_count() { return words; }
+
+bool wallet_entropy(SeedEntropy *out) {
+    *out = entropy;
+    return root != nullptr;
+}
 
 size_t wallet_export_xpub(char *out, size_t cap) {
     if (!root || cap == 0) return 0;

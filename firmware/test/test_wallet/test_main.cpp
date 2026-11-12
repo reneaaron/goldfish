@@ -31,8 +31,13 @@ void test_zpub() {
 
 void test_wipe() {
     TEST_ASSERT_TRUE(wallet_load(zero_entropy_12()));
+    SeedEntropy e;
+    TEST_ASSERT_TRUE(wallet_entropy(&e));
+    TEST_ASSERT_EQUAL(16, e.len);
     wallet_wipe();
     TEST_ASSERT_FALSE(wallet_has_seed());
+    TEST_ASSERT_FALSE(wallet_entropy(&e));
+    TEST_ASSERT_EQUAL(0, e.len);
     char out[200];
     TEST_ASSERT_EQUAL(0, wallet_export_xpub(out, sizeof(out)));
 }
