@@ -38,4 +38,4 @@ static const char *UR_MULTISIG_BASE64 = "cHNidP8BAIkCAAAAAaLlQ/VRNpx3IFtoRTOCnq2
 
 static const char *SINGLESIG_FRAME = "cHNidP8BAHICAAAAAQDo5ey+2HIrNUkExsFhsImv1OK1cYA9x/bRjYQD+0UaAQAAAAD9////Apg6AAAAAAAAF6kUVuVZEcdpQ2zgABa9dRUNYHD4VuaHgSYAAAAAAAAWABQaLE4t0JbDRg4pNnmcf+cAWIcyawAAAAAAAQEfqGEAAAAAAAAWABRyuw9od6yuS0yiZljV0X12wG9e5CIGA/ZlEZvQubb6PmcnK+vlnd8aftYnrQ8wHYSxsD8tDp61GIshjoFUAACAAQAAgAAAAIAAAAAAAAAAAAAAAA==";
 static const char *SINGLESIG_MNEMONIC = "height demise useless trap grow lion found off key clown transfer enroll";
-// expected: input 25000 sat, spend 24857, change 0, fee 143 (testnet)
+// expected: input ₿25,000, spend ₿24,857, change 0, fee ₿143 (testnet)

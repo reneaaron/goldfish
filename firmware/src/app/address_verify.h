@@ -29,6 +29,8 @@ struct AddressCheck {
     int index;
     int checked;          // addresses compared so far
     int total;
+    uint64_t amount;      // BIP-21 "amount=", in bitcoins (BIP177 base unit); 0 if none
+    bool amount_bad;      // the URI has an amount= that isn't a valid BTC amount
 };
 
 // Accepts a plain address or a BIP-21 "bitcoin:" URI, any case.

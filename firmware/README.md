@@ -27,10 +27,18 @@ The seed lives in RAM only: "Wipe seed" or unplugging removes it.
    Verify address don't use it: they read the network from the PSBT or the address
 5. Verify address: scan a receive address (plain or `bitcoin:` URI) from your
    wallet app; the device checks the first 500 receive and 100 change
-   addresses of this seed and says which one it is, or that it isn't yours
+   addresses of this seed and says which one it is, or that it isn't yours;
+   the amount a URI asks for (`amount=`) is shown too, or flagged if it isn't valid
 6. Sign transaction: scan a PSBT (animated UR `crypto-psbt`, or a single
    base64 frame), review the amount, fee and change, check each output's
    address, slide to sign, then show the signed PSBT as an animated UR
+
+Amounts follow [BIP177](https://github.com/bitcoin/bips/blob/master/bip-0177.mediawiki)
+and [bitcoin.design](https://bitcoin.design/guide/designing-products/units-and-symbols/):
+whole bitcoins with the ₿ symbol (`₿150,000,000`), with the legacy BTC value
+(`1.5 BTC`) under each headline amount for checking against wallets that still
+show BTC. A long amount shrinks, then moves under its label; it's never
+truncated or drawn over other text.
 
 Review follows SeedSigner's rules: every input must belong to the loaded seed,
 change counts as change only if the seed re-derives that exact output script,
@@ -63,10 +71,11 @@ pio test -e test
 - SeedQR decoding: the vectors in SeedSigner's SeedQR spec
 - Key derivation: the BIP84 test vector (fingerprint `73c5da0a`, zpub, testnet vpub)
 - UR: SeedSigner's 29-part `crypto-psbt` vector, plus an encode/decode round trip
-- PSBT review: SeedSigner's single-sig testnet vector (25,000 in, 24,857 out,
-  143 fee), signing, wrong seed and garbage input
-- Verify address: BIP84 first receive/change addresses, URIs, testnet,
-  foreign addresses, and a different seed loaded afterwards
+- PSBT review: SeedSigner's single-sig testnet vector (₿25,000 in, ₿24,857 out,
+  ₿143 fee), signing, wrong seed and garbage input
+- Verify address: BIP84 first receive/change addresses, URIs and their
+  amounts, testnet, foreign addresses, and a different seed loaded afterwards
+- Amounts: BIP177 and legacy BTC formatting from ₿0 to the 21M cap
 
 ## Desktop simulator
 
