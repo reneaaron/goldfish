@@ -17,6 +17,10 @@ alignas(HDPrivateKey) static uint8_t root_mem[sizeof(HDPrivateKey)];
 static HDPrivateKey *root;
 static int words;
 static SeedEntropy entropy;               // kept for the QR backup, wiped with the key
+static bool testnet;
+
+bool wallet_testnet() { return testnet; }
+void wallet_set_testnet(bool t) { testnet = t; }
 
 bool wallet_has_seed() { return root != nullptr; }
 const HDPrivateKey *wallet_root() { return root; }
@@ -79,12 +83,16 @@ size_t wallet_export_xpub(char *out, size_t cap) {
     if (!root || cap == 0) return 0;
     char fp[9];
     wallet_fingerprint_hex(fp);
-    HDPrivateKey acct = root->derive("m/84h/0h/0h/");
+    const char *coin = testnet ? "1h" : "0h";
+    char path[16];
+    snprintf(path, sizeof(path), "m/84h/%s/0h/", coin);
+    HDPrivateKey acct = root->derive(path);
     HDPublicKey xpub = acct.xpub();
-    xpub.type = P2WPKH;                  // zpub version bytes
+    xpub.type = P2WPKH;                  // zpub / vpub version bytes
+    xpub.network = testnet ? &Testnet : &Mainnet;
     char key[120];
     size_t n = xpub.toString(key, sizeof(key));
     acct = HDPrivateKey();               // drop the account private key
     if (n == 0) return 0;
-    return snprintf(out, cap, "[%s/84h/0h/0h]%s", fp, key);
+    return snprintf(out, cap, "[%s/84h/%s/0h]%s", fp, coin, key);
 }

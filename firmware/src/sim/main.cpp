@@ -153,6 +153,10 @@ static int run_shots(const char *dir) {
     pump(300); save(dir, "3_seed_loaded");
     ui_goto(UI_SEED_MENU);    pump(300); save(dir, "4_seed_menu");
     ui_goto(UI_EXPORT_XPUB);  pump(300); save(dir, "5_export_xpub");
+    wallet_set_testnet(true);
+    ui_goto(UI_NETWORK);      pump(300); save(dir, "5b_network");
+    ui_goto(UI_EXPORT_XPUB);  pump(300); save(dir, "5c_export_vpub");
+    wallet_set_testnet(false);
     ui_goto(UI_WIPE_CONFIRM); pump(300); save(dir, "6_wipe_confirm");
 
     // Transaction: SeedSigner's single-sig testnet vector and its seed.

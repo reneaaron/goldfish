@@ -1,6 +1,7 @@
 // Verify address against the BIP84 test vectors ("abandon ... about").
 // Run: pio test -e test
 #include <unity.h>
+#include <stdio.h>
 #include <string.h>
 #include "../../src/app/address_verify.h"
 #include "../../src/app/wallet.h"
@@ -92,6 +93,35 @@ void test_parse_rejects() {
     TEST_ASSERT_EQUAL(ADDR_NOT_ADDRESS, address_parse((const uint8_t *)junk, strlen(junk), &c));
 }
 
+// BIP-21 amounts are BTC; BIP177 shows them in bitcoins (x 100,000,000).
+void test_uri_amount() {
+    const char *a = "bitcoin:bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu";
+    char u[160];
+    struct { const char *q; uint64_t v; bool bad; } cases[] = {
+        {"", 0, false},
+        {"?label=x", 0, false},
+        {"?amount=0.001", 100000ull, false},
+        {"?AMOUNT=1.5", 150000000ull, false},
+        {"?label=x&amount=1234.56789&message=y", 123456789000ull, false},
+        {"?amount=21000000", 2100000000000000ull, false},
+        {"?amount=0.00000001", 1ull, false},
+        {"?amount=12", 1200000000ull, false},
+        {"?amount=21000000.00000001", 0, true},   // above the supply cap
+        {"?amount=0.000000001", 0, true},         // finer than the base unit
+        {"?amount=1e3", 0, true},
+        {"?amount=-1", 0, true},
+        {"?amount=", 0, true},
+        {"?amount=.", 0, true},
+    };
+    for (auto &c : cases) {
+        snprintf(u, sizeof(u), "%s%s", a, c.q);
+        AddressCheck r;
+        TEST_ASSERT_EQUAL(ADDR_OK, address_parse((const uint8_t *)u, strlen(u), &r));
+        TEST_ASSERT_EQUAL_UINT64_MESSAGE(c.v, r.amount, c.q);
+        TEST_ASSERT_EQUAL_MESSAGE(c.bad, r.amount_bad, c.q);
+    }
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_bip84_first_receive);
@@ -103,5 +133,6 @@ int main() {
     RUN_TEST(test_foreign_address_not_found);
     RUN_TEST(test_other_seed_not_reused);
     RUN_TEST(test_parse_rejects);
+    RUN_TEST(test_uri_amount);
     return UNITY_END();
 }
