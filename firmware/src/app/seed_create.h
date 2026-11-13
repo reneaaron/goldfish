@@ -4,7 +4,7 @@
 #include "seedqr.h"
 
 // New seeds from entropy the user supplies: dice rolls, coin flips or words
-// they pick themselves. There is deliberately no RNG anywhere on this device,
+// they draw themselves. There is deliberately no RNG anywhere on this device,
 // hardware or pseudo, not even for tests: every bit comes from the user and
 // can be re-checked offline.
 //
@@ -28,3 +28,12 @@ int seed_words_with_prefix(const char *prefix, int *first);
 bool seed_from_words(const uint16_t *idx, int n, SeedEntropy *out);
 // Would `last` complete the first n-1 words to a valid mnemonic of n words?
 bool seed_last_word_ok(const uint16_t *idx, int n, uint16_t last);
+
+// Words drawn by hand (e.g. from a box): the first n-1 words plus the last
+// word's free bits from coin flips ('1' heads), 7 for 12 words, 3 for 24.
+// The flips are used as bits directly, so the last word can be checked by hand.
+int seed_final_word_flips(int words);
+bool seed_final_word(const uint16_t *idx, int n, const char *flips, SeedEntropy *out);
+
+// The BIP39 word indexes of `e` (12 or 24 of them, checksum included).
+int seed_word_indexes(const SeedEntropy &e, uint16_t out[24]);

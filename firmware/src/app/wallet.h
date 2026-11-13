@@ -16,6 +16,9 @@ void wallet_wipe();
 // The root key, for signing. nullptr without a seed. Don't copy it.
 const HDPrivateKey *wallet_root();
 
+// Fingerprint of a seed without loading it (as slow as wallet_load).
+bool seed_fingerprint_hex(const SeedEntropy &e, char out[9]);
+
 void wallet_fingerprint(uint8_t out[4]);
 void wallet_fingerprint_hex(char out[9]);
 int wallet_word_count();

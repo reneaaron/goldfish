@@ -8,9 +8,9 @@
 //   Scan transaction -> Review -> each output -> Swipe to sign -> Signed QR
 //   Verify address -> scan address QR -> searching -> verified / not from this seed
 //   Home -> Enter words (12/24) -> one screen per word -> Seed loaded
-//   Home -> New seed (12/24 words) -> dice rolls | coin flips
-//        -> offline warning -> whole SeedQR (Compact) -> each 5x5 block
-//        -> scan the finished card (required) -> Seed loaded
+//   Home -> New seed (12/24 words) -> dice rolls | coin flips | draw words + coins for the last
+//        -> offline warning -> write down the words -> QR card? (whole SeedQR,
+//        each block, optional card check) -> Seed ready (not loaded) -> Home
 //   Seed menu -> Back up as QR -> the same card flow, scan optional
 
 enum UiScreen {
@@ -34,9 +34,12 @@ enum UiScreen {
     UI_RESTORE,          // Enter words: 12 or 24
     UI_ENTER_WORDS,      // one screen per word
     UI_BACKUP_WARNING,
+    UI_BACKUP_WORDS,     // 4 words per page, new seeds only
+    UI_BACKUP_CHOICE,    // add a QR card, or skip
     UI_BACKUP_QR,        // the whole SeedQR
     UI_BACKUP_BLOCK,     // one 5x5 block per screen
-    UI_BACKUP_SCAN,      // scan the hand-made card; must hold the new seed
+    UI_BACKUP_SCAN,      // scan the hand-made card; must hold the same seed
+    UI_SEED_READY,       // end of New seed: fingerprint, nothing loaded
 };
 
 void ui_build();               // shows the home screen
@@ -47,7 +50,8 @@ UiScreen ui_current();
 void ui_next_output();         // "Next" on an output screen
 bool ui_swipe_sign();          // completes the swipe; false if signing failed
 bool verify_done();            // the address check has a result
-void ui_seed_entry(UiScreen method, int words); // start UI_ENTROPY_DICE, _COINS or UI_ENTER_WORDS
+// Start UI_ENTROPY_DICE, _COINS or UI_ENTER_WORDS; draw: the words are a new seed (last word from coins).
+void ui_seed_entry(UiScreen method, int words, bool draw = false);
 void ui_backup_loaded();       // "Back up as QR" in the seed menu
 void ui_entropy_input(char c); // a dice key ('1'..'6') or coin key ('1' heads, '0' tails)
 bool ui_enter_word(const char *word);           // tap the suggestion for this word

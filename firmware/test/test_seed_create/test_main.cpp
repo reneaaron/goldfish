@@ -105,6 +105,35 @@ void test_prefix() {
     TEST_ASSERT_EQUAL(0, seed_words_with_prefix("qq", &first));
 }
 
+void test_final_word() {
+    uint16_t idx[24];
+    int n = parse("crawl focus rescue cable view pledge rather dinner cousin unfair day", idx);
+    TEST_ASSERT_EQUAL(11, n);
+    SeedEntropy e;
+    TEST_ASSERT_TRUE(seed_final_word(idx, 12, "1010101", &e));
+    assert_mnemonic("crawl focus rescue cable view pledge rather dinner cousin unfair day prize", e);
+    TEST_ASSERT_FALSE(seed_final_word(idx, 12, "101010", &e));      // 6 flips: one short
+    n = parse("bubble father debate ankle injury fence mesh evolve section wet coyote violin pyramid flower rent "
+              "arrow round clutch myth safe base skin mobile", idx);
+    TEST_ASSERT_EQUAL(23, n);
+    TEST_ASSERT_TRUE(seed_final_word(idx, 24, "101", &e));
+    TEST_ASSERT_EQUAL(32, e.len);
+    uint16_t all[24];
+    TEST_ASSERT_EQUAL(24, seed_word_indexes(e, all));
+    TEST_ASSERT_EQUAL_STRING("sausage", seed_word(all[23]));
+}
+
+void test_word_indexes() {
+    const uint8_t ent[16] = {0x33, 0x50, 0xf6, 0xac, 0x9e, 0xeb, 0x07, 0xd2, 0xc6, 0x20, 0x99, 0x32, 0x80, 0x8a, 0xa7, 0xf6};
+    SeedEntropy e = {};
+    memcpy(e.bytes, ent, 16);
+    e.len = 16;
+    uint16_t idx[24], want[24];
+    TEST_ASSERT_EQUAL(12, seed_word_indexes(e, idx));
+    parse("crew marble private differ race truly blush basket crater affair prepare unique", want);
+    TEST_ASSERT_EQUAL_UINT16_ARRAY(want, idx, 12);
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_dice_12);
@@ -114,5 +143,7 @@ int main() {
     RUN_TEST(test_words);
     RUN_TEST(test_last_word_counts);
     RUN_TEST(test_prefix);
+    RUN_TEST(test_final_word);
+    RUN_TEST(test_word_indexes);
     return UNITY_END();
 }

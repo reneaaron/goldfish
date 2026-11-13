@@ -187,8 +187,8 @@ static int run_shots(const char *dir) {
     for (int i = 0; i < 400 && !(ui_current() == UI_VERIFY_RESULT && verify_done()); i++) pump(30);
     pump(300); save(dir, "14_verify_not_found");
 
-    // New seed from 50 dice rolls (SeedSigner's test vector), backed up as a
-    // Compact SeedQR and checked by scanning the "card".
+    // New seed from 50 dice rolls (SeedSigner's test vector): write down the
+    // words, copy a QR card and check it. New seed never loads the seed.
     wallet_wipe();
     cam_override = false;
     ui_goto(UI_NEW_SEED); pump(300); save(dir, "15_new_seed");
@@ -199,44 +199,63 @@ static int run_shots(const char *dir) {
     for (int i = 23; i < 50; i++) ui_entropy_input(rolls[i]);
     if (ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "dice did not make a seed\n"); return 1; }
     pump(300); save(dir, "17_backup_warning");
-    ui_goto(UI_BACKUP_QR);      pump(300); save(dir, "18_backup_qr");
-    ui_goto(UI_BACKUP_BLOCK);   pump(300); save(dir, "19_backup_block_1");
-    ui_backup_next();           pump(300); save(dir, "20_backup_block_2");
+    ui_goto(UI_BACKUP_WORDS);   pump(300); save(dir, "18_backup_words");
+    ui_goto(UI_BACKUP_CHOICE);  pump(300); save(dir, "19_backup_choice");
+    ui_goto(UI_BACKUP_QR);      pump(300); save(dir, "20_backup_qr");
+    ui_goto(UI_BACKUP_BLOCK);   pump(300); save(dir, "21_backup_block_1");
     while (ui_current() == UI_BACKUP_BLOCK) ui_backup_next();
     if (ui_current() != UI_BACKUP_SCAN) { fprintf(stderr, "no card check after the last block\n"); return 1; }
     setenv("SIM_CAMERA", "sim/samples/vector4_compact_12word.png", 1);   // somebody else's seed
     for (int i = 0; i < 40; i++) pump(50);
-    save(dir, "21_check_wrong_card");
+    save(dir, "22_check_wrong_card");
     SeedEntropy e;
     seed_from_dice(rolls, 50, 12, &e);
     cam_show_seedqr(e);
     seedqr_wipe(&e);
     for (int i = 0; i < 100 && ui_current() == UI_BACKUP_SCAN; i++) pump(50);
-    if (ui_current() != UI_SEED_LOADED) { fprintf(stderr, "card check failed (screen %d)\n", ui_current()); return 1; }
-    pump(300); save(dir, "22_backup_checked");
-    char fp[9];
-    wallet_fingerprint_hex(fp);
-    printf("dice seed fingerprint %s\n", fp);
+    if (ui_current() != UI_SEED_READY || wallet_has_seed()) { fprintf(stderr, "card check failed (screen %d)\n", ui_current()); return 1; }
+    pump(300); save(dir, "23_seed_ready");
 
     // Coin flips, up to the count.
-    wallet_wipe();
     cam_override = false;
     ui_seed_entry(UI_ENTROPY_COINS, 12);
     for (int i = 0; i < 37; i++) ui_entropy_input("1101"[i % 4]);
-    pump(300); save(dir, "23_coins");
+    pump(300); save(dir, "24_coins");
+
+    // Draw words: 11 by hand, the last word's 7 bits from coin flips. The
+    // expected last word, "prize", was computed in Python.
+    ui_seed_entry(UI_ENTER_WORDS, 12, true);
+    const char *drawn[] = {"crawl", "focus", "rescue", "cable", "view", "pledge", "rather", "dinner", "cousin", "unfair", "day"};
+    uint16_t didx[11];
+    for (int i = 0; i < 11; i++) {
+        if (!ui_enter_word(drawn[i])) { fprintf(stderr, "drawn word %s refused\n", drawn[i]); return 1; }
+        int first;
+        seed_words_with_prefix(drawn[i], &first);
+        didx[i] = uint16_t(first);
+    }
+    if (ui_current() != UI_ENTROPY_COINS) { fprintf(stderr, "no coin flips for the last word\n"); return 1; }
+    pump(300); save(dir, "25_last_word_coins");
+    for (const char *f = "1010101"; *f; f++) ui_entropy_input(*f);
+    if (ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "last word flips did not make a seed\n"); return 1; }
+    uint16_t all[24];
+    seed_final_word(didx, 12, "1010101", &e);
+    seed_word_indexes(e, all);
+    seedqr_wipe(&e);
+    if (strcmp(seed_word(all[11]), "prize")) { fprintf(stderr, "last word %s, not prize\n", seed_word(all[11])); return 1; }
+    ui_goto(UI_HOME);
 
     // Restore from words: loads straight away, then "Back up as QR" with an
     // optional card check.
     ui_goto(UI_HOME);
-    ui_goto(UI_RESTORE); pump(300); save(dir, "24_restore");
+    ui_goto(UI_RESTORE); pump(300); save(dir, "26_restore");
     ui_seed_entry(UI_ENTER_WORDS, 12);
     const char *words[] = {"crew", "marble", "private", "differ", "race", "truly", "blush", "basket", "crater", "affair", "prepare"};
     for (const char *w : words)
         if (!ui_enter_word(w)) { fprintf(stderr, "word %s refused\n", w); return 1; }
-    pump(300); save(dir, "25_words_last");
+    pump(300); save(dir, "27_words_last");
     if (ui_enter_word("zoo")) { fprintf(stderr, "invalid last word accepted\n"); return 1; }
     if (!ui_enter_word("unique") || ui_current() != UI_SEED_LOADED) { fprintf(stderr, "words did not load\n"); return 1; }
-    ui_goto(UI_SEED_MENU); pump(300); save(dir, "26_menu_backup");
+    ui_goto(UI_SEED_MENU); pump(300); save(dir, "28_menu_backup");
     ui_backup_loaded();
     if (ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "backup did not start\n"); return 1; }
     ui_goto(UI_BACKUP_QR);
@@ -246,7 +265,7 @@ static int run_shots(const char *dir) {
         if (ui_current() != UI_BACKUP_BLOCK) break;
     }
     // ui_backup_next from the last block goes to the check; capture the last block first.
-    ui_goto(UI_BACKUP_BLOCK); pump(300); save(dir, "27_backup_last_block");
+    ui_goto(UI_BACKUP_BLOCK); pump(300); save(dir, "29_backup_last_block");
     ui_backup_next();
     SeedEntropy w;
     wallet_entropy(&w);

@@ -36,22 +36,27 @@ Enter words restores from a words backup: pick 12 or 24, then type each
 word. The keyboard only offers letters that lead to a word and, on the last
 word, only words with a valid checksum. The seed loads right away.
 
-New seed makes a 12 or 24 word seed from entropy the user supplies. The
-device has no RNG of any kind, not even in tests: every bit comes from the
-user and can be re-checked offline. Dice: 50 or 99 rolls; coins: 128 or 256
-flips (heads = 1). The input string is hashed with SHA256, same as
-SeedSigner and bitcoiner.guide/seed, so the result can be checked there.
+New seed is a tool: it makes a 12 or 24 word seed and its backup, but
+doesn't load it. To use the seed, load it like any other (Scan QR or Enter
+words). The device has no RNG of any kind, not even in tests: every bit
+comes from the user and can be re-checked offline.
 
-A new seed is never shown as words. It goes straight to a QR backup: a
-Compact SeedQR (21×21 for 12 words, 25×25 for 24, the fewest squares).
-After an offline warning it shows the whole QR, then you copy it onto a
-card one 5×5 block at a time, labelled with column letters and row numbers
-like the card's grid. Finally scan the card: only if it holds the same seed
-is the seed loaded. Leaving the flow wipes it.
+- Dice: 50 or 99 rolls; coins: 128 or 256 flips (heads = 1). The input
+  string is hashed with SHA256, same as SeedSigner and bitcoiner.guide/seed,
+  so the result can be checked there.
+- Draw words: e.g. from a box. Type the first 11 (or 23) words, then flip a
+  coin for each free bit of the last word (7 for 12 words, 3 for 24). The
+  flips are the bits themselves, so the last word can be checked by hand.
+
+Then an offline warning, the words 4 per page to write down, and an
+optional QR card: a Compact SeedQR (21×21 for 12 words, 25×25 for 24)
+shown whole, then copied one block at a time, labelled with column letters
+and row numbers like the card's grid (21×21 splits 5+5+5+6, so no thin
+edge blocks). Scanning the finished card checks it. The flow ends with the
+fingerprint to write on the backup; leaving it wipes the seed.
 
 Back up as QR runs the same card flow for whatever seed is loaded, scanned
-or typed, e.g. to turn a words backup into a QR card. There the final scan
-is optional, since the seed already exists elsewhere.
+or typed, e.g. to turn a words backup into a QR card.
 
 Review follows SeedSigner's rules: every input must belong to the loaded seed,
 change counts as change only if the seed re-derives that exact output script,

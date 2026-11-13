@@ -78,3 +78,37 @@ bool seed_last_word_ok(const uint16_t *idx, int n, uint16_t last) {
     secure_zero(all, sizeof(all));
     return ok;
 }
+
+int seed_final_word_flips(int words) { return words == 24 ? 3 : 7; }
+
+static void put_bits(uint8_t *bits, size_t &pos, unsigned v, int n) {
+    for (int b = n - 1; b >= 0; b--, pos++)
+        if ((v >> b) & 1) bits[pos / 8] |= 0x80 >> (pos % 8);
+}
+
+bool seed_final_word(const uint16_t *idx, int n, const char *flips, SeedEntropy *out) {
+    memset(out, 0, sizeof(*out));
+    if ((n != 12 && n != 24) || strlen(flips) != (size_t)seed_final_word_flips(n) || !all_in(flips, strlen(flips), '0', '1'))
+        return false;
+    size_t pos = 0;
+    for (int i = 0; i < n - 1; i++) put_bits(out->bytes, pos, idx[i] & 0x7FF, 11);
+    for (const char *f = flips; *f; f++) put_bits(out->bytes, pos, unsigned(*f - '0'), 1);
+    out->len = pos / 8;                                  // 128 or 256 bits: the whole entropy
+    return true;
+}
+
+int seed_word_indexes(const SeedEntropy &e, uint16_t out[24]) {
+    uint8_t bits[33] = {0}, h[32];
+    memcpy(bits, e.bytes, e.len);
+    sha256(e.bytes, e.len, h);
+    bits[e.len] = h[0];                                  // checksum: first len/4 bits
+    int n = int(e.len * 3 / 4);
+    for (int w = 0; w < n; w++) {
+        uint16_t v = 0;
+        for (int b = w * 11; b < w * 11 + 11; b++) v = uint16_t(v << 1 | ((bits[b / 8] >> (7 - b % 8)) & 1));
+        out[w] = v;
+    }
+    secure_zero(bits, sizeof(bits));
+    secure_zero(h, sizeof(h));
+    return n;
+}

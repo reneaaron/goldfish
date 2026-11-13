@@ -42,6 +42,21 @@ bool wallet_load(const SeedEntropy &e) {
     return true;
 }
 
+bool seed_fingerprint_hex(const SeedEntropy &e, char out[9]) {
+    out[0] = 0;
+    const char *mn = mnemonicFromEntropy(e.bytes, e.len);
+    if (!mn) return false;
+    alignas(HDPrivateKey) static uint8_t mem[sizeof(HDPrivateKey)];
+    HDPrivateKey *k = new (mem) HDPrivateKey(mn, strlen(mn), "", 0);
+    mnemonic_clear();
+    uint8_t fp[4];
+    k->fingerprint(fp);
+    k->~HDPrivateKey();
+    secure_zero(mem, sizeof(mem));
+    snprintf(out, 9, "%02x%02x%02x%02x", fp[0], fp[1], fp[2], fp[3]);
+    return true;
+}
+
 void wallet_fingerprint(uint8_t out[4]) {
     memset(out, 0, 4);
     if (root) root->fingerprint(out);
