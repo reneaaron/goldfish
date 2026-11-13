@@ -72,22 +72,22 @@ static lv_obj_t *qr_card(lv_obj_t *parent, int y, lv_obj_t **qr_out) {
 }
 
 // ---------------------------------------------------------------- home
+static lv_obj_t *quiet_link(lv_obj_t *parent, const char *s, lv_event_cb_t cb, void *ud);
+
 static void build_home() {
     lv_obj_t *scr = screen();
-    lv_obj_align(icon_badge(scr, ICON_QR, ACCENT, ACCENT_DIM, 76), LV_ALIGN_TOP_MID, 0, 20);
-    lv_obj_align(text(scr, "Signer", &inter_30_semi, TEXT), LV_ALIGN_TOP_MID, 0, 104);
-    lv_obj_align(para(scr, "Your seed stays in memory only, until you unplug."), LV_ALIGN_TOP_MID, 0, 146);
-    // Two secondary ways in, same height as the primary so the three read as a set.
-    const char *labels[] = {"Enter words", "New seed"};
-    const UiScreen dest[] = {UI_RESTORE, UI_NEW_SEED};
-    for (int i = 0; i < 2; i++) {
-        lv_obj_t *b = btn_ghost(scr, labels[i], go_cb, GO(dest[i]), TEXT);
-        lv_obj_set_size(b, (CW - 8) / 2, 48);
-        lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
-        lv_obj_set_style_text_font(lv_obj_get_child(b, 0), &inter_15, 0);   // half width: 17px is too tight
-        lv_obj_align(b, i ? LV_ALIGN_BOTTOM_RIGHT : LV_ALIGN_BOTTOM_LEFT, i ? -M : M, -M - 48 - 8);
-    }
-    place_bottom(btn_primary(scr, ICON_CAMERA "   Scan QR", go_cb, GO(UI_SCAN_SEED)));
+    lv_obj_align(icon_badge(scr, ICON_QR, ACCENT, ACCENT_DIM, 56), LV_ALIGN_TOP_MID, 0, 12);
+    lv_obj_align(text(scr, "Signer", &inter_30_semi, TEXT), LV_ALIGN_TOP_MID, 0, 76);
+    lv_obj_align(para(scr, "Your seed stays in memory only, until you unplug."), LV_ALIGN_TOP_MID, 0, 116);
+    // Loading a seed you have: scan it or type it, grouped at the bottom.
+    lv_obj_t *words = btn_ghost(scr, ICON_KEYBOARD "   Enter words", go_cb, GO(UI_RESTORE), TEXT);
+    lv_obj_set_height(words, 48);
+    lv_obj_set_style_bg_opa(words, LV_OPA_COVER, 0);
+    lv_obj_align(words, LV_ALIGN_BOTTOM_MID, 0, -40 - 48 - 8);
+    lv_obj_t *scan = btn_primary(scr, ICON_CAMERA "   Scan QR", go_cb, GO(UI_SCAN_SEED));
+    lv_obj_align(scan, LV_ALIGN_BOTTOM_MID, 0, -40);
+    // Making a new seed is a different job, so it sits apart and quieter.
+    lv_obj_align(quiet_link(scr, ICON_DICE "  Create new seed", go_cb, GO(UI_NEW_SEED)), LV_ALIGN_BOTTOM_MID, 0, -4);
     show(scr);
 }
 
