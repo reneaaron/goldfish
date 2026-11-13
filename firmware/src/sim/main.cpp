@@ -272,6 +272,32 @@ static int run_shots(const char *dir) {
     if (!cam_show_matrix(ui_backup_qr())) { fprintf(stderr, "no backup QR on screen\n"); return 1; }
     for (int i = 0; i < 100 && ui_current() == UI_BACKUP_SCAN; i++) pump(50);
     if (ui_current() != UI_SEED_LOADED || !wallet_has_seed()) { fprintf(stderr, "existing backup check failed\n"); return 1; }
+
+    // BIP-85 child seed of the loaded seed: words, QR card, card check.
+    ui_goto(UI_SEED_MENU);    pump(300); save(dir, "30_menu_child");
+    ui_goto(UI_CHILD_LENGTH); pump(300); save(dir, "31_child_length");
+    ui_goto(UI_CHILD_INDEX);
+    // Keypad: the largest child number, a digit past it is ignored, Del back to 0.
+    for (const char *d = "21474836479"; *d; d++) ui_child_digit(*d - '0');
+    if (strcmp(ui_child_number(), "2147483647")) { fprintf(stderr, "child number not capped: %s\n", ui_child_number()); return 1; }
+    for (int i = 0; i < 11; i++) ui_child_digit(-1);
+    if (strcmp(ui_child_number(), "0")) { fprintf(stderr, "Del did not clear: %s\n", ui_child_number()); return 1; }
+    ui_child_seed(12, 0x80000000u);   // past the hardened range: stays on the keypad with a note
+    if (ui_current() != UI_CHILD_INDEX) { fprintf(stderr, "bad child number not refused\n"); return 1; }
+    pump(300); save(dir, "32b_child_failed");
+    ui_child_digit(0);
+    ui_child_digit(3);
+    pump(300); save(dir, "32_child_index");
+    ui_child_seed(12, (uint32_t)strtoul(ui_child_number(), nullptr, 10));
+    if (ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "child seed did not start\n"); return 1; }
+    ui_goto(UI_BACKUP_WORDS); pump(300); save(dir, "33_child_words");
+    ui_goto(UI_BACKUP_QR);
+    ui_goto(UI_BACKUP_BLOCK);
+    while (ui_current() == UI_BACKUP_BLOCK) ui_backup_next();
+    if (!cam_show_matrix(ui_backup_qr())) { fprintf(stderr, "no child QR on screen\n"); return 1; }
+    for (int i = 0; i < 100 && ui_current() == UI_BACKUP_SCAN; i++) pump(50);
+    if (ui_current() != UI_SEED_READY || !wallet_has_seed()) { fprintf(stderr, "child card check failed\n"); return 1; }
+    pump(600); save(dir, "34_child_ready");
     return 0;
 }
 

@@ -9,7 +9,7 @@ hardware: transactions go in and out through the camera and the screen.
 
 Status: early, not for real funds. The firmware runs in a desktop simulator
 with seed loading (QR or words), new seeds from dice, coins or drawn words, QR backups, transaction review
-and signing, address verification and wallet pairing; the board's camera driver isn't ported yet and nothing has
+and signing, address verification, wallet pairing and BIP-85 child seeds; the board's camera driver isn't ported yet and nothing has
 been tested on real hardware or against Sparrow.
 
 ## Repository
@@ -35,6 +35,8 @@ been tested on real hardware or against Sparrow.
    amount, fee, change and every address, slide to sign, and scan the signed
    QR back into your wallet to broadcast it.
 4. Verify address: scan a receive address to confirm it belongs to your seed.
+5. Child seed: derive a BIP-85 child seed and back it up as words and a QR
+   card, like a new seed.
 
 ## Quick start
 
