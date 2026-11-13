@@ -78,6 +78,9 @@ truncated or drawn over other text.
 Review follows SeedSigner's rules: every input must belong to the loaded seed,
 change counts as change only if the seed re-derives that exact output script,
 and an output that claims our fingerprint but doesn't verify blocks signing.
+A fee of 10% or more of what's being sent is shown in amber with a note on
+the confirm screen, as [bitcoin.design](https://bitcoin.design/guide/daily-spending-wallet/sending/)
+asks.
 Single-sig native segwit only, mainnet or testnet (from the PSBT's derivation
 paths). BBQr input isn't supported yet.
 

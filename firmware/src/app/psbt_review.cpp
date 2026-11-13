@@ -38,6 +38,10 @@ const char *psbt_error_text(PsbtError e) {
     return "";
 }
 
+bool psbt_fee_is_high(uint64_t fee, uint64_t sent) {
+    return fee > 0 && fee * 10 >= sent;
+}
+
 PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
     psbt_clear();
     memset(r, 0, sizeof(*r));
@@ -100,6 +104,7 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
     }
     if (out_total > r->input_total) return r->error = PSBT_PARSE_FAILED;
     r->fee = r->input_total - out_total;
+    r->high_fee = psbt_fee_is_high(r->fee, r->spend ? r->spend : r->self);
     return r->error;
 }
 

@@ -1315,7 +1315,7 @@ static void build_psbt_overview() {
     fmt_btc(review.change, chg, sizeof(chg));
     const KvRow rows[] = {
         {nrec == 1 ? "Recipient" : "Recipients", rec, TEXT, false},
-        {"Fee", fee, TEXT, true},
+        {"Fee", fee, review.high_fee ? AMBER : TEXT, true},
         {"Change", review.change ? chg : "None", review.change ? GREEN : TEXT_3, true},
     };
     kv_card(scroll_area(scr, BAR + 92), rows, 3);
@@ -1428,11 +1428,19 @@ static void build_psbt_sign() {
     fmt_btc(send + review.fee, vals[2], sizeof(vals[2]));
     const KvRow rows[] = {
         {review.spend ? "Send" : "Move", vals[0], TEXT, false},
-        {"Fee", vals[1], TEXT_2, false},
+        {"Fee", vals[1], review.high_fee ? AMBER : TEXT_2, false},
         {"Total", vals[2], ACCENT, true},
     };
     lv_obj_t *c = kv_card(scr, rows, 3, &mono_16);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, top);
+    if (review.high_fee) {
+        char warn[64];
+        if (send) snprintf(warn, sizeof(warn), "High fee: %llu%% of the amount",
+                           (unsigned long long)(review.fee * 100 / send));
+        else snprintf(warn, sizeof(warn), "High fee: nothing is being sent");
+        lv_obj_t *w = text(scr, warn, &inter_13, AMBER);
+        lv_obj_align_to(w, c, LV_ALIGN_OUT_BOTTOM_MID, 0, 10);
+    }
 
     lv_obj_t *sl = lv_slider_create(scr);
     lv_obj_remove_style_all(sl);

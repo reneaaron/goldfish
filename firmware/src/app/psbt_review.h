@@ -37,6 +37,7 @@ struct PsbtReview {
     uint64_t self;           // to our own receive addresses
     uint64_t change;
     uint64_t fee;
+    bool high_fee;           // see psbt_fee_is_high
     int n_outputs;
     PsbtOutput outputs[PSBT_MAX_OUTPUTS];
 };
@@ -51,3 +52,8 @@ size_t psbt_serialize(uint8_t *out, size_t cap);
 void psbt_clear();
 
 const char *psbt_error_text(PsbtError e);
+
+// A fee of 10% or more of what's being sent (to others, or to yourself when
+// nothing goes out). Flagged on review, as bitcoin.design asks, and a sign of
+// a wallet or a tampered PSBT siphoning funds into the fee.
+bool psbt_fee_is_high(uint64_t fee, uint64_t sent);

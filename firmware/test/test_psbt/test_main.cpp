@@ -33,6 +33,7 @@ void test_review_matches_seedsigner() {
     TEST_ASSERT_EQUAL_UINT64(24857, r.spend);     // SeedSigner: spend_amount
     TEST_ASSERT_EQUAL_UINT64(0, r.change);
     TEST_ASSERT_EQUAL_UINT64(143, r.fee);
+    TEST_ASSERT_FALSE(r.high_fee);
     TEST_ASSERT_EQUAL(2, r.n_outputs);
 }
 
@@ -56,6 +57,15 @@ void test_wrong_seed_rejected() {
     TEST_ASSERT_EQUAL(PSBT_NOT_OUR_SEED, psbt_load(raw, raw_len, &r));
 }
 
+void test_fee_is_high() {
+    TEST_ASSERT_FALSE(psbt_fee_is_high(0, 0));
+    TEST_ASSERT_FALSE(psbt_fee_is_high(143, 24857));
+    TEST_ASSERT_FALSE(psbt_fee_is_high(9999, 100000));
+    TEST_ASSERT_TRUE(psbt_fee_is_high(10000, 100000));   // exactly 10%
+    TEST_ASSERT_TRUE(psbt_fee_is_high(50000, 1000));
+    TEST_ASSERT_TRUE(psbt_fee_is_high(1, 0));            // fee, nothing sent
+}
+
 void test_garbage_rejected() {
     load_seed(SINGLESIG_MNEMONIC);
     uint8_t junk[64];
@@ -70,5 +80,6 @@ int main() {
     RUN_TEST(test_sign_adds_signature);
     RUN_TEST(test_wrong_seed_rejected);
     RUN_TEST(test_garbage_rejected);
+    RUN_TEST(test_fee_is_high);
     return UNITY_END();
 }
