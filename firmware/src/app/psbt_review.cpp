@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <PSBT.h>
+#include "seedqr.h"
 #include "wallet.h"
 
 alignas(PSBT) static uint8_t psbt_mem[sizeof(PSBT)];
@@ -24,6 +25,18 @@ static void format_path(const PSBTDerivation &d, char *out, size_t cap) {
         uint32_t v = d.derivation[i];
         o += snprintf(out + o, cap - o, "/%u%s", unsigned(v & 0x7FFFFFFF), (v & 0x80000000) ? "h" : "");
     }
+}
+
+// True if the key at the claimed path pays to exactly this script as P2WPKH
+// (0x00 0x14 <hash160(pubkey)>). uBitcoin's isMine() only compares the pubkey
+// in the metadata with the derived one and never looks at the script.
+static bool pays_to_claim(const HDPrivateKey &root, const PSBTDerivation &d, const Script &script) {
+    alignas(HDPrivateKey) static uint8_t mem[sizeof(HDPrivateKey)];
+    HDPrivateKey *k = new (mem) HDPrivateKey(root.derive(d.derivation, d.derivationLen));
+    bool ok = script == Script(k->publicKey(), P2WPKH);
+    k->~HDPrivateKey();
+    secure_zero(mem, sizeof(mem));
+    return ok;
 }
 
 const char *psbt_error_text(PsbtError e) {
@@ -86,7 +99,7 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
         for (uint8_t k = 0; k < m.derivationsLen; k++)
             if (fp_equal(m.derivations[k].fingerprint, fp)) claim = &m.derivations[k];
 
-        if (claim && psbt->isMine(uint8_t(i), root)) {
+        if (claim && psbt->isMine(uint8_t(i), root) && pays_to_claim(root, *claim, txo.scriptPubkey)) {
             format_path(*claim, o.path, sizeof(o.path));
             bool internal = claim->derivationLen >= 2 && claim->derivation[claim->derivationLen - 2] == 1;
             if (internal) { o.is_change = true; r->change += o.amount; }
