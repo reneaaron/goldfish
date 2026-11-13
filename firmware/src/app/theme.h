@@ -34,6 +34,7 @@ LV_FONT_DECLARE(icons_40);
 #define ICON_KEYBOARD     "\xEE\x8A\x84"   // keyboard
 #define ICON_DICE         "\xEE\x8B\x85"   // dices
 #define ICON_COINS        "\xEE\x82\x9B"   // coins
+#define ICON_SIGNER       "\xEE\x87\xBF"   // shield-check, icons_34 only: the home badge
 
 // icons_40 only: dice faces and the two sides of a coin
 #define ICON_DICE_1       "\xEE\x8A\x87"   // dice-1

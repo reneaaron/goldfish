@@ -76,7 +76,7 @@ static lv_obj_t *quiet_link(lv_obj_t *parent, const char *s, lv_event_cb_t cb, v
 
 static void build_home() {
     lv_obj_t *scr = screen();
-    lv_obj_align(icon_badge(scr, ICON_QR, ACCENT, ACCENT_DIM, 56), LV_ALIGN_TOP_MID, 0, 12);
+    lv_obj_align(icon_badge(scr, ICON_SIGNER, ACCENT, ACCENT_DIM, 56), LV_ALIGN_TOP_MID, 0, 12);
     lv_obj_align(text(scr, "Signer", &inter_30_semi, TEXT), LV_ALIGN_TOP_MID, 0, 76);
     lv_obj_align(para(scr, "Your seed stays in memory only, until you unplug."), LV_ALIGN_TOP_MID, 0, 116);
     // Loading a seed you have: scan it or type it, grouped at the bottom.
