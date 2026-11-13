@@ -506,7 +506,7 @@ static void backup_existing_cb(lv_event_t *) { ui_backup_loaded(); }
 // Leaving the card flow: back to the wallet, or for a new seed, to Seed ready.
 static void backup_exit_cb(lv_event_t *) { ui_goto(backup_existing ? UI_SEED_MENU : UI_SEED_READY); }
 
-// Enter words: restore from a words backup. Keyboard icon from icons_18.
+// Enter words: restore from a words backup.
 static void build_restore() {
     lv_obj_t *scr = screen();
     topbar(scr, "Enter words", to_home_cb);
@@ -519,8 +519,6 @@ static void build_restore() {
     divider(c, 62);
     lv_obj_t *r2 = list_row(c, ICON_KEYBOARD, "24 words", nullptr, restore_cb, (void *)24);
     lv_obj_align(r2, LV_ALIGN_TOP_MID, 0, 63);
-    lv_obj_t *icon_rows[] = {r1, r2};
-    for (lv_obj_t *r : icon_rows) lv_obj_set_style_text_font(lv_obj_get_child(lv_obj_get_child(r, 0), 0), &icons_18, 0);
     lv_obj_align(para(scr, "Type the words of your backup. The seed loads right away.", &inter_13, TEXT_3),
                  LV_ALIGN_TOP_MID, 0, BAR + 4 + 125 + 14);
     show(scr);
@@ -572,9 +570,6 @@ static void build_new_seed() {
     snprintf(draw, sizeof(draw), "Pick %d words yourself", new_words - 1);
     lv_obj_t *r3 = list_row(c, ICON_KEYBOARD, "Draw words", draw, draw_cb);
     lv_obj_align(r3, LV_ALIGN_TOP_MID, 0, 126);
-    // These glyphs live in icons_18, not in list_row's font.
-    lv_obj_t *icon_rows[] = {r1, r2, r3};
-    for (lv_obj_t *r : icon_rows) lv_obj_set_style_text_font(lv_obj_get_child(lv_obj_get_child(r, 0), 0), &icons_18, 0);
     show(scr);
 }
 
@@ -650,8 +645,7 @@ static lv_obj_t *entropy_key(lv_obj_t *scr, int x, int y, int w, int h, const ch
     lv_obj_set_style_border_color(coin, ACCENT, 0);
     lv_obj_set_style_border_width(coin, 2, 0);
     lv_obj_align(coin, LV_ALIGN_CENTER, 0, -12);
-    // Heads is a head; tails is the number side, showing its bit.
-    lv_obj_center(text(coin, icon, v == '1' ? &icons_40 : &inter_30_semi, ACCENT));
+    lv_obj_center(text(coin, icon, &icons_40, ACCENT));
     lv_obj_align(text(b, small, &inter_13, TEXT_3), LV_ALIGN_CENTER, 0, 40);
     return b;
 }
@@ -695,7 +689,7 @@ static void build_entropy(bool dice) {
     } else {
         const int kw = (CW - 8) / 2;
         entropy_key(scr, M, y0, kw, 120, ICON_HEADS, "Heads = 1", '1');
-        entropy_key(scr, M + kw + 8, y0, kw, 120, "0", "Tails = 0", '0');
+        entropy_key(scr, M + kw + 8, y0, kw, 120, ICON_TAILS, "Tails = 0", '0');
     }
     lv_obj_align(quiet_link(scr, "Undo", entropy_undo_cb, nullptr), LV_ALIGN_BOTTOM_MID, 0, -8);
     entropy_refresh();
@@ -989,7 +983,24 @@ static void build_backup_block() {
     int bs = blocks_per_side(), n = bs * bs;
     char title[32];
     snprintf(title, sizeof(title), "Block %d of %d", block_i + 1, n);
-    topbar(scr, title, to_whole_qr_cb);
+    lv_obj_t *bar = topbar(scr, title, to_whole_qr_cb);
+
+    // Where this block sits in the QR: one square per block, this one lit,
+    // the ones already copied dimmed.
+    const int sq = bs > 4 ? 6 : 7, gap = 2, side = bs * sq + (bs - 1) * gap;
+    lv_obj_t *map = lv_obj_create(bar);
+    lv_obj_remove_style_all(map);
+    lv_obj_set_size(map, side, side);
+    lv_obj_align(map, LV_ALIGN_RIGHT_MID, -14, 2);
+    for (int b = 0; b < n; b++) {
+        lv_obj_t *q = lv_obj_create(map);
+        lv_obj_remove_style_all(q);
+        lv_obj_set_size(q, sq, sq);
+        lv_obj_set_pos(q, (b % bs) * (sq + gap), (b / bs) * (sq + gap));
+        lv_obj_set_style_radius(q, 1, 0);
+        lv_obj_set_style_bg_color(q, b == block_i ? ACCENT : b < block_i ? TEXT_3 : SURFACE_2, 0);
+        lv_obj_set_style_bg_opa(q, LV_OPA_COVER, 0);
+    }
 
     // One cell size per QR, so squares don't change size between blocks.
     const int cell = qr_n % 5 ? 28 : 32;
