@@ -81,8 +81,8 @@ and an output that claims our fingerprint but doesn't verify blocks signing.
 High fees are flagged, as
 [bitcoin.design](https://bitcoin.design/guide/daily-spending-wallet/sending/)
 asks, by share of the amount sent and by rate (the thresholds are ours).
-10% of the amount or 200 ₿/vB shows the fee in amber with a note on Confirm;
-50% or 1,000 ₿/vB turns the fee, total, card and slider red. Neither blocks
+10% of the amount or 50 ₿/vB shows the fee in amber with a note on Confirm;
+50% or 500 ₿/vB turns the fee, total, card and slider red. Neither blocks
 signing, since sweeping dust can legitimately cost that much.
 Single-sig native segwit only, mainnet or testnet (from the PSBT's derivation
 paths). BBQr input isn't supported yet.

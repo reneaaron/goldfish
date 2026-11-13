@@ -75,10 +75,10 @@ void test_fee_level() {
     TEST_ASSERT_EQUAL(FEE_VERY_HIGH, psbt_fee_level(50000, 100000, 5));     // exactly 50%
     TEST_ASSERT_EQUAL(FEE_VERY_HIGH, psbt_fee_level(1, 0, 1));              // fee, nothing sent
     // By rate, when the amount is big enough to hide the fee
-    TEST_ASSERT_EQUAL(FEE_OK, psbt_fee_level(28000, 100000000, 199));
-    TEST_ASSERT_EQUAL(FEE_HIGH, psbt_fee_level(28200, 100000000, 200));
-    TEST_ASSERT_EQUAL(FEE_HIGH, psbt_fee_level(140000, 100000000, 999));
-    TEST_ASSERT_EQUAL(FEE_VERY_HIGH, psbt_fee_level(141000, 100000000, 1000));
+    TEST_ASSERT_EQUAL(FEE_OK, psbt_fee_level(7000, 100000000, 49));
+    TEST_ASSERT_EQUAL(FEE_HIGH, psbt_fee_level(7100, 100000000, 50));
+    TEST_ASSERT_EQUAL(FEE_HIGH, psbt_fee_level(70000, 100000000, 499));
+    TEST_ASSERT_EQUAL(FEE_VERY_HIGH, psbt_fee_level(70500, 100000000, 500));
 }
 
 void test_garbage_rejected() {

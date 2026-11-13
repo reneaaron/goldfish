@@ -59,8 +59,10 @@ const char *psbt_error_text(PsbtError e);
 // Fee levels, flagged on review as bitcoin.design asks. A fee is judged both
 // against what's being sent (to others, or to yourself when nothing goes out)
 // and by its rate, so neither a small send nor a big one hides it:
-//   high:      10% of the amount, or 200 ₿/vB (paid only in fee spikes)
-//   very high: 50% of the amount, or 1,000 ₿/vB (above any fee market so far)
+//   high:      10% of the amount, or 50 ₿/vB (paid only in fee spikes)
+//   very high: 50% of the amount, or 500 ₿/vB (only the worst spikes)
+// The device can't see the mempool, so the rate bars sit well above normal
+// fees; small sends are caught by their share of the amount instead.
 // A very high fee is also how a tampered PSBT would siphon funds. Neither
 // level blocks signing: sweeping dust can legitimately cost that much.
 FeeLevel psbt_fee_level(uint64_t fee, uint64_t sent, uint32_t rate);

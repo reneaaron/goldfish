@@ -40,8 +40,8 @@ const char *psbt_error_text(PsbtError e) {
 
 FeeLevel psbt_fee_level(uint64_t fee, uint64_t sent, uint32_t rate) {
     if (fee == 0) return FEE_OK;
-    if (fee * 2 >= sent || rate >= 1000) return FEE_VERY_HIGH;
-    if (fee * 10 >= sent || rate >= 200) return FEE_HIGH;
+    if (fee * 2 >= sent || rate >= 500) return FEE_VERY_HIGH;
+    if (fee * 10 >= sent || rate >= 50) return FEE_HIGH;
     return FEE_OK;
 }
 
