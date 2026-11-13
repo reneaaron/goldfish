@@ -68,3 +68,5 @@ void ui_backup_next();         // "Next part"
 const uint8_t *ui_backup_qr();
 // "Continue" on the child number screen: derive the BIP-85 child, start its card flow.
 void ui_child_seed(int words, uint32_t index);
+void ui_child_digit(int k);           // a keypad digit 0-9, or -1 for Del
+const char *ui_child_number();        // the child number as typed
