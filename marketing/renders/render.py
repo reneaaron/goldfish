@@ -69,3 +69,10 @@ if want("5"):   # top-down wallet menu, close
     device("dev_g", BONE, "4_seed_menu", (0, 0, UP), (0, 0, math.radians(-8)))
     shoot("05_wallet_topdown.png", (2.5, -10, 21), (0, 0.4, 0.8), (0, 0.2, 1.7), lens=85)
     clear_devices()
+if want("6"):   # lineup: start, new seed, wallet menu, connect wallet
+    device("dev_h", GRAPHITE, "1_home", (-7.8, 0.2, UP), (0, 0, math.radians(4)))
+    device("dev_i", BONE, "15_new_seed", (-2.6, -0.2, UP), (0, 0, math.radians(1)))
+    device("dev_j", SIGNAL, "4_seed_menu", (2.6, -0.2, UP), (0, 0, math.radians(-1)))
+    device("dev_k", GRAPHITE, "5_export_xpub", (7.8, 0.2, UP), (0, 0, math.radians(-4)))
+    shoot("06_lineup.png", (0, -20, 40), (0, 0.6, 0.8), (0, 0, 1.7), lens=78)
+    clear_devices()

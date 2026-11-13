@@ -85,8 +85,8 @@ def screen_mat(name):
     p = nt.nodes["Principled BSDF"]
     p.inputs["Base Color"].default_value = (0, 0, 0, 1)
     p.inputs["Roughness"].default_value = 0.04
-    p.inputs["Coat Weight"].default_value = 1.0
-    p.inputs["Emission Strength"].default_value = 1.7
+    p.inputs["Coat Weight"].default_value = 0.3
+    p.inputs["Emission Strength"].default_value = 0.8
     tex = nt.nodes.new("ShaderNodeTexImage")
     tex.image = img
     tex.interpolation = 'Closest'          # a 240x320 LCD: keep the pixels crisp

@@ -20,6 +20,7 @@ ONLY=1,3 SAMPLES=64 PCT=50 blender -b -P marketing/renders/render.py    # quick 
 | `out/03_colorways.png` | Three colours across the flow: seed loaded, slide to sign, signed QR |
 | `out/04_edge.png` | USB-C and button pinholes |
 | `out/05_wallet_topdown.png` | Wallet menu |
+| `out/06_lineup.png` | Four devices: start, new seed, wallet menu, connect wallet |
 
 ### Lifestyle scenes
 
@@ -35,6 +36,7 @@ ONLY=a SAMPLES=64 PCT=50 blender -b -P marketing/renders/scenes.py
 | `out/10_desk.png` | On a desk with a USB-C cable, reviewing a transaction; a laptop behind shows the transaction QR |
 | `out/11_flatlay.png` | Flat lay on slate: wallet menu, paper SeedQR backup card, cable |
 | `out/12_backup_closeup.png` | Seed loaded, next to the SeedQR card it was scanned from |
+| `out/13_backup_copy.png` | Copying the seed onto the paper SeedQR card, part by part |
 
 The laptop shows a generic wallet window (`renders/assets/laptop_screen.png`,
 drawn for these renders), not any real app's interface. The SeedQR card
