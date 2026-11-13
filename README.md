@@ -15,7 +15,7 @@ hardware: transactions go in and out through the camera and the screen.
 
 Status: early, not for real funds. The firmware runs in a desktop simulator
 with seed loading (QR or words), new seeds from dice, coins or drawn words, QR backups, transaction review
-and signing, address verification, wallet pairing and BIP-85 child seeds; the board's camera driver isn't ported yet and nothing has
+and signing, address verification, wallet pairing and BIP-85 child seeds; the board's camera driver is written but nothing has
 been tested on real hardware or against Sparrow.
 
 ## Repository

@@ -5,7 +5,7 @@ RP2350-Touch-LCD-2 (RP2350A, 16MB flash, 2" 240×320 touch screen, OV5640
 camera connector). The board has no Wi-Fi or Bluetooth hardware.
 
 Status: early. Seed loading, new seeds with a SeedQR backup, xpub export and
-PSBT review/signing work in the simulator; the board's camera driver isn't ported yet. Not for real funds.
+PSBT review/signing work in the simulator; the board's camera driver is untested on hardware. Not for real funds.
 
 ![Seed flow in the simulator](docs/screens/flow.png)
 ![Transaction flow in the simulator](docs/screens/flow_psbt.png)
@@ -147,7 +147,7 @@ the 520KB RAM limit and secure boot only show up on the real board.
 ## Layout
 
 - `src/app`: UI, SeedQR, wallet and QR scanning, shared by both targets
-- `src/board`: display (SPI), touch (I2C), camera (stub) and `setup()`/`loop()`
+- `src/board`: display (SPI), touch (I2C), camera (OV5640, PIO) and `setup()`/`loop()`
 - `src/sim`: X11 window, mouse input and the image-file camera
 - `test`: unit tests (native)
 
@@ -167,17 +167,19 @@ Serial log: `pio device monitor`.
   or red/blue swapped, adjust `0x21`/`0x36` in `src/board/display.cpp`).
 - Buttons react where you touch. If touches are mirrored or swapped, fix the
   mapping in `src/board/touch.cpp` (marked TODO).
-- The scan screen stays empty: the camera isn't ported yet.
+- The scan screen shows the camera image and the serial log prints
+  `camera chip id 0x5640`. The driver in `src/board/camera.cpp` is untested:
+  if the image is blurry on an autofocus module, tune `CAM_FOCUS` there.
 
 ## Pin map
 
 See `include/board_pins.h`. Taken from Waveshare's demo code
-(RP2350-Touch-LCD-2.zip on the Waveshare wiki), which also contains a camera
-example (`C/02-CAM`, OV5640 over PIO) to port next.
+(RP2350-Touch-LCD-2.zip on the Waveshare wiki), which also contains the camera
+example (`C/02-CAM`, OV5640 over PIO) the camera driver is ported from.
 
 ## Next steps
 
-- Camera: port Waveshare's PIO capture into `src/board/camera.cpp`
+- Camera: test on hardware, tune focus and orientation
 - Test against Sparrow end to end (testnet)
 - BBQr input
 - Secure boot with picotool
