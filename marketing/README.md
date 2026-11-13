@@ -55,3 +55,25 @@ Claims must match what the hardware and firmware actually do:
 - Don't call it "air-gapped" without qualification while it's powered over
   USB, and don't claim audits, secure boot or wallet compatibility that hasn't
   been tested.
+
+## Landing page
+
+`landing/builds/signer/` is a scroll-driven landing page: one continuous Blender
+camera flight that the scroll scrubs, from a bare board through the printed case
+to a signed transaction and an unplug. Same inputs as the renders above, so the
+device and its screens are the real ones.
+
+```bash
+blender -b -P marketing/renders/flight.py                       # 696 wide frames
+ASPECT=tall OUTDIR=.../tall blender -b -P marketing/renders/flight.py   # phone crop
+cd marketing/landing/builds/signer && ./encode-legs.sh <wide-dir> <tall-dir>
+python3 -m http.server 4512                                     # then open it
+```
+
+`flight.py` takes `FRAMES=1,120` (single stills while you compose), `STEP=`,
+`ENGINE=eevee|cycles`, `SAMPLES=` and `PCT=`. `encode-legs.sh` cuts the frames
+into the five legs the page mounts, encodes them with a dense GOP so they scrub
+instead of playing, and pulls each poster from the encoded mp4.
+
+The brief, the feeling curve and what was verified are in
+`landing/builds/signer/BRIEF.md`; the scroll screenshots are in `lab/`.
