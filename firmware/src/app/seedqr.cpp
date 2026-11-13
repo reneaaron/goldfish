@@ -1,6 +1,6 @@
 #include "seedqr.h"
 #include <string.h>
-#include <Hash.h>      // sha256 from uBitcoin
+#include <wally_crypto.h>
 
 void secure_zero(void *p, size_t n) {
     volatile uint8_t *v = (volatile uint8_t *)p;
@@ -26,7 +26,7 @@ static SeedQrResult decode_standard(const uint8_t *d, size_t len, SeedEntropy *o
     }
 
     uint8_t hash[32];
-    sha256(bits, ent_bytes, hash);
+    wally_sha256(bits, ent_bytes, hash, 32);
     // Compare the checksum bits that follow the entropy with the hash prefix.
     uint8_t given = bits[ent_bytes];
     uint8_t expected = hash[0];

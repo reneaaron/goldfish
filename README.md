@@ -22,7 +22,7 @@ been tested on real hardware or against Sparrow.
 
 | Folder | What's in it |
 |---|---|
-| [`firmware/`](firmware) | PlatformIO firmware (RP2350, LVGL, uBitcoin), desktop simulator, tests |
+| [`firmware/`](firmware) | PlatformIO firmware (RP2350, LVGL, libwally-core), desktop simulator, tests |
 | [`case/`](case) | Printed case in gcad: clip-in and screw variants, STL and STEP exports |
 | [`hardware/`](hardware) | Parts list and board notes |
 | [`marketing/`](marketing) | Product renders made from the real case and firmware screens |

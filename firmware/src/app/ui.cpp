@@ -1,10 +1,11 @@
 #include "ui.h"
 #include <lvgl.h>
+#include <ctype.h>
 #include <string.h>
 #include <strings.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <Conversion.h>   // fromBase64 (uBitcoin)
+#include <wally_core.h>
 #include "address_verify.h"
 #include "amount.h"
 #include "bip85.h"
@@ -197,8 +198,20 @@ static void handle_psbt_payload(QrPayload &p) {
         return;
     }
     if (starts_with_ci(p, "cHNidP")) {
-        size_t n = fromBase64((const char *)p.data, p.len, raw, sizeof(raw));
-        if (n) { psbt_complete(raw, n); return; }
+        // libwally wants a C string without line breaks: drop whitespace in place.
+        size_t len = 0;
+        for (size_t i = 0; i < p.len; i++)
+            if (!isspace(p.data[i])) p.data[len++] = p.data[i];
+        p.len = len;
+        size_t n = 0;
+        if (len < sizeof(p.data)) {
+            p.data[len] = 0;
+            if (wally_base64_to_bytes((const char *)p.data, 0, raw, sizeof(raw), &n) == WALLY_OK && n &&
+                n <= sizeof(raw)) {
+                psbt_complete(raw, n);
+                return;
+            }
+        }
     }
     if (p.len >= 5 && memcmp(p.data, "psbt\xff", 5) == 0) { psbt_complete(p.data, p.len); return; }
     if (starts_with_ci(p, "B$")) { scan_status("BBQr isn't supported yet", "Switch your wallet to UR", AMBER); return; }

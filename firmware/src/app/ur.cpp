@@ -4,7 +4,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <strings.h>
-#include <Hash.h>   // sha256 from uBitcoin
+#include <wally_crypto.h>
 
 // ------------------------------------------------------------ bytewords
 static const char *WORDLIST[256] = {
@@ -112,7 +112,7 @@ static inline uint64_t rotl(uint64_t x, int k) { return (x << k) | (x >> (64 - k
 
 static void xo_seed(Xoshiro *x, const uint8_t *seed, size_t n) {
     uint8_t h[32];
-    sha256(seed, n, h);
+    wally_sha256(seed, n, h, 32);
     for (int i = 0; i < 4; i++) {
         uint64_t v = 0;
         for (int k = 0; k < 8; k++) v = (v << 8) | h[8 * i + k];

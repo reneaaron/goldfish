@@ -2,7 +2,9 @@
 #include <ctype.h>
 #include <string.h>
 #include <strings.h>
-#include <Bitcoin.h>
+#include <wally_core.h>
+#include <wally_address.h>
+#include <wally_bip32.h>
 #include "wallet.h"
 
 // BIP-21 amounts are decimal BTC ("0.001"); BIP177 shows them as whole
@@ -67,24 +69,31 @@ AddressParse address_parse(const uint8_t *data, size_t len, AddressCheck *out) {
     return ADDR_OK;
 }
 
-// Account chain keys, cached for the address being checked.
+// Account chain keys (public only), cached for the address being checked.
 // Keyed by seed fingerprint, so loading a different seed never reuses them.
-static HDPublicKey chains[2];
+static struct ext_key chains[2];
 static bool chains_testnet, chains_ready;
 static uint8_t chains_fp[4];
+
+void address_verify_forget() {
+    secure_zero(chains, sizeof(chains));
+    chains_ready = false;
+}
 
 static bool ensure_chains(bool testnet) {
     if (!wallet_has_seed()) return false;
     uint8_t fp[4];
     wallet_fingerprint(fp);
     if (chains_ready && chains_testnet == testnet && memcmp(fp, chains_fp, 4) == 0) return true;
-    HDPrivateKey acct = wallet_root()->derive(testnet ? "m/84h/1h/0h/" : "m/84h/0h/0h/");
-    HDPublicKey xpub = acct.xpub();
-    acct = HDPrivateKey();
-    xpub.type = P2WPKH;
-    xpub.network = testnet ? &Testnet : &Mainnet;
-    chains[0] = xpub.child(0);
-    chains[1] = xpub.child(1);
+    chains_ready = false;
+    const uint32_t H = BIP32_INITIAL_HARDENED_CHILD;
+    const uint32_t path[3] = {H | 84, H | (testnet ? 1u : 0u), H | 0};
+    struct ext_key acct;
+    bool ok = bip32_key_from_parent_path(wallet_root(), path, 3, BIP32_FLAG_KEY_PRIVATE, &acct) == WALLY_OK &&
+              bip32_key_from_parent(&acct, 0, BIP32_FLAG_KEY_PUBLIC, &chains[0]) == WALLY_OK &&
+              bip32_key_from_parent(&acct, 1, BIP32_FLAG_KEY_PUBLIC, &chains[1]) == WALLY_OK;
+    secure_zero(&acct, sizeof(acct));     // drop the account private key
+    if (!ok) return false;
     chains_testnet = testnet;
     memcpy(chains_fp, fp, 4);
     chains_ready = true;
@@ -92,10 +101,16 @@ static bool ensure_chains(bool testnet) {
 }
 
 size_t address_at(bool testnet, int chain, int index, char *out, size_t cap) {
-    if (chain < 0 || chain > 1 || !ensure_chains(testnet)) return 0;
-    HDPublicKey k = chains[chain].child(uint32_t(index));
-    int n = k.address(out, cap);
-    return n > 0 ? size_t(n) : 0;
+    if (chain < 0 || chain > 1 || index < 0 || !ensure_chains(testnet)) return 0;
+    struct ext_key k;
+    char *addr = nullptr;
+    if (bip32_key_from_parent(&chains[chain], uint32_t(index), BIP32_FLAG_KEY_PUBLIC, &k) != WALLY_OK ||
+        wally_bip32_key_to_addr_segwit(&k, testnet ? "tb" : "bc", 0, &addr) != WALLY_OK)
+        return 0;
+    size_t n = strlen(addr);
+    if (n < cap) memcpy(out, addr, n + 1);
+    wally_free_string(addr);
+    return n < cap ? n : 0;
 }
 
 bool address_verify_step(AddressCheck *c, int budget) {

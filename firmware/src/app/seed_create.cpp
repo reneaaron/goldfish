@@ -1,8 +1,8 @@
 #include "seed_create.h"
 #include <string.h>
-#include <Hash.h>      // sha256 from uBitcoin
+#include <wally_crypto.h>
 
-extern "C" const char *const *mnemonic_wordlist(void);   // uBitcoin's trezor-crypto bip39.c
+extern const char *const BIP39_ENGLISH[2048];   // bip39_english.cpp
 
 int seed_dice_rolls(int words) { return words == 24 ? 99 : 50; }
 int seed_coin_flips(int words) { return words == 24 ? 256 : 128; }
@@ -15,7 +15,7 @@ static bool all_in(const char *s, size_t n, char lo, char hi) {
 
 static void hash_to_entropy(const char *s, size_t n, int words, SeedEntropy *out) {
     uint8_t h[32];
-    sha256((const uint8_t *)s, n, h);
+    wally_sha256((const uint8_t *)s, n, h, 32);
     out->len = words == 24 ? 32 : 16;
     memcpy(out->bytes, h, out->len);
     secure_zero(h, sizeof(h));
@@ -35,14 +35,14 @@ bool seed_from_coins(const char *flips, size_t n, int words, SeedEntropy *out) {
     return true;
 }
 
-const char *seed_word(int index) { return index >= 0 && index < 2048 ? mnemonic_wordlist()[index] : ""; }
+const char *seed_word(int index) { return index >= 0 && index < 2048 ? BIP39_ENGLISH[index] : ""; }
 
 int seed_words_with_prefix(const char *prefix, int *first) {
     size_t n = strlen(prefix);
     int count = 0;
     *first = -1;
     for (int i = 0; i < 2048; i++) {
-        if (strncmp(mnemonic_wordlist()[i], prefix, n) != 0) continue;
+        if (strncmp(BIP39_ENGLISH[i], prefix, n) != 0) continue;
         if (*first < 0) *first = i;
         count++;
     }
@@ -70,7 +70,7 @@ bool seed_final_word(const uint16_t *idx, int n, const char *flips, SeedEntropy 
 // The checksum is the first len/4 bits of SHA256(entropy).
 static uint8_t checksum_bits(const uint8_t *ent, size_t len) {
     uint8_t h[32];
-    sha256(ent, len, h);
+    wally_sha256(ent, len, h, 32);
     uint8_t cs = uint8_t(h[0] >> (8 - len / 4));
     secure_zero(h, sizeof(h));
     return cs;

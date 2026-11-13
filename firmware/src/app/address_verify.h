@@ -38,5 +38,7 @@ AddressParse address_parse(const uint8_t *data, size_t len, AddressCheck *out);
 // Compare up to `budget` more of our addresses. Returns true when finished.
 // Needs a loaded seed; call repeatedly from a timer to keep the UI responsive.
 bool address_verify_step(AddressCheck *c, int budget);
+// Forget the keys cached for the last check. wallet_wipe() calls this.
+void address_verify_forget();
 // Our address at m/84'/coin'/0'/chain/index. Returns length, 0 on error.
 size_t address_at(bool testnet, int chain, int index, char *out, size_t cap);

@@ -4,11 +4,16 @@
 // Run: pio test -e test
 #include <unity.h>
 #include <string.h>
-#include <Bitcoin.h>
+#include <initializer_list>
+#include <wally_core.h>
+#include <wally_bip39.h>
 #include "../../src/app/seed_create.h"
 
 static void assert_mnemonic(const char *expected, const SeedEntropy &e) {
-    TEST_ASSERT_EQUAL_STRING(expected, mnemonicFromEntropy(e.bytes, e.len));
+    char *mn = nullptr;
+    TEST_ASSERT_EQUAL(WALLY_OK, bip39_mnemonic_from_bytes(nullptr, e.bytes, e.len, &mn));
+    TEST_ASSERT_EQUAL_STRING(expected, mn);
+    wally_free_string(mn);
 }
 
 void test_dice_12() {
@@ -146,6 +151,16 @@ void test_word_indexes() {
     TEST_ASSERT_EQUAL_UINT16_ARRAY(want, idx, 12);
 }
 
+// Our wordlist table is the one libwally uses for mnemonics.
+void test_wordlist_matches_libwally() {
+    for (int i = 0; i < 2048; i++) {
+        char *w = nullptr;
+        TEST_ASSERT_EQUAL(WALLY_OK, bip39_get_word(nullptr, size_t(i), &w));
+        TEST_ASSERT_EQUAL_STRING(w, seed_word(i));
+        wally_free_string(w);
+    }
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_dice_12);
@@ -157,5 +172,6 @@ int main() {
     RUN_TEST(test_prefix);
     RUN_TEST(test_final_word);
     RUN_TEST(test_word_indexes);
+    RUN_TEST(test_wordlist_matches_libwally);
     return UNITY_END();
 }
