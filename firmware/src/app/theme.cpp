@@ -5,21 +5,23 @@
 #include <string.h>
 
 namespace th {
-const lv_color_t BG = LV_COLOR_MAKE(0x0A, 0x0A, 0x0B);
-const lv_color_t SURFACE = LV_COLOR_MAKE(0x16, 0x16, 0x18);
-const lv_color_t SURFACE_2 = LV_COLOR_MAKE(0x22, 0x22, 0x25);
-const lv_color_t BORDER = LV_COLOR_MAKE(0x2A, 0x2A, 0x2E);
-const lv_color_t TEXT = LV_COLOR_MAKE(0xF4, 0xF4, 0xF2);
-const lv_color_t TEXT_2 = LV_COLOR_MAKE(0xA3, 0xA3, 0xA8);
-const lv_color_t TEXT_3 = LV_COLOR_MAKE(0x6E, 0x6E, 0x74);
-const lv_color_t ACCENT = LV_COLOR_MAKE(0xF7, 0x93, 0x1A);
-const lv_color_t ACCENT_DIM = LV_COLOR_MAKE(0x33, 0x22, 0x0E);
-const lv_color_t GREEN = LV_COLOR_MAKE(0x3D, 0xD6, 0x8C);
-const lv_color_t GREEN_DIM = LV_COLOR_MAKE(0x10, 0x2E, 0x20);
-const lv_color_t RED = LV_COLOR_MAKE(0xFF, 0x5A, 0x4F);
-const lv_color_t RED_DIM = LV_COLOR_MAKE(0x3A, 0x15, 0x13);
-const lv_color_t AMBER = LV_COLOR_MAKE(0xFF, 0xC4, 0x4D);
-const lv_color_t AMBER_DIM = LV_COLOR_MAKE(0x3A, 0x2C, 0x0E);
+// "Paper": warm off-white like the paper SeedQR card, ink-black primary
+// buttons, burnt orange only for marks (icons, totals, the slide knob).
+const lv_color_t BG = LV_COLOR_MAKE(0xF3, 0xEF, 0xE6);
+const lv_color_t SURFACE = LV_COLOR_MAKE(0xFF, 0xFD, 0xF8);
+const lv_color_t SURFACE_2 = LV_COLOR_MAKE(0xE6, 0xE0, 0xD3);
+const lv_color_t BORDER = LV_COLOR_MAKE(0xD9, 0xD2, 0xC3);
+const lv_color_t TEXT = LV_COLOR_MAKE(0x1B, 0x19, 0x17);
+const lv_color_t TEXT_2 = LV_COLOR_MAKE(0x5C, 0x56, 0x50);
+const lv_color_t TEXT_3 = LV_COLOR_MAKE(0x7A, 0x73, 0x69);
+const lv_color_t ACCENT = LV_COLOR_MAKE(0xC2, 0x41, 0x0C);
+const lv_color_t ACCENT_DIM = LV_COLOR_MAKE(0xF6, 0xE3, 0xCF);
+const lv_color_t GREEN = LV_COLOR_MAKE(0x15, 0x80, 0x3D);
+const lv_color_t GREEN_DIM = LV_COLOR_MAKE(0xDC, 0xEF, 0xE2);
+const lv_color_t RED = LV_COLOR_MAKE(0xC6, 0x28, 0x28);
+const lv_color_t RED_DIM = LV_COLOR_MAKE(0xF8, 0xDC, 0xD8);
+const lv_color_t AMBER = LV_COLOR_MAKE(0xA1, 0x62, 0x07);
+const lv_color_t AMBER_DIM = LV_COLOR_MAKE(0xF5, 0xE6, 0xC4);
 
 static void plain(lv_obj_t *o) {
     lv_obj_remove_style_all(o);
@@ -101,10 +103,10 @@ static lv_obj_t *btn_base(lv_obj_t *parent, const char *s, lv_event_cb_t cb, voi
 }
 
 lv_obj_t *btn_primary(lv_obj_t *p, const char *s, lv_event_cb_t cb, void *ud) {
-    return btn_base(p, s, cb, ud, ACCENT, LV_COLOR_MAKE(0x14, 0x0C, 0x02), LV_OPA_COVER);
+    return btn_base(p, s, cb, ud, TEXT, BG, LV_OPA_COVER);
 }
 lv_obj_t *btn_danger(lv_obj_t *p, const char *s, lv_event_cb_t cb, void *ud) {
-    return btn_base(p, s, cb, ud, RED, LV_COLOR_MAKE(0x1A, 0x05, 0x04), LV_OPA_COVER);
+    return btn_base(p, s, cb, ud, RED, lv_color_white(), LV_OPA_COVER);
 }
 lv_obj_t *btn_ghost(lv_obj_t *p, const char *s, lv_event_cb_t cb, void *ud, lv_color_t c) {
     lv_obj_t *b = btn_base(p, s, cb, ud, SURFACE_2, c, LV_OPA_TRANSP);
@@ -248,23 +250,27 @@ lv_obj_t *list_row(lv_obj_t *parent, const char *icon, const char *title, const 
     lv_obj_set_style_bg_opa(b, LV_OPA_COVER, LV_STATE_PRESSED);
     lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, ud);
 
-    lv_obj_t *ic = lv_obj_create(b);
-    plain(ic);
-    lv_obj_set_size(ic, 36, 36);
-    lv_obj_set_style_radius(ic, 10, 0);
-    lv_obj_set_style_bg_color(ic, ACCENT_DIM, 0);
-    lv_obj_set_style_bg_opa(ic, LV_OPA_COVER, 0);
-    lv_obj_align(ic, LV_ALIGN_LEFT_MID, 12, 0);
-    lv_obj_t *il = text(ic, icon, &inter_17_semi, ACCENT);
-    lv_obj_center(il);
+    int tx = 16;
+    if (icon) {
+        tx = 58;
+        lv_obj_t *ic = lv_obj_create(b);
+        plain(ic);
+        lv_obj_set_size(ic, 36, 36);
+        lv_obj_set_style_radius(ic, 10, 0);
+        lv_obj_set_style_bg_color(ic, ACCENT_DIM, 0);
+        lv_obj_set_style_bg_opa(ic, LV_OPA_COVER, 0);
+        lv_obj_align(ic, LV_ALIGN_LEFT_MID, 12, 0);
+        lv_obj_t *il = text(ic, icon, &inter_17_semi, ACCENT);
+        lv_obj_center(il);
+    }
 
     lv_obj_t *t = text(b, title, &inter_17_semi, TEXT, LV_TEXT_ALIGN_LEFT);
     if (sub) {
-        lv_obj_align(t, LV_ALIGN_TOP_LEFT, 58, 12);
+        lv_obj_align(t, LV_ALIGN_TOP_LEFT, tx, 12);
         lv_obj_t *s = text(b, sub, &inter_13, TEXT_3, LV_TEXT_ALIGN_LEFT);
-        lv_obj_align(s, LV_ALIGN_TOP_LEFT, 58, 34);
+        lv_obj_align(s, LV_ALIGN_TOP_LEFT, tx, 34);
     } else {
-        lv_obj_align(t, LV_ALIGN_LEFT_MID, 58, 0);
+        lv_obj_align(t, LV_ALIGN_LEFT_MID, tx, 0);
     }
     return b;
 }

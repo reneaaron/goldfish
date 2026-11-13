@@ -54,16 +54,19 @@ static lv_obj_t *scroll_area(lv_obj_t *scr, int y) {
 }
 
 // White rounded card holding a QR code (the white is the quiet zone).
+constexpr int QR_CARD = 168;
 static lv_obj_t *qr_card(lv_obj_t *parent, int y, lv_obj_t **qr_out) {
     lv_obj_t *c = lv_obj_create(parent);
     lv_obj_remove_style_all(c);
-    lv_obj_set_size(c, 176, 176);
+    lv_obj_set_size(c, QR_CARD, QR_CARD);
     lv_obj_set_style_bg_color(c, lv_color_white(), 0);
     lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(c, 16, 0);
+    lv_obj_set_style_border_color(c, BORDER, 0);
+    lv_obj_set_style_border_width(c, 1, 0);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, y);
     lv_obj_t *qr = lv_qrcode_create(c);
-    lv_qrcode_set_size(qr, 154);
+    lv_qrcode_set_size(qr, QR_CARD - 20);
     lv_qrcode_set_dark_color(qr, lv_color_black());
     lv_qrcode_set_light_color(qr, lv_color_white());
     lv_obj_center(qr);
@@ -77,7 +80,7 @@ static lv_obj_t *quiet_link(lv_obj_t *parent, const char *s, lv_event_cb_t cb, v
 static void build_home() {
     lv_obj_t *scr = screen();
     lv_obj_align(icon_badge(scr, ICON_SIGNER, ACCENT, ACCENT_DIM, 56), LV_ALIGN_TOP_MID, 0, 12);
-    lv_obj_align(text(scr, "Signer", &inter_30_semi, TEXT), LV_ALIGN_TOP_MID, 0, 76);
+    lv_obj_align(text(scr, "Signer", &fraunces_32, TEXT), LV_ALIGN_TOP_MID, 0, 76);
     lv_obj_align(para(scr, "Your seed stays in memory only, until you unplug."), LV_ALIGN_TOP_MID, 0, 116);
     // Loading a seed you have: scan it or type it, grouped at the bottom.
     lv_obj_t *words = btn_ghost(scr, ICON_KEYBOARD "   Enter words", go_cb, GO(UI_RESTORE), TEXT);
@@ -315,7 +318,7 @@ static lv_obj_t *quiet_link(lv_obj_t *parent, const char *s, lv_event_cb_t cb, v
 static void build_seed_loaded() {
     lv_obj_t *scr = screen();
     lv_obj_align(icon_badge(scr, ICON_CHECK, GREEN, GREEN_DIM, 52), LV_ALIGN_TOP_MID, 0, 28);
-    lv_obj_align(text(scr, fresh_backup ? "Backup checked" : "Seed loaded", &inter_22_semi, TEXT), LV_ALIGN_TOP_MID, 0, 92);
+    lv_obj_align(text(scr, fresh_backup ? "Backup checked" : "Seed loaded", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, 92);
 
     // The fingerprint is what the user checks, so it gets the space.
     lv_obj_align(caption(scr, "FINGERPRINT"), LV_ALIGN_TOP_MID, 0, 138);
@@ -323,7 +326,9 @@ static void build_seed_loaded() {
     wallet_fingerprint_hex(fp);
     snprintf(spaced, sizeof(spaced), "%.4s %.4s", fp, fp + 4);
     lv_obj_align(text(scr, spaced, &mono_26, TEXT), LV_ALIGN_TOP_MID, 0, 156);
-    if (fresh_backup) lv_obj_align(para(scr, "Write it on your card.", &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, 194);
+    lv_obj_align(para(scr, fresh_backup ? "Write it on your card." : "Check it matches the fingerprint in your wallet app.",
+                      &inter_13, TEXT_3),
+                 LV_ALIGN_TOP_MID, 0, 196);
     fresh_backup = false;
 
     place_bottom(btn_primary(scr, "Continue", go_cb, GO(UI_SEED_MENU)));
@@ -383,15 +388,15 @@ static void build_export_xpub() {
     static char xpub[180];
     size_t n = wallet_export_xpub(xpub, sizeof(xpub));
     lv_obj_t *qr;
-    qr_card(scr, BAR + 6, &qr);
+    qr_card(scr, BAR + 2, &qr);
     lv_qrcode_update(qr, xpub, n);
 
-    lv_obj_align(text(scr, "Scan with your wallet app", &inter_15, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 6 + 176 + 10);
+    lv_obj_align(text(scr, "Scan with your wallet app", &inter_15, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 2 + QR_CARD + 8);
     lv_obj_align(text(scr, tn ? "vpub  \xC2\xB7  Native SegWit  \xC2\xB7  m/84'/1'/0'"
                               : "zpub  \xC2\xB7  Native SegWit  \xC2\xB7  m/84'/0'/0'", &inter_13, tn ? AMBER : TEXT_3),
-                 LV_ALIGN_TOP_MID, 0, BAR + 6 + 176 + 32);
+                 LV_ALIGN_TOP_MID, 0, BAR + 2 + QR_CARD + 30);
     lv_obj_align(quiet_link(scr, tn ? "Network: Testnet  " ICON_RIGHT : "Network: Mainnet  " ICON_RIGHT, go_cb, GO(UI_NETWORK)),
-                 LV_ALIGN_BOTTOM_MID, 0, -2);
+                 LV_ALIGN_BOTTOM_MID, 0, -6);
     show(scr);
 }
 
@@ -410,10 +415,10 @@ static void build_network() {
     lv_obj_set_style_clip_corner(c, true, 0);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 8);
     bool tn = wallet_testnet();
-    lv_obj_t *r1 = list_row(c, ICON_WALLET, "Mainnet", nullptr, network_cb, nullptr);
+    lv_obj_t *r1 = list_row(c, nullptr, "Mainnet", nullptr, network_cb, nullptr);
     lv_obj_align(r1, LV_ALIGN_TOP_MID, 0, 0);
     divider(c, 62);
-    lv_obj_t *r2 = list_row(c, ICON_WALLET, "Testnet", nullptr, network_cb, (void *)1);
+    lv_obj_t *r2 = list_row(c, nullptr, "Testnet", nullptr, network_cb, (void *)1);
     lv_obj_align(r2, LV_ALIGN_TOP_MID, 0, 63);
     lv_obj_align(text(tn ? r2 : r1, ICON_CHECK, &inter_17_semi, ACCENT), LV_ALIGN_RIGHT_MID, -16, 0);
     lv_obj_align(para(scr, "Testnet also covers signet and Mutinynet.", &inter_13, TEXT_3),
@@ -430,10 +435,10 @@ static void wipe_cb(lv_event_t *) {
 static void build_wipe_confirm() {
     lv_obj_t *scr = screen();
     lv_obj_align(icon_badge(scr, ICON_TRASH, RED, RED_DIM, 64), LV_ALIGN_TOP_MID, 0, 44);
-    lv_obj_align(text(scr, "Wipe seed?", &inter_22_semi, TEXT), LV_ALIGN_TOP_MID, 0, 126);
+    lv_obj_align(text(scr, "Wipe seed?", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, 126);
     char fp[9], msg[128];
     wallet_fingerprint_hex(fp);
-    snprintf(msg, sizeof(msg), "This removes %s from the device. Scan your seed QR to use it again.", fp);
+    snprintf(msg, sizeof(msg), "This removes %.4s %.4s from the device. Scan your seed QR to use it again.", fp, fp + 4);
     lv_obj_align(para(scr, msg), LV_ALIGN_TOP_MID, 0, 162);
     bottom_pair(btn_ghost(scr, "Cancel", go_cb, GO(UI_SEED_MENU), TEXT), btn_danger(scr, "Wipe", wipe_cb));
     show(scr);
@@ -667,7 +672,7 @@ static void build_entropy(bool dice) {
     lv_obj_t *scr = screen();
     topbar(scr, final_flips ? "Last word" : dice ? "Dice rolls" : "Coin flips",
            final_flips ? final_flips_back_cb : to_new_seed_cb);
-    ent_count = text(scr, "", &inter_22_semi, TEXT);
+    ent_count = text(scr, "", &fraunces_24, TEXT);
     lv_obj_align(ent_count, LV_ALIGN_TOP_MID, 0, BAR + 2);
     ent_bar = lv_bar_create(scr);
     lv_obj_set_size(ent_bar, CW, 4);
@@ -870,7 +875,7 @@ static bool backup_make_qr() {
 static void build_backup_warning() {
     lv_obj_t *scr = screen();
     lv_obj_align(icon_badge(scr, ICON_WARNING, AMBER, AMBER_DIM, 64), LV_ALIGN_TOP_MID, 0, 36);
-    lv_obj_align(text(scr, "Keep it offline", &inter_22_semi, TEXT), LV_ALIGN_TOP_MID, 0, 118);
+    lv_obj_align(text(scr, "Keep it offline", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, 118);
     lv_obj_align(para(scr, backup_existing ? "Your seed QR is your private key. Never photograph it or scan it with a phone."
                                            : "Your words are your private key. Never photograph them or type them into a phone."),
                  LV_ALIGN_TOP_MID, 0, 154);
@@ -948,7 +953,7 @@ static void build_backup_qr() {
     lv_obj_t *scr = screen();
     if (!backup_make_qr()) {
         lv_obj_align(icon_badge(scr, ICON_WARNING, RED, RED_DIM, 64), LV_ALIGN_TOP_MID, 0, 44);
-        lv_obj_align(text(scr, "No QR code", &inter_22_semi, TEXT), LV_ALIGN_TOP_MID, 0, 126);
+        lv_obj_align(text(scr, "No QR code", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, 126);
         lv_obj_align(para(scr, backup_existing ? "The QR code couldn't be made. Nothing was backed up."
                                                : "The QR code couldn't be made. Your written words are the backup."),
                      LV_ALIGN_TOP_MID, 0, 162);
@@ -1095,7 +1100,7 @@ static void build_backup_choice() {
     lv_obj_t *scr = screen();
     topbar(scr, "QR code", to_last_words_cb);
     lv_obj_align(icon_badge(scr, ICON_QR, ACCENT, ACCENT_DIM, 64), LV_ALIGN_TOP_MID, 0, BAR + 8);
-    lv_obj_align(text(scr, "Back up as QR?", &inter_22_semi, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 86);
+    lv_obj_align(text(scr, "Back up as QR?", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 86);
     lv_obj_align(para(scr, "Copy it square by square, then load the seed by scanning instead of typing.", &inter_13,
                       TEXT_2),
                  LV_ALIGN_TOP_MID, 0, BAR + 122);
@@ -1120,7 +1125,7 @@ static void ready_tick(lv_timer_t *t) {
 static void build_seed_ready() {
     lv_obj_t *scr = screen();
     lv_obj_align(icon_badge(scr, ICON_CHECK, GREEN, GREEN_DIM, 52), LV_ALIGN_TOP_MID, 0, 28);
-    lv_obj_align(text(scr, card_checked ? "Card checked" : "Seed ready", &inter_22_semi, TEXT), LV_ALIGN_TOP_MID, 0, 92);
+    lv_obj_align(text(scr, card_checked ? "Card checked" : "Seed ready", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, 92);
     lv_obj_align(caption(scr, "FINGERPRINT"), LV_ALIGN_TOP_MID, 0, 132);
     lv_obj_t *fp = text(scr, "\xE2\x80\xA6", &mono_26, TEXT);
     lv_obj_align(fp, LV_ALIGN_TOP_MID, 0, 150);
@@ -1167,7 +1172,7 @@ static void build_psbt_error() {
     lv_obj_t *scr = screen();
     bool sus = review.error == PSBT_SUSPICIOUS;
     lv_obj_align(icon_badge(scr, ICON_WARNING, sus ? RED : AMBER, sus ? RED_DIM : AMBER_DIM, 64), LV_ALIGN_TOP_MID, 0, 44);
-    lv_obj_align(text(scr, sus ? "Don't sign this" : "Can't sign this", &inter_22_semi, TEXT), LV_ALIGN_TOP_MID, 0, 126);
+    lv_obj_align(text(scr, sus ? "Don't sign this" : "Can't sign this", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, 126);
     lv_obj_align(para(scr, psbt_error_text(review.error)), LV_ALIGN_TOP_MID, 0, 162);
     place_bottom(btn_primary(scr, "Back to wallet", discard_psbt_cb));
     show(scr);
@@ -1211,8 +1216,8 @@ static void build_psbt_overview() {
 }
 
 // Address in groups of four, alternating brightness so it can be compared
-// chunk by chunk against the wallet. Four groups per line.
-static void address_chunks(lv_obj_t *parent, const char *a) {
+// chunk by chunk against the wallet. Four groups per line. Returns the height.
+static int address_chunks(lv_obj_t *parent, const char *a) {
     lv_obj_t *box = lv_obj_create(parent);
     lv_obj_remove_style_all(box);
     lv_obj_set_size(box, lv_pct(100), LV_SIZE_CONTENT);
@@ -1226,6 +1231,8 @@ static void address_chunks(lv_obj_t *parent, const char *a) {
         snprintf(chunk, sizeof(chunk), "%.4s", a + g * 4);
         text(box, chunk, &mono_16, (g % 2) ? TEXT_2 : TEXT, LV_TEXT_ALIGN_LEFT);
     }
+    lv_obj_update_layout(box);
+    return lv_obj_get_height(box);
 }
 
 void ui_next_output() {
@@ -1252,15 +1259,9 @@ static void build_psbt_output() {
     lv_obj_align(tag, LV_ALIGN_TOP_MID, 0, BAR + 8);
     lv_obj_align(amount(scr, o.amount, ours ? GREEN : TEXT), LV_ALIGN_TOP_MID, 0, BAR + 36);
 
-    lv_obj_t *c = card(scr, CW, ours ? 112 : 96);
-    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 90);
+    lv_obj_t *c = card(scroll_area(scr, BAR + 88), CW, 0);
     lv_obj_align(caption(c, "ADDRESS"), LV_ALIGN_TOP_LEFT, 0, 0);
-    address_chunks(c, o.address);
-    if (ours) {
-        char v[72];
-        snprintf(v, sizeof(v), ICON_CHECK "  Belongs to this seed");
-        lv_obj_align(text(c, v, &inter_13, GREEN, LV_TEXT_ALIGN_LEFT), LV_ALIGN_BOTTOM_LEFT, 0, 0);
-    }
+    lv_obj_set_height(c, 20 + address_chunks(c, o.address) + 2 * CARD_PY);
 
     bool last = out_index + 1 >= review.n_outputs;
     place_bottom(btn_primary(scr, last ? "Continue" : "Next address", next_output_cb));
@@ -1304,10 +1305,10 @@ static void back_to_outputs_cb(lv_event_t *) {
 static void build_psbt_sign() {
     lv_obj_t *scr = screen();
     topbar(scr, "Confirm", back_to_outputs_cb);
+    int top = BAR + 8;
     if (review.testnet) {
-        lv_obj_t *t = caption(scr, "TESTNET");
-        lv_obj_set_style_text_color(t, AMBER, 0);
-        lv_obj_align(t, LV_ALIGN_TOP_MID, 0, BAR - 2);
+        lv_obj_align(chip(scr, "TESTNET", AMBER, AMBER_DIM), LV_ALIGN_TOP_MID, 0, BAR);
+        top = BAR + 34;
     }
 
     uint64_t send = review.spend ? review.spend : review.self;
@@ -1321,8 +1322,7 @@ static void build_psbt_sign() {
         {"Total", vals[2], ACCENT, true},
     };
     lv_obj_t *c = kv_card(scr, rows, 3, &mono_16);
-    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 18);
-    int card_h = lv_obj_get_style_height(c, 0);
+    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, top);
 
     lv_obj_t *sl = lv_slider_create(scr);
     lv_obj_remove_style_all(sl);
@@ -1341,10 +1341,10 @@ static void build_psbt_sign() {
     lv_obj_set_style_pad_all(sl, -4, LV_PART_KNOB);
     lv_obj_set_style_bg_image_src(sl, ICON_ARROW_RIGHT, LV_PART_KNOB);
     lv_obj_set_style_text_font(sl, &inter_17_semi, LV_PART_KNOB);
-    lv_obj_set_style_text_color(sl, LV_COLOR_MAKE(0x14, 0x0C, 0x02), LV_PART_KNOB);
+    lv_obj_set_style_text_color(sl, lv_color_white(), LV_PART_KNOB);
     lv_obj_add_event_cb(sl, swipe_cb, LV_EVENT_RELEASED, nullptr);
     lv_obj_add_event_cb(sl, swipe_cb, LV_EVENT_VALUE_CHANGED, nullptr);
-    lv_obj_align(sl, LV_ALIGN_TOP_MID, 0, BAR + 18 + card_h + 14);
+    lv_obj_align(sl, LV_ALIGN_BOTTOM_MID, 0, -(M + 26));
     swipe_hint = text(sl, "Slide to sign", &inter_15, TEXT_2);
     lv_obj_align(swipe_hint, LV_ALIGN_CENTER, 14, 0);
 
@@ -1381,9 +1381,9 @@ static void signed_done_cb(lv_event_t *) {
 static void build_psbt_signed() {
     lv_obj_t *scr = screen();
     topbar(scr, "Signed", nullptr, ICON_CHECK, GREEN, GREEN_DIM);
-    qr_card(scr, BAR + 4, &anim_qr);
+    qr_card(scr, BAR + 2, &anim_qr);
     anim_lbl = text(scr, "Scan this with your wallet", &inter_13, TEXT_2);
-    lv_obj_align(anim_lbl, LV_ALIGN_TOP_MID, 0, BAR + 4 + 176 + 10);
+    lv_obj_align(anim_lbl, LV_ALIGN_TOP_MID, 0, BAR + 2 + QR_CARD + 8);
     place_bottom(btn_primary(scr, "Done", signed_done_cb));
     show(scr);
     anim_seq = 0;
@@ -1410,15 +1410,17 @@ static void verify_tick(lv_timer_t *) {
 // The address, plus the amount a BIP-21 URI asks for (if any). Returns its height.
 static int address_card(lv_obj_t *parent, int y) {
     bool req = check.amount || check.amount_bad;
-    lv_obj_t *c = card(parent, CW, 96);
+    lv_obj_t *c = card(parent, CW, 0);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, y);
     lv_obj_align(caption(c, "ADDRESS"), LV_ALIGN_TOP_LEFT, 0, 0);
-    address_chunks(c, check.address);
-    if (!req) return 96;
-    char b[40] = "Not valid";
-    if (!check.amount_bad) fmt_btc(check.amount, b, sizeof(b));
-    divider(c, 82);
-    int h = 88 + kv(c, 88, "Requests", b, check.amount_bad ? AMBER : TEXT) + 2 * CARD_PY;
+    int h = 20 + address_chunks(c, check.address);
+    if (req) {
+        char b[40] = "Not valid";
+        if (!check.amount_bad) fmt_btc(check.amount, b, sizeof(b));
+        divider(c, h + 8);
+        h += 16 + kv(c, h + 16, "Requests", b, check.amount_bad ? AMBER : TEXT);
+    }
+    h += 2 * CARD_PY;
     lv_obj_set_height(c, h);
     return h;
 }
@@ -1429,7 +1431,7 @@ static void build_verify() {
     lv_obj_t *scr = screen();
     if (check.status == VERIFY_SEARCHING) {
         topbar(scr, "Verify address");
-        lv_obj_align(text(scr, "Checking" "\xE2\x80\xA6", &inter_22_semi, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 12);
+        lv_obj_align(text(scr, "Checking" "\xE2\x80\xA6", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 12);
         int h = address_card(scr, BAR + 52);
         verify_bar = lv_bar_create(scr);
         lv_obj_set_size(verify_bar, CW, 6);
@@ -1446,22 +1448,27 @@ static void build_verify() {
     }
 
     bool ok = check.status == VERIFY_FOUND;
-    bool req = check.amount || check.amount_bad;   // tighter, to make room for the requested amount
-    lv_obj_align(icon_badge(scr, ok ? ICON_CHECK : ICON_WARNING, ok ? GREEN : RED, ok ? GREEN_DIM : RED_DIM, 44),
-                 LV_ALIGN_TOP_MID, 0, req ? 6 : 16);
-    lv_obj_align(text(scr, ok ? "Address verified" : "Not from this seed", &inter_22_semi, TEXT), LV_ALIGN_TOP_MID, 0,
-                 req ? 54 : 68);
+    // A requested amount makes the card taller; the badge goes to make room.
+    bool req = check.amount || check.amount_bad;
+    int y = 16;
+    if (!req) {
+        lv_obj_align(icon_badge(scr, ok ? ICON_CHECK : ICON_WARNING, ok ? GREEN : RED, ok ? GREEN_DIM : RED_DIM, 40),
+                     LV_ALIGN_TOP_MID, 0, 14);
+        y = 62;
+    }
+    lv_obj_align(text(scr, ok ? "Address verified" : "Not from this seed", &fraunces_24, ok ? TEXT : RED),
+                 LV_ALIGN_TOP_MID, 0, y);
     if (ok) {
         char tag[40];
         snprintf(tag, sizeof(tag), ICON_CHECK "  %s #%d%s", check.chain ? "CHANGE" : "RECEIVE", check.index,
                  check.testnet ? "  \xC2\xB7  TESTNET" : "");
-        lv_obj_align(chip(scr, tag, GREEN, GREEN_DIM), LV_ALIGN_TOP_MID, 0, req ? 88 : 104);
-        address_card(scroll_area(scr, req ? 120 : 140), 0);
+        lv_obj_align(chip(scr, tag, GREEN, GREEN_DIM), LV_ALIGN_TOP_MID, 0, y + 34);
+        address_card(scroll_area(scr, y + 66), 0);
     } else {
         char m[96];
         snprintf(m, sizeof(m), "Checked %d addresses. Don't send here unless you're sure.", check.total);
-        lv_obj_align(para(scr, m, &inter_13, TEXT_2), LV_ALIGN_TOP_MID, 0, req ? 84 : 100);
-        address_card(scroll_area(scr, req ? 120 : 146), 0);
+        lv_obj_align(para(scr, m, &inter_13, TEXT_2), LV_ALIGN_TOP_MID, 0, y + 34);
+        address_card(scroll_area(scr, y + 80), 0);
     }
     bottom_pair(btn_ghost(scr, "Scan", go_cb, GO(UI_SCAN_ADDRESS), TEXT), btn_primary(scr, "Done", to_menu_cb));
     show(scr);
