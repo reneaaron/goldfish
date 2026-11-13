@@ -84,6 +84,7 @@ static void build_home() {
         lv_obj_t *b = btn_ghost(scr, labels[i], go_cb, GO(dest[i]), TEXT);
         lv_obj_set_size(b, (CW - 8) / 2, 48);
         lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+        lv_obj_set_style_text_font(lv_obj_get_child(b, 0), &inter_15, 0);   // half width: 17px is too tight
         lv_obj_align(b, i ? LV_ALIGN_BOTTOM_RIGHT : LV_ALIGN_BOTTOM_LEFT, i ? -M : M, -M - 48 - 8);
     }
     place_bottom(btn_primary(scr, ICON_CAMERA "   Scan QR", go_cb, GO(UI_SCAN_SEED)));
@@ -1077,9 +1078,9 @@ static void to_last_words_cb(lv_event_t *) {
 
 static void build_backup_choice() {
     lv_obj_t *scr = screen();
-    topbar(scr, "QR card", to_last_words_cb);
+    topbar(scr, "QR code", to_last_words_cb);
     lv_obj_align(icon_badge(scr, ICON_QR, ACCENT, ACCENT_DIM, 64), LV_ALIGN_TOP_MID, 0, BAR + 8);
-    lv_obj_align(text(scr, "Add a QR card?", &inter_22_semi, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 86);
+    lv_obj_align(text(scr, "Back up as QR?", &inter_22_semi, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 86);
     lv_obj_align(para(scr, "Copy it square by square, then load the seed by scanning instead of typing.", &inter_13,
                       TEXT_2),
                  LV_ALIGN_TOP_MID, 0, BAR + 122);
