@@ -19,3 +19,5 @@ void qrscan_free();
 // Platform hook: return the latest grayscale frame, or nullptr if none is ready.
 // Implemented in src/board (camera) and src/sim (image files).
 const uint8_t *platform_camera_frame(int *width, int *height);
+// Platform hook: scanning ended. Stop the camera and wipe its frame buffer.
+void platform_camera_stop();

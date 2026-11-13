@@ -130,6 +130,7 @@ static int out_index;
 static void scan_stop() {
     if (scan_timer) lv_timer_delete(scan_timer);
     scan_timer = nullptr;
+    platform_camera_stop();
     qrscan_free();
     qr_w = qr_h = 0;
     memset(preview_buf, 0, sizeof(preview_buf));

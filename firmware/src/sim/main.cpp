@@ -110,6 +110,8 @@ const uint8_t *platform_camera_frame(int *width, int *height) {
     return cam_frame;
 }
 
+void platform_camera_stop() {}
+
 // ------------------------------------------------------------ screenshots
 static uint8_t shot_buf[240 * 320 * 2];
 static lv_display_t *shot_disp;
