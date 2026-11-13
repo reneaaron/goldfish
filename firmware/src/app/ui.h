@@ -5,6 +5,8 @@
 //
 // Flow (SeedQR only, one seed in RAM):
 //   Home -> Scan SeedQR -> Seed loaded (fingerprint) -> Seed menu
+//   Seed loaded -> Add passphrase (optional, BIP-39) -> keyboard -> Seed loaded
+//        with the passphrase's fingerprint
 //   Seed menu -> Sign transaction | Verify address | Connect wallet | Back up as QR | Wipe
 //   Connect wallet -> Network (Mainnet / Testnet), RAM only
 //   Scan transaction -> Review -> each output -> Swipe to sign -> Signed QR
@@ -21,6 +23,7 @@ enum UiScreen {
     UI_HOME,
     UI_SCAN_SEED,
     UI_SEED_LOADED,
+    UI_PASSPHRASE,       // BIP-39 passphrase keyboard, from Seed loaded
     UI_SEED_MENU,
     UI_SCAN_PSBT,
     UI_EXPORT_XPUB,
@@ -70,3 +73,6 @@ const uint8_t *ui_backup_qr();
 void ui_child_seed(int words, uint32_t index);
 void ui_child_digit(int k);           // a keypad digit 0-9, or -1 for Del
 const char *ui_child_number();        // the child number as typed
+// A key of the passphrase keyboard, by its label: one character, or "space",
+// "Del", "abc", "ABC", "123", "#+=", "OK" (derive the key, back to Seed loaded).
+void ui_passphrase_key(const char *key);
