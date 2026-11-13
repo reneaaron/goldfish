@@ -27,16 +27,20 @@ static void format_path(const PSBTDerivation &d, char *out, size_t cap) {
     }
 }
 
-// True if the key at the claimed path pays to exactly this script as P2WPKH
-// (0x00 0x14 <hash160(pubkey)>). uBitcoin's isMine() only compares the pubkey
-// in the metadata with the derived one and never looks at the script.
-static bool pays_to_claim(const HDPrivateKey &root, const PSBTDerivation &d, const Script &script) {
+// True if the claim is a BIP84 address of ours that pays to exactly this
+// script: the path is m/84h/coin'/account'/{0,1}/n, the key there is the one
+// in the metadata, and the script is its P2WPKH (0x00 0x14 <hash160(pubkey)>).
+// uBitcoin's isMine() only compares pubkeys and never looks at the script.
+static bool claim_verifies(const HDPrivateKey &root, const PSBTDerivation &d, const Script &script, bool testnet) {
+    const uint32_t H = 0x80000000;
+    if (d.derivationLen != 5 || d.derivation[0] != H + 84 || d.derivation[1] != H + (testnet ? 1 : 0)) return false;
+    if (!(d.derivation[2] & H) || d.derivation[3] > 1 || (d.derivation[4] & H)) return false;
     alignas(HDPrivateKey) static uint8_t mem[sizeof(HDPrivateKey)];
     HDPrivateKey *k = new (mem) HDPrivateKey(root.derive(d.derivation, d.derivationLen));
-    bool ok = script == Script(k->publicKey(), P2WPKH);
+    PublicKey pub = k->publicKey();
     k->~HDPrivateKey();
     secure_zero(mem, sizeof(mem));
-    return ok;
+    return memcmp(pub.point, d.pubkey.point, 64) == 0 && script == Script(pub, P2WPKH);
 }
 
 const char *psbt_error_text(PsbtError e) {
@@ -99,10 +103,9 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
         for (uint8_t k = 0; k < m.derivationsLen; k++)
             if (fp_equal(m.derivations[k].fingerprint, fp)) claim = &m.derivations[k];
 
-        if (claim && psbt->isMine(uint8_t(i), root) && pays_to_claim(root, *claim, txo.scriptPubkey)) {
+        if (claim && claim_verifies(root, *claim, txo.scriptPubkey, r->testnet)) {
             format_path(*claim, o.path, sizeof(o.path));
-            bool internal = claim->derivationLen >= 2 && claim->derivation[claim->derivationLen - 2] == 1;
-            if (internal) { o.is_change = true; r->change += o.amount; }
+            if (claim->derivation[3] == 1) { o.is_change = true; r->change += o.amount; }
             else { o.is_self = true; r->self += o.amount; }
         } else if (claim) {
             o.suspicious = true;
