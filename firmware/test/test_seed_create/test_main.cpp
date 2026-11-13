@@ -78,22 +78,34 @@ void test_words() {
     const uint8_t want[16] = {0x33, 0x50, 0xf6, 0xac, 0x9e, 0xeb, 0x07, 0xd2, 0xc6, 0x20, 0x99, 0x32, 0x80, 0x8a, 0xa7, 0xf6};
     TEST_ASSERT_EQUAL(16, e.len);
     TEST_ASSERT_EQUAL_HEX8_ARRAY(want, e.bytes, 16);
-    TEST_ASSERT_TRUE(seed_last_word_ok(idx, 12, idx[11]));
-    TEST_ASSERT_FALSE(seed_last_word_ok(idx, 12, uint16_t(idx[11] ^ 1)));   // flips a checksum bit
-    idx[11] ^= 1;
+    uint16_t last[128];
+    TEST_ASSERT_EQUAL(128, seed_valid_last_words(idx, 12, last));
+    bool found = false;
+    for (int i = 0; i < 128; i++) found |= last[i] == idx[11];
+    TEST_ASSERT_TRUE(found);                          // "unique" is one of them
+    idx[11] ^= 1;                                     // flips a checksum bit
     TEST_ASSERT_FALSE(seed_from_words(idx, n, &e));
 }
 
 void test_last_word_counts() {
     // 11 words leave 7 free bits: 128 valid last words. 23 words leave 3: 8.
-    uint16_t idx[24] = {0};
-    int ok12 = 0, ok24 = 0;
-    for (int w = 0; w < 2048; w++) {
-        ok12 += seed_last_word_ok(idx, 12, uint16_t(w));
-        ok24 += seed_last_word_ok(idx, 24, uint16_t(w));
+    // Cross-check against brute force: exactly these words pass the checksum.
+    uint16_t idx[24] = {0}, last[128];
+    for (int n : {12, 24}) {
+        int count = seed_valid_last_words(idx, n, last), brute = 0;
+        TEST_ASSERT_EQUAL(n == 12 ? 128 : 8, count);
+        for (int w = 0; w < 2048; w++) {
+            idx[n - 1] = uint16_t(w);
+            SeedEntropy e;
+            bool ok = seed_from_words(idx, n, &e);
+            bool listed = false;
+            for (int i = 0; i < count; i++) listed |= last[i] == w;
+            TEST_ASSERT_EQUAL(ok, listed);
+            brute += ok;
+        }
+        idx[n - 1] = 0;
+        TEST_ASSERT_EQUAL(count, brute);
     }
-    TEST_ASSERT_EQUAL(128, ok12);
-    TEST_ASSERT_EQUAL(8, ok24);
 }
 
 void test_prefix() {

@@ -77,11 +77,10 @@ static void cam_show_qr(const char *text) {
     cam_override = true;
 }
 
-// Script helper: show a hand-made card, i.e. a Compact SeedQR of `e`.
-static void cam_show_seedqr(const SeedEntropy &e) {
-    static uint8_t qr[qrcodegen_BUFFER_LEN_MAX], tmp[qrcodegen_BUFFER_LEN_MAX], buf[qrcodegen_BUFFER_LEN_MAX];
-    qrcodegen_Segment seg = qrcodegen_makeBytes(e.bytes, e.len, buf);
-    if (!qrcodegen_encodeSegmentsAdvanced(&seg, 1, qrcodegen_Ecc_LOW, 1, 40, qrcodegen_Mask_AUTO, false, tmp, qr)) return;
+// Script helper: show a hand-made card, copied exactly from the QR the device
+// draws on its backup screens (ui_backup_qr), so the check covers that encoding.
+static bool cam_show_matrix(const uint8_t *qr) {
+    if (!qr) return false;
     int n = qrcodegen_getSize(qr), scale = 200 / (n + 8);
     int ox = (CAM_W - n * scale) / 2, oy = (CAM_H - n * scale) / 2;
     memset(cam_frame, 235, sizeof(cam_frame));
@@ -90,6 +89,7 @@ static void cam_show_seedqr(const SeedEntropy &e) {
             cam_frame[(oy + y) * CAM_W + ox + x] = qrcodegen_getModule(qr, x / scale, y / scale) ? 20 : 235;
     cam_ok = true;
     cam_override = true;
+    return true;
 }
 
 const uint8_t *platform_camera_frame(int *width, int *height) {
@@ -212,10 +212,7 @@ static int run_shots(const char *dir) {
     setenv("SIM_CAMERA", "sim/samples/vector4_compact_12word.png", 1);   // somebody else's seed
     for (int i = 0; i < 40; i++) pump(50);
     save(dir, "22_check_wrong_card");
-    SeedEntropy e;
-    seed_from_dice(rolls, 50, 12, &e);
-    cam_show_seedqr(e);
-    seedqr_wipe(&e);
+    if (!cam_show_matrix(ui_backup_qr())) { fprintf(stderr, "no backup QR on screen\n"); return 1; }
     for (int i = 0; i < 100 && ui_current() == UI_BACKUP_SCAN; i++) pump(50);
     if (ui_current() != UI_SEED_READY || wallet_has_seed()) { fprintf(stderr, "card check failed (screen %d)\n", ui_current()); return 1; }
     pump(300); save(dir, "23_seed_ready");
@@ -242,6 +239,7 @@ static int run_shots(const char *dir) {
     for (const char *f = "1010101"; *f; f++) ui_entropy_input(*f);
     if (ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "last word flips did not make a seed\n"); return 1; }
     uint16_t all[24];
+    SeedEntropy e;
     seed_final_word(didx, 12, "1010101", &e);
     seed_word_indexes(e, all);
     seedqr_wipe(&e);
@@ -271,10 +269,7 @@ static int run_shots(const char *dir) {
     // ui_backup_next from the last block goes to the check; capture the last block first.
     ui_goto(UI_BACKUP_BLOCK); pump(300); save(dir, "29_backup_last_block");
     ui_backup_next();
-    SeedEntropy w;
-    wallet_entropy(&w);
-    cam_show_seedqr(w);
-    seedqr_wipe(&w);
+    if (!cam_show_matrix(ui_backup_qr())) { fprintf(stderr, "no backup QR on screen\n"); return 1; }
     for (int i = 0; i < 100 && ui_current() == UI_BACKUP_SCAN; i++) pump(50);
     if (ui_current() != UI_SEED_LOADED || !wallet_has_seed()) { fprintf(stderr, "existing backup check failed\n"); return 1; }
     return 0;

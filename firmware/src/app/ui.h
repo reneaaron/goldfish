@@ -1,4 +1,5 @@
 #pragma once
+#include <stdint.h>
 // Shared UI and app logic. Runs on the board and in the desktop simulator;
 // nothing in src/app may touch hardware directly.
 //
@@ -57,4 +58,7 @@ void ui_seed_entry(UiScreen method, int words, bool draw = false);
 void ui_backup_loaded();       // "Back up as QR" in the seed menu
 void ui_entropy_input(char c); // a dice key ('1'..'6') or coin key ('1' heads, '0' tails)
 bool ui_enter_word(const char *word);           // tap the suggestion for this word
-void ui_backup_next();         // "Next block"
+void ui_backup_next();         // "Next part"
+// The backup QR as drawn on screen (qrcodegen buffer), nullptr if none. For
+// the simulator, which scans exactly this as the hand-made card.
+const uint8_t *ui_backup_qr();

@@ -463,11 +463,10 @@ static bool drawing;                     // Draw words: n-1 words by hand, then 
 static bool final_flips;                 // the coin screen is collecting the last word's bits
 static bool card_checked;                // Seed ready follows a checked card
 static int words_page;                   // Write down words: 4 per page
-
-static void secure_zero(void *p, size_t n) {
-    volatile uint8_t *v = (volatile uint8_t *)p;
-    while (n--) *v++ = 0;
-}
+// Seed material shown on screen. lv_label_set_text would copy it into the LVGL
+// heap, which is freed without wiping; these labels point at static buffers
+// (lv_label_set_text_static) that new_seed_wipe() zeroes.
+static char txt_words[4][12], txt_field[16], txt_sugg[2][12], txt_tail[40];
 
 static void new_seed_wipe() {
     seedqr_wipe(&pending);
@@ -476,6 +475,10 @@ static void new_seed_wipe() {
     secure_zero(word_prefix, sizeof(word_prefix));
     secure_zero(last_ok, sizeof(last_ok));
     secure_zero(qr_buf, sizeof(qr_buf));
+    secure_zero(txt_words, sizeof(txt_words));
+    secure_zero(txt_field, sizeof(txt_field));
+    secure_zero(txt_sugg, sizeof(txt_sugg));
+    secure_zero(txt_tail, sizeof(txt_tail));
     entropy_n = word_n = qr_n = block_i = words_page = 0;
     backup_existing = drawing = final_flips = card_checked = false;
 }
@@ -587,15 +590,14 @@ static void entropy_refresh() {
     lv_label_set_text_fmt(ent_count, "%d of %d", entropy_n, need);
     lv_bar_set_value(ent_bar, entropy_n * 100 / need, LV_ANIM_OFF);
     // The most recent entries, so a mistyped one is easy to spot and undo.
-    char t[40];
+    char *t = txt_tail;
     int show_n = entropy_dice ? 10 : 16, from = entropy_n > show_n ? entropy_n - show_n : 0, o = 0;
     for (int i = from; i < entropy_n; i++) {
         if (i > from && (entropy_dice || (i % 4) == 0)) t[o++] = ' ';
         t[o++] = entropy_in[i];
     }
     t[o] = 0;
-    lv_label_set_text(ent_tail, t);
-    secure_zero(t, sizeof(t));
+    lv_label_set_text_static(ent_tail, t);
 }
 
 void ui_entropy_input(char c) {
@@ -717,14 +719,14 @@ static int word_matches(const char *prefix, int *out, int max) {
 }
 
 static void words_refresh() {
-    char f[16];
-    snprintf(f, sizeof(f), "%s_", word_prefix);
-    lv_label_set_text(word_field, f);
+    snprintf(txt_field, sizeof(txt_field), "%s_", word_prefix);
+    lv_label_set_text_static(word_field, txt_field);
     int n = word_prefix[0] ? word_matches(word_prefix, sugg_idx, 2) : 0;
     for (int i = 0; i < 2; i++) {
         if (i < n) {
             lv_obj_remove_flag(word_sugg[i], LV_OBJ_FLAG_HIDDEN);
-            lv_label_set_text(lv_obj_get_child(word_sugg[i], 0), seed_word(sugg_idx[i]));
+            snprintf(txt_sugg[i], sizeof(txt_sugg[i]), "%s", seed_word(sugg_idx[i]));
+            lv_label_set_text_static(lv_obj_get_child(word_sugg[i], 0), txt_sugg[i]);
         } else {
             lv_obj_add_flag(word_sugg[i], LV_OBJ_FLAG_HIDDEN);
         }
@@ -768,8 +770,10 @@ static bool word_accept(int idx) {
     }
     if (word_is_last()) {
         memset(last_ok, 0, sizeof(last_ok));
-        for (int i = 0; i < 2048; i++)
-            if (seed_last_word_ok(word_idx, new_words, uint16_t(i))) last_ok[i >> 3] |= 1 << (i & 7);
+        uint16_t last[128];
+        int n = seed_valid_last_words(word_idx, new_words, last);
+        for (int i = 0; i < n; i++) last_ok[last[i] >> 3] |= 1 << (last[i] & 7);
+        secure_zero(last, sizeof(last));
     }
     ui_goto(UI_ENTER_WORDS);
     return true;
@@ -941,8 +945,17 @@ static void to_whole_qr_cb(lv_event_t *) { ui_goto(UI_BACKUP_QR); }
 static void block_start_cb(lv_event_t *) { block_i = 0; ui_goto(UI_BACKUP_BLOCK); }
 
 static void build_backup_qr() {
-    if (!backup_make_qr()) { backup_exit_cb(nullptr); return; }
     lv_obj_t *scr = screen();
+    if (!backup_make_qr()) {
+        lv_obj_align(icon_badge(scr, ICON_WARNING, RED, RED_DIM, 64), LV_ALIGN_TOP_MID, 0, 44);
+        lv_obj_align(text(scr, "No QR code", &inter_22_semi, TEXT), LV_ALIGN_TOP_MID, 0, 126);
+        lv_obj_align(para(scr, backup_existing ? "The QR code couldn't be made. Nothing was backed up."
+                                               : "The QR code couldn't be made. Your written words are the backup."),
+                     LV_ALIGN_TOP_MID, 0, 162);
+        place_bottom(btn_primary(scr, "Continue", backup_exit_cb));
+        show(scr);
+        return;
+    }
     topbar(scr, "Back up", to_warning_cb);
     const int cell = 180 / qr_n;
     whole_view = {0, 0, qr_n, qr_n, cell, false};
@@ -953,10 +966,10 @@ static void build_backup_qr() {
     show(scr);
 }
 
-static void col_label(int col, char out[4]) {
-    if (col < 26) snprintf(out, 4, "%c", 'A' + col);
-    else snprintf(out, 4, "A%c", 'A' + col - 26);
-}
+// Columns A..Y: a Compact SeedQR is at most 25 modules wide.
+static void col_label(int col, char out[4]) { snprintf(out, 4, "%c", 'A' + col); }
+
+const uint8_t *ui_backup_qr() { return qr_n ? qr_buf : nullptr; }
 
 void ui_backup_next() {
     int n = blocks_per_side() * blocks_per_side();
@@ -1060,7 +1073,9 @@ static void build_backup_words() {
         lv_obj_set_width(n, 26);
         lv_obj_align(n, LV_ALIGN_TOP_LEFT, 0, i * 44 + 8);
         bool last = w == new_words - 1;
-        lv_obj_t *t = text(c, seed_word(idx[w]), &mono_22, last && drawing ? ACCENT : TEXT, LV_TEXT_ALIGN_LEFT);
+        snprintf(txt_words[i], sizeof(txt_words[i]), "%s", seed_word(idx[w]));
+        lv_obj_t *t = text(c, "", &mono_22, last && drawing ? ACCENT : TEXT, LV_TEXT_ALIGN_LEFT);
+        lv_label_set_text_static(t, txt_words[i]);
         lv_obj_align(t, LV_ALIGN_TOP_LEFT, 40, i * 44 + 2);
         if (i) divider(c, i * 44 - 6);
     }
@@ -1090,20 +1105,32 @@ static void build_backup_choice() {
 
 // ---------------------------------------------------------------- seed ready
 // The end of New seed. The seed isn't loaded: Done wipes it from the device.
+// The fingerprint takes seconds on the board (PBKDF2), so the screen shows
+// first and a one-shot timer fills it in.
+static lv_timer_t *ready_timer;
+static void ready_tick(lv_timer_t *t) {
+    lv_obj_t *l = (lv_obj_t *)lv_timer_get_user_data(t);
+    ready_timer = nullptr;
+    char fp[9], spaced[12];
+    seed_fingerprint_hex(pending, fp);
+    snprintf(spaced, sizeof(spaced), "%.4s %.4s", fp, fp + 4);
+    lv_label_set_text(l, spaced);
+}
+
 static void build_seed_ready() {
     lv_obj_t *scr = screen();
     lv_obj_align(icon_badge(scr, ICON_CHECK, GREEN, GREEN_DIM, 52), LV_ALIGN_TOP_MID, 0, 28);
     lv_obj_align(text(scr, card_checked ? "Card checked" : "Seed ready", &inter_22_semi, TEXT), LV_ALIGN_TOP_MID, 0, 92);
     lv_obj_align(caption(scr, "FINGERPRINT"), LV_ALIGN_TOP_MID, 0, 132);
-    char fp[9], spaced[12];
-    seed_fingerprint_hex(pending, fp);   // slow on the board, like loading a seed
-    snprintf(spaced, sizeof(spaced), "%.4s %.4s", fp, fp + 4);
-    lv_obj_align(text(scr, spaced, &mono_26, TEXT), LV_ALIGN_TOP_MID, 0, 150);
+    lv_obj_t *fp = text(scr, "\xE2\x80\xA6", &mono_26, TEXT);
+    lv_obj_align(fp, LV_ALIGN_TOP_MID, 0, 150);
     lv_obj_align(para(scr, "Write it on your backup. To use the seed, load it with Scan QR or Enter words.", &inter_13,
                       TEXT_3),
                  LV_ALIGN_TOP_MID, 0, 190);
     place_bottom(btn_primary(scr, "Done", to_home_cb));
     show(scr);
+    ready_timer = lv_timer_create(ready_tick, 200, fp);   // after the fade-in
+    lv_timer_set_repeat_count(ready_timer, 1);
 }
 
 static void handle_confirm_payload(QrPayload &p) {
@@ -1460,6 +1487,7 @@ void ui_goto(UiScreen s) {
     if ((needs_pending && !pending.len) || (needs_qr && (!pending.len || !qr_n))) { new_seed_wipe(); s = UI_HOME; }
     if (s != UI_VERIFY_RESULT && verify_timer) { lv_timer_delete(verify_timer); verify_timer = nullptr; }
     if (s != UI_PSBT_SIGNED && anim_timer) { lv_timer_delete(anim_timer); anim_timer = nullptr; }
+    if (ready_timer) { lv_timer_delete(ready_timer); ready_timer = nullptr; }
     bool no_seed_yet = s == UI_HOME || s == UI_SCAN_SEED || seed_entry_screen(s);
     if (!no_seed_yet && !backup_screen(s) && !wallet_has_seed()) s = UI_HOME;
     if (no_seed_yet && wallet_has_seed()) { new_seed_wipe(); s = UI_SEED_MENU; }

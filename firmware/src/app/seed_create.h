@@ -26,8 +26,9 @@ const char *seed_word(int index);                 // 0..2047
 int seed_words_with_prefix(const char *prefix, int *first);
 // 12 or 24 word indexes; false if the checksum (last word) is wrong.
 bool seed_from_words(const uint16_t *idx, int n, SeedEntropy *out);
-// Would `last` complete the first n-1 words to a valid mnemonic of n words?
-bool seed_last_word_ok(const uint16_t *idx, int n, uint16_t last);
+// The words that complete the first n-1 words to a valid mnemonic of n words:
+// 128 of them for 12 words, 8 for 24 (one per value of the free bits).
+int seed_valid_last_words(const uint16_t *idx, int n, uint16_t out[128]);
 
 // Words drawn by hand (e.g. from a box): the first n-1 words plus the last
 // word's free bits from coin flips ('1' heads), 7 for 12 words, 3 for 24.

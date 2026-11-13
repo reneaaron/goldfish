@@ -6,11 +6,6 @@
 
 extern "C" void mnemonic_clear(void);   // uBitcoin's trezor-crypto bip39.c
 
-static void secure_zero(void *p, size_t n) {
-    volatile uint8_t *v = (volatile uint8_t *)p;
-    while (n--) *v++ = 0;
-}
-
 // The root key lives in this buffer so the whole object can be zeroed after
 // its destructor runs, instead of trusting the class to clean up.
 alignas(HDPrivateKey) static uint8_t root_mem[sizeof(HDPrivateKey)];

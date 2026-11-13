@@ -1,14 +1,8 @@
 #include "seed_create.h"
-#include <stdio.h>
 #include <string.h>
 #include <Hash.h>      // sha256 from uBitcoin
 
 extern "C" const char *const *mnemonic_wordlist(void);   // uBitcoin's trezor-crypto bip39.c
-
-static void secure_zero(void *p, size_t n) {
-    volatile uint8_t *v = (volatile uint8_t *)p;
-    while (n--) *v++ = 0;
-}
 
 int seed_dice_rolls(int words) { return words == 24 ? 99 : 50; }
 int seed_coin_flips(int words) { return words == 24 ? 256 : 128; }
@@ -55,30 +49,6 @@ int seed_words_with_prefix(const char *prefix, int *first) {
     return count;
 }
 
-// The word indexes are exactly a Standard SeedQR payload, so its decoder
-// does the checksum.
-bool seed_from_words(const uint16_t *idx, int n, SeedEntropy *out) {
-    memset(out, 0, sizeof(*out));
-    if (n != 12 && n != 24) return false;
-    char digits[97];
-    for (int i = 0; i < n; i++) snprintf(digits + i * 4, 5, "%04u", unsigned(idx[i] & 0x7FF));
-    bool ok = seedqr_decode((const uint8_t *)digits, n * 4, out) == SEEDQR_OK;
-    secure_zero(digits, sizeof(digits));
-    return ok;
-}
-
-bool seed_last_word_ok(const uint16_t *idx, int n, uint16_t last) {
-    uint16_t all[24];
-    if (n != 12 && n != 24) return false;
-    memcpy(all, idx, (n - 1) * sizeof(uint16_t));
-    all[n - 1] = last;
-    SeedEntropy e;
-    bool ok = seed_from_words(all, n, &e);
-    seedqr_wipe(&e);
-    secure_zero(all, sizeof(all));
-    return ok;
-}
-
 int seed_final_word_flips(int words) { return words == 24 ? 3 : 7; }
 
 static void put_bits(uint8_t *bits, size_t &pos, unsigned v, int n) {
@@ -97,18 +67,58 @@ bool seed_final_word(const uint16_t *idx, int n, const char *flips, SeedEntropy 
     return true;
 }
 
-int seed_word_indexes(const SeedEntropy &e, uint16_t out[24]) {
-    uint8_t bits[33] = {0}, h[32];
-    memcpy(bits, e.bytes, e.len);
-    sha256(e.bytes, e.len, h);
-    bits[e.len] = h[0];                                  // checksum: first len/4 bits
-    int n = int(e.len * 3 / 4);
-    for (int w = 0; w < n; w++) {
-        uint16_t v = 0;
-        for (int b = w * 11; b < w * 11 + 11; b++) v = uint16_t(v << 1 | ((bits[b / 8] >> (7 - b % 8)) & 1));
-        out[w] = v;
+// The checksum is the first len/4 bits of SHA256(entropy).
+static uint8_t checksum_bits(const uint8_t *ent, size_t len) {
+    uint8_t h[32];
+    sha256(ent, len, h);
+    uint8_t cs = uint8_t(h[0] >> (8 - len / 4));
+    secure_zero(h, sizeof(h));
+    return cs;
+}
+
+static uint16_t get_bits(const uint8_t *bits, size_t pos, int n) {
+    uint16_t v = 0;
+    for (int b = 0; b < n; b++, pos++) v = uint16_t(v << 1 | ((bits[pos / 8] >> (7 - pos % 8)) & 1));
+    return v;
+}
+
+bool seed_from_words(const uint16_t *idx, int n, SeedEntropy *out) {
+    memset(out, 0, sizeof(*out));
+    if (n != 12 && n != 24) return false;
+    uint8_t bits[33] = {0};                            // 24 * 11 = 264 bits
+    size_t pos = 0;
+    for (int i = 0; i < n; i++) put_bits(bits, pos, idx[i] & 0x7FF, 11);
+    size_t len = n == 24 ? 32 : 16;
+    bool ok = get_bits(bits, len * 8, int(len / 4)) == checksum_bits(bits, len);
+    if (ok) {
+        memcpy(out->bytes, bits, len);
+        out->len = len;
     }
     secure_zero(bits, sizeof(bits));
-    secure_zero(h, sizeof(h));
+    return ok;
+}
+
+int seed_valid_last_words(const uint16_t *idx, int n, uint16_t *out) {
+    if (n != 12 && n != 24) return 0;
+    const int free_bits = seed_final_word_flips(n), cs_bits = 11 - free_bits;
+    int count = 0;
+    for (unsigned v = 0; v < (1u << free_bits); v++) {
+        SeedEntropy e = {};
+        size_t pos = 0;
+        for (int i = 0; i < n - 1; i++) put_bits(e.bytes, pos, idx[i] & 0x7FF, 11);
+        put_bits(e.bytes, pos, v, free_bits);
+        out[count++] = uint16_t(v << cs_bits | checksum_bits(e.bytes, pos / 8));
+        seedqr_wipe(&e);
+    }
+    return count;
+}
+
+int seed_word_indexes(const SeedEntropy &e, uint16_t out[24]) {
+    uint8_t bits[33] = {0};
+    memcpy(bits, e.bytes, e.len);
+    bits[e.len] = uint8_t(checksum_bits(e.bytes, e.len) << (8 - e.len / 4));
+    int n = int(e.len * 3 / 4);
+    for (int w = 0; w < n; w++) out[w] = get_bits(bits, size_t(w) * 11, 11);
+    secure_zero(bits, sizeof(bits));
     return n;
 }

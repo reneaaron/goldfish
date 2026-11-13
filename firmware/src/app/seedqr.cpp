@@ -2,8 +2,7 @@
 #include <string.h>
 #include <Hash.h>      // sha256 from uBitcoin
 
-// Wipe that the compiler can't optimise away.
-static void secure_zero(void *p, size_t n) {
+void secure_zero(void *p, size_t n) {
     volatile uint8_t *v = (volatile uint8_t *)p;
     while (n--) *v++ = 0;
 }
