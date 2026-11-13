@@ -8,8 +8,8 @@ hardware: transactions go in and out through the camera and the screen.
 ![Stateless Signer](marketing/renders/out/01_hero_review.png)
 
 Status: early, not for real funds. The firmware runs in a desktop simulator
-with seed loading, transaction review and signing, address verification and
-wallet pairing; the board's camera driver isn't ported yet and nothing has
+with seed loading (QR or words), new seeds from dice, coins or drawn words, QR backups, transaction review
+and signing, address verification and wallet pairing; the board's camera driver isn't ported yet and nothing has
 been tested on real hardware or against Sparrow.
 
 ## Repository
@@ -24,7 +24,11 @@ been tested on real hardware or against Sparrow.
 ## How it works
 
 1. Scan your seed QR (SeedQR, 12 or 24 words). The device shows its
-   fingerprint so you can match it with your wallet.
+   fingerprint so you can match it with your wallet. Or type your words
+   backup. New seed makes a seed from dice rolls, coin flips or words you
+   draw (the last word from coin flips), shows the words to write down and
+   optionally walks you through a paper QR card, square by square. Any
+   loaded seed can be backed up as a QR card the same way.
 2. Connect wallet: show the xpub as a QR so Sparrow (or another wallet app)
    can track your balance and build transactions.
 3. Sign transaction: scan the transaction QR from your wallet, check the

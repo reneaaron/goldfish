@@ -17,6 +17,9 @@ void test_fingerprint() {
     wallet_fingerprint_hex(fp);
     TEST_ASSERT_EQUAL_STRING("73c5da0a", fp);
     TEST_ASSERT_EQUAL(12, wallet_word_count());
+    char fp2[9];
+    TEST_ASSERT_TRUE(seed_fingerprint_hex(zero_entropy_12(), fp2));   // same, without loading
+    TEST_ASSERT_EQUAL_STRING("73c5da0a", fp2);
 }
 
 void test_zpub() {
@@ -44,8 +47,13 @@ void test_vpub() {
 
 void test_wipe() {
     TEST_ASSERT_TRUE(wallet_load(zero_entropy_12()));
+    SeedEntropy e;
+    TEST_ASSERT_TRUE(wallet_entropy(&e));
+    TEST_ASSERT_EQUAL(16, e.len);
     wallet_wipe();
     TEST_ASSERT_FALSE(wallet_has_seed());
+    TEST_ASSERT_FALSE(wallet_entropy(&e));
+    TEST_ASSERT_EQUAL(0, e.len);
     char out[200];
     TEST_ASSERT_EQUAL(0, wallet_export_xpub(out, sizeof(out)));
 }

@@ -13,23 +13,38 @@ LV_FONT_DECLARE(mono_16);
 LV_FONT_DECLARE(mono_22);
 LV_FONT_DECLARE(mono_26);
 LV_FONT_DECLARE(icons_34);
+LV_FONT_DECLARE(icons_40);
 
-// Font Awesome glyphs available in inter_13/15/17 and icons_34
-#define ICON_CHECK        "\xEF\x80\x8C"
-#define ICON_CLOSE        "\xEF\x80\x8D"
-#define ICON_LEFT         "\xEF\x81\x93"
-#define ICON_RIGHT        "\xEF\x81\x94"
-#define ICON_WARNING      "\xEF\x81\xB1"
-#define ICON_TRASH        "\xEF\x8B\xAD"
-#define ICON_QR           "\xEF\x80\xA9"
-#define ICON_KEY          "\xEF\x82\x84"
-#define ICON_ARROW_RIGHT  "\xEF\x81\xA1"
-#define ICON_CHECK_CIRCLE "\xEF\x81\x98"
-#define ICON_SHIELD       "\xEF\x8F\xAD"
-#define ICON_SIGN         "\xEF\x95\xB3"
-#define ICON_WALLET       "\xEF\x95\x95"
-#define ICON_CAMERA       "\xEF\x80\xB0"
-#define ICON_EYE          "\xEF\x81\xAE"
+// Lucide icons (lucide.dev), available in inter_13/15/17 and icons_34
+#define ICON_CHECK        "\xEE\x81\xB0"   // check
+#define ICON_CLOSE        "\xEE\x86\xB2"   // x
+#define ICON_LEFT         "\xEE\x81\xB2"   // chevron-left
+#define ICON_RIGHT        "\xEE\x81\xB3"   // chevron-right
+#define ICON_WARNING      "\xEE\x86\x93"   // triangle-alert
+#define ICON_TRASH        "\xEE\x86\x8E"   // trash-2
+#define ICON_QR           "\xEE\x87\x9F"   // qr-code
+#define ICON_KEY          "\xEE\x92\xA8"   // key-round
+#define ICON_ARROW_RIGHT  "\xEE\x81\x8D"   // arrow-right
+#define ICON_CHECK_CIRCLE "\xEE\x88\xA6"   // circle-check
+#define ICON_SHIELD       "\xEE\x85\x9C"   // shield
+#define ICON_SIGN         "\xEE\x97\xB7"   // signature
+#define ICON_WALLET       "\xEE\x88\x84"   // wallet
+#define ICON_CAMERA       "\xEE\x81\xA8"   // camera
+#define ICON_EYE          "\xEE\x82\xBE"   // eye
+#define ICON_KEYBOARD     "\xEE\x8A\x84"   // keyboard
+#define ICON_DICE         "\xEE\x8B\x85"   // dices
+#define ICON_COINS        "\xEE\x82\x9B"   // coins
+#define ICON_SIGNER       "\xEE\x87\xBF"   // shield-check, icons_34 only: the home badge
+
+// icons_40 only: dice faces and the two sides of a coin
+#define ICON_DICE_1       "\xEE\x8A\x87"   // dice-1
+#define ICON_DICE_2       "\xEE\x8A\x88"   // dice-2
+#define ICON_DICE_3       "\xEE\x8A\x89"   // dice-3
+#define ICON_DICE_4       "\xEE\x8A\x8A"   // dice-4
+#define ICON_DICE_5       "\xEE\x8A\x8B"   // dice-5
+#define ICON_DICE_6       "\xEE\x8A\x8C"   // dice-6
+#define ICON_HEADS        "\xEE\x91\xAD"   // user-round: a head
+#define ICON_TAILS        "\xEE\x87\xB2"   // binary: the number side
 
 namespace th {
 extern const lv_color_t BG, SURFACE, SURFACE_2, BORDER, TEXT, TEXT_2, TEXT_3;

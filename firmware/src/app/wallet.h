@@ -16,9 +16,14 @@ void wallet_wipe();
 // The root key, for signing. nullptr without a seed. Don't copy it.
 const HDPrivateKey *wallet_root();
 
+// Fingerprint of a seed without loading it (as slow as wallet_load).
+bool seed_fingerprint_hex(const SeedEntropy &e, char out[9]);
+
 void wallet_fingerprint(uint8_t out[4]);
 void wallet_fingerprint_hex(char out[9]);
 int wallet_word_count();
+// Copy of the loaded seed's entropy, for making a QR backup. The caller wipes it.
+bool wallet_entropy(SeedEntropy *out);
 
 // Network for the xpub export. Testnet also covers signet and Mutinynet (same
 // coin type, xpub version and tb1 addresses). Kept in RAM like everything else:

@@ -31,3 +31,7 @@ SeedQrResult seedqr_decode(const uint8_t *data, size_t len, SeedEntropy *out);
 inline int seedqr_word_count(const SeedEntropy &e) { return int(e.len * 3 / 4); }
 
 void seedqr_wipe(SeedEntropy *e);
+
+// Wipe that the compiler can't optimise away. For every buffer that held key
+// material; shared by the whole app.
+void secure_zero(void *p, size_t n);

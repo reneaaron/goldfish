@@ -1,13 +1,19 @@
 #pragma once
+#include <stdint.h>
 // Shared UI and app logic. Runs on the board and in the desktop simulator;
 // nothing in src/app may touch hardware directly.
 //
 // Flow (SeedQR only, one seed in RAM):
 //   Home -> Scan SeedQR -> Seed loaded (fingerprint) -> Seed menu
-//   Seed menu -> Sign transaction | Verify address | Connect wallet | Wipe
+//   Seed menu -> Sign transaction | Verify address | Connect wallet | Back up as QR | Wipe
 //   Connect wallet -> Network (Mainnet / Testnet), RAM only
 //   Scan transaction -> Review -> each output -> Swipe to sign -> Signed QR
 //   Verify address -> scan address QR -> searching -> verified / not from this seed
+//   Home -> Enter words (12/24) -> one screen per word -> Seed loaded
+//   Home -> New seed (12/24 words) -> dice rolls | coin flips | draw words + coins for the last
+//        -> offline warning -> write down the words -> QR card? (whole SeedQR,
+//        each block, optional card check) -> Seed ready (not loaded) -> Home
+//   Seed menu -> Back up as QR -> the same card flow, scan optional
 
 enum UiScreen {
     UI_HOME,
@@ -25,6 +31,18 @@ enum UiScreen {
     UI_PSBT_SIGNED,
     UI_SCAN_ADDRESS,
     UI_VERIFY_RESULT,    // shows progress while searching, then the result
+    UI_NEW_SEED,         // 12/24 words and how to make the seed
+    UI_ENTROPY_DICE,
+    UI_ENTROPY_COINS,
+    UI_RESTORE,          // Enter words: 12 or 24
+    UI_ENTER_WORDS,      // one screen per word
+    UI_BACKUP_WARNING,
+    UI_BACKUP_WORDS,     // 4 words per page, new seeds only
+    UI_BACKUP_CHOICE,    // add a QR card, or skip
+    UI_BACKUP_QR,        // the whole SeedQR
+    UI_BACKUP_BLOCK,     // one 5x5 block per screen
+    UI_BACKUP_SCAN,      // scan the hand-made card; must hold the same seed
+    UI_SEED_READY,       // end of New seed: fingerprint, nothing loaded
 };
 
 void ui_build();               // shows the home screen
@@ -35,3 +53,12 @@ UiScreen ui_current();
 void ui_next_output();         // "Next" on an output screen
 bool ui_swipe_sign();          // completes the swipe; false if signing failed
 bool verify_done();            // the address check has a result
+// Start UI_ENTROPY_DICE, _COINS or UI_ENTER_WORDS; draw: the words are a new seed (last word from coins).
+void ui_seed_entry(UiScreen method, int words, bool draw = false);
+void ui_backup_loaded();       // "Back up as QR" in the seed menu
+void ui_entropy_input(char c); // a dice key ('1'..'6') or coin key ('1' heads, '0' tails)
+bool ui_enter_word(const char *word);           // tap the suggestion for this word
+void ui_backup_next();         // "Next part"
+// The backup QR as drawn on screen (qrcodegen buffer), nullptr if none. For
+// the simulator, which scans exactly this as the hand-made card.
+const uint8_t *ui_backup_qr();
