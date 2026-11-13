@@ -7,6 +7,12 @@ hardware: transactions go in and out through the camera and the screen.
 
 ![Stateless Signer](marketing/renders/out/01_hero_review.png)
 
+<p>
+  <img src="marketing/renders/out/06_lineup.png" width="32%" alt="Four signers: start screen, new seed, wallet menu, connect wallet">
+  <img src="marketing/renders/out/13_backup_copy.png" width="32%" alt="Copying the seed onto a paper SeedQR card, part by part">
+  <img src="marketing/renders/out/03_colorways.png" width="32%" alt="Three colours: seed loaded, slide to sign, signed QR">
+</p>
+
 Status: early, not for real funds. The firmware runs in a desktop simulator
 with seed loading (QR or words), new seeds from dice, coins or drawn words, QR backups, transaction review
 and signing, address verification and wallet pairing; the board's camera driver isn't ported yet and nothing has

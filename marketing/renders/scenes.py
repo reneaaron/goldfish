@@ -8,7 +8,7 @@ real app's UI. The paper SeedQR card carries SeedSigner's public 12-word test ve
 
 Run from the repo root:
     blender -b -P marketing/renders/scenes.py
-Options (env): SAMPLES=256, PCT=100, ONLY=a,b,c
+Options (env): SAMPLES=256, PCT=100, ONLY=a,b,c,d
 """
 import os, sys, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -281,3 +281,14 @@ if want("c"):   # close-up: seed loaded next to the SeedQR card it came from
     area("rim", (25, 35, 20), 20, 14000, (0.9, 0.95, 1.0))
     cam_data.dof.aperture_fstop = 3.2
     shoot("12_backup_closeup.png", (5, -23, 15), (1.2, 0, 0.8), (-1.5, 0.5, 1.7), lens=68)
+
+if want("d"):   # copying the SeedQR onto the paper card, square by square
+    clear_scene()
+    world((0.75, 0.72, 0.68, 1), 0.5)
+    ground(linen_mat())
+    device("dev_d", BONE, "21_backup_block_1", (-3.0, 0.6, UP), (0, 0, math.radians(-7)))
+    seed_card((3.6, -0.8, 0), math.radians(6))
+    area("window", (-40, -10, 35), 35, 60000, (1.0, 0.96, 0.9))
+    area("rim", (25, 35, 20), 20, 14000, (0.9, 0.95, 1.0))
+    cam_data.dof.aperture_fstop = 4.0
+    shoot("13_backup_copy.png", (2, -20, 20), (0.8, 0, 0.8), (-1.0, 0.3, 1.7), lens=60)
