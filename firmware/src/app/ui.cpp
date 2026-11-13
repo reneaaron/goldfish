@@ -79,6 +79,22 @@ static lv_obj_t *qr_card(lv_obj_t *parent, int y, lv_obj_t **qr_out) {
 // ---------------------------------------------------------------- home
 static lv_obj_t *quiet_link(lv_obj_t *parent, const char *s, lv_event_cb_t cb, void *ud);
 
+// Look of the on-screen keyboards (button matrices): Enter words and Passphrase.
+static void kb_style(lv_obj_t *kb) {
+    lv_obj_set_style_bg_opa(kb, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(kb, 0, 0);
+    lv_obj_set_style_pad_all(kb, 4, 0);
+    lv_obj_set_style_pad_gap(kb, 3, 0);
+    lv_obj_set_style_bg_color(kb, SURFACE_2, LV_PART_ITEMS);
+    lv_obj_set_style_bg_opa(kb, LV_OPA_COVER, LV_PART_ITEMS);
+    lv_obj_set_style_radius(kb, 7, LV_PART_ITEMS);
+    lv_obj_set_style_border_width(kb, 0, LV_PART_ITEMS);
+    lv_obj_set_style_shadow_width(kb, 0, LV_PART_ITEMS);
+    lv_obj_set_style_text_font(kb, &inter_17_semi, LV_PART_ITEMS);
+    lv_obj_set_style_text_color(kb, TEXT, LV_PART_ITEMS);
+    lv_obj_set_style_bg_color(kb, ACCENT_DIM, LV_PART_ITEMS | LV_STATE_PRESSED);
+}
+
 static void build_home() {
     lv_obj_t *scr = screen();
     lv_obj_align(icon_badge(scr, ICON_SIGNER, ACCENT, ACCENT_DIM, 56), LV_ALIGN_TOP_MID, 0, 12);
@@ -386,8 +402,7 @@ static const char *const pass_maps[4][36] = {
 static void pass_wipe() {
     secure_zero(pass_buf, sizeof(pass_buf));
     secure_zero(txt_pass, sizeof(txt_pass));
-    pass_hidden = false;
-    pass_layer = 0;
+    pass_layer = 0;                            // pass_hidden stays as the user set it
 }
 
 static void pass_refresh() {
@@ -399,8 +414,9 @@ static void pass_refresh() {
     txt_pass[o] = 0;
     lv_label_set_text_static(pass_field, txt_pass);
     // Bottom line of the field: what an empty passphrase does, or that it's full.
-    lv_label_set_text(pass_note, n == PASS_MAX ? "64 max" : n ? "" : wallet_has_passphrase()
-                                     ? "Leave empty to remove it" : "Letters, digits and symbols");
+    if (n == PASS_MAX) lv_label_set_text_fmt(pass_note, "%d max", PASS_MAX);
+    else lv_label_set_text(pass_note, n ? "" : wallet_has_passphrase() ? "Leave empty to remove it"
+                                                                        : "Letters, digits and symbols");
     lv_obj_align(pass_note, n ? LV_ALIGN_BOTTOM_RIGHT : LV_ALIGN_BOTTOM_LEFT, 0, 0);
     lv_label_set_text(lv_obj_get_child(pass_toggle, 0), pass_hidden ? "Show" : "Hide");
 }
@@ -409,14 +425,17 @@ static void pass_set_layer(int layer) {
     pass_layer = layer;
     const char *const *map = pass_maps[layer];
     lv_buttonmatrix_set_map(pass_kb, map);
-    // Wider keys for everything that isn't a single character; OK looks like a primary button.
+    // Wider keys for everything that isn't a single character; OK looks like a
+    // primary button. Only Del repeats while held: a repeating letter would add
+    // characters unnoticed, and a repeating layer key would flip layers.
     static lv_buttonmatrix_ctrl_t ctrl[36];
     int b = 0;
     for (int i = 0; map[i][0]; i++) {
         if (!strcmp(map[i], "\n")) continue;
         bool key = map[i][1] != 0;
-        ctrl[b++] = lv_buttonmatrix_ctrl_t(!key ? 1 : !strcmp(map[i], "space") ? 4
-                                            : !strcmp(map[i], "OK") ? 2 | LV_BUTTONMATRIX_CTRL_CHECKED : 2);
+        int c = !key ? 1 : !strcmp(map[i], "space") ? 4 : !strcmp(map[i], "OK") ? 2 | LV_BUTTONMATRIX_CTRL_CHECKED : 2;
+        if (strcmp(map[i], "Del")) c |= LV_BUTTONMATRIX_CTRL_NO_REPEAT;
+        ctrl[b++] = lv_buttonmatrix_ctrl_t(c);
     }
     lv_buttonmatrix_set_ctrl_map(pass_kb, ctrl);
 }
@@ -430,8 +449,10 @@ void ui_passphrase_key(const char *k) {
         lv_label_set_text(pass_note, "This takes a few seconds");
         lv_obj_align(pass_note, LV_ALIGN_BOTTOM_LEFT, 0, 0);
         lv_refr_now(nullptr);
-        wallet_set_passphrase(pass_buf);
-        ui_goto(UI_SEED_LOADED);               // wipes pass_buf
+        if (wallet_set_passphrase(pass_buf)) { ui_goto(UI_SEED_LOADED); return; }   // wipes pass_buf
+        pass_refresh();                        // the old key is still loaded: say so, keep the text
+        lv_label_set_text(pass_note, "Couldn't apply it. Try again.");
+        lv_obj_align(pass_note, LV_ALIGN_BOTTOM_LEFT, 0, 0);
         return;
     }
     if (!strcmp(k, "Del")) { if (n) pass_buf[n - 1] = 0; }
@@ -472,20 +493,10 @@ static void build_passphrase() {
     pass_kb = lv_buttonmatrix_create(scr);
     lv_obj_set_size(pass_kb, W, 4 * 44 + 8);
     lv_obj_align(pass_kb, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_opa(pass_kb, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(pass_kb, 0, 0);
-    lv_obj_set_style_pad_all(pass_kb, 4, 0);
-    lv_obj_set_style_pad_gap(pass_kb, 3, 0);
-    lv_obj_set_style_bg_color(pass_kb, SURFACE_2, LV_PART_ITEMS);
-    lv_obj_set_style_bg_opa(pass_kb, LV_OPA_COVER, LV_PART_ITEMS);
-    lv_obj_set_style_radius(pass_kb, 7, LV_PART_ITEMS);
-    lv_obj_set_style_border_width(pass_kb, 0, LV_PART_ITEMS);
-    lv_obj_set_style_shadow_width(pass_kb, 0, LV_PART_ITEMS);
-    lv_obj_set_style_text_font(pass_kb, &inter_17_semi, LV_PART_ITEMS);
-    lv_obj_set_style_text_color(pass_kb, TEXT, LV_PART_ITEMS);
-    lv_obj_set_style_bg_color(pass_kb, ACCENT_DIM, LV_PART_ITEMS | LV_STATE_PRESSED);
+    kb_style(pass_kb);
     lv_obj_set_style_bg_color(pass_kb, TEXT, LV_PART_ITEMS | LV_STATE_CHECKED);
     lv_obj_set_style_text_color(pass_kb, BG, LV_PART_ITEMS | LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(pass_kb, TEXT_2, LV_PART_ITEMS | LV_STATE_CHECKED | LV_STATE_PRESSED);
     lv_obj_add_event_cb(pass_kb, pass_kb_cb, LV_EVENT_VALUE_CHANGED, nullptr);
     pass_set_layer(pass_layer);
     pass_refresh();
@@ -1016,18 +1027,7 @@ static void build_enter_words() {
     lv_buttonmatrix_set_map(word_kb, kb_map);
     lv_obj_set_size(word_kb, W, 3 * 44 + 8);
     lv_obj_align(word_kb, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_opa(word_kb, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(word_kb, 0, 0);
-    lv_obj_set_style_pad_all(word_kb, 4, 0);
-    lv_obj_set_style_pad_gap(word_kb, 3, 0);
-    lv_obj_set_style_bg_color(word_kb, SURFACE_2, LV_PART_ITEMS);
-    lv_obj_set_style_bg_opa(word_kb, LV_OPA_COVER, LV_PART_ITEMS);
-    lv_obj_set_style_radius(word_kb, 7, LV_PART_ITEMS);
-    lv_obj_set_style_border_width(word_kb, 0, LV_PART_ITEMS);
-    lv_obj_set_style_shadow_width(word_kb, 0, LV_PART_ITEMS);
-    lv_obj_set_style_text_font(word_kb, &inter_17_semi, LV_PART_ITEMS);
-    lv_obj_set_style_text_color(word_kb, TEXT, LV_PART_ITEMS);
-    lv_obj_set_style_bg_color(word_kb, ACCENT_DIM, LV_PART_ITEMS | LV_STATE_PRESSED);
+    kb_style(word_kb);
     lv_obj_set_style_bg_opa(word_kb, LV_OPA_30, LV_PART_ITEMS | LV_STATE_DISABLED);
     lv_obj_set_style_text_color(word_kb, TEXT_3, LV_PART_ITEMS | LV_STATE_DISABLED);
     lv_buttonmatrix_set_button_width(word_kb, 26, 2);   // "Del" spans two keys
