@@ -22,7 +22,7 @@ The seed lives in RAM only: "Wipe seed" or unplugging removes it.
 
 1. Home: Scan QR, Enter words, or New seed
 2. Seed loaded: shows the fingerprint to check against your wallet
-3. Wallet: Sign transaction, Verify address, Connect wallet, Back up as QR, Wipe now
+3. Wallet: Sign transaction, Verify address, Connect wallet, Back up as QR, Child seed, Wipe now
 4. Connect wallet: shows the native segwit xpub as `[fingerprint/84h/0h/0h]zpub…`, the
    same static format SeedSigner exports, readable by Sparrow. "Network" switches it
    to testnet (`[fingerprint/84h/1h/0h]vpub…`), which also serves signet and
@@ -61,6 +61,12 @@ fingerprint to write on the backup; leaving it wipes the seed.
 
 Back up as QR runs the same card flow for whatever seed is loaded, scanned
 or typed, e.g. to turn a words backup into a QR card.
+
+Child seed derives a [BIP-85](https://github.com/bitcoin/bips/blob/master/bip-0085.mediawiki)
+child of the loaded seed (BIP39, English, 12 or 24 words, child number 0 to
+2147483647) and hands it out like a new seed: warning, words, optional QR card
+and check, then its fingerprint. The same seed and number always give the same
+child; leaving the flow wipes it.
 
 Amounts follow [BIP177](https://github.com/bitcoin/bips/blob/master/bip-0177.mediawiki)
 and [bitcoin.design](https://bitcoin.design/guide/designing-products/units-and-symbols/):
@@ -105,6 +111,8 @@ pio test -e test
 - Verify address: BIP84 first receive/change addresses, URIs and their
   amounts, testnet, foreign addresses, and a different seed loaded afterwards
 - Amounts: BIP177 and legacy BTC formatting from ₿0 to the 21M cap
+- BIP-85: the spec's 12 and 24-word BIP39 vectors, child number bounds, and
+  the child's fingerprint matching the same seed loaded
 
 ## Desktop simulator
 

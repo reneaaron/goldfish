@@ -14,6 +14,8 @@
 //        -> offline warning -> write down the words -> QR card? (whole SeedQR,
 //        each block, optional card check) -> Seed ready (not loaded) -> Home
 //   Seed menu -> Back up as QR -> the same card flow, scan optional
+//   Seed menu -> Child seed (BIP-85): 12/24 words -> child number -> the New seed
+//        card flow from the warning on (words, QR card?, Seed ready)
 
 enum UiScreen {
     UI_HOME,
@@ -43,6 +45,8 @@ enum UiScreen {
     UI_BACKUP_BLOCK,     // one 5x5 block per screen
     UI_BACKUP_SCAN,      // scan the hand-made card; must hold the same seed
     UI_SEED_READY,       // end of New seed: fingerprint, nothing loaded
+    UI_CHILD_LENGTH,     // BIP-85 child seed: 12 or 24 words
+    UI_CHILD_INDEX,      // BIP-85 child number keypad
 };
 
 void ui_build();               // shows the home screen
@@ -62,3 +66,5 @@ void ui_backup_next();         // "Next part"
 // The backup QR as drawn on screen (qrcodegen buffer), nullptr if none. For
 // the simulator, which scans exactly this as the hand-made card.
 const uint8_t *ui_backup_qr();
+// "Continue" on the child number screen: derive the BIP-85 child, start its card flow.
+void ui_child_seed(int words, uint32_t index);

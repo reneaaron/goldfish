@@ -272,6 +272,21 @@ static int run_shots(const char *dir) {
     if (!cam_show_matrix(ui_backup_qr())) { fprintf(stderr, "no backup QR on screen\n"); return 1; }
     for (int i = 0; i < 100 && ui_current() == UI_BACKUP_SCAN; i++) pump(50);
     if (ui_current() != UI_SEED_LOADED || !wallet_has_seed()) { fprintf(stderr, "existing backup check failed\n"); return 1; }
+
+    // BIP-85 child seed of the loaded seed: words, QR card, card check.
+    ui_goto(UI_SEED_MENU);    pump(300); save(dir, "30_menu_child");
+    ui_goto(UI_CHILD_LENGTH); pump(300); save(dir, "31_child_length");
+    ui_goto(UI_CHILD_INDEX);  pump(300); save(dir, "32_child_index");
+    ui_child_seed(12, 3);
+    if (ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "child seed did not start\n"); return 1; }
+    ui_goto(UI_BACKUP_WORDS); pump(300); save(dir, "33_child_words");
+    ui_goto(UI_BACKUP_QR);
+    ui_goto(UI_BACKUP_BLOCK);
+    while (ui_current() == UI_BACKUP_BLOCK) ui_backup_next();
+    if (!cam_show_matrix(ui_backup_qr())) { fprintf(stderr, "no child QR on screen\n"); return 1; }
+    for (int i = 0; i < 100 && ui_current() == UI_BACKUP_SCAN; i++) pump(50);
+    if (ui_current() != UI_SEED_READY || !wallet_has_seed()) { fprintf(stderr, "child card check failed\n"); return 1; }
+    pump(600); save(dir, "34_child_ready");
     return 0;
 }
 
