@@ -300,6 +300,43 @@ static int run_shots(const char *dir) {
     for (int i = 0; i < 100 && ui_current() == UI_BACKUP_SCAN; i++) pump(50);
     if (ui_current() != UI_SEED_READY || !wallet_has_seed()) { fprintf(stderr, "child card check failed\n"); return 1; }
     pump(600); save(dir, "34_child_ready");
+
+    // BIP-39 passphrase: "abandon ... about" with TREZOR (the BIP39 test vector's
+    // seed; its fingerprint, b4e3f5ed, was checked against the vector's root key).
+    wallet_wipe();
+    ui_goto(UI_HOME);
+    ui_seed_entry(UI_ENTER_WORDS, 12);
+    for (int i = 0; i < 11; i++) ui_enter_word("abandon");
+    if (!ui_enter_word("about") || ui_current() != UI_SEED_LOADED) { fprintf(stderr, "abandon seed did not load\n"); return 1; }
+    pump(300); save(dir, "35_seed_loaded_link");
+    ui_goto(UI_PASSPHRASE); pump(300); save(dir, "36_passphrase_empty");
+    ui_passphrase_key("OK");          // empty and none set: nothing happens
+    if (ui_current() != UI_SEED_LOADED || wallet_has_passphrase()) { fprintf(stderr, "empty passphrase was applied\n"); return 1; }
+    ui_goto(UI_PASSPHRASE);
+    ui_passphrase_key("x");
+    ui_passphrase_key("Del");
+    ui_passphrase_key("ABC");
+    for (const char *c = "TREZOR"; *c; c++) { char k[2] = {*c, 0}; ui_passphrase_key(k); }
+    pump(300); save(dir, "37_passphrase_typed");
+    ui_passphrase_key("123");  pump(300); save(dir, "38_passphrase_digits");
+    ui_passphrase_key("#+=");  pump(300); save(dir, "39_passphrase_symbols");
+    ui_passphrase_key("OK");
+    char pfp[9];
+    wallet_fingerprint_hex(pfp);
+    if (ui_current() != UI_SEED_LOADED || !wallet_has_passphrase() || strcmp(pfp, "b4e3f5ed")) {
+        fprintf(stderr, "passphrase fingerprint %s\n", pfp);
+        return 1;
+    }
+    pump(300); save(dir, "40_passphrase_set");
+    // Typing stops at 64 characters; then an empty passphrase removes it again.
+    ui_goto(UI_PASSPHRASE);
+    for (int i = 0; i < 70; i++) { char k[2] = {char('a' + i % 26), 0}; ui_passphrase_key(k); }
+    pump(300); save(dir, "41_passphrase_full");
+    for (int i = 0; i < 70; i++) ui_passphrase_key("Del");
+    pump(300); save(dir, "42_passphrase_remove");
+    ui_passphrase_key("OK");
+    wallet_fingerprint_hex(pfp);
+    if (wallet_has_passphrase() || strcmp(pfp, "73c5da0a")) { fprintf(stderr, "passphrase was not removed\n"); return 1; }
     return 0;
 }
 

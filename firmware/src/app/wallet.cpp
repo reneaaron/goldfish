@@ -12,6 +12,7 @@ alignas(HDPrivateKey) static uint8_t root_mem[sizeof(HDPrivateKey)];
 static HDPrivateKey *root;
 static int words;
 static SeedEntropy entropy;               // kept for the QR backup, wiped with the key
+static bool passphrase;                   // the root key was derived with one
 static bool testnet;
 
 bool wallet_testnet() { return testnet; }
@@ -28,18 +29,35 @@ void wallet_wipe() {
     secure_zero(root_mem, sizeof(root_mem));
     seedqr_wipe(&entropy);
     words = 0;
+    passphrase = false;
+}
+
+// Replaces the root key, if there is one.
+static bool derive_root(const SeedEntropy &e, const char *pass) {
+    const char *mn = mnemonicFromEntropy(e.bytes, e.len);
+    if (!mn) return false;
+    if (root) root->~HDPrivateKey();
+    secure_zero(root_mem, sizeof(root_mem));
+    root = new (root_mem) HDPrivateKey(mn, strlen(mn), pass, strlen(pass));
+    mnemonic_clear();                    // wipes the static mnemonic buffer
+    return true;
 }
 
 bool wallet_load(const SeedEntropy &e) {
     wallet_wipe();
-    const char *mn = mnemonicFromEntropy(e.bytes, e.len);
-    if (!mn) return false;
-    root = new (root_mem) HDPrivateKey(mn, strlen(mn), "", 0);
-    mnemonic_clear();                    // wipes the static mnemonic buffer
+    if (!derive_root(e, "")) return false;
     words = seedqr_word_count(e);
     entropy = e;
     return true;
 }
+
+bool wallet_set_passphrase(const char *pass) {
+    if (!root || !derive_root(entropy, pass)) return false;
+    passphrase = pass[0] != 0;
+    return true;
+}
+
+bool wallet_has_passphrase() { return passphrase; }
 
 bool seed_fingerprint_hex(const SeedEntropy &e, char out[9]) {
     out[0] = 0;

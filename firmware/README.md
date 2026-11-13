@@ -4,7 +4,7 @@ Firmware for a stateless, camera-based Bitcoin signer on the Waveshare
 RP2350-Touch-LCD-2 (RP2350A, 16MB flash, 2" 240×320 touch screen, OV5640
 camera connector). The board has no Wi-Fi or Bluetooth hardware.
 
-Status: early. Seed loading, new seeds with a SeedQR backup, xpub export and
+Status: early. Seed loading, BIP-39 passphrases, new seeds with a SeedQR backup, xpub export and
 PSBT review/signing work in the simulator; the board's camera driver is untested on hardware. Not for real funds.
 
 ![Seed flow in the simulator](docs/screens/flow.png)
@@ -17,11 +17,12 @@ PSBT review/signing work in the simulator; the board's camera driver is untested
 
 Seeds come in as a SeedQR (Standard or Compact, 12 or 24 words), the
 format SeedSigner uses (the UI just calls it a seed QR), as typed BIP39
-words, or are made on the device. There is no passphrase yet.
+words, or are made on the device. A BIP-39 passphrase can be added after loading.
 The seed lives in RAM only: "Wipe seed" or unplugging removes it.
 
 1. Home: Scan QR, Enter words, or New seed
-2. Seed loaded: shows the fingerprint to check against your wallet
+2. Seed loaded: shows the fingerprint to check against your wallet. "Add
+   passphrase" is an optional side step here
 3. Wallet: Sign transaction, Verify address, Connect wallet, Back up as QR, Child seed, Wipe now
 4. Connect wallet: shows the native segwit xpub as `[fingerprint/84h/0h/0h]zpub…`, the
    same static format SeedSigner exports, readable by Sparrow. "Network" switches it
@@ -39,6 +40,17 @@ The seed lives in RAM only: "Wipe seed" or unplugging removes it.
 Enter words restores from a words backup: pick 12 or 24, then type each
 word. The keyboard only offers letters that lead to a word and, on the last
 word, only words with a valid checksum. The seed loads right away.
+
+Add passphrase opens a keyboard for a BIP-39 passphrase (the "25th word"):
+letters, digits and all ASCII symbols, up to 64 characters, with a Show/Hide
+switch. OK derives the key again (a few seconds on the board, like loading) and
+returns to Seed loaded with the fingerprint of seed plus passphrase, to check
+against the wallet app before continuing. An empty passphrase removes it. The
+device keeps only the derived key, not the passphrase; both go with "Wipe
+seed" or unplugging. Signing, Verify address, Connect wallet and Child seed
+then all use the passphrase wallet. Back up as QR still writes the seed alone:
+the passphrase is never part of a backup. Characters outside ASCII and a
+passphrase QR aren't supported.
 
 New seed is a tool: it makes a 12 or 24 word seed and its backup, but
 doesn't load it. To use the seed, load it like any other (Scan QR or Enter
@@ -105,7 +117,9 @@ pio test -e test
 
 - SeedQR decoding: the vectors in SeedSigner's SeedQR spec
 - QR scanning: the pictures in `sim/samples`, in a frame the size of the board camera's (240x180)
-- Key derivation: the BIP84 test vector (fingerprint `73c5da0a`, zpub, testnet vpub)
+- Key derivation: the BIP84 test vector (fingerprint `73c5da0a`, zpub, testnet vpub),
+  and the BIP39 vector with passphrase `TREZOR` (root key, fingerprint `b4e3f5ed`),
+  removed again and wiped with the seed
 - UR: SeedSigner's 29-part `crypto-psbt` vector, plus an encode/decode round trip
 - PSBT review: SeedSigner's single-sig testnet vector (₿25,000 in, ₿24,857 out,
   ₿143 fee), signing, wrong seed and garbage input

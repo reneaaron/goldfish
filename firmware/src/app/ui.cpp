@@ -79,6 +79,22 @@ static lv_obj_t *qr_card(lv_obj_t *parent, int y, lv_obj_t **qr_out) {
 // ---------------------------------------------------------------- home
 static lv_obj_t *quiet_link(lv_obj_t *parent, const char *s, lv_event_cb_t cb, void *ud);
 
+// Look of the on-screen keyboards (button matrices): Enter words and Passphrase.
+static void kb_style(lv_obj_t *kb) {
+    lv_obj_set_style_bg_opa(kb, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(kb, 0, 0);
+    lv_obj_set_style_pad_all(kb, 4, 0);
+    lv_obj_set_style_pad_gap(kb, 3, 0);
+    lv_obj_set_style_bg_color(kb, SURFACE_2, LV_PART_ITEMS);
+    lv_obj_set_style_bg_opa(kb, LV_OPA_COVER, LV_PART_ITEMS);
+    lv_obj_set_style_radius(kb, 7, LV_PART_ITEMS);
+    lv_obj_set_style_border_width(kb, 0, LV_PART_ITEMS);
+    lv_obj_set_style_shadow_width(kb, 0, LV_PART_ITEMS);
+    lv_obj_set_style_text_font(kb, &inter_17_semi, LV_PART_ITEMS);
+    lv_obj_set_style_text_color(kb, TEXT, LV_PART_ITEMS);
+    lv_obj_set_style_bg_color(kb, ACCENT_DIM, LV_PART_ITEMS | LV_STATE_PRESSED);
+}
+
 static void build_home() {
     lv_obj_t *scr = screen();
     lv_obj_align(icon_badge(scr, ICON_SIGNER, ACCENT, ACCENT_DIM, 56), LV_ALIGN_TOP_MID, 0, 12);
@@ -320,21 +336,171 @@ static lv_obj_t *quiet_link(lv_obj_t *parent, const char *s, lv_event_cb_t cb, v
 
 static void build_seed_loaded() {
     lv_obj_t *scr = screen();
-    lv_obj_align(icon_badge(scr, ICON_CHECK, GREEN, GREEN_DIM, 52), LV_ALIGN_TOP_MID, 0, 28);
-    lv_obj_align(text(scr, fresh_backup ? "Backup checked" : "Seed loaded", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, 92);
+    // The passphrase is an optional side step: a quiet link under Continue,
+    // with everything else moved up to make room. Not after a backup check.
+    bool pass = wallet_has_passphrase(), link = !fresh_backup;
+    const int y = link ? 14 : 28;
+    lv_obj_align(icon_badge(scr, ICON_CHECK, GREEN, GREEN_DIM, 52), LV_ALIGN_TOP_MID, 0, y);
+    lv_obj_align(text(scr, fresh_backup ? "Backup checked" : pass ? "Passphrase set" : "Seed loaded", &fraunces_24, TEXT),
+                 LV_ALIGN_TOP_MID, 0, y + 64);
 
     // The fingerprint is what the user checks, so it gets the space.
-    lv_obj_align(caption(scr, "FINGERPRINT"), LV_ALIGN_TOP_MID, 0, 138);
+    lv_obj_align(caption(scr, "FINGERPRINT"), LV_ALIGN_TOP_MID, 0, y + 108);
     char fp[9], spaced[12];
     wallet_fingerprint_hex(fp);
     snprintf(spaced, sizeof(spaced), "%.4s %.4s", fp, fp + 4);
-    lv_obj_align(text(scr, spaced, &mono_26, TEXT), LV_ALIGN_TOP_MID, 0, 156);
-    lv_obj_align(para(scr, fresh_backup ? "Write it on your card." : "Check it matches the fingerprint in your wallet app.",
-                      &inter_13, TEXT_3),
-                 LV_ALIGN_TOP_MID, 0, 196);
+    lv_obj_align(text(scr, spaced, &mono_26, TEXT), LV_ALIGN_TOP_MID, 0, y + 126);
+    // With a passphrase this isn't the seed's own fingerprint, so say so.
+    const char *note = fresh_backup ? (pass ? "Fingerprint with your passphrase. The card holds the seed only."
+                                            : "Write it on your card.")
+                                    : (pass ? "With your passphrase. Check it matches your wallet app."
+                                            : "Check it matches the fingerprint in your wallet app.");
+    lv_obj_align(para(scr, note, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, y + 166);
     fresh_backup = false;
 
-    place_bottom(btn_primary(scr, "Continue", go_cb, GO(UI_SEED_MENU)));
+    lv_obj_t *go = btn_primary(scr, "Continue", go_cb, GO(UI_SEED_MENU));
+    if (link) {
+        lv_obj_align(go, LV_ALIGN_BOTTOM_MID, 0, -40);
+        lv_obj_align(quiet_link(scr, pass ? ICON_KEY "  Change passphrase" : ICON_KEY "  Add passphrase", go_cb,
+                                GO(UI_PASSPHRASE)),
+                     LV_ALIGN_BOTTOM_MID, 0, -4);
+    } else {
+        place_bottom(go);
+    }
+    show(scr);
+}
+
+// ---------------------------------------------------------------- passphrase
+// BIP-39 passphrase, typed after the seed is loaded. The keyboard only has
+// printable ASCII, which NFKD leaves as it is, so the bytes go to PBKDF2 as
+// typed. The text lives in pass_buf until OK or until the screen is left
+// (ui_goto wipes it); after that only the derived key remains.
+constexpr int PASS_MAX = 64, PASS_COLS = 18;   // 4 lines of mono_16 in the field
+static char pass_buf[PASS_MAX + 1];
+static char txt_pass[PASS_MAX + 8];            // as shown: line breaks and the cursor
+static bool pass_hidden;
+static int pass_layer;                         // index into pass_maps
+static lv_obj_t *pass_field, *pass_note, *pass_kb, *pass_toggle;
+static const char *const pass_maps[4][36] = {
+    {"q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "\n",
+     "a", "s", "d", "f", "g", "h", "j", "k", "l", "\n",
+     "z", "x", "c", "v", "b", "n", "m", "Del", "\n",
+     "ABC", "123", "space", "OK", ""},
+    {"Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "\n",
+     "A", "S", "D", "F", "G", "H", "J", "K", "L", "\n",
+     "Z", "X", "C", "V", "B", "N", "M", "Del", "\n",
+     "abc", "123", "space", "OK", ""},
+    {"1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "\n",
+     "-", "/", ":", ";", "(", ")", "$", "&", "@", "\"", "\n",
+     ".", ",", "?", "!", "'", "#", "_", "Del", "\n",
+     "abc", "#+=", "space", "OK", ""},
+    {"[", "]", "{", "}", "<", ">", "\n",
+     "%", "^", "*", "+", "=", "\n",
+     "|", "\\", "~", "`", "Del", "\n",
+     "abc", "123", "space", "OK", ""},
+};
+
+static void pass_wipe() {
+    secure_zero(pass_buf, sizeof(pass_buf));
+    secure_zero(txt_pass, sizeof(txt_pass));
+    pass_layer = 0;                            // pass_hidden stays as the user set it
+}
+
+static void pass_refresh() {
+    int n = (int)strlen(pass_buf), o = 0;
+    for (int i = 0; i <= n; i++) {             // one cell per character, then the cursor
+        if (i && i % PASS_COLS == 0) txt_pass[o++] = '\n';
+        txt_pass[o++] = i == n ? '_' : pass_hidden ? '*' : pass_buf[i];
+    }
+    txt_pass[o] = 0;
+    lv_label_set_text_static(pass_field, txt_pass);
+    // Bottom line of the field: what an empty passphrase does, or that it's full.
+    if (n == PASS_MAX) lv_label_set_text_fmt(pass_note, "%d max", PASS_MAX);
+    else lv_label_set_text(pass_note, n ? "" : wallet_has_passphrase() ? "Leave empty to remove it"
+                                                                        : "Letters, digits and symbols");
+    lv_obj_align(pass_note, n ? LV_ALIGN_BOTTOM_RIGHT : LV_ALIGN_BOTTOM_LEFT, 0, 0);
+    lv_label_set_text(lv_obj_get_child(pass_toggle, 0), pass_hidden ? "Show" : "Hide");
+}
+
+static void pass_set_layer(int layer) {
+    pass_layer = layer;
+    const char *const *map = pass_maps[layer];
+    lv_buttonmatrix_set_map(pass_kb, map);
+    // Wider keys for everything that isn't a single character; OK looks like a
+    // primary button. Only Del repeats while held: a repeating letter would add
+    // characters unnoticed, and a repeating layer key would flip layers.
+    static lv_buttonmatrix_ctrl_t ctrl[36];
+    int b = 0;
+    for (int i = 0; map[i][0]; i++) {
+        if (!strcmp(map[i], "\n")) continue;
+        bool key = map[i][1] != 0;
+        int c = !key ? 1 : !strcmp(map[i], "space") ? 4 : !strcmp(map[i], "OK") ? 2 | LV_BUTTONMATRIX_CTRL_CHECKED : 2;
+        if (strcmp(map[i], "Del")) c |= LV_BUTTONMATRIX_CTRL_NO_REPEAT;
+        ctrl[b++] = lv_buttonmatrix_ctrl_t(c);
+    }
+    lv_buttonmatrix_set_ctrl_map(pass_kb, ctrl);
+}
+
+void ui_passphrase_key(const char *k) {
+    if (ui_current() != UI_PASSPHRASE) return;
+    size_t n = strlen(pass_buf);
+    if (!strcmp(k, "OK")) {
+        if (!n && !wallet_has_passphrase()) { ui_goto(UI_SEED_LOADED); return; }   // nothing to change
+        lv_label_set_text_static(pass_field, "Deriving key" "\xE2\x80\xA6");
+        lv_label_set_text(pass_note, "This takes a few seconds");
+        lv_obj_align(pass_note, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+        lv_refr_now(nullptr);
+        if (wallet_set_passphrase(pass_buf)) { ui_goto(UI_SEED_LOADED); return; }   // wipes pass_buf
+        pass_refresh();                        // the old key is still loaded: say so, keep the text
+        lv_label_set_text(pass_note, "Couldn't apply it. Try again.");
+        lv_obj_align(pass_note, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+        return;
+    }
+    if (!strcmp(k, "Del")) { if (n) pass_buf[n - 1] = 0; }
+    else if (!strcmp(k, "abc")) pass_set_layer(0);
+    else if (!strcmp(k, "ABC")) pass_set_layer(1);
+    else if (!strcmp(k, "123")) pass_set_layer(2);
+    else if (!strcmp(k, "#+=")) pass_set_layer(3);
+    else if (n < PASS_MAX) {
+        char c = !strcmp(k, "space") ? ' ' : k[1] ? 0 : k[0];
+        if (c >= 0x20 && c <= 0x7E) { pass_buf[n] = c; pass_buf[n + 1] = 0; }
+    }
+    pass_refresh();
+}
+
+static void pass_kb_cb(lv_event_t *) {
+    uint32_t b = lv_buttonmatrix_get_selected_button(pass_kb);
+    if (b != LV_BUTTONMATRIX_BUTTON_NONE) ui_passphrase_key(lv_buttonmatrix_get_button_text(pass_kb, b));
+}
+static void pass_toggle_cb(lv_event_t *) {
+    pass_hidden = !pass_hidden;
+    pass_refresh();
+}
+static void to_seed_loaded_cb(lv_event_t *) { ui_goto(UI_SEED_LOADED); }
+
+static void build_passphrase() {
+    lv_obj_t *scr = screen();
+    lv_obj_t *bar = topbar(scr, "Passphrase", to_seed_loaded_cb);
+    pass_toggle = quiet_link(bar, "Hide", pass_toggle_cb, nullptr);
+    lv_obj_align(pass_toggle, LV_ALIGN_RIGHT_MID, -4, 2);
+
+    lv_obj_t *f = card(scr, CW, 86);
+    lv_obj_set_style_pad_ver(f, 6, 0);
+    lv_obj_align(f, LV_ALIGN_TOP_MID, 0, BAR);
+    pass_field = text(f, "", &mono_16, TEXT, LV_TEXT_ALIGN_LEFT);
+    lv_obj_align(pass_field, LV_ALIGN_TOP_LEFT, 0, 0);
+    pass_note = text(f, "", &inter_13, TEXT_3, LV_TEXT_ALIGN_LEFT);
+
+    pass_kb = lv_buttonmatrix_create(scr);
+    lv_obj_set_size(pass_kb, W, 4 * 44 + 8);
+    lv_obj_align(pass_kb, LV_ALIGN_BOTTOM_MID, 0, 0);
+    kb_style(pass_kb);
+    lv_obj_set_style_bg_color(pass_kb, TEXT, LV_PART_ITEMS | LV_STATE_CHECKED);
+    lv_obj_set_style_text_color(pass_kb, BG, LV_PART_ITEMS | LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(pass_kb, TEXT_2, LV_PART_ITEMS | LV_STATE_CHECKED | LV_STATE_PRESSED);
+    lv_obj_add_event_cb(pass_kb, pass_kb_cb, LV_EVENT_VALUE_CHANGED, nullptr);
+    pass_set_layer(pass_layer);
+    pass_refresh();
     show(scr);
 }
 
@@ -862,18 +1028,7 @@ static void build_enter_words() {
     lv_buttonmatrix_set_map(word_kb, kb_map);
     lv_obj_set_size(word_kb, W, 3 * 44 + 8);
     lv_obj_align(word_kb, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_opa(word_kb, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(word_kb, 0, 0);
-    lv_obj_set_style_pad_all(word_kb, 4, 0);
-    lv_obj_set_style_pad_gap(word_kb, 3, 0);
-    lv_obj_set_style_bg_color(word_kb, SURFACE_2, LV_PART_ITEMS);
-    lv_obj_set_style_bg_opa(word_kb, LV_OPA_COVER, LV_PART_ITEMS);
-    lv_obj_set_style_radius(word_kb, 7, LV_PART_ITEMS);
-    lv_obj_set_style_border_width(word_kb, 0, LV_PART_ITEMS);
-    lv_obj_set_style_shadow_width(word_kb, 0, LV_PART_ITEMS);
-    lv_obj_set_style_text_font(word_kb, &inter_17_semi, LV_PART_ITEMS);
-    lv_obj_set_style_text_color(word_kb, TEXT, LV_PART_ITEMS);
-    lv_obj_set_style_bg_color(word_kb, ACCENT_DIM, LV_PART_ITEMS | LV_STATE_PRESSED);
+    kb_style(word_kb);
     lv_obj_set_style_bg_opa(word_kb, LV_OPA_30, LV_PART_ITEMS | LV_STATE_DISABLED);
     lv_obj_set_style_text_color(word_kb, TEXT_3, LV_PART_ITEMS | LV_STATE_DISABLED);
     lv_buttonmatrix_set_button_width(word_kb, 26, 2);   // "Del" spans two keys
@@ -1598,6 +1753,7 @@ static bool backup_screen(UiScreen s) {
 
 void ui_goto(UiScreen s) {
     if (s != UI_SCAN_SEED && s != UI_SCAN_PSBT && s != UI_SCAN_ADDRESS && s != UI_BACKUP_SCAN) scan_stop();
+    if (s != UI_PASSPHRASE) pass_wipe();
     // The new seed lives only inside its own flow: leaving it wipes everything.
     if (!seed_entry_screen(s) && !backup_screen(s)) new_seed_wipe();
     bool needs_pending = backup_screen(s) && s != UI_BACKUP_BLOCK && s != UI_BACKUP_SCAN;
@@ -1614,6 +1770,7 @@ void ui_goto(UiScreen s) {
         case UI_HOME: build_home(); break;
         case UI_SCAN_SEED: build_scan(SCAN_SEED); break;
         case UI_SEED_LOADED: build_seed_loaded(); break;
+        case UI_PASSPHRASE: build_passphrase(); break;
         case UI_SEED_MENU: build_seed_menu(); break;
         case UI_SCAN_PSBT: build_scan(SCAN_PSBT); break;
         case UI_SCAN_ADDRESS: build_scan(SCAN_ADDRESS); break;
