@@ -674,9 +674,7 @@ static void build_entropy(bool dice) {
     lv_obj_align(ent_bar, LV_ALIGN_TOP_MID, 0, BAR + 36);
     ent_tail = text(scr, "", &mono_16, TEXT_2);
     lv_obj_align(ent_tail, LV_ALIGN_TOP_MID, 0, BAR + 50);
-    lv_obj_align(text(scr, dice ? "Roll one die, tap what it shows"
-                           : final_flips ? "Flip a coin for each bit of the last word"
-                                         : "Flip a coin, tap what it shows",
+    lv_obj_align(text(scr, dice ? "Roll one die, tap what it shows" : "Flip a coin, tap what it shows",
                       &inter_13, TEXT_3),
                  LV_ALIGN_TOP_MID, 0, BAR + 76);
 
@@ -950,9 +948,7 @@ static void build_backup_qr() {
     lv_obj_t *c = white_card(scr, qr_n * cell + 17, qr_n * cell + 17);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 2);
     lv_obj_center(grid(c, &whole_view));
-    char b[32];
-    snprintf(b, sizeof(b), "Copy %d blocks", blocks_per_side() * blocks_per_side());
-    place_bottom(btn_primary(scr, b, block_start_cb));
+    place_bottom(btn_primary(scr, "Start copying", block_start_cb));
     show(scr);
 }
 
@@ -982,7 +978,7 @@ static void build_backup_block() {
     lv_obj_t *scr = screen();
     int bs = blocks_per_side(), n = bs * bs;
     char title[32];
-    snprintf(title, sizeof(title), "Block %d of %d", block_i + 1, n);
+    snprintf(title, sizeof(title), "Part %d of %d", block_i + 1, n);
     lv_obj_t *bar = topbar(scr, title, to_whole_qr_cb);
 
     // Where this block sits in the QR: one square per block, this one lit,
@@ -1030,7 +1026,7 @@ static void build_backup_block() {
     // The seed is already backed up elsewhere (wallet, or the written words), so checking is optional.
     lv_obj_t *secondary = last ? btn_ghost(scr, "Done", backup_exit_cb, nullptr, TEXT)
                                                   : btn_ghost(scr, ICON_LEFT, block_prev_cb, nullptr, TEXT);
-    bottom_pair(secondary, btn_primary(scr, last ? "Check card" : "Next block", block_next_cb));
+    bottom_pair(secondary, btn_primary(scr, last ? "Check card" : "Next part", block_next_cb));
     show(scr);
 }
 
