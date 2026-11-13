@@ -33,6 +33,8 @@ void test_review_matches_seedsigner() {
     TEST_ASSERT_EQUAL_UINT64(24857, r.spend);     // SeedSigner: spend_amount
     TEST_ASSERT_EQUAL_UINT64(0, r.change);
     TEST_ASSERT_EQUAL_UINT64(143, r.fee);
+    TEST_ASSERT_EQUAL_UINT32(2, r.fee_rate);       // 143 / 141 vB, rounded up
+    TEST_ASSERT_EQUAL(FEE_OK, r.fee_level);
     TEST_ASSERT_EQUAL(2, r.n_outputs);
 }
 
@@ -56,6 +58,29 @@ void test_wrong_seed_rejected() {
     TEST_ASSERT_EQUAL(PSBT_NOT_OUR_SEED, psbt_load(raw, raw_len, &r));
 }
 
+void test_fee_rate() {
+    TEST_ASSERT_EQUAL_UINT32(0, psbt_fee_rate(0, 1, 2));
+    TEST_ASSERT_EQUAL_UINT32(1, psbt_fee_rate(141, 1, 2));          // 11 + 68 + 62 = 141 vB
+    TEST_ASSERT_EQUAL_UINT32(2, psbt_fee_rate(142, 1, 2));          // rounds up
+    TEST_ASSERT_EQUAL_UINT32(10, psbt_fee_rate(2090, 2, 2));        // 209 vB
+}
+
+void test_fee_level() {
+    // By share of the amount
+    TEST_ASSERT_EQUAL(FEE_OK, psbt_fee_level(0, 0, 0));
+    TEST_ASSERT_EQUAL(FEE_OK, psbt_fee_level(143, 24857, 1));
+    TEST_ASSERT_EQUAL(FEE_OK, psbt_fee_level(9999, 100000, 5));
+    TEST_ASSERT_EQUAL(FEE_HIGH, psbt_fee_level(10000, 100000, 5));          // exactly 10%
+    TEST_ASSERT_EQUAL(FEE_HIGH, psbt_fee_level(49999, 100000, 5));
+    TEST_ASSERT_EQUAL(FEE_VERY_HIGH, psbt_fee_level(50000, 100000, 5));     // exactly 50%
+    TEST_ASSERT_EQUAL(FEE_VERY_HIGH, psbt_fee_level(1, 0, 1));              // fee, nothing sent
+    // By rate, when the amount is big enough to hide the fee
+    TEST_ASSERT_EQUAL(FEE_OK, psbt_fee_level(7000, 100000000, 49));
+    TEST_ASSERT_EQUAL(FEE_HIGH, psbt_fee_level(7100, 100000000, 50));
+    TEST_ASSERT_EQUAL(FEE_HIGH, psbt_fee_level(70000, 100000000, 499));
+    TEST_ASSERT_EQUAL(FEE_VERY_HIGH, psbt_fee_level(70500, 100000000, 500));
+}
+
 void test_garbage_rejected() {
     load_seed(SINGLESIG_MNEMONIC);
     uint8_t junk[64];
@@ -70,5 +95,7 @@ int main() {
     RUN_TEST(test_sign_adds_signature);
     RUN_TEST(test_wrong_seed_rejected);
     RUN_TEST(test_garbage_rejected);
+    RUN_TEST(test_fee_rate);
+    RUN_TEST(test_fee_level);
     return UNITY_END();
 }
