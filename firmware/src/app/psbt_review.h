@@ -28,6 +28,8 @@ enum PsbtError {
     PSBT_SUSPICIOUS,        // a "change" output failed verification
 };
 
+enum FeeLevel { FEE_OK = 0, FEE_HIGH, FEE_VERY_HIGH };
+
 struct PsbtReview {
     PsbtError error;
     bool testnet;
@@ -37,7 +39,8 @@ struct PsbtReview {
     uint64_t self;           // to our own receive addresses
     uint64_t change;
     uint64_t fee;
-    bool high_fee;           // see psbt_fee_is_high
+    uint32_t fee_rate;       // ₿/vB, estimated (see psbt_fee_rate)
+    FeeLevel fee_level;
     int n_outputs;
     PsbtOutput outputs[PSBT_MAX_OUTPUTS];
 };
@@ -53,7 +56,14 @@ void psbt_clear();
 
 const char *psbt_error_text(PsbtError e);
 
-// A fee of 10% or more of what's being sent (to others, or to yourself when
-// nothing goes out). Flagged on review, as bitcoin.design asks, and a sign of
-// a wallet or a tampered PSBT siphoning funds into the fee.
-bool psbt_fee_is_high(uint64_t fee, uint64_t sent);
+// Fee levels, flagged on review as bitcoin.design asks. A fee is judged both
+// against what's being sent (to others, or to yourself when nothing goes out)
+// and by its rate, so neither a small send nor a big one hides it:
+//   high:      10% of the amount, or 200 ₿/vB (paid only in fee spikes)
+//   very high: 50% of the amount, or 1,000 ₿/vB (above any fee market so far)
+// A very high fee is also how a tampered PSBT would siphon funds. Neither
+// level blocks signing: sweeping dust can legitimately cost that much.
+FeeLevel psbt_fee_level(uint64_t fee, uint64_t sent, uint32_t rate);
+// Fee rate in ₿/vB, rounded up, for P2WPKH inputs and outputs assumed P2WPKH
+// (taproot outputs are 12 vB larger, so the rate errs a little high).
+uint32_t psbt_fee_rate(uint64_t fee, int n_inputs, int n_outputs);

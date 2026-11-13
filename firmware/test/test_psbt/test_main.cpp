@@ -33,7 +33,8 @@ void test_review_matches_seedsigner() {
     TEST_ASSERT_EQUAL_UINT64(24857, r.spend);     // SeedSigner: spend_amount
     TEST_ASSERT_EQUAL_UINT64(0, r.change);
     TEST_ASSERT_EQUAL_UINT64(143, r.fee);
-    TEST_ASSERT_FALSE(r.high_fee);
+    TEST_ASSERT_EQUAL_UINT32(2, r.fee_rate);       // 143 / 141 vB, rounded up
+    TEST_ASSERT_EQUAL(FEE_OK, r.fee_level);
     TEST_ASSERT_EQUAL(2, r.n_outputs);
 }
 
@@ -57,13 +58,27 @@ void test_wrong_seed_rejected() {
     TEST_ASSERT_EQUAL(PSBT_NOT_OUR_SEED, psbt_load(raw, raw_len, &r));
 }
 
-void test_fee_is_high() {
-    TEST_ASSERT_FALSE(psbt_fee_is_high(0, 0));
-    TEST_ASSERT_FALSE(psbt_fee_is_high(143, 24857));
-    TEST_ASSERT_FALSE(psbt_fee_is_high(9999, 100000));
-    TEST_ASSERT_TRUE(psbt_fee_is_high(10000, 100000));   // exactly 10%
-    TEST_ASSERT_TRUE(psbt_fee_is_high(50000, 1000));
-    TEST_ASSERT_TRUE(psbt_fee_is_high(1, 0));            // fee, nothing sent
+void test_fee_rate() {
+    TEST_ASSERT_EQUAL_UINT32(0, psbt_fee_rate(0, 1, 2));
+    TEST_ASSERT_EQUAL_UINT32(1, psbt_fee_rate(141, 1, 2));          // 11 + 68 + 62 = 141 vB
+    TEST_ASSERT_EQUAL_UINT32(2, psbt_fee_rate(142, 1, 2));          // rounds up
+    TEST_ASSERT_EQUAL_UINT32(10, psbt_fee_rate(2090, 2, 2));        // 209 vB
+}
+
+void test_fee_level() {
+    // By share of the amount
+    TEST_ASSERT_EQUAL(FEE_OK, psbt_fee_level(0, 0, 0));
+    TEST_ASSERT_EQUAL(FEE_OK, psbt_fee_level(143, 24857, 1));
+    TEST_ASSERT_EQUAL(FEE_OK, psbt_fee_level(9999, 100000, 5));
+    TEST_ASSERT_EQUAL(FEE_HIGH, psbt_fee_level(10000, 100000, 5));          // exactly 10%
+    TEST_ASSERT_EQUAL(FEE_HIGH, psbt_fee_level(49999, 100000, 5));
+    TEST_ASSERT_EQUAL(FEE_VERY_HIGH, psbt_fee_level(50000, 100000, 5));     // exactly 50%
+    TEST_ASSERT_EQUAL(FEE_VERY_HIGH, psbt_fee_level(1, 0, 1));              // fee, nothing sent
+    // By rate, when the amount is big enough to hide the fee
+    TEST_ASSERT_EQUAL(FEE_OK, psbt_fee_level(28000, 100000000, 199));
+    TEST_ASSERT_EQUAL(FEE_HIGH, psbt_fee_level(28200, 100000000, 200));
+    TEST_ASSERT_EQUAL(FEE_HIGH, psbt_fee_level(140000, 100000000, 999));
+    TEST_ASSERT_EQUAL(FEE_VERY_HIGH, psbt_fee_level(141000, 100000000, 1000));
 }
 
 void test_garbage_rejected() {
@@ -80,6 +95,7 @@ int main() {
     RUN_TEST(test_sign_adds_signature);
     RUN_TEST(test_wrong_seed_rejected);
     RUN_TEST(test_garbage_rejected);
-    RUN_TEST(test_fee_is_high);
+    RUN_TEST(test_fee_rate);
+    RUN_TEST(test_fee_level);
     return UNITY_END();
 }

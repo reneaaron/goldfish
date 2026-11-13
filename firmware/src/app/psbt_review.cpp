@@ -38,8 +38,17 @@ const char *psbt_error_text(PsbtError e) {
     return "";
 }
 
-bool psbt_fee_is_high(uint64_t fee, uint64_t sent) {
-    return fee > 0 && fee * 10 >= sent;
+FeeLevel psbt_fee_level(uint64_t fee, uint64_t sent, uint32_t rate) {
+    if (fee == 0) return FEE_OK;
+    if (fee * 2 >= sent || rate >= 1000) return FEE_VERY_HIGH;
+    if (fee * 10 >= sent || rate >= 200) return FEE_HIGH;
+    return FEE_OK;
+}
+
+uint32_t psbt_fee_rate(uint64_t fee, int n_inputs, int n_outputs) {
+    uint64_t vsize = 11 + 68 * uint64_t(n_inputs) + 31 * uint64_t(n_outputs);
+    uint64_t r = (fee + vsize - 1) / vsize;
+    return r > UINT32_MAX ? UINT32_MAX : uint32_t(r);
 }
 
 PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
@@ -104,7 +113,8 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
     }
     if (out_total > r->input_total) return r->error = PSBT_PARSE_FAILED;
     r->fee = r->input_total - out_total;
-    r->high_fee = psbt_fee_is_high(r->fee, r->spend ? r->spend : r->self);
+    r->fee_rate = psbt_fee_rate(r->fee, r->n_inputs, r->n_outputs);
+    r->fee_level = psbt_fee_level(r->fee, r->spend ? r->spend : r->self, r->fee_rate);
     return r->error;
 }
 
