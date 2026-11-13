@@ -81,7 +81,7 @@ paths). BBQr input isn't supported yet.
 - LVGL 9.2 for the UI
 - uBitcoin for BIP39/BIP32/PSBT
 - quirc for QR decoding (vendored in `lib/quirc`)
-- Inter and JetBrains Mono, converted for LVGL (`src/app/fonts`, SIL OFL)
+- Inter, Fraunces and JetBrains Mono, converted for LVGL (`src/app/fonts`, SIL OFL)
 
 ## Build
 

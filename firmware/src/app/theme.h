@@ -7,8 +7,8 @@
 LV_FONT_DECLARE(inter_13);
 LV_FONT_DECLARE(inter_15);
 LV_FONT_DECLARE(inter_17_semi);
-LV_FONT_DECLARE(inter_22_semi);
-LV_FONT_DECLARE(inter_30_semi);
+LV_FONT_DECLARE(fraunces_24);   // display titles
+LV_FONT_DECLARE(fraunces_32);
 LV_FONT_DECLARE(mono_16);
 LV_FONT_DECLARE(mono_22);
 LV_FONT_DECLARE(mono_26);
@@ -89,7 +89,7 @@ lv_obj_t *kv_card(lv_obj_t *parent, const KvRow *rows, int n, const lv_font_t *v
 // Headline amount with the legacy BTC value under it, for checking against
 // wallets that still show BTC. Shrinks to fit; never truncates.
 lv_obj_t *amount(lv_obj_t *parent, uint64_t v, lv_color_t c = TEXT);
-// List row for menus: icon, title, optional subtitle (nullptr). Whole row is the button.
+// List row for menus: icon (or nullptr), title, optional subtitle (nullptr). Whole row is the button.
 lv_obj_t *list_row(lv_obj_t *parent, const char *icon, const char *title, const char *sub,
                    lv_event_cb_t cb, void *ud = nullptr);
 }  // namespace th
