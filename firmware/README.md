@@ -104,6 +104,7 @@ pio test -e test
 ```
 
 - SeedQR decoding: the vectors in SeedSigner's SeedQR spec
+- QR scanning: the pictures in `sim/samples`, in a frame the size of the board camera's (240x180)
 - Key derivation: the BIP84 test vector (fingerprint `73c5da0a`, zpub, testnet vpub)
 - UR: SeedSigner's 29-part `crypto-psbt` vector, plus an encode/decode round trip
 - PSBT review: SeedSigner's single-sig testnet vector (₿25,000 in, ₿24,857 out,
