@@ -2,6 +2,7 @@
 // Run: pio test -e test
 #include <unity.h>
 #include <string.h>
+#include <Bitcoin.h>
 #include "../../src/app/wallet.h"
 
 static SeedEntropy zero_entropy_12() {
@@ -58,11 +59,47 @@ void test_wipe() {
     TEST_ASSERT_EQUAL(0, wallet_export_xpub(out, sizeof(out)));
 }
 
+// BIP39 test vector (Trezor's vectors.json): "abandon ... about" with the
+// passphrase TREZOR gives this root key.
+void test_passphrase() {
+    TEST_ASSERT_TRUE(wallet_load(zero_entropy_12()));
+    TEST_ASSERT_FALSE(wallet_has_passphrase());
+    TEST_ASSERT_TRUE(wallet_set_passphrase("TREZOR"));
+    TEST_ASSERT_TRUE(wallet_has_passphrase());
+    char xprv[120];
+    wallet_root()->xprv(xprv, sizeof(xprv));
+    TEST_ASSERT_EQUAL_STRING(
+        "xprv9s21ZrQH143K3h3fDYiay8mocZ3afhfULfb5GX8kCBdno77K4HiA15Tg23wpbeF1pLfs1c5SPmYHrEpTuuRhxMwvKDwqdKiGJS9XFKzUsAF",
+        xprv);
+    char fp[9];
+    wallet_fingerprint_hex(fp);
+    TEST_ASSERT_EQUAL_STRING("b4e3f5ed", fp);         // hash160 of that key's public key
+    // The seed itself is unchanged: same backup, same word count.
+    SeedEntropy e;
+    TEST_ASSERT_TRUE(wallet_entropy(&e));
+    TEST_ASSERT_EQUAL(16, e.len);
+    TEST_ASSERT_EQUAL(12, wallet_word_count());
+
+    TEST_ASSERT_TRUE(wallet_set_passphrase(""));      // back to the seed alone
+    TEST_ASSERT_FALSE(wallet_has_passphrase());
+    wallet_fingerprint_hex(fp);
+    TEST_ASSERT_EQUAL_STRING("73c5da0a", fp);
+
+    TEST_ASSERT_TRUE(wallet_set_passphrase("TREZOR"));
+    wallet_wipe();                                    // wiped with the seed
+    TEST_ASSERT_FALSE(wallet_has_passphrase());
+    TEST_ASSERT_FALSE(wallet_set_passphrase("TREZOR"));
+    TEST_ASSERT_TRUE(wallet_load(zero_entropy_12())); // a fresh load has none
+    wallet_fingerprint_hex(fp);
+    TEST_ASSERT_EQUAL_STRING("73c5da0a", fp);
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_fingerprint);
     RUN_TEST(test_zpub);
     RUN_TEST(test_vpub);
     RUN_TEST(test_wipe);
+    RUN_TEST(test_passphrase);
     return UNITY_END();
 }

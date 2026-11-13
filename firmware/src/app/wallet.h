@@ -13,6 +13,12 @@ bool wallet_has_seed();
 // BIP39 runs 2048 rounds of PBKDF2-HMAC-SHA512.
 bool wallet_load(const SeedEntropy &e);
 void wallet_wipe();
+// BIP-39 passphrase ("25th word"): derive the root key again from the loaded
+// seed with `pass`; "" goes back to the seed alone. As slow as wallet_load.
+// The bytes are used as given (no NFKD), so callers pass ASCII. Only the
+// resulting key is kept, never the passphrase; wallet_wipe() removes it too.
+bool wallet_set_passphrase(const char *pass);
+bool wallet_has_passphrase();
 // The root key, for signing. nullptr without a seed. Don't copy it.
 const HDPrivateKey *wallet_root();
 
