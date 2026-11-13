@@ -521,7 +521,9 @@ static void build_new_seed() {
     lv_obj_t *r2 = list_row(c, ICON_COINS, "Coin flips", coins, method_cb, GO(UI_ENTROPY_COINS));
     lv_obj_align(r2, LV_ALIGN_TOP_MID, 0, 63);
     divider(c, 125);
-    lv_obj_t *r3 = list_row(c, ICON_KEYBOARD, "Draw words", "Last word from coins", draw_cb);
+    char draw[32];
+    snprintf(draw, sizeof(draw), "Pick %d words yourself", new_words - 1);
+    lv_obj_t *r3 = list_row(c, ICON_KEYBOARD, "Draw words", draw, draw_cb);
     lv_obj_align(r3, LV_ALIGN_TOP_MID, 0, 126);
     // These glyphs live in icons_18, not in list_row's font.
     for (lv_obj_t *r : {r1, r2, r3}) lv_obj_set_style_text_font(lv_obj_get_child(lv_obj_get_child(r, 0), 0), &icons_18, 0);
