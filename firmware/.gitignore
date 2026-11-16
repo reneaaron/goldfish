@@ -3,3 +3,8 @@
 sim/camera.png
 e2e/failure_*.png
 .pytest_cache/
+fuzz/out/
+fuzz/corpus/
+fuzz/crashes*/
+fuzz/crash-*
+oracle/out/

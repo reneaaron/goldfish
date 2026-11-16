@@ -168,6 +168,11 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
             int chain;
             if (!multisig_loaded()) return r->error = PSBT_NEEDS_DESCRIPTOR;
             if (!multisig_claim_verifies(c, utxo->script, utxo->script_len, &chain)) return r->error = PSBT_WRONG_WALLET;
+        } else {
+            // Our fingerprint alone isn't enough: the key at the claimed path
+            // must be the one this input's script pays to.
+            int chain;
+            if (!claim_verifies(c, utxo->script, utxo->script_len, r->testnet, &chain)) return r->error = PSBT_NOT_OUR_SEED;
         }
         r->input_total += utxo->satoshi;
     }
