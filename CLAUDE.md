@@ -1,0 +1,78 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+A stateless, camera-based Bitcoin signer for the Waveshare RP2350-Touch-LCD-2 (240×320 touch screen, OV5640 camera, no radio). The seed lives in RAM only; all I/O is QR codes through the camera and the screen. Status: works in the desktop simulator, untested on real hardware, not for real funds.
+
+- `firmware/`: PlatformIO project (the only code that builds and has tests)
+- `case/`: printed case in gcad (`.gcad` parts, `.gasm` assembly)
+- `hardware/`: parts list, board notes
+- `marketing/`: Blender render scripts that consume `case/exports/case.stl` and `firmware/docs/screens/*.png`
+
+## Commands
+
+All from `firmware/`:
+
+```bash
+pio test -e test                           # all unit tests (native, Unity)
+pio test -e test -f test_psbt              # one suite (folder name under test/)
+uv run --with-requirements e2e/requirements.txt pytest e2e                      # end-to-end, against the simulator (builds it)
+uv run --with-requirements e2e/requirements.txt pytest e2e/test_multisig.py -k <name>   # one e2e test
+pio run -e sim && .pio/build/sim/program   # simulator: 240×320 X11 window, mouse = touch (needs libx11-dev)
+pio run                                    # board firmware -> .pio/build/rp2350_touch_lcd_2/firmware.uf2
+pio run -t upload                          # flash a board already running this firmware
+SIM_SHOTS=docs/screens .pio/build/sim/program   # headless scripted run, writes a screenshot per screen
+```
+
+Simulator camera: it decodes the image at `sim/camera.png` (or `$SIM_CAMERA`), reloaded on change. With a scan screen open, `cp sim/samples/<file>.png sim/camera.png`. `sim/samples` has SeedSigner's public test SeedQRs and a matching seed + testnet PSBT (`testseed_height_demise_*`, `testpsbt_height_demise_base64.png`).
+
+Case: `gcad check stateless-signer.gasm` (add `--set clip=0` for the screw variant), `gcad export parts/case.gcad exports/case.stl`.
+
+Renders: `blender -b -P marketing/renders/render.py` (`ONLY=1,3 SAMPLES=64 PCT=50` for a quick preview).
+
+## Firmware architecture
+
+Three PlatformIO environments share one source tree, split by `build_src_filter`:
+
+| Env | Sources | Purpose |
+|---|---|---|
+| `rp2350_touch_lcd_2` (default) | `src/app` + `src/board` | Arduino core (earlephilhower), SPI display, I2C touch, PIO camera |
+| `sim` | `src/app` + `src/sim` | Linux X11 window, mouse input, image-file camera |
+| `test` | an explicit list of `src/app/*.cpp` | native Unity tests, no LVGL |
+
+Rules that follow from this:
+
+- `src/app` must not touch hardware. The platform boundary is small: the two camera hooks in `app/qrscan.h` (`platform_camera_frame`, `platform_camera_stop`), implemented once in `src/board` and once in `src/sim`, plus each target's own `main` that sets up LVGL display/input and calls `ui_build()`.
+- The `test` env lists its source files one by one in `platformio.ini`. A new logic module in `src/app` has to be added to that list, and must not include LVGL: `ui.cpp` and `theme.cpp` are the only LVGL-dependent app files and are deliberately not in the test build.
+- Each test suite is `test/test_<name>/test_main.cpp` with its own `main()`; shared vectors live in `test/fixtures/`.
+- `e2e/` (pytest) plays the user and a wallet app against the `sim` binary run headless with `SIM_CONTROL=1`: commands on stdin (`run_control()` in `src/sim/main.cpp`), on a fake clock that only advances when a command says so. `e2e/device.py` reads the screen, touches it and feeds QR images to the camera; `e2e/hostwallet.py` is an embit-based stand-in for Sparrow that never sees the seed. `device.py` parses the `ICON_*` defines in `theme.h` and the `UI_*` enum in `ui.h` by regex, so keep those in their current one-per-line form. A failing test saves the screen as `e2e/failure_*.png`.
+
+### Layers inside `src/app`
+
+- `ui.cpp` (one large file) holds every screen. `UiScreen` in `ui.h` enumerates them and `ui_goto()` switches; the flow diagram is the comment at the top of `ui.h`. `ui.h` also exports action functions (`ui_swipe_sign`, `ui_enter_word`, `ui_passphrase_key`, …) that mirror the on-screen controls so the simulator's scripted `SIM_SHOTS` run in `src/sim/main.cpp` can drive the whole flow without pointer events. A new screen or control usually needs its step added there to appear in `docs/screens`.
+- `theme.h/.cpp`: colours, metrics, fonts, widget helpers (namespace `th`). Icon codepoints are listed in `theme.h`; fonts in `fonts/` are generated with `lv_font_conv` (see `fonts/README.md`).
+- Logic modules, all plain C++ over libwally with module-level state in RAM:
+  - `wallet`: the one loaded seed/root key, optional BIP-39 passphrase (only the derived key is kept), xpub export
+  - `seedqr`, `seed_create`, `bip85`, `bip39_english`: seed in/out and creation (no RNG anywhere: all entropy is user input)
+  - `qrscan` (quirc), `ur` (animated UR `crypto-psbt` / `crypto-output` / `bytes`)
+  - `psbt_review`: parse, review and sign; `multisig`: the `wsh(sortedmulti)` descriptor; `address_verify`; `amount` (BIP177 `₿` formatting plus legacy BTC)
+
+### Security invariants (don't weaken these in passing)
+
+- Nothing is written to flash. Seed, passphrase-derived key, Connect wallet's network and key type, and the multisig descriptor are all RAM-only and go on wipe or unplug.
+- PSBT review follows SeedSigner's rules: every input must belong to the loaded seed; an output counts as change only if the seed re-derives that exact output script; an output that claims our fingerprint but doesn't verify blocks signing.
+- Multisig inputs and change are checked against scripts derived from the confirmed descriptor, never the PSBT's own witness scripts. The descriptor is bound to the root key it was checked with (other seed or other passphrase = not used).
+- Native segwit only (single-sig P2WPKH, `wsh(sortedmulti)`). The network comes from the PSBT's derivation paths, the address, or the descriptor's keys, not from the Connect wallet setting.
+
+### Libraries
+
+- libwally-core is pinned by commit in `platformio.ini`. PlatformIO only fetches it (`lib_ignore`); `lib/wally` builds it from the single-file amalgamation with `BUILD_MINIMAL` and no Elements (`build.py`, `config/config.h`).
+- quirc is vendored in `lib/quirc`. LVGL 9.2.2, configured in `include/lv_conf.h`. Pins in `include/board_pins.h` (from Waveshare's demo code).
+
+## Docs and copy
+
+- `firmware/README.md` documents behaviour in detail (flows, supported formats, what each test suite covers). Keep it and the root `README.md` in step with behaviour changes.
+- `firmware/docs/screens/*.png` come from the `SIM_SHOTS` run (it writes PPM; convert to PNG) and feed both READMEs and the marketing renders.
+- Copy must match what the hardware and firmware really do (`marketing/README.md`): "no Wi-Fi or Bluetooth hardware" and "nothing is saved" are true; don't say "air-gapped" unqualified while it's USB-powered, and don't claim audits, secure boot, or wallet compatibility that hasn't been tested.
