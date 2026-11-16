@@ -11,6 +11,7 @@
 #include <lvgl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
@@ -20,6 +21,9 @@
 #include "../app/wallet.h"
 #include "../app/address_verify.h"
 #include "../app/seed_create.h"
+#include "../app/ur.h"
+#include <wally_core.h>
+#include "../../test/fixtures/multisig_vectors.h"   // SeedSigner's public 2-of-3 test wallet
 #include "src/libs/qrcode/qrcodegen.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -337,6 +341,64 @@ static int run_shots(const char *dir) {
     ui_passphrase_key("OK");
     wallet_fingerprint_hex(pfp);
     if (wallet_has_passphrase() || strcmp(pfp, "73c5da0a")) { fprintf(stderr, "passphrase was not removed\n"); return 1; }
+
+    // Multisig: SeedSigner's 2-of-3 testnet wallet. Its transaction is refused
+    // until the descriptor has been scanned and confirmed.
+    wallet_wipe();
+    ui_goto(UI_HOME);
+    ui_seed_entry(UI_ENTER_WORDS, 12);
+    char ms_words[128];
+    snprintf(ms_words, sizeof(ms_words), "%s", MS_MNEMONIC);
+    for (char *w = strtok(ms_words, " "); w; w = strtok(nullptr, " ")) ui_enter_word(w);
+    if (ui_current() != UI_SEED_LOADED) { fprintf(stderr, "multisig seed did not load\n"); return 1; }
+    static uint8_t ms_psbt[4096];
+    size_t ms_psbt_len = 0;
+    if (wally_base64_to_bytes(MS_PSBT, 0, ms_psbt, sizeof(ms_psbt), &ms_psbt_len) != WALLY_OK) return 1;
+    // The transaction as an animated UR, part after part, until the scanner leaves.
+    auto show_psbt = [&]() {
+        static char part[600];
+        for (uint32_t seq = 1; seq < 200 && ui_current() == UI_SCAN_PSBT; seq++) {
+            if (!ur_encode_part(ms_psbt, ms_psbt_len, 100, seq, part, sizeof(part))) break;
+            cam_show_qr(part);
+            pump(250);
+        }
+    };
+    ui_goto(UI_SCAN_PSBT);
+    show_psbt();
+    if (ui_current() != UI_PSBT_ERROR) { fprintf(stderr, "multisig PSBT without descriptor: screen %d\n", ui_current()); return 1; }
+    pump(300); save(dir, "43_multisig_needs_descriptor");
+    ui_goto(UI_SCAN_PSBT);
+    static char ur_upper[1024];   // upper case: a smaller, alphanumeric QR
+    for (size_t i = 0; i <= strlen(MS_UR_OUTPUT); i++) ur_upper[i] = char(toupper((unsigned char)MS_UR_OUTPUT[i]));
+    cam_show_qr(ur_upper);
+    for (int i = 0; i < 100 && ui_current() == UI_SCAN_PSBT; i++) pump(50);
+    if (ui_current() != UI_MULTISIG) { save(dir, "debug_descriptor_scan"); fprintf(stderr, "descriptor was not accepted (screen %d)\n", ui_current()); return 1; }
+    pump(300); save(dir, "44_multisig_wallet");
+    // Leaving without "Use wallet" drops it: the transaction is still refused.
+    ui_goto(UI_SCAN_PSBT);
+    show_psbt();
+    if (ui_current() != UI_PSBT_ERROR) { fprintf(stderr, "unconfirmed descriptor was used\n"); return 1; }
+    ui_goto(UI_SCAN_PSBT);
+    cam_show_qr(MS_DESCRIPTOR);   // this time as plain text
+    for (int i = 0; i < 100 && ui_current() == UI_SCAN_PSBT; i++) pump(50);
+    if (ui_current() != UI_MULTISIG) { save(dir, "debug_descriptor_text"); fprintf(stderr, "text descriptor was not accepted (screen %d)\n", ui_current()); return 1; }
+    ui_multisig_use();
+    if (ui_current() != UI_SCAN_PSBT) { fprintf(stderr, "Use wallet did not return to the scanner\n"); return 1; }
+    show_psbt();
+    if (ui_current() != UI_PSBT_OVERVIEW) { fprintf(stderr, "multisig PSBT was not accepted (screen %d)\n", ui_current()); return 1; }
+    pump(300); save(dir, "45_multisig_overview");
+    ui_goto(UI_PSBT_OUTPUT); pump(300); save(dir, "46_multisig_change");
+    ui_next_output();
+    ui_next_output();
+    ui_next_output();        pump(300); save(dir, "47_multisig_sign");
+    if (!ui_swipe_sign()) { fprintf(stderr, "multisig signing failed\n"); return 1; }
+    pump(400); save(dir, "48_multisig_signed");
+    ui_goto(UI_SEED_MENU);   pump(300); save(dir, "49_menu_multisig");
+    ui_goto(UI_SCAN_ADDRESS);
+    cam_show_qr(MS_ADDR_CHANGE_4);
+    for (int i = 0; i < 400 && !(ui_current() == UI_VERIFY_RESULT && verify_done()); i++) pump(30);
+    if (ui_current() != UI_VERIFY_RESULT) { fprintf(stderr, "multisig address was not accepted (screen %d)\n", ui_current()); return 1; }
+    pump(300); save(dir, "50_multisig_verify");
     return 0;
 }
 

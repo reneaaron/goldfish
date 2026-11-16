@@ -10,17 +10,20 @@
 #include <wally_psbt_members.h>
 #include <wally_script.h>
 #include <wally_transaction.h>
+#include "multisig.h"
 #include "wallet.h"
 
 #define MAX_PATH_LEN 10
 
 static struct wally_psbt *psbt;
 static bool reviewed_ok;                 // psbt_load returned PSBT_OK for it
+static int signed_inputs;                // inputs we signed; once signed, it is trimmed
 
 void psbt_clear() {
     if (psbt) wally_psbt_free(psbt);
     psbt = nullptr;
     reviewed_ok = false;
+    signed_inputs = 0;
 }
 
 const char *psbt_error_text(PsbtError e) {
@@ -28,9 +31,11 @@ const char *psbt_error_text(PsbtError e) {
         case PSBT_OK: return "";
         case PSBT_PARSE_FAILED: return "This isn't a valid transaction. Export it again from your wallet.";
         case PSBT_NOT_OUR_SEED: return "This transaction is for a different wallet. Scan the seed QR it belongs to.";
-        case PSBT_UNSUPPORTED: return "Only single-key native SegWit wallets are supported for now.";
+        case PSBT_UNSUPPORTED: return "Only native SegWit wallets are supported for now, single-key or multisig.";
         case PSBT_MISSING_AMOUNTS: return "Your wallet left out the input amounts, so the fee can't be checked.";
         case PSBT_SUSPICIOUS: return "An address claims to be your change but isn't. The transaction may have been tampered with.";
+        case PSBT_NEEDS_DESCRIPTOR: return "This is a multisig transaction. Scan the wallet's descriptor first, then the transaction again.";
+        case PSBT_WRONG_WALLET: return "This transaction doesn't spend from the multisig wallet you loaded.";
     }
     return "";
 }
@@ -72,7 +77,7 @@ static void format_path(const Claim &c, char *out, size_t cap) {
 // True if the claim is a BIP84 address of ours that pays to exactly this
 // script: the path is m/84h/coin'/account'/{0,1}/n, the key there is the one
 // in the metadata, and the script is its P2WPKH (0x00 0x14 <hash160(pubkey)>).
-static bool claim_verifies(const Claim &c, const uint8_t *script, size_t script_len, bool testnet) {
+static bool claim_verifies(const Claim &c, const uint8_t *script, size_t script_len, bool testnet, int *chain) {
     const uint32_t H = BIP32_INITIAL_HARDENED_CHILD;
     if (c.path_len != 5 || c.path[0] != H + 84 || c.path[1] != H + (testnet ? 1 : 0)) return false;
     if (!(c.path[2] & H) || c.path[3] > 1 || (c.path[4] & H)) return false;
@@ -85,6 +90,25 @@ static bool claim_verifies(const Claim &c, const uint8_t *script, size_t script_
               wally_hash160(k.pub_key, EC_PUBLIC_KEY_LEN, h, sizeof(h)) == WALLY_OK &&
               script_len == 2 + HASH160_LEN && script[0] == 0x00 && script[1] == HASH160_LEN &&
               memcmp(script + 2, h, HASH160_LEN) == 0;
+    secure_zero(&k, sizeof(k));
+    *chain = int(c.path[3]);
+    return ok;
+}
+
+// The multisig version: the path is our key's in the loaded descriptor plus
+// {0,1}/n, the key there is the one in the metadata, and the script is the
+// descriptor's P2WSH for that chain and index. The cosigner keys and witness
+// script the PSBT carries are not trusted for this.
+static bool multisig_claim_verifies(const Claim &c, const uint8_t *script, size_t script_len, int *chain) {
+    uint32_t index;
+    uint8_t ours[WALLY_SCRIPTPUBKEY_P2WSH_LEN];
+    if (!multisig_path(c.path, c.path_len, chain, &index) || c.pubkey_len != EC_PUBLIC_KEY_LEN) return false;
+    struct ext_key k;
+    bool ok = bip32_key_from_parent_path(wallet_root(), c.path, c.path_len,
+                                         BIP32_FLAG_KEY_PRIVATE | BIP32_FLAG_SKIP_HASH, &k) == WALLY_OK &&
+              memcmp(k.pub_key, c.pubkey, EC_PUBLIC_KEY_LEN) == 0 &&
+              multisig_script(*chain, index, ours, sizeof(ours)) == sizeof(ours) &&
+              script_len == sizeof(ours) && memcmp(script, ours, sizeof(ours)) == 0;
     secure_zero(&k, sizeof(k));
     return ok;
 }
@@ -115,7 +139,9 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
     uint8_t fp[4];
     wallet_fingerprint(fp);
 
-    // Inputs: all ours, native segwit, with amounts.
+    // Inputs: all ours, native segwit, with amounts, and all of one kind:
+    // single-sig, or the loaded multisig wallet.
+    bool multi = false;
     r->n_inputs = int(psbt->num_inputs);
     if (r->n_inputs == 0) return r->error = PSBT_PARSE_FAILED;
     for (size_t i = 0; i < psbt->num_inputs; i++) {
@@ -134,9 +160,21 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
             return r->error = PSBT_MISSING_AMOUNTS;
         size_t type = 0;
         if (wally_scriptpubkey_get_type(utxo->script, utxo->script_len, &type) != WALLY_OK ||
-            type != WALLY_SCRIPT_TYPE_P2WPKH)
+            (type != WALLY_SCRIPT_TYPE_P2WPKH && type != WALLY_SCRIPT_TYPE_P2WSH))
             return r->error = PSBT_UNSUPPORTED;
+        if (i && multi != (type == WALLY_SCRIPT_TYPE_P2WSH)) return r->error = PSBT_UNSUPPORTED;
+        multi = type == WALLY_SCRIPT_TYPE_P2WSH;
+        if (multi) {
+            int chain;
+            if (!multisig_loaded()) return r->error = PSBT_NEEDS_DESCRIPTOR;
+            if (!multisig_claim_verifies(c, utxo->script, utxo->script_len, &chain)) return r->error = PSBT_WRONG_WALLET;
+        }
         r->input_total += utxo->satoshi;
+    }
+    if (multi) {
+        r->ms_m = multisig_info()->m;
+        r->ms_n = multisig_info()->n;
+        r->testnet = multisig_info()->testnet;
     }
 
     // Outputs
@@ -155,9 +193,11 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
 
         Claim c;
         bool claimed = find_claim(&m.keypaths, fp, &c);
-        if (claimed && claim_verifies(c, script, script_len, r->testnet)) {
+        int chain = 0;
+        if (claimed && (multi ? multisig_claim_verifies(c, script, script_len, &chain)
+                              : claim_verifies(c, script, script_len, r->testnet, &chain))) {
             format_path(c, o.path, sizeof(o.path));
-            if (c.path[3] == 1) { o.is_change = true; r->change += o.amount; }
+            if (chain == 1) { o.is_change = true; r->change += o.amount; }
             else { o.is_self = true; r->self += o.amount; }
         } else if (claimed) {
             o.suspicious = true;
@@ -172,19 +212,30 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
     return r->error;
 }
 
-static size_t count_signatures() {
-    size_t n = 0;
-    for (size_t i = 0; i < psbt->num_inputs; i++) n += psbt->inputs[i].signatures.num_items;
+// Inputs carrying a signature for the key the PSBT claims for our seed. Other
+// signatures don't count: a cosigner may have signed a multisig PSBT first.
+static int inputs_signed_by_us() {
+    uint8_t fp[4];
+    wallet_fingerprint(fp);
+    int n = 0;
+    for (size_t i = 0; i < psbt->num_inputs; i++) {
+        Claim c;
+        size_t at = 0;
+        if (find_claim(&psbt->inputs[i].keypaths, fp, &c) &&
+            wally_map_find(&psbt->inputs[i].signatures, c.pubkey, c.pubkey_len, &at) == WALLY_OK && at)
+            n++;
+    }
     return n;
 }
 
 // Sign, then drop what the coordinator already has (UTXOs and key paths), so
 // the signed PSBT stays small enough for few QR frames. Only a PSBT that
-// passed review is signed. A signature that was already there counts too.
+// passed review is signed. A signature of ours that was already there counts too.
 int psbt_sign() {
     if (!psbt || !reviewed_ok || !wallet_has_seed()) return 0;
+    if (signed_inputs) return signed_inputs;      // the key paths are gone: nothing more to sign
     if (wally_psbt_sign_bip32(psbt, wallet_root(), EC_FLAG_GRIND_R) != WALLY_OK) return 0;
-    int n = int(count_signatures());
+    int n = inputs_signed_by_us();
     if (n > 0) {
         for (size_t i = 0; i < psbt->num_inputs; i++) {
             wally_psbt_input_set_utxo(&psbt->inputs[i], nullptr);
@@ -193,7 +244,7 @@ int psbt_sign() {
         }
         for (size_t i = 0; i < psbt->num_outputs; i++) wally_map_clear(&psbt->outputs[i].keypaths);
     }
-    return n;
+    return signed_inputs = n;
 }
 
 size_t psbt_serialize(uint8_t *out, size_t cap) {

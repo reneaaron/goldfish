@@ -1,10 +1,15 @@
-// Verify address against the BIP84 test vectors ("abandon ... about").
+// Verify address against the BIP84 test vectors ("abandon ... about"), and
+// multisig addresses against SeedSigner's 2-of-3 test wallet.
 // Run: pio test -e test
 #include <unity.h>
 #include <stdio.h>
 #include <string.h>
+#include <wally_core.h>
+#include <wally_bip39.h>
 #include "../../src/app/address_verify.h"
+#include "../../src/app/multisig.h"
 #include "../../src/app/wallet.h"
+#include "../fixtures/multisig_vectors.h"
 
 static void load_abandon() {
     SeedEntropy e;
@@ -19,7 +24,10 @@ static VerifyStatus run(const char *text, AddressCheck *c) {
     return c->status;
 }
 
-void setUp() { load_abandon(); }
+void setUp() {
+    multisig_clear();
+    load_abandon();
+}
 
 void test_bip84_first_receive() {
     char a[96];
@@ -122,6 +130,45 @@ void test_uri_amount() {
     }
 }
 
+// ------------------------------------------------------------ multisig
+static void load_multisig_wallet() {
+    SeedEntropy e;
+    memset(&e, 0, sizeof(e));
+    TEST_ASSERT_EQUAL(WALLY_OK, bip39_mnemonic_to_bytes(nullptr, MS_MNEMONIC, e.bytes, sizeof(e.bytes), &e.len));
+    TEST_ASSERT_TRUE(wallet_load(e));
+    TEST_ASSERT_EQUAL(MS_OK, multisig_load(MS_DESCRIPTOR, strlen(MS_DESCRIPTOR)));
+}
+
+void test_multisig_address_needs_descriptor() {
+    AddressCheck c;
+    TEST_ASSERT_EQUAL(ADDR_NEEDS_DESCRIPTOR, address_parse((const uint8_t *)MS_ADDR_RECEIVE_4, strlen(MS_ADDR_RECEIVE_4), &c));
+}
+
+void test_multisig_receive_and_change() {
+    load_multisig_wallet();
+    AddressCheck c;
+    TEST_ASSERT_EQUAL(VERIFY_FOUND, run(MS_ADDR_RECEIVE_4, &c));
+    TEST_ASSERT_TRUE(c.multisig);
+    TEST_ASSERT_EQUAL(0, c.chain);
+    TEST_ASSERT_EQUAL(4, c.index);
+    TEST_ASSERT_EQUAL(VERIFY_FOUND, run(MS_ADDR_CHANGE_4, &c));
+    TEST_ASSERT_EQUAL(1, c.chain);
+    TEST_ASSERT_EQUAL(4, c.index);
+}
+
+// The seed's own single-sig addresses are still found with a descriptor loaded,
+// and a P2WSH address from elsewhere is not.
+void test_multisig_leaves_single_sig_alone() {
+    load_multisig_wallet();
+    AddressCheck c;
+    char ours[96];
+    TEST_ASSERT_GREATER_THAN(0, address_at(true, 0, 3, ours, sizeof(ours)));
+    TEST_ASSERT_EQUAL(VERIFY_FOUND, run(ours, &c));
+    TEST_ASSERT_FALSE(c.multisig);
+    TEST_ASSERT_EQUAL(VERIFY_NOT_FOUND, run("tb1qft5p2uhsdcdc3l2ua4ap5qqfg4pjaqlp250x7us7a8qqhrxrxfsqaqh7jw", &c));
+    TEST_ASSERT_EQUAL(VERIFY_RECEIVE_LIMIT + VERIFY_CHANGE_LIMIT, c.checked);
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_bip84_first_receive);
@@ -134,5 +181,8 @@ int main() {
     RUN_TEST(test_other_seed_not_reused);
     RUN_TEST(test_parse_rejects);
     RUN_TEST(test_uri_amount);
+    RUN_TEST(test_multisig_address_needs_descriptor);
+    RUN_TEST(test_multisig_receive_and_change);
+    RUN_TEST(test_multisig_leaves_single_sig_alone);
     return UNITY_END();
 }

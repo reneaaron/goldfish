@@ -11,6 +11,9 @@
 //   Connect wallet -> Network (Mainnet / Testnet), RAM only
 //   Scan transaction -> Review -> each output -> Swipe to sign -> Signed QR
 //   Verify address -> scan address QR -> searching -> verified / not from this seed
+//   Multisig: show the wallet's descriptor QR to the Sign or Verify scanner
+//        -> Multisig wallet (M of N, key fingerprints, first address) -> Use wallet
+//        -> back to that scanner, which now takes the wallet's transactions / addresses
 //   Home -> Enter words (12/24) -> one screen per word -> Seed loaded
 //   Home -> New seed (12/24 words) -> dice rolls | coin flips | draw words + coins for the last
 //        -> offline warning -> write down the words -> QR card? (whole SeedQR,
@@ -50,6 +53,7 @@ enum UiScreen {
     UI_SEED_READY,       // end of New seed: fingerprint, nothing loaded
     UI_CHILD_LENGTH,     // BIP-85 child seed: 12 or 24 words
     UI_CHILD_INDEX,      // BIP-85 child number keypad
+    UI_MULTISIG,         // a scanned multisig descriptor, to check before it is used
 };
 
 void ui_build();               // shows the home screen
@@ -60,6 +64,7 @@ UiScreen ui_current();
 void ui_next_output();         // "Next" on an output screen
 bool ui_swipe_sign();          // completes the swipe; false if signing failed
 bool verify_done();            // the address check has a result
+void ui_multisig_use();        // "Use wallet" on the Multisig wallet screen
 // Start UI_ENTROPY_DICE, _COINS or UI_ENTER_WORDS; draw: the words are a new seed (last word from coins).
 void ui_seed_entry(UiScreen method, int words, bool draw = false);
 void ui_backup_loaded();       // "Back up as QR" in the seed menu
