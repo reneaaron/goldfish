@@ -9,6 +9,7 @@ A stateless, camera-based Bitcoin signer for the Waveshare RP2350-Touch-LCD-2 (2
 - `firmware/`: PlatformIO project (the only code that builds and has tests)
 - `case/`: printed case in gcad (`.gcad` parts, `.gasm` assembly)
 - `hardware/`: parts list, board notes
+- `flasher/`: one static page that copies `firmware.uf2` onto the board's BOOT drive; `.github/workflows/flasher.yml` publishes it with the firmware on GitHub Pages
 - `marketing/`: Blender render scripts that consume `case/exports/case.stl` and `firmware/docs/screens/*.png`
 
 ## Commands
