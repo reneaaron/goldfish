@@ -124,6 +124,23 @@ static void format_address(const uint8_t *script, size_t len, bool testnet, char
     if (s) wally_free_string(s);
 }
 
+// With the full previous transaction attached, it must be the one this input
+// spends, and agree with the witness UTXO the amount was taken from.
+// Otherwise review and signing would each trust a different copy.
+static bool utxo_matches_prevout(size_t i, const struct wally_tx_output *used) {
+    const struct wally_tx *prev = psbt->inputs[i].utxo;
+    uint8_t want[WALLY_TXHASH_LEN], got[WALLY_TXHASH_LEN];
+    uint32_t vout;
+    if (wally_psbt_get_input_previous_txid(psbt, i, want, sizeof(want)) != WALLY_OK ||
+        wally_psbt_get_input_output_index(psbt, i, &vout) != WALLY_OK ||
+        wally_tx_get_txid(prev, got, sizeof(got)) != WALLY_OK || memcmp(want, got, sizeof(want)) != 0 ||
+        vout >= prev->num_outputs)
+        return false;
+    const struct wally_tx_output &o = prev->outputs[vout];
+    return o.satoshi == used->satoshi && o.script_len == used->script_len &&
+           memcmp(o.script, used->script, o.script_len) == 0;
+}
+
 PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
     psbt_clear();
     memset(r, 0, sizeof(*r));
@@ -154,16 +171,30 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
         // so what is shown here would not be what gets signed.
         if (in.sighash != 0 && in.sighash != WALLY_SIGHASH_ALL) return r->error = PSBT_UNSUPPORTED;
 
+        // A finalized input keeps no partial signatures when serialized, so
+        // the signed QR would carry nothing from us.
+        size_t final_scriptsig_len = 0;
+        if (in.final_witness || wally_psbt_get_input_final_scriptsig_len(psbt, i, &final_scriptsig_len) != WALLY_OK ||
+            final_scriptsig_len)
+            return r->error = PSBT_PARSE_FAILED;
+
         // The witness UTXO, or the spent output of the full previous transaction.
         const struct wally_tx_output *utxo = nullptr;
         if (wally_psbt_get_input_best_utxo(psbt, i, &utxo) != WALLY_OK || !utxo || utxo->satoshi == 0)
             return r->error = PSBT_MISSING_AMOUNTS;
+        if (in.utxo && !utxo_matches_prevout(i, utxo)) return r->error = PSBT_PARSE_FAILED;
         size_t type = 0;
         if (wally_scriptpubkey_get_type(utxo->script, utxo->script_len, &type) != WALLY_OK ||
             (type != WALLY_SCRIPT_TYPE_P2WPKH && type != WALLY_SCRIPT_TYPE_P2WSH))
             return r->error = PSBT_UNSUPPORTED;
         if (i && multi != (type == WALLY_SCRIPT_TYPE_P2WSH)) return r->error = PSBT_UNSUPPORTED;
         multi = type == WALLY_SCRIPT_TYPE_P2WSH;
+        // Native segwit has no redeem script, and P2WPKH no witness script.
+        // libwally would sign with them, so review and signing would disagree.
+        size_t redeem_len = 0, witness_len = 0;
+        if (wally_psbt_get_input_redeem_script_len(psbt, i, &redeem_len) != WALLY_OK || redeem_len ||
+            wally_psbt_get_input_witness_script_len(psbt, i, &witness_len) != WALLY_OK || (!multi && witness_len))
+            return r->error = PSBT_PARSE_FAILED;
         if (multi) {
             int chain;
             if (!multisig_loaded()) return r->error = PSBT_NEEDS_DESCRIPTOR;
@@ -182,7 +213,8 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
         r->testnet = multisig_info()->testnet;
     }
 
-    // Outputs
+    // Outputs: a transaction without any isn't valid, and can't be signed.
+    if (psbt->num_outputs == 0) return r->error = PSBT_PARSE_FAILED;
     if (psbt->num_outputs > PSBT_MAX_OUTPUTS) return r->error = PSBT_UNSUPPORTED;
     r->n_outputs = int(psbt->num_outputs);
     uint64_t out_total = 0;

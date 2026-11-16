@@ -489,6 +489,77 @@ void test_input_with_foreign_script_rejected() {
     TEST_ASSERT_EQUAL(PSBT_NOT_OUR_SEED, psbt_load(raw, raw_len, &r));
 }
 
+// A transaction without outputs isn't valid: refused at review, not at signing.
+void test_no_outputs_rejected() {
+    load_seed(SINGLESIG_MNEMONIC);
+    edit_psbt([](struct wally_psbt *p) {
+        while (p->num_outputs) TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_remove_output(p, 0));
+    });
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_PARSE_FAILED, psbt_load(raw, raw_len, &r));
+}
+
+// A finalized input drops partial signatures when serialized: the signed QR
+// would carry no signature from us. Written into the raw bytes, since libwally
+// strips the key paths of an input it finalizes itself.
+void test_finalized_input_rejected() {
+    load_seed(SINGLESIG_MNEMONIC);
+    size_t at = 5;                                // after "psbt\xff": walk the global map
+    while (raw[at] != 0x00) {
+        TEST_ASSERT_TRUE(raw[at] < 0xfd);         // single-byte key length
+        at += 1 + raw[at];
+        size_t vlen = raw[at], skip = 1;
+        if (vlen == 0xfd) { vlen = raw[at + 1] | (raw[at + 2] << 8); skip = 3; }
+        at += skip + vlen;
+    }
+    at++;                                         // input 0's map starts here
+    const uint8_t final_scriptsig[] = {0x01, 0x07, 0x01, 0x51};   // PSBT_IN_FINAL_SCRIPTSIG = OP_1
+    memmove(raw + at + sizeof(final_scriptsig), raw + at, raw_len - at);
+    memcpy(raw + at, final_scriptsig, sizeof(final_scriptsig));
+    raw_len += sizeof(final_scriptsig);
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_PARSE_FAILED, psbt_load(raw, raw_len, &r));
+}
+
+// A full previous transaction that isn't the one this input spends: the
+// amount shown would come from the witness UTXO, signing from the other copy.
+void test_mismatched_previous_tx_rejected() {
+    load_seed(SINGLESIG_MNEMONIC);
+    edit_psbt([](struct wally_psbt *p) {
+        struct wally_tx *prev = nullptr;
+        uint8_t txid[32] = {0}, script[22] = {0x00, 20};
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_init_alloc(2, 0, 1, 1, &prev));
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_add_raw_input(prev, txid, 32, 0, 0xfffffffd, nullptr, 0, nullptr, 0));
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_add_raw_output(prev, 300000, script, sizeof(script), 0));
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_input_set_utxo(&p->inputs[0], prev));
+        wally_tx_free(prev);
+    });
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_PARSE_FAILED, psbt_load(raw, raw_len, &r));
+}
+
+// Scripts a native single-sig input never has: libwally would sign with them,
+// so signing would fail (or sign something else) after review passed.
+void test_extra_input_scripts_rejected() {
+    static const uint8_t script[] = {0x00, 0x14, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
+    static uint8_t saved[4096];
+    static size_t saved_len;
+    load_seed(SINGLESIG_MNEMONIC);
+    memcpy(saved, raw, raw_len);
+    saved_len = raw_len;
+    PsbtReview r;
+    edit_psbt([](struct wally_psbt *p) {
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_input_set_redeem_script(&p->inputs[0], script, sizeof(script)));
+    });
+    TEST_ASSERT_EQUAL(PSBT_PARSE_FAILED, psbt_load(raw, raw_len, &r));
+    memcpy(raw, saved, saved_len);
+    raw_len = saved_len;
+    edit_psbt([](struct wally_psbt *p) {
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_input_set_witness_script(&p->inputs[0], script, sizeof(script)));
+    });
+    TEST_ASSERT_EQUAL(PSBT_PARSE_FAILED, psbt_load(raw, raw_len, &r));
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_review_matches_seedsigner);
@@ -512,5 +583,9 @@ int main() {
     RUN_TEST(test_multisig_wrong_wallet);
     RUN_TEST(test_single_sig_with_descriptor_loaded);
     RUN_TEST(test_input_with_foreign_script_rejected);
+    RUN_TEST(test_no_outputs_rejected);
+    RUN_TEST(test_finalized_input_rejected);
+    RUN_TEST(test_mismatched_previous_tx_rejected);
+    RUN_TEST(test_extra_input_scripts_rejected);
     return UNITY_END();
 }
