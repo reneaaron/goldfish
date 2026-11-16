@@ -12,9 +12,12 @@ static int words;
 static SeedEntropy entropy;               // kept for the QR backup, wiped with the key
 static bool passphrase;                   // the root key was derived with one
 static bool testnet;
+static bool export_multisig;
 
 bool wallet_testnet() { return testnet; }
 void wallet_set_testnet(bool t) { testnet = t; }
+bool wallet_export_multisig() { return export_multisig; }
+void wallet_set_export_multisig(bool m) { export_multisig = m; }
 
 bool wallet_has_seed() { return loaded; }
 const struct ext_key *wallet_root() { return loaded ? &root : nullptr; }
@@ -102,21 +105,24 @@ size_t wallet_export_xpub(char *out, size_t cap) {
     wallet_fingerprint_hex(fp);
     const char *coin = testnet ? "1h" : "0h";
     const uint32_t H = BIP32_INITIAL_HARDENED_CHILD;
-    const uint32_t path[3] = {H | 84, H | (testnet ? 1u : 0u), H | 0};
+    // BIP-84 account 0, or BIP-48 account 0 with script type 2 (P2WSH).
+    const bool ms = export_multisig;
+    const uint32_t path[4] = {H | (ms ? 48u : 84u), H | (testnet ? 1u : 0u), H | 0, H | 2};
+    const size_t path_len = ms ? 4 : 3;
 
     struct ext_key acct;
     uint8_t ser[BIP32_SERIALIZED_LEN];
-    bool ok = bip32_key_from_parent_path(&root, path, 3, BIP32_FLAG_KEY_PRIVATE, &acct) == WALLY_OK &&
+    bool ok = bip32_key_from_parent_path(&root, path, path_len, BIP32_FLAG_KEY_PRIVATE, &acct) == WALLY_OK &&
               bip32_key_serialize(&acct, BIP32_FLAG_KEY_PUBLIC, ser, sizeof(ser)) == WALLY_OK;
     secure_zero(&acct, sizeof(acct));     // drop the account private key
     if (!ok) return 0;
 
-    // SLIP-132 version bytes for native segwit: zpub / vpub.
-    const uint32_t ver = testnet ? 0x045f1cf6 : 0x04b24746;
+    // SLIP-132 version bytes for native segwit: zpub / vpub, multisig Zpub / Vpub.
+    const uint32_t ver = ms ? (testnet ? 0x02575483 : 0x02aa7ed3) : (testnet ? 0x045f1cf6 : 0x04b24746);
     ser[0] = ver >> 24; ser[1] = ver >> 16; ser[2] = ver >> 8; ser[3] = ver;
     char *key = nullptr;
     if (wally_base58_from_bytes(ser, sizeof(ser), BASE58_FLAG_CHECKSUM, &key) != WALLY_OK) return 0;
-    size_t n = snprintf(out, cap, "[%s/84h/%s/0h]%s", fp, coin, key);
+    size_t n = snprintf(out, cap, ms ? "[%s/48h/%s/0h/2h]%s" : "[%s/84h/%s/0h]%s", fp, coin, key);
     wally_free_string(key);
     return n;
 }

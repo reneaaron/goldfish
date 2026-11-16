@@ -630,12 +630,18 @@ static void build_export_xpub() {
     qr_card(scr, BAR + 2, &qr);
     lv_qrcode_update(qr, xpub, n);
 
+    bool ms = wallet_export_multisig();
+    static const char *const about[2][2] = {
+        {"zpub  \xC2\xB7  Native SegWit  \xC2\xB7  m/84'/0'/0'", "vpub  \xC2\xB7  Native SegWit  \xC2\xB7  m/84'/1'/0'"},
+        {"Zpub  \xC2\xB7  Multisig  \xC2\xB7  m/48'/0'/0'/2'", "Vpub  \xC2\xB7  Multisig  \xC2\xB7  m/48'/1'/0'/2'"},
+    };
     lv_obj_align(text(scr, "Scan with your wallet app", &inter_15, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 2 + QR_CARD + 8);
-    lv_obj_align(text(scr, tn ? "vpub  \xC2\xB7  Native SegWit  \xC2\xB7  m/84'/1'/0'"
-                              : "zpub  \xC2\xB7  Native SegWit  \xC2\xB7  m/84'/0'/0'", &inter_13, tn ? AMBER : TEXT_3),
-                 LV_ALIGN_TOP_MID, 0, BAR + 2 + QR_CARD + 30);
-    lv_obj_align(quiet_link(scr, tn ? "Network: Testnet  " ICON_RIGHT : "Network: Mainnet  " ICON_RIGHT, go_cb, GO(UI_NETWORK)),
-                 LV_ALIGN_BOTTOM_MID, 0, -6);
+    lv_obj_align(text(scr, about[ms][tn], &inter_13, tn ? AMBER : TEXT_3), LV_ALIGN_TOP_MID, 0, BAR + 2 + QR_CARD + 30);
+    // Which key, and for which network: two quiet links, side by side like the wallet menu's.
+    lv_obj_align(quiet_link(scr, ms ? "Multisig  " ICON_RIGHT : "Single-sig  " ICON_RIGHT, go_cb, GO(UI_KEY_TYPE)),
+                 LV_ALIGN_BOTTOM_LEFT, M - 12, -6);
+    lv_obj_align(quiet_link(scr, tn ? "Testnet  " ICON_RIGHT : "Mainnet  " ICON_RIGHT, go_cb, GO(UI_NETWORK)),
+                 LV_ALIGN_BOTTOM_RIGHT, -(M - 12), -6);
     show(scr);
 }
 
@@ -646,23 +652,39 @@ static void network_cb(lv_event_t *e) {
     ui_goto(UI_EXPORT_XPUB);
 }
 
-static void build_network() {
+// A two-row choice for Connect wallet, with the current one checked.
+static void build_export_choice(const char *title, const char *a, const char *b, bool b_on, lv_event_cb_t cb,
+                                const char *note) {
     lv_obj_t *scr = screen();
-    topbar(scr, "Network", to_export_cb);
+    topbar(scr, title, to_export_cb);
     lv_obj_t *c = card(scr, CW, 2 * 62 + 1);
     lv_obj_set_style_pad_all(c, 0, 0);
     lv_obj_set_style_clip_corner(c, true, 0);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 8);
-    bool tn = wallet_testnet();
-    lv_obj_t *r1 = list_row(c, nullptr, "Mainnet", nullptr, network_cb, nullptr);
+    lv_obj_t *r1 = list_row(c, nullptr, a, nullptr, cb, nullptr);
     lv_obj_align(r1, LV_ALIGN_TOP_MID, 0, 0);
     divider(c, 62);
-    lv_obj_t *r2 = list_row(c, nullptr, "Testnet", nullptr, network_cb, (void *)1);
+    lv_obj_t *r2 = list_row(c, nullptr, b, nullptr, cb, (void *)1);
     lv_obj_align(r2, LV_ALIGN_TOP_MID, 0, 63);
-    lv_obj_align(text(tn ? r2 : r1, ICON_CHECK, &inter_17_semi, ACCENT), LV_ALIGN_RIGHT_MID, -16, 0);
-    lv_obj_align(para(scr, "Testnet also covers signet and Mutinynet.", &inter_13, TEXT_3),
-                 LV_ALIGN_TOP_MID, 0, BAR + 8 + 125 + 16);
+    lv_obj_align(text(b_on ? r2 : r1, ICON_CHECK, &inter_17_semi, ACCENT), LV_ALIGN_RIGHT_MID, -16, 0);
+    lv_obj_align(para(scr, note, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, BAR + 8 + 125 + 16);
     show(scr);
+}
+
+static void build_network() {
+    build_export_choice("Network", "Mainnet", "Testnet", wallet_testnet(), network_cb,
+                        "Testnet also covers signet and Mutinynet.");
+}
+
+static void key_type_cb(lv_event_t *e) {
+    wallet_set_export_multisig(lv_event_get_user_data(e) != nullptr);
+    ui_goto(UI_EXPORT_XPUB);
+}
+
+static void build_key_type() {
+    build_export_choice("Wallet type", "Single-sig", "Multisig", wallet_export_multisig(), key_type_cb,
+                        "Multisig: this seed's key for a wallet with several signers. "
+                        "Afterwards, show the wallet's descriptor to this device.");
 }
 
 static void wipe_cb(lv_event_t *) {
@@ -1909,6 +1931,7 @@ void ui_goto(UiScreen s) {
         case UI_VERIFY_RESULT: build_verify(); break;
         case UI_EXPORT_XPUB: build_export_xpub(); break;
         case UI_NETWORK: build_network(); break;
+        case UI_KEY_TYPE: build_key_type(); break;
         case UI_WIPE_CONFIRM: build_wipe_confirm(); break;
         case UI_PSBT_ERROR: build_psbt_error(); break;
         case UI_PSBT_OVERVIEW: build_psbt_overview(); break;

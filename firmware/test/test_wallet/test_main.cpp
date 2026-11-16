@@ -47,6 +47,30 @@ void test_vpub() {
         out);
 }
 
+// The key for a multisig wallet: BIP-48 account 0, script type 2 (P2WSH),
+// with SLIP-132's Zpub / Vpub. Expected values worked out by embit.
+void test_multisig_keys() {
+    TEST_ASSERT_TRUE(wallet_load(zero_entropy_12()));
+    TEST_ASSERT_FALSE(wallet_export_multisig());   // single-sig unless asked
+    wallet_set_export_multisig(true);
+    char out[200];
+    TEST_ASSERT_GREATER_THAN(0, wallet_export_xpub(out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING(
+        "[73c5da0a/48h/0h/0h/2h]Zpub74Jru6aftwwHxCUCWEvP6DgrfFsdA4U6ZRtQ5i8qJpMcC39yZGv3egBhQfV3MS9pZtH5z8iV5qWkJsK6ESs6mSzt4qvGhzJxPeeVS2e1zUG",
+        out);
+    wallet_set_testnet(true);
+    size_t n = wallet_export_xpub(out, sizeof(out));
+    wallet_set_testnet(false);
+    wallet_set_export_multisig(false);
+    TEST_ASSERT_GREATER_THAN(0, n);
+    TEST_ASSERT_EQUAL_STRING(
+        "[73c5da0a/48h/1h/0h/2h]Vpub5n95dMZrDHj6SeBgJ1oz4Fae2N2eJNuWK3VTKDb2dzGpMFLUHLmtyDfen7AaQxwQ5mZnMyXdVrkEaoMLVTH8FmVBRVWPGFYWhmtDUGehGmq",
+        out);
+    // and back to the single-sig account
+    TEST_ASSERT_GREATER_THAN(0, wallet_export_xpub(out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING_LEN("[73c5da0a/84h/0h/0h]zpub", out, 24);
+}
+
 void test_wipe() {
     TEST_ASSERT_TRUE(wallet_load(zero_entropy_12()));
     SeedEntropy e;
@@ -101,6 +125,7 @@ int main() {
     RUN_TEST(test_fingerprint);
     RUN_TEST(test_zpub);
     RUN_TEST(test_vpub);
+    RUN_TEST(test_multisig_keys);
     RUN_TEST(test_wipe);
     RUN_TEST(test_passphrase);
     return UNITY_END();

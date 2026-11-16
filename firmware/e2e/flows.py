@@ -34,13 +34,19 @@ def load_by_qr(dev, mnemonic, compact=False):
     assert dev.screen == "SEED_LOADED", dev.text()
 
 
-def connect_wallet(dev):
-    """Wallet menu -> Connect wallet on testnet. Returns the key the wallet
-    app reads from the signer's screen, and leaves the signer on its menu."""
+def connect_wallet(dev, multisig=False):
+    """Wallet menu -> Connect wallet on testnet, for a single-sig or a
+    multisig wallet. Returns the key the wallet app reads from the signer's
+    screen, and leaves the signer on its menu."""
     dev.tap("Connect wallet")
-    if "Network: Testnet" not in dev.text():
-        dev.tap("Network: Mainnet")
+    if "Testnet  {RIGHT}" not in dev.texts():
+        dev.tap("Mainnet  {RIGHT}")
         dev.tap("Testnet")
+    showing = "Multisig" if "Multisig  {RIGHT}" in dev.texts() else "Single-sig"
+    wanted = "Multisig" if multisig else "Single-sig"
+    if showing != wanted:
+        dev.tap(showing + "  {RIGHT}")
+        dev.tap(wanted)
     export = dev.read_qr()
     dev.back()
     return parse_key_export(export)
