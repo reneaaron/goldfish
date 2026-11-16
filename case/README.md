@@ -41,17 +41,16 @@ Measured off the photos in that drawing, good to about 0.3 mm:
 - BOOT and RST are side buttons about 7 mm behind their 2.6 mm holes. Press
   them with a paperclip.
 
-## Not published, measure before printing
+## Camera
 
-Waveshare gives no drawing for the bundled OV5640 module (flex marked
-`DC-5M21-5640`). The camera seat is built on these guesses:
+OV5640 module, 21 mm type, from the module's outline drawing: base
+8.5 × 8.5 ±0.2, lens barrel Ø6 standing 1.19 above it, 5.03 tall overall,
+9 mm of free flex between the base and the contact strip.
 
-| Variable | Guess | What to measure |
-|---|---|---|
-| `camw` | 8.7 | square base of the module, plus 0.2 |
-| `lens` | 7.8 | round lens barrel diameter, plus 0.6 |
-| `ped` | 2.4 | barrel height above the square base, minus 0.6 |
-| `camy` | 0.5 | flex length from the connector to the base; 7.4 assumed |
+The module pushes lens-first into the frame on the case floor (`camw`), where
+four crush ribs (`rib`) grip the base. The barrel sits in a 6.8 mm hole
+(`lens`), 0.4 mm below the back surface. `camy` puts the frame 6 mm from the
+connector so the flex reaches with slack.
 
-The module pushes into the frame on the case floor, lens through the back,
-and is held by friction only.
+Not checked: that the module in the Waveshare -C bundle (flex marked
+`DC-5M21-5640`) matches this drawing.

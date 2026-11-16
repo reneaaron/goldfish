@@ -1,6 +1,6 @@
 let gw=37.1 gh=58.8 gr=2.6 clr=0.3 t=1.6 dep=7.2 hdr=9.2 up=0.9 play=0.15
 let ow=gw+2*clr+2*t oh=gh+2*clr+2*t orr=gr+clr+t zb=-(dep+hdr+t) ht=dep+hdr+t+up
-let bx=14.5 by=21.1 oy=-0.3 so=9.7 camx=0.4 camy=0.5 lens=7.8 camw=8.7 ped=2.4 keyx=9.45
+let bx=14.5 by=21.1 oy=-0.3 so=9.7 camx=0.4 camy=1.8 lens=6.8 camw=9 rib=0.25 keyx=9.45
 let wi=ow/2-t lw=0.9 tab=20 slot=0.8 sd=12
 plane XY offset=zb
 rect ow oh r=orr
@@ -12,13 +12,16 @@ plane XY offset=zb+t
 bosses: boss 4.5 dep+hdr-so bx,by+oy -bx,by+oy bx,-by+oy -bx,-by+oy
 plane XY offset=zb+t
 rect camw+2 camw+2 at=camx,camy r=1
-pedestal: extrude ped
-plane XY offset=zb+t+ped
-rect camw+2 camw+2 at=camx,camy r=1
 rect camw camw at=camx,camy r=0.3
-camframe: extrude 1.5
+camframe: extrude 2
+plane XY offset=zb+t
+rect 0.6 rib+0.2 at=camx,camy+camw/2-0.05
+rect 0.6 rib+0.2 at=camx,camy-camw/2+0.05
+rect rib+0.2 0.6 at=camx+camw/2-0.05,camy
+rect rib+0.2 0.6 at=camx-camw/2+0.05,camy
+ribs: extrude 2
 plane case.start
-lens: hole lens camx,-camy depth=t+ped
+lens: hole lens camx,-camy
 plane XZ offset=oh/2
 rect 14 8 at=0,-(dep+1.6) r=3.5
 usb: cut 2*t
