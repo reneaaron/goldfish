@@ -50,10 +50,6 @@ lv_indev_t *touch_init() {
     Wire.setClock(400000);
     Wire.begin();
 
-    uint8_t id = 0;
-    rd(REG_CHIP_ID, &id, 1);
-    Serial.printf("touch chip id 0x%02X (CST816D reports 0xB5)\n", id);
-
     wr(REG_DIS_AUTOSLEEP, 0x01);
     wr(REG_IRQ_CTL, 0x41);        // point mode
     wr(REG_IRQ_PULSE, 0x01);

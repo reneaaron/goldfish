@@ -93,6 +93,7 @@ static uint sm, prog_offset;
 static int dma_ch;
 static uint32_t armed_ms;
 static bool asleep;
+static char cam_err[40];   // shown on the scan screen, see platform_camera_error()
 
 // wait for the start of a frame, then push one byte per PCLK while HREF is high
 static uint16_t prog_instr[6];
@@ -115,8 +116,10 @@ static bool camera_init() {
 
     uint8_t hi = 0, lo = 0;
     bool ok = rd(0x300A, &hi) && rd(0x300B, &lo);
-    Serial.printf("camera chip id 0x%02X%02X (OV5640 reports 0x5640)\n", hi, lo);
-    if (!ok || hi != 0x56 || lo != 0x40) return false;
+    if (!ok || hi != 0x56 || lo != 0x40) {
+        snprintf(cam_err, sizeof(cam_err), "Chip id 0x%02X%02X, not 0x5640", hi, lo);
+        return false;
+    }
 
     for (size_t i = 0; i < sizeof(init_regs) / sizeof(init_regs[0]); i++) {
         if (init_regs[i][0] == DELAY) delay(init_regs[i][1]);
@@ -183,11 +186,13 @@ const uint8_t *platform_camera_frame(int *width, int *height) {
     if (state == CAM_BUSY) {
         if (dma_channel_is_busy(dma_ch)) {
             if (millis() - armed_ms < 1000) return nullptr;
-            Serial.println("camera: no frame within 1s");   // no VSYNC/PCLK, or fewer bytes than expected
+            // no VSYNC/PCLK, or fewer bytes than expected
+            snprintf(cam_err, sizeof(cam_err), "No image within 1s");
             dma_channel_abort(dma_ch);
             state = CAM_IDLE;
         } else {
             state = CAM_READY;
+            cam_err[0] = 0;
             *width = CAM_W;
             *height = OUT_H;
             return frame + OUT_Y * CAM_W;
@@ -198,6 +203,8 @@ const uint8_t *platform_camera_frame(int *width, int *height) {
     arm();
     return nullptr;
 }
+
+const char *platform_camera_error() { return cam_err[0] ? cam_err : nullptr; }
 
 void platform_camera_stop() {
     if (state != CAM_BUSY && state != CAM_READY) return;

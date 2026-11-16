@@ -248,9 +248,12 @@ the 520KB RAM limit and secure boot only show up on the real board.
    plug in USB-C. A drive called `RP2350` appears.
 2. Copy `firmware.uf2` onto it. The board reboots into the firmware.
 
-Or with the board already running PlatformIO firmware: `pio run -t upload`.
-
-Serial log: `pio device monitor`.
+The firmware is built without a USB stack, so the running device doesn't show
+up on a computer: there is no serial log and `pio run -t upload` can't reset
+it. Flashing always goes through BOOT, which starts the chip's built-in
+bootloader. That bootloader is in ROM and stays reachable over USB whatever
+the firmware does, so power the device from a charger or power bank, not a
+computer, when a seed is loaded.
 
 ## What to check on first boot
 
@@ -258,8 +261,9 @@ Serial log: `pio device monitor`.
   or red/blue swapped, adjust `0x21`/`0x36` in `src/board/display.cpp`).
 - Buttons react where you touch. If touches are mirrored or swapped, fix the
   mapping in `src/board/touch.cpp` (marked TODO).
-- The scan screen shows the camera image and the serial log prints
-  `camera chip id 0x5640`. The driver in `src/board/camera.cpp` is untested:
+- The scan screen shows the camera image. If it stays black, the line under
+  it says why: `Chip id 0x…, not 0x5640` (camera not found or not an OV5640)
+  or `No image within 1s` (no pixel clock or sync). The driver in `src/board/camera.cpp` is untested:
   if the image is blurry on an autofocus module, tune `CAM_FOCUS` there.
 
 ## Pin map

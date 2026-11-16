@@ -124,6 +124,8 @@ const uint8_t *platform_camera_frame(int *width, int *height) {
     return cam_frame;
 }
 
+const char *platform_camera_error() { return nullptr; }
+
 void platform_camera_stop() {}
 
 // ------------------------------------------------------------ screenshots
