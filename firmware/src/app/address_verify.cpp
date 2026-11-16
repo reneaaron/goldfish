@@ -5,6 +5,7 @@
 #include <wally_core.h>
 #include <wally_address.h>
 #include <wally_bip32.h>
+#include "multisig.h"
 #include "wallet.h"
 
 // BIP-21 amounts are decimal BTC ("0.001"); BIP177 shows them as whole
@@ -60,8 +61,10 @@ AddressParse address_parse(const uint8_t *data, size_t len, AddressCheck *out) {
     bool bech = strncmp(a, "bc1", 3) == 0 || strncmp(a, "tb1", 3) == 0;
     bool legacy = (a[0] == '1' || a[0] == '3' || a[0] == 'm' || a[0] == 'n' || a[0] == '2') && n >= 26 && n <= 35;
     if (!bech && !legacy) return ADDR_NOT_ADDRESS;
-    // P2WPKH: "bc1q" + 38 characters
-    if (!bech || a[3] != 'q' || n != 42) return ADDR_UNSUPPORTED;
+    // P2WPKH: "bc1q" + 38 characters; P2WSH: "bc1q" + 58
+    if (!bech || a[3] != 'q' || (n != 42 && n != 62)) return ADDR_UNSUPPORTED;
+    out->multisig = n == 62;
+    if (out->multisig && !multisig_loaded()) return ADDR_NEEDS_DESCRIPTOR;
 
     out->testnet = a[0] == 't';
     out->status = VERIFY_SEARCHING;
@@ -116,6 +119,8 @@ size_t address_at(bool testnet, int chain, int index, char *out, size_t cap) {
 bool address_verify_step(AddressCheck *c, int budget) {
     if (c->status != VERIFY_SEARCHING) return true;
     char buf[96];
+    // A multisig address derives a key per cosigner: fewer per call.
+    if (c->multisig && multisig_loaded() && budget > 1) budget = budget / multisig_info()->n + 1;
     // Interleave receive and change so likely addresses come up early:
     // receive 0..499, change 0..99, alternating while both have room.
     while (budget-- > 0 && c->checked < c->total) {
@@ -124,7 +129,9 @@ bool address_verify_step(AddressCheck *c, int budget) {
         if (k < 2 * VERIFY_CHANGE_LIMIT) { chain = k % 2; idx = k / 2; }
         else { chain = 0; idx = k - VERIFY_CHANGE_LIMIT; }
         c->checked++;
-        if (!address_at(c->testnet, chain, idx, buf, sizeof(buf))) { c->status = VERIFY_NOT_FOUND; return true; }
+        size_t got = c->multisig ? multisig_address(chain, uint32_t(idx), buf, sizeof(buf))
+                                 : address_at(c->testnet, chain, idx, buf, sizeof(buf));
+        if (!got) { c->status = VERIFY_NOT_FOUND; return true; }
         if (strcmp(buf, c->address) == 0) {
             c->status = VERIFY_FOUND;
             c->chain = chain;

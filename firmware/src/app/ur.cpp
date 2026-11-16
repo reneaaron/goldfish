@@ -81,9 +81,7 @@ static size_t bytewords_encode(const uint8_t *d, size_t n, char *out, size_t cap
 }
 
 // ------------------------------------------------------------ minimal CBOR
-struct Cbor { const uint8_t *p, *end; };
-
-static bool cbor_head(Cbor *c, uint8_t *major, uint64_t *val) {
+bool cbor_head(Cbor *c, uint8_t *major, uint64_t *val) {
     if (c->p >= c->end) return false;
     uint8_t b = *c->p++;
     *major = b >> 5;
@@ -231,14 +229,23 @@ static void add_pure(UrDecoder *d, int idx, const uint8_t *data) {
     d->found++;
 }
 
+// The assembled message: a CBOR byte string for crypto-psbt and bytes (the
+// payload is what's inside), any CBOR for crypto-output (the payload is all of it).
+static UrResult unwrap(UrDecoder *d, const uint8_t **payload, size_t *plen) {
+    Cbor c = {d->message, d->message + d->message_len};
+    if (d->type != UR_TYPE_OUTPUT) {
+        uint8_t major; uint64_t v;
+        if (!cbor_head(&c, &major, &v) || major != 2 || v > size_t(c.end - c.p)) return UR_BAD;
+        c.end = c.p + v;
+    }
+    *payload = c.p;
+    *plen = size_t(c.end - c.p);
+    return UR_COMPLETE;
+}
+
 static UrResult finish(UrDecoder *d, const uint8_t **payload, size_t *plen) {
     if (crc32(d->message, d->message_len) != d->checksum) return UR_BAD;
-    Cbor c = {d->message, d->message + d->message_len};
-    uint8_t major; uint64_t v;
-    if (!cbor_head(&c, &major, &v) || major != 2 || v > size_t(c.end - c.p)) return UR_BAD;
-    *payload = c.p;
-    *plen = size_t(v);
-    return UR_COMPLETE;
+    return unwrap(d, payload, plen);
 }
 
 UrResult ur_decoder_add(UrDecoder *d, const char *text, size_t len, const uint8_t **payload, size_t *plen) {
@@ -246,7 +253,11 @@ UrResult ur_decoder_add(UrDecoder *d, const char *text, size_t len, const uint8_
     const char *p = text + 3, *end = text + len;
     const char *slash = (const char *)memchr(p, '/', size_t(end - p));
     if (!slash) return UR_BAD;
-    if (size_t(slash - p) != 11 || strncasecmp(p, "crypto-psbt", 11) != 0) return UR_WRONG_TYPE;
+    static const char *const types[] = {"crypto-psbt", "crypto-output", "bytes"};
+    int type = -1;
+    for (int t = 0; t < 3; t++)
+        if (size_t(slash - p) == strlen(types[t]) && strncasecmp(p, types[t], size_t(slash - p)) == 0) type = t;
+    if (type < 0) return UR_WRONG_TYPE;
     p = slash + 1;
 
     static uint8_t buf[UR_MAX_MESSAGE + 64];
@@ -259,11 +270,8 @@ UrResult ur_decoder_add(UrDecoder *d, const char *text, size_t len, const uint8_
         memcpy(d->message, buf, n);
         d->message_len = uint32_t(n);
         d->checksum = 0;
-        Cbor c = {d->message, d->message + n};
-        uint8_t major; uint64_t v;
-        if (!cbor_head(&c, &major, &v) || major != 2 || v > size_t(c.end - c.p)) return UR_BAD;
-        *payload = c.p; *plen = size_t(v);
-        return UR_COMPLETE;
+        d->type = UrType(type);
+        return unwrap(d, payload, plen);
     }
 
     // multi-part: "seq-len/bytewords"
@@ -280,8 +288,10 @@ UrResult ur_decoder_add(UrDecoder *d, const char *text, size_t len, const uint8_
         seq_len * frag_len < msg_len)
         return UR_BAD;
 
-    if (d->seq_len != seq_len || d->checksum != checksum || d->message_len != msg_len || d->fragment_len != frag_len) {
-        ur_decoder_reset(d);   // a different transaction: start over
+    if (d->type != type || d->seq_len != seq_len || d->checksum != checksum || d->message_len != msg_len ||
+        d->fragment_len != frag_len) {
+        ur_decoder_reset(d);   // a different message: start over
+        d->type = UrType(type);
         d->seq_len = uint32_t(seq_len);
         d->checksum = uint32_t(checksum);
         d->message_len = uint32_t(msg_len);

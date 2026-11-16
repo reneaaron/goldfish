@@ -43,6 +43,9 @@ been tested on real hardware or against Sparrow.
 4. Verify address: scan a receive address to confirm it belongs to your seed.
 5. Child seed: derive a BIP-85 child seed and back it up as words and a QR
    card, like a new seed.
+6. Multisig: scan your wallet's descriptor QR in Sign transaction or Verify
+   address, check it on the device, then sign that wallet's transactions as
+   one of its cosigners (native segwit `wsh(sortedmulti)`).
 
 ## Quick start
 
@@ -59,4 +62,4 @@ simulator's test images, and [`case/README.md`](case/README.md) for printing.
 ## Roadmap
 
 Tracked as [issues](https://github.com/reneaaron/stateless-signer/issues):
-BIP-39 passphrase, address explorer, multisig and more.
+BIP-39 passphrase, address explorer and more.

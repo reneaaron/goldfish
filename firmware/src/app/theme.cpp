@@ -200,14 +200,14 @@ int kv(lv_obj_t *c, int y, const char *k, const char *v, lv_color_t vc, const lv
 lv_obj_t *kv_card(lv_obj_t *parent, const KvRow *rows, int n, const lv_font_t *vf) {
     bool under;
     const lv_font_t *f = kv_font(rows, n, vf, &under);
-    int rh = kv_row_h(f, under), ys[8], y = 0;
-    for (int i = 0; i < n && i < 8; i++) {
+    int rh = kv_row_h(f, under), ys[16], y = 0;
+    for (int i = 0; i < n && i < 16; i++) {
         if (i) y += rh + (under ? KV_STEP / 2 : KV_STEP);   // stacked rows are already airy
         if (rows[i].rule) y += KV_STEP;
         ys[i] = y;
     }
     lv_obj_t *c = card(parent, CW, y + rh + 2 * CARD_PY);
-    for (int i = 0; i < n && i < 8; i++) {
+    for (int i = 0; i < n && i < 16; i++) {
         if (rows[i].rule) divider(c, ys[i] - KV_STEP);
         kv_place(c, ys[i], rows[i], f, under);
     }

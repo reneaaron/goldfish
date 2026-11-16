@@ -5,13 +5,14 @@ RP2350-Touch-LCD-2 (RP2350A, 16MB flash, 2" 240×320 touch screen, OV5640
 camera connector). The board has no Wi-Fi or Bluetooth hardware.
 
 Status: early. Seed loading, BIP-39 passphrases, new seeds with a SeedQR backup, xpub export and
-PSBT review/signing work in the simulator; the board's camera driver is untested on hardware. Not for real funds.
+PSBT review/signing (single-sig and multisig) work in the simulator; the board's camera driver is untested on hardware. Not for real funds.
 
 ![Seed flow in the simulator](docs/screens/flow.png)
 ![Transaction flow in the simulator](docs/screens/flow_psbt.png)
 ![Verify address in the simulator](docs/screens/flow_verify.png)
 ![New seed in the simulator](docs/screens/flow_new_seed.png)
 ![Enter words and back up as QR in the simulator](docs/screens/flow_restore_backup.png)
+![Multisig in the simulator](docs/screens/flow_multisig.png)
 
 ## How it works
 
@@ -90,8 +91,35 @@ truncated or drawn over other text.
 Review follows SeedSigner's rules: every input must belong to the loaded seed,
 change counts as change only if the seed re-derives that exact output script,
 and an output that claims our fingerprint but doesn't verify blocks signing.
-Single-sig native segwit only, mainnet or testnet (from the PSBT's derivation
-paths). BBQr input isn't supported yet.
+Native segwit only, single-sig or multisig, mainnet or testnet (from the PSBT's
+derivation paths, or the multisig descriptor's keys). BBQr input isn't supported yet.
+
+Multisig is `wsh(sortedmulti(...))`, up to 15 keys, with the loaded seed as one
+cosigner. The device needs the wallet's output descriptor, because a PSBT alone
+can name any cosigner keys next to ours:
+
+- Show the descriptor QR to the Sign transaction or Verify address scanner: as
+  plain text, as a `crypto-output` UR (BCR-2020-010, sortedmulti with HD keys),
+  or as text in a `bytes` UR. `/<0;1>/*`, `/{0,1}/*` and `/0/*` are all read as
+  receive 0, change 1. A checksum, if there is one, must be right
+- The seed must really be one of the keys: the key at the origin path the
+  descriptor gives for our fingerprint has to be the xpub written there
+- A screen then shows M of N, every key's fingerprint and the first receive
+  address to check against the wallet app. Only "Use wallet" makes the device
+  use it; leaving the screen drops it
+- From then on the Sign scanner takes that wallet's transactions (inputs and
+  change must be scripts the descriptor derives, not the PSBT's own witness
+  scripts) and the Verify scanner its addresses. A multisig transaction
+  without a confirmed descriptor is refused
+- The device adds its one signature; other cosigners' signatures stay in the
+  PSBT. It doesn't combine or finalize: the wallet app does
+- The descriptor is kept in RAM only and belongs to the key it was checked
+  with: it isn't used with another seed or another passphrase, and wiping the
+  seed or unplugging drops it, so it is scanned again next time
+
+Not supported: `multi` (unsorted), `sh(wsh(...))` and `sh(...)` multisig,
+taproot, miniscript, keys without an origin, Specter's and Coldcard's wallet
+file formats.
 
 ## Stack
 
@@ -122,10 +150,20 @@ pio test -e test
   and the BIP39 vector with passphrase `TREZOR` (root key, fingerprint `b4e3f5ed`),
   removed again and wiped with the seed
 - UR: SeedSigner's 29-part `crypto-psbt` vector, plus an encode/decode round trip
+- Multisig descriptor: SeedSigner's native segwit 2-of-3 test wallet, with
+  addresses and a witness script worked out by embit; the three spellings of
+  the chains, a `crypto-output` UR made with urtypes (also cut short at every
+  byte), bad checksum, unsupported forms, a seed that isn't a cosigner, our
+  fingerprint on someone else's key, and a changed passphrase
+- Multisig PSBT: that wallet's test input with change, a self-transfer and a
+  payment; our signature checked against the transaction and against the hash
+  embit signed; a cosigner's signature kept; no descriptor, a 3-of-3 of the
+  same keys, and change that pays another script
 - PSBT review: SeedSigner's single-sig testnet vector (₿25,000 in, ₿24,857 out,
   ₿143 fee), signing, wrong seed and garbage input
 - Verify address: BIP84 first receive/change addresses, URIs and their
-  amounts, testnet, foreign addresses, and a different seed loaded afterwards
+  amounts, testnet, foreign addresses, and a different seed loaded afterwards;
+  multisig receive and change addresses, with and without the descriptor
 - Amounts: BIP177 and legacy BTC formatting from ₿0 to the 21M cap
 - BIP-85: the spec's 12 and 24-word BIP39 vectors, child number bounds, and
   the child's fingerprint matching the same seed loaded

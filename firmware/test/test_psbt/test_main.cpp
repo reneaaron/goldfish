@@ -1,4 +1,5 @@
-// PSBT review/signing against SeedSigner's single-frame testnet vector.
+// PSBT review/signing against SeedSigner's single-frame testnet vector, and
+// its native segwit 2-of-3 multisig test wallet.
 // Run: pio test -e test
 #include <unity.h>
 #include <stdio.h>
@@ -10,8 +11,11 @@
 #include <wally_psbt.h>
 #include <wally_psbt_members.h>
 #include <wally_transaction.h>
+#include <string>
+#include "../../src/app/multisig.h"
 #include "../../src/app/psbt_review.h"
 #include "../../src/app/wallet.h"
+#include "../fixtures/multisig_vectors.h"
 #include "../fixtures/seedsigner_vectors.h"
 
 static uint8_t raw[4096];
@@ -26,6 +30,7 @@ static void load_seed(const char *mnemonic) {
 }
 
 void setUp() {
+    multisig_clear();
     TEST_ASSERT_EQUAL(WALLY_OK, wally_base64_to_bytes(SINGLESIG_FRAME, 0, raw, sizeof(raw), &raw_len));
     TEST_ASSERT_GREATER_THAN(0, raw_len);
 }
@@ -306,6 +311,152 @@ void test_non_witness_utxo_input() {
     psbt_clear();
 }
 
+// ------------------------------------------------------------ multisig
+// 2-of-3 wsh(sortedmulti): 100,000,000 in; change 99,649,000 at 1/4, a
+// self-transfer of 100,000 at 0/2, 250,000 to somebody else; fee 1,000.
+static void load_multisig(const char *psbt_b64, const char *mnemonic = MS_MNEMONIC, bool descriptor = true) {
+    load_seed(mnemonic);
+    if (descriptor) TEST_ASSERT_EQUAL(MS_OK, multisig_load(MS_DESCRIPTOR, strlen(MS_DESCRIPTOR)));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_base64_to_bytes(psbt_b64, 0, raw, sizeof(raw), &raw_len));
+}
+
+void test_multisig_review() {
+    load_multisig(MS_PSBT);
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_OK, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(2, r.ms_m);
+    TEST_ASSERT_EQUAL(3, r.ms_n);
+    TEST_ASSERT_TRUE(r.testnet);
+    TEST_ASSERT_EQUAL_UINT64(100000000, r.input_total);
+    TEST_ASSERT_EQUAL_UINT64(99649000, r.change);
+    TEST_ASSERT_EQUAL_UINT64(100000, r.self);
+    TEST_ASSERT_EQUAL_UINT64(250000, r.spend);
+    TEST_ASSERT_EQUAL_UINT64(1000, r.fee);
+    TEST_ASSERT_EQUAL(3, r.n_outputs);
+    TEST_ASSERT_TRUE(r.outputs[0].is_change);
+    TEST_ASSERT_EQUAL_STRING(MS_ADDR_CHANGE_4, r.outputs[0].address);
+    TEST_ASSERT_EQUAL_STRING("m/48h/1h/0h/2h/1/4", r.outputs[0].path);
+    TEST_ASSERT_TRUE(r.outputs[1].is_self);
+    TEST_ASSERT_FALSE(r.outputs[2].is_change || r.outputs[2].is_self || r.outputs[2].suspicious);
+    psbt_clear();
+}
+
+// Without the descriptor nothing in the PSBT can be checked: no review, no signature.
+void test_multisig_needs_descriptor() {
+    load_multisig(MS_PSBT, MS_MNEMONIC, false);
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_NEEDS_DESCRIPTOR, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(0, psbt_sign());
+    psbt_clear();
+}
+
+// Is `der_sig` (DER plus sighash byte, hex) a signature by `pubkey` over input 0 of `p`?
+static bool signs_input(struct wally_psbt *p, const uint8_t *pubkey, const uint8_t *der_sig, size_t der_len) {
+    struct wally_tx *tx = nullptr;
+    uint8_t hash[32], compact[EC_SIGNATURE_LEN], ws[MS_MAX_WITNESS_SCRIPT];
+    size_t ws_len = 0;
+    bool ok = der_len > 1 && der_sig[der_len - 1] == WALLY_SIGHASH_ALL &&
+              wally_psbt_get_global_tx_alloc(p, &tx) == WALLY_OK &&
+              wally_psbt_get_input_witness_script(p, 0, ws, sizeof(ws), &ws_len) == WALLY_OK && ws_len <= sizeof(ws) &&
+              wally_psbt_get_input_signature_hash(p, 0, tx, ws, ws_len, 0, hash, sizeof(hash)) == WALLY_OK &&
+              wally_ec_sig_from_der(der_sig, der_len - 1, compact, sizeof(compact)) == WALLY_OK &&
+              wally_ec_sig_verify(pubkey, EC_PUBLIC_KEY_LEN, hash, sizeof(hash), EC_FLAG_ECDSA, compact,
+                                  sizeof(compact)) == WALLY_OK;
+    if (tx) wally_tx_free(tx);
+    return ok;
+}
+
+// Our signature is valid for the transaction, over the same hash embit signed.
+void test_multisig_sign() {
+    load_multisig(MS_PSBT);
+    struct wally_psbt *before = nullptr, *after = nullptr;
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_from_bytes(raw, raw_len, 0, &before));
+    uint8_t pub[EC_PUBLIC_KEY_LEN], embit_sig[80];
+    size_t n = 0, embit_len = 0;
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_hex_to_bytes(MS_SIG_PUBKEY, pub, sizeof(pub), &n));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_hex_to_bytes(MS_SIG, embit_sig, sizeof(embit_sig), &embit_len));
+    TEST_ASSERT_TRUE(signs_input(before, pub, embit_sig, embit_len));
+
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_OK, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(1, psbt_sign());
+    static uint8_t out[8192];
+    size_t out_len = psbt_serialize(out, sizeof(out));
+    TEST_ASSERT_GREATER_THAN(0, out_len);
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_from_bytes(out, out_len, 0, &after));
+    TEST_ASSERT_EQUAL(1, after->inputs[0].signatures.num_items);
+    const struct wally_map_item &sig = after->inputs[0].signatures.items[0];
+    TEST_ASSERT_EQUAL(EC_PUBLIC_KEY_LEN, sig.key_len);
+    TEST_ASSERT_EQUAL_MEMORY(pub, sig.key, EC_PUBLIC_KEY_LEN);
+    TEST_ASSERT_TRUE(signs_input(before, pub, sig.value, sig.value_len));
+    wally_psbt_free(before);
+    wally_psbt_free(after);
+    psbt_clear();
+}
+
+// A cosigner signed first: ours is added, theirs is kept.
+void test_multisig_second_signature() {
+    load_multisig(MS_PSBT_COSIGNED);
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_OK, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(1, psbt_sign());
+    static uint8_t out[8192];
+    size_t out_len = psbt_serialize(out, sizeof(out));
+    struct wally_psbt *after = nullptr;
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_from_bytes(out, out_len, 0, &after));
+    TEST_ASSERT_EQUAL(2, after->inputs[0].signatures.num_items);
+    wally_psbt_free(after);
+    psbt_clear();
+}
+
+// The other cosigner's seed reviews and signs the same transaction.
+void test_multisig_other_cosigner() {
+    load_multisig(MS_PSBT, MS_MNEMONIC_2);
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_OK, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL_UINT64(99649000, r.change);
+    TEST_ASSERT_EQUAL(1, psbt_sign());
+    psbt_clear();
+}
+
+// Change that keeps the wallet's key paths and witness script but pays another script.
+void test_multisig_fake_change() {
+    load_multisig(MS_PSBT_TAMPERED);
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_SUSPICIOUS, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_TRUE(r.outputs[0].suspicious);
+    TEST_ASSERT_FALSE(r.outputs[0].is_change);
+    TEST_ASSERT_EQUAL_UINT64(0, r.change);
+    TEST_ASSERT_EQUAL(0, psbt_sign());
+    psbt_clear();
+}
+
+// The same keys as a 3-of-3 are a different wallet: its scripts differ.
+void test_multisig_wrong_wallet() {
+    load_seed(MS_MNEMONIC);
+    std::string d = MS_DESCRIPTOR;
+    d = d.substr(0, d.find('#'));
+    d.replace(d.find("(2,"), 3, "(3,");
+    TEST_ASSERT_EQUAL(MS_OK, multisig_load(d.c_str(), d.size()));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_base64_to_bytes(MS_PSBT, 0, raw, sizeof(raw), &raw_len));
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_WRONG_WALLET, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(0, psbt_sign());
+    psbt_clear();
+}
+
+// A single-sig transaction is reviewed as before with a descriptor loaded.
+void test_single_sig_with_descriptor_loaded() {
+    load_seed(MS_MNEMONIC);
+    TEST_ASSERT_EQUAL(MS_OK, multisig_load(MS_DESCRIPTOR, strlen(MS_DESCRIPTOR)));
+    load_seed(SINGLESIG_MNEMONIC);
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_OK, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(0, r.ms_m);
+    TEST_ASSERT_EQUAL_UINT64(24857, r.spend);
+    psbt_clear();
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_review_matches_seedsigner);
@@ -320,5 +471,13 @@ int main() {
     RUN_TEST(test_already_signed);
     RUN_TEST(test_psbt_v2);
     RUN_TEST(test_non_witness_utxo_input);
+    RUN_TEST(test_multisig_review);
+    RUN_TEST(test_multisig_needs_descriptor);
+    RUN_TEST(test_multisig_sign);
+    RUN_TEST(test_multisig_second_signature);
+    RUN_TEST(test_multisig_other_cosigner);
+    RUN_TEST(test_multisig_fake_change);
+    RUN_TEST(test_multisig_wrong_wallet);
+    RUN_TEST(test_single_sig_with_descriptor_loaded);
     return UNITY_END();
 }

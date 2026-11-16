@@ -9,6 +9,7 @@
 #include "address_verify.h"
 #include "amount.h"
 #include "bip85.h"
+#include "multisig.h"
 #include "psbt_review.h"
 #include "seed_create.h"
 #include "qrscan.h"
@@ -180,23 +181,64 @@ static void handle_seed_payload(QrPayload &p) {
     else scan_status("No seed found", "This QR doesn't hold a seed", AMBER);
 }
 
+// A multisig descriptor shown to the Sign or Verify scanner. It is only used
+// once the user has checked it on the Multisig wallet screen (ms_confirmed).
+static UiScreen ms_return = UI_SCAN_PSBT;   // the scanner it came from
+static bool ms_confirmed;
+
+static void descriptor_result(MsResult r) {
+    if (r == MS_OK) {
+        ms_confirmed = false;
+        ms_return = scan_mode == SCAN_ADDRESS ? UI_SCAN_ADDRESS : UI_SCAN_PSBT;
+        scan_stop();
+        ur_decoder_reset(&ur_dec);
+        ui_goto(UI_MULTISIG);
+    } else if (r == MS_NOT_OURS) {
+        scan_status("Different wallet", "This seed isn't one of its keys", AMBER);
+    } else if (r == MS_UNSUPPORTED) {
+        scan_status("Not supported yet", "Only wsh(sortedmulti) multisig", AMBER);
+    } else {
+        scan_status("Damaged descriptor", "Export it again from your wallet", RED);
+    }
+}
+
+// Plain text descriptor. False if the QR isn't one.
+static bool handle_descriptor_text(const QrPayload &p) {
+    MsResult r = multisig_load((const char *)p.data, p.len);
+    if (r == MS_NOT_DESCRIPTOR) return false;
+    descriptor_result(r);
+    return true;
+}
+
+// A UR part: a transaction (Sign only) or a multisig descriptor.
+static void handle_ur(QrPayload &p) {
+    const bool sign = scan_mode == SCAN_PSBT;
+    const uint8_t *payload; size_t plen;
+    UrResult r = ur_decoder_add(&ur_dec, (const char *)p.data, p.len, &payload, &plen);
+    if (r == UR_COMPLETE && ur_dec.type == UR_TYPE_PSBT) {
+        if (sign) psbt_complete(payload, plen);
+        else scan_status("That's a transaction", "Use Sign transaction instead", AMBER);
+    } else if (r == UR_COMPLETE) {
+        MsResult m = ur_dec.type == UR_TYPE_OUTPUT ? multisig_load_ur_output(payload, plen)
+                                                   : multisig_load((const char *)payload, plen);
+        if (m != MS_NOT_DESCRIPTOR) descriptor_result(m);
+        else if (sign) scan_status("Not a transaction", "Show the transaction QR instead", AMBER);
+        else scan_status("Not an address", "Show the receive address QR", AMBER);
+    } else if (r == UR_PROGRESS) {
+        char m[32];
+        snprintf(m, sizeof(m), "%d%% received", ur_decoder_percent(&ur_dec));
+        scan_status(m, "Hold steady until it's done", ACCENT);
+        lv_obj_remove_flag(scan_bar, LV_OBJ_FLAG_HIDDEN);
+        lv_bar_set_value(scan_bar, ur_decoder_percent(&ur_dec), LV_ANIM_ON);
+    } else if (r == UR_WRONG_TYPE) {
+        if (sign) scan_status("Not a transaction", "Show the transaction QR instead", AMBER);
+        else scan_status("Not an address", "Show the receive address QR", AMBER);
+    }
+}
+
 static void handle_psbt_payload(QrPayload &p) {
     static uint8_t raw[UR_MAX_MESSAGE];
-    if (starts_with_ci(p, "ur:")) {
-        const uint8_t *payload; size_t plen;
-        UrResult r = ur_decoder_add(&ur_dec, (const char *)p.data, p.len, &payload, &plen);
-        if (r == UR_COMPLETE) { psbt_complete(payload, plen); return; }
-        if (r == UR_PROGRESS) {
-            char m[32];
-            snprintf(m, sizeof(m), "%d%% received", ur_decoder_percent(&ur_dec));
-            scan_status(m, "Hold steady until it's done", ACCENT);
-            lv_obj_remove_flag(scan_bar, LV_OBJ_FLAG_HIDDEN);
-            lv_bar_set_value(scan_bar, ur_decoder_percent(&ur_dec), LV_ANIM_ON);
-        } else if (r == UR_WRONG_TYPE) {
-            scan_status("Not a transaction", "Show the transaction QR instead", AMBER);
-        }
-        return;
-    }
+    if (starts_with_ci(p, "ur:")) { handle_ur(p); return; }
     if (starts_with_ci(p, "cHNidP")) {
         // libwally wants a C string without line breaks: drop whitespace in place.
         size_t len = 0;
@@ -215,6 +257,7 @@ static void handle_psbt_payload(QrPayload &p) {
     }
     if (p.len >= 5 && memcmp(p.data, "psbt\xff", 5) == 0) { psbt_complete(p.data, p.len); return; }
     if (starts_with_ci(p, "B$")) { scan_status("BBQr isn't supported yet", "Switch your wallet to UR", AMBER); return; }
+    if (handle_descriptor_text(p)) return;
 
     SeedEntropy e;
     bool seed = seedqr_decode(p.data, p.len, &e) == SEEDQR_OK;
@@ -231,7 +274,10 @@ static void handle_address_payload(QrPayload &p) {
         return;
     }
     if (r == ADDR_UNSUPPORTED) { scan_status("Not supported yet", "Only bc1q addresses for now", AMBER); return; }
+    if (r == ADDR_NEEDS_DESCRIPTOR) { scan_status("Multisig address", "Scan the wallet's descriptor first", AMBER); return; }
     if (looks_like_psbt(p)) { scan_status("That's a transaction", "Use Sign transaction instead", AMBER); return; }
+    if (starts_with_ci(p, "ur:")) { handle_ur(p); return; }
+    if (handle_descriptor_text(p)) return;
     SeedEntropy e;
     bool seed = seedqr_decode(p.data, p.len, &e) == SEEDQR_OK;
     seedqr_wipe(&e);
@@ -291,7 +337,7 @@ static void corners(lv_obj_t *parent, int cx, int cy, int size) {
 static void build_scan(ScanMode mode) {
     scan_mode = mode;
     bool seed = mode == SCAN_SEED;
-    if (mode == SCAN_PSBT) ur_decoder_reset(&ur_dec);
+    if (mode == SCAN_PSBT || mode == SCAN_ADDRESS) ur_decoder_reset(&ur_dec);
     lv_obj_t *scr = screen();
     static const char *titles[] = {"Scan seed", "Scan transaction", "Verify address", "Check card"};
     static const char *prompts[] = {"Point at your seed QR", "Point at your wallet's QR", "Point at the address QR",
@@ -538,6 +584,11 @@ static void build_seed_menu() {
     snprintf(spaced, sizeof(spaced), "%.4s %.4s", fp, fp + 4);
     lv_obj_t *sub = text(scr, spaced, &mono_16, TEXT_2, LV_TEXT_ALIGN_LEFT);
     lv_obj_set_pos(sub, M + 52, 36);
+    if (const MsInfo *ms = multisig_info()) {   // a multisig wallet is loaded for this seed
+        char tag[16];
+        snprintf(tag, sizeof(tag), "%d OF %d", ms->m, ms->n);
+        lv_obj_align(chip(scr, tag, ACCENT, ACCENT_DIM), LV_ALIGN_TOP_RIGHT, -M, 24);
+    }
 
     // Four rows: a little shorter than list_row's default so Wipe still fits.
     const int RH = 50;
@@ -612,6 +663,7 @@ static void build_network() {
 
 static void wipe_cb(lv_event_t *) {
     psbt_clear();
+    multisig_clear();
     wallet_wipe();
     ui_goto(UI_HOME);
 }
@@ -1447,13 +1499,21 @@ static void discard_psbt_cb(lv_event_t *) {
     ui_goto(UI_SEED_MENU);
 }
 
+static void scan_descriptor_cb(lv_event_t *) {
+    psbt_clear();
+    ui_goto(UI_SCAN_PSBT);
+}
+
 static void build_psbt_error() {
     lv_obj_t *scr = screen();
-    bool sus = review.error == PSBT_SUSPICIOUS;
+    bool sus = review.error == PSBT_SUSPICIOUS, desc = review.error == PSBT_NEEDS_DESCRIPTOR;
     lv_obj_align(icon_badge(scr, ICON_WARNING, sus ? RED : AMBER, sus ? RED_DIM : AMBER_DIM, 64), LV_ALIGN_TOP_MID, 0, 44);
-    lv_obj_align(text(scr, sus ? "Don't sign this" : "Can't sign this", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, 126);
+    lv_obj_align(text(scr, sus ? "Don't sign this" : desc ? "Multisig wallet" : "Can't sign this", &fraunces_24, TEXT),
+                 LV_ALIGN_TOP_MID, 0, 126);
     lv_obj_align(para(scr, psbt_error_text(review.error)), LV_ALIGN_TOP_MID, 0, 162);
-    place_bottom(btn_primary(scr, "Back to wallet", discard_psbt_cb));
+    // The Sign scanner takes the descriptor too.
+    if (desc) bottom_pair(btn_ghost(scr, "Back", discard_psbt_cb, nullptr, TEXT), btn_primary(scr, "Scan it", scan_descriptor_cb));
+    else place_bottom(btn_primary(scr, "Back to wallet", discard_psbt_cb));
     show(scr);
 }
 
@@ -1466,7 +1526,13 @@ static int recipient_count() {
 
 static void build_psbt_overview() {
     lv_obj_t *scr = screen();
-    topbar(scr, "Review", discard_psbt_cb);
+    if (review.ms_m) {   // from the multisig wallet: "2 OF 3"
+        char ms[16];
+        snprintf(ms, sizeof(ms), "%d OF %d", review.ms_m, review.ms_n);
+        topbar(scr, "Review", discard_psbt_cb, ms, ACCENT, ACCENT_DIM);
+    } else {
+        topbar(scr, "Review", discard_psbt_cb);
+    }
 
     bool self_only = review.spend == 0;
     uint64_t headline = self_only ? review.self : review.spend;
@@ -1753,6 +1819,52 @@ static void build_verify() {
     show(scr);
 }
 
+// ---------------------------------------------------------------- multisig wallet
+// A descriptor is only as good as where it came from, so before it is used the
+// user checks it against the wallet app: M of N, every key's fingerprint, and
+// the first receive address.
+void ui_multisig_use() {
+    if (ui_current() != UI_MULTISIG) return;
+    ms_confirmed = true;
+    ui_goto(ms_return);
+}
+static void ms_use_cb(lv_event_t *) { ui_multisig_use(); }
+static void ms_cancel_cb(lv_event_t *) { ui_goto(ms_return); }   // leaving unconfirmed drops it
+
+static void build_multisig() {
+    const MsInfo *ms = multisig_info();
+    lv_obj_t *scr = screen();
+    char title[24];
+    snprintf(title, sizeof(title), "%d of %d multisig", ms->m, ms->n);
+    topbar(scr, title, ms_cancel_cb);
+    lv_obj_align(text(scr, "Check it against your wallet app", &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, BAR + 2);
+
+    lv_obj_t *area = scroll_area(scr, BAR + 28);
+    static char keys[MS_MAX_KEYS][12], fps[MS_MAX_KEYS][12];
+    KvRow rows[MS_MAX_KEYS];
+    for (int i = 0; i < ms->n; i++) {
+        const uint8_t *f = ms->fingerprint[i];
+        if (i == ms->ours) snprintf(keys[i], sizeof(keys[i]), "This seed");
+        else snprintf(keys[i], sizeof(keys[i]), "Key %d", i + 1);
+        snprintf(fps[i], sizeof(fps[i]), "%02x%02x %02x%02x", f[0], f[1], f[2], f[3]);
+        rows[i] = {keys[i], fps[i], i == ms->ours ? GREEN : TEXT, i > 0};
+    }
+    lv_obj_t *kc = kv_card(area, rows, ms->n, &mono_16);
+    lv_obj_update_layout(kc);
+
+    char first[96] = "";
+    multisig_address(0, 0, first, sizeof(first));
+    lv_obj_t *c = card(area, CW, 0);
+    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, lv_obj_get_height(kc) + 8);
+    lv_obj_t *cap = caption(c, ms->testnet ? "FIRST  \xC2\xB7  TESTNET" : "FIRST ADDRESS");
+    if (ms->testnet) lv_obj_set_style_text_color(cap, AMBER, 0);
+    lv_obj_align(cap, LV_ALIGN_TOP_LEFT, 0, 0);
+    lv_obj_set_height(c, 20 + address_chunks(c, first) + 2 * CARD_PY);
+
+    bottom_pair(btn_ghost(scr, "Cancel", ms_cancel_cb, nullptr, TEXT), btn_primary(scr, "Use wallet", ms_use_cb));
+    show(scr);
+}
+
 // ---------------------------------------------------------------- navigation
 // Making or entering a seed: only while none is loaded.
 static bool seed_entry_screen(UiScreen s) {
@@ -1767,6 +1879,9 @@ static bool backup_screen(UiScreen s) {
 void ui_goto(UiScreen s) {
     if (s != UI_SCAN_SEED && s != UI_SCAN_PSBT && s != UI_SCAN_ADDRESS && s != UI_BACKUP_SCAN) scan_stop();
     if (s != UI_PASSPHRASE) pass_wipe();
+    // A scanned descriptor that wasn't confirmed on its screen is never used.
+    if (s != UI_MULTISIG && !ms_confirmed) multisig_clear();
+    if (s == UI_MULTISIG && !multisig_loaded()) s = UI_SEED_MENU;
     // The new seed lives only inside its own flow: leaving it wipes everything.
     if (!seed_entry_screen(s) && !backup_screen(s)) new_seed_wipe();
     bool needs_pending = backup_screen(s) && s != UI_BACKUP_BLOCK && s != UI_BACKUP_SCAN;
@@ -1810,6 +1925,7 @@ void ui_goto(UiScreen s) {
         case UI_BACKUP_SCAN: build_scan(SCAN_CONFIRM); break;
         case UI_CHILD_LENGTH: build_child_length(); break;
         case UI_CHILD_INDEX: build_child_index(); break;
+        case UI_MULTISIG: build_multisig(); break;
     }
 }
 

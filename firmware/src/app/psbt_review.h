@@ -2,11 +2,15 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Review and signing of a single-sig native segwit PSBT with the loaded seed,
-// following SeedSigner's checks: every input must be ours, change is only
-// "change" if the key at its claimed derivation path really produces that
-// output script, and anything claiming our fingerprint that doesn't verify is
-// flagged as suspicious.
+// Review and signing of a native segwit PSBT with the loaded seed, single-sig
+// or wsh(sortedmulti) multisig, following SeedSigner's checks: every input
+// must be ours, change is only "change" if the key at its claimed derivation
+// path really produces that output script, and anything claiming our
+// fingerprint that doesn't verify is flagged as suspicious.
+//
+// Multisig needs the wallet's descriptor (multisig.h): a PSBT can name any
+// cosigner keys it likes next to ours, so inputs and change are checked
+// against the scripts the descriptor derives, never the PSBT's own.
 
 #define PSBT_MAX_OUTPUTS 8
 
@@ -16,21 +20,24 @@ struct PsbtOutput {
     bool is_change;      // verified ours, internal chain (/1/n)
     bool is_self;        // verified ours, receive chain (/0/n): self-transfer
     bool suspicious;     // claims our fingerprint but doesn't verify
-    char path[48];       // derivation path for ours, e.g. m/84h/0h/0h/1/3
+    char path[48];       // our key's derivation path for ours, e.g. m/84h/0h/0h/1/3
 };
 
 enum PsbtError {
     PSBT_OK = 0,
     PSBT_PARSE_FAILED,
     PSBT_NOT_OUR_SEED,      // inputs signed by a different fingerprint
-    PSBT_UNSUPPORTED,       // not single-sig native segwit, or too many outputs
+    PSBT_UNSUPPORTED,       // not native segwit single-sig or multisig, or too many outputs
     PSBT_MISSING_AMOUNTS,   // inputs without witness UTXO: fee unknown
     PSBT_SUSPICIOUS,        // a "change" output failed verification
+    PSBT_NEEDS_DESCRIPTOR,  // multisig inputs, but no wallet descriptor is loaded
+    PSBT_WRONG_WALLET,      // multisig inputs that aren't the loaded descriptor's
 };
 
 struct PsbtReview {
     PsbtError error;
     bool testnet;
+    int ms_m, ms_n;          // M of N for a multisig transaction, else 0
     int n_inputs;
     uint64_t input_total;
     uint64_t spend;          // to other people
@@ -44,8 +51,8 @@ struct PsbtReview {
 // Parse and review raw PSBT bytes against the loaded seed. Keeps the PSBT for
 // signing until psbt_clear().
 PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *out);
-// Sign every input we can, if the review passed. Returns the number of
-// signatures now on the inputs, so 0 means nothing is signed.
+// Sign every input we can, if the review passed. Returns the number of inputs
+// that now carry our signature, so 0 means nothing is signed by us.
 int psbt_sign();
 // Serialize the (signed) PSBT. Returns bytes written, 0 if it doesn't fit.
 size_t psbt_serialize(uint8_t *out, size_t cap);
