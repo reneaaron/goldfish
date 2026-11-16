@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: firmware
+
+jobs:
+  test:
+    name: Unit and end-to-end tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-native-${{ hashFiles('firmware/platformio.ini') }}
+      - run: uv tool install platformio==6.1.19
+      # The simulator links against X11, even when it runs headless.
+      - run: sudo apt-get update && sudo apt-get install -y libx11-dev
+      - name: Unit tests
+        run: pio test -e test
+      - name: End-to-end tests
+        run: uv run --with-requirements e2e/requirements.txt pytest e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-failures
+          path: firmware/e2e/failure_*.png
+          if-no-files-found: ignore
+
+  firmware:
+    name: Board firmware
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-board-${{ hashFiles('firmware/platformio.ini') }}
+      - run: uv tool install platformio==6.1.19
+      - run: pio run
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: firmware/.pio/build/rp2350_touch_lcd_2/firmware.uf2
