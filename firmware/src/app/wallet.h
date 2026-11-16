@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include "seedqr.h"
 
-class HDPrivateKey;
+struct ext_key;   // libwally-core, <wally_bip32.h>
 
 // The one seed this device holds, in RAM only. Nothing is ever written to flash:
 // unplugging the device, or wallet_wipe(), removes it.
@@ -20,7 +20,7 @@ void wallet_wipe();
 bool wallet_set_passphrase(const char *pass);
 bool wallet_has_passphrase();
 // The root key, for signing. nullptr without a seed. Don't copy it.
-const HDPrivateKey *wallet_root();
+const struct ext_key *wallet_root();
 
 // Fingerprint of a seed without loading it (as slow as wallet_load).
 bool seed_fingerprint_hex(const SeedEntropy &e, char out[9]);

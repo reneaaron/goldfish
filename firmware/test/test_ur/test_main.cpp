@@ -2,17 +2,17 @@
 // Run: pio test -e test
 #include <unity.h>
 #include <string.h>
-#include <Conversion.h>
+#include <wally_core.h>
 #include "../../src/app/ur.h"
 #include "../fixtures/seedsigner_vectors.h"
 
 static UrDecoder dec;
 
 static void expect_base64(const uint8_t *p, size_t n, const char *want) {
-    static char b64[12000];
-    size_t m = toBase64(p, n, b64, sizeof(b64));
-    TEST_ASSERT_GREATER_THAN(0, m);
+    char *b64 = nullptr;
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_base64_from_bytes(p, n, 0, &b64));
     TEST_ASSERT_EQUAL_STRING(want, b64);
+    wally_free_string(b64);
 }
 
 void test_decode_multipart() {

@@ -1,0 +1,9 @@
+{
+  "name": "wally",
+  "version": "1.6.1",
+  "description": "Build wrapper for libwally-core (fetched by lib_deps): its amalgamation, without Elements",
+  "build": {
+    "srcFilter": ["+<wally_amalgamation.c>"],
+    "extraScript": "build.py"
+  }
+}

@@ -44,7 +44,8 @@ struct PsbtReview {
 // Parse and review raw PSBT bytes against the loaded seed. Keeps the PSBT for
 // signing until psbt_clear().
 PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *out);
-// Sign every input we can. Returns the number of signatures added.
+// Sign every input we can, if the review passed. Returns the number of
+// signatures now on the inputs, so 0 means nothing is signed.
 int psbt_sign();
 // Serialize the (signed) PSBT. Returns bytes written, 0 if it doesn't fit.
 size_t psbt_serialize(uint8_t *out, size_t cap);

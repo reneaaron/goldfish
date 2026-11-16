@@ -97,7 +97,8 @@ paths). BBQr input isn't supported yet.
 
 - PlatformIO with the Arduino core for RP2350 (earlephilhower/arduino-pico)
 - LVGL 9.2 for the UI
-- uBitcoin for BIP39/BIP32/PSBT
+- libwally-core for BIP39/BIP32/PSBT, pinned by commit in `platformio.ini` and
+  built without Elements from its single-file amalgamation (`lib/wally`)
 - quirc for QR decoding (vendored in `lib/quirc`)
 - Inter, Fraunces and JetBrains Mono, converted for LVGL (`src/app/fonts`, SIL OFL)
 

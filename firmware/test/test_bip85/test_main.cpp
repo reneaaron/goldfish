@@ -1,8 +1,10 @@
 // BIP-85 BIP39 child seeds against the spec's test vectors.
 // Run: pio test -e test
 #include <unity.h>
+#include <stdio.h>
 #include <string.h>
-#include <Bitcoin.h>
+#include <wally_core.h>
+#include <wally_bip32.h>
 #include "../../src/app/bip85.h"
 #include "../../src/app/seed_create.h"
 #include "../../src/app/wallet.h"
@@ -10,6 +12,12 @@
 // BIP-85 test master key
 static const char *XPRV =
     "xprv9s21ZrQH143K2LBWUUQRFXhucrQqBpKdRRxNVq2zBqsx8HVqFk2uYo8kmbaLLHRdqtQpUm98uKfu3vca1LqdGhUtyoFnCNkfmXRyPXLjbKb";
+
+static struct ext_key root_key() {
+    struct ext_key k;
+    TEST_ASSERT_EQUAL(WALLY_OK, bip32_key_from_base58(XPRV, &k));
+    return k;
+}
 
 static void hex(const uint8_t *b, size_t n, char *out) {
     for (size_t i = 0; i < n; i++) snprintf(out + 2 * i, 3, "%02x", b[i]);
@@ -26,7 +34,7 @@ static void words_of(const SeedEntropy &e, char *out) {
 }
 
 void test_12_words() {
-    HDPrivateKey root(XPRV);
+    struct ext_key root = root_key();
     SeedEntropy e;
     TEST_ASSERT_TRUE(bip85_bip39_entropy(root, 12, 0, &e));
     char h[65], w[300];
@@ -37,7 +45,7 @@ void test_12_words() {
 }
 
 void test_24_words() {
-    HDPrivateKey root(XPRV);
+    struct ext_key root = root_key();
     SeedEntropy e;
     TEST_ASSERT_TRUE(bip85_bip39_entropy(root, 24, 0, &e));
     char h[65], w[300];
@@ -51,7 +59,7 @@ void test_24_words() {
 }
 
 void test_index_changes_child() {
-    HDPrivateKey root(XPRV);
+    struct ext_key root = root_key();
     SeedEntropy a, b;
     TEST_ASSERT_TRUE(bip85_bip39_entropy(root, 12, 0, &a));
     TEST_ASSERT_TRUE(bip85_bip39_entropy(root, 12, 1, &b));
@@ -59,7 +67,7 @@ void test_index_changes_child() {
 }
 
 void test_rejects_bad_input() {
-    HDPrivateKey root(XPRV);
+    struct ext_key root = root_key();
     SeedEntropy e;
     TEST_ASSERT_FALSE(bip85_bip39_entropy(root, 18, 0, &e));
     TEST_ASSERT_FALSE(bip85_bip39_entropy(root, 12, 0x80000000u, &e));
@@ -68,7 +76,7 @@ void test_rejects_bad_input() {
 
 // The 12-word child loads like any seed; its fingerprint matches.
 void test_child_fingerprint() {
-    HDPrivateKey root(XPRV);
+    struct ext_key root = root_key();
     SeedEntropy e;
     TEST_ASSERT_TRUE(bip85_bip39_entropy(root, 12, 0, &e));
     char fp[9], loaded[9];

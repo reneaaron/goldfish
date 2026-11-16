@@ -1,46 +1,26 @@
 #include "psbt_review.h"
-#include <new>
 #include <stdio.h>
 #include <string.h>
-#include <PSBT.h>
-#include "seedqr.h"
+#include <wally_core.h>
+#include <wally_address.h>
+#include <wally_bip32.h>
+#include <wally_crypto.h>
+#include <wally_map.h>
+#include <wally_psbt.h>
+#include <wally_psbt_members.h>
+#include <wally_script.h>
+#include <wally_transaction.h>
 #include "wallet.h"
 
-alignas(PSBT) static uint8_t psbt_mem[sizeof(PSBT)];
-static PSBT *psbt;
+#define MAX_PATH_LEN 10
+
+static struct wally_psbt *psbt;
+static bool reviewed_ok;                 // psbt_load returned PSBT_OK for it
 
 void psbt_clear() {
-    if (psbt) {
-        psbt->~PSBT();
-        psbt = nullptr;
-    }
-    memset(psbt_mem, 0, sizeof(psbt_mem));
-}
-
-static bool fp_equal(const uint8_t a[4], const uint8_t b[4]) { return memcmp(a, b, 4) == 0; }
-
-static void format_path(const PSBTDerivation &d, char *out, size_t cap) {
-    size_t o = snprintf(out, cap, "m");
-    for (uint8_t i = 0; i < d.derivationLen && o < cap; i++) {
-        uint32_t v = d.derivation[i];
-        o += snprintf(out + o, cap - o, "/%u%s", unsigned(v & 0x7FFFFFFF), (v & 0x80000000) ? "h" : "");
-    }
-}
-
-// True if the claim is a BIP84 address of ours that pays to exactly this
-// script: the path is m/84h/coin'/account'/{0,1}/n, the key there is the one
-// in the metadata, and the script is its P2WPKH (0x00 0x14 <hash160(pubkey)>).
-// uBitcoin's isMine() only compares pubkeys and never looks at the script.
-static bool claim_verifies(const HDPrivateKey &root, const PSBTDerivation &d, const Script &script, bool testnet) {
-    const uint32_t H = 0x80000000;
-    if (d.derivationLen != 5 || d.derivation[0] != H + 84 || d.derivation[1] != H + (testnet ? 1 : 0)) return false;
-    if (!(d.derivation[2] & H) || d.derivation[3] > 1 || (d.derivation[4] & H)) return false;
-    alignas(HDPrivateKey) static uint8_t mem[sizeof(HDPrivateKey)];
-    HDPrivateKey *k = new (mem) HDPrivateKey(root.derive(d.derivation, d.derivationLen));
-    PublicKey pub = k->publicKey();
-    k->~HDPrivateKey();
-    secure_zero(mem, sizeof(mem));
-    return memcmp(pub.point, d.pubkey.point, 64) == 0 && script == Script(pub, P2WPKH);
+    if (psbt) wally_psbt_free(psbt);
+    psbt = nullptr;
+    reviewed_ok = false;
 }
 
 const char *psbt_error_text(PsbtError e) {
@@ -55,59 +35,131 @@ const char *psbt_error_text(PsbtError e) {
     return "";
 }
 
+// One BIP32 derivation claimed for our fingerprint in a PSBT keypath map.
+struct Claim {
+    const uint8_t *pubkey;
+    size_t pubkey_len;
+    uint32_t path[MAX_PATH_LEN];
+    size_t path_len;
+};
+
+// The last keypath entry carrying our fingerprint, if any. A path longer than
+// MAX_PATH_LEN is reported with path_len 0, which never verifies.
+static bool find_claim(const struct wally_map *keypaths, const uint8_t fp[4], Claim *c) {
+    bool found = false;
+    for (size_t k = 0; k < keypaths->num_items; k++) {
+        uint8_t their[4];
+        if (wally_map_keypath_get_item_fingerprint(keypaths, k, their, sizeof(their)) != WALLY_OK) continue;
+        if (memcmp(their, fp, 4) != 0) continue;
+        found = true;
+        c->pubkey = keypaths->items[k].key;
+        c->pubkey_len = keypaths->items[k].key_len;
+        if (wally_map_keypath_get_item_path(keypaths, k, c->path, MAX_PATH_LEN, &c->path_len) != WALLY_OK ||
+            c->path_len > MAX_PATH_LEN)
+            c->path_len = 0;
+    }
+    return found;
+}
+
+static void format_path(const Claim &c, char *out, size_t cap) {
+    size_t o = snprintf(out, cap, "m");
+    for (size_t i = 0; i < c.path_len && o < cap; i++) {
+        uint32_t v = c.path[i];
+        o += snprintf(out + o, cap - o, "/%u%s", unsigned(v & 0x7FFFFFFF), (v & 0x80000000) ? "h" : "");
+    }
+}
+
+// True if the claim is a BIP84 address of ours that pays to exactly this
+// script: the path is m/84h/coin'/account'/{0,1}/n, the key there is the one
+// in the metadata, and the script is its P2WPKH (0x00 0x14 <hash160(pubkey)>).
+static bool claim_verifies(const Claim &c, const uint8_t *script, size_t script_len, bool testnet) {
+    const uint32_t H = BIP32_INITIAL_HARDENED_CHILD;
+    if (c.path_len != 5 || c.path[0] != H + 84 || c.path[1] != H + (testnet ? 1 : 0)) return false;
+    if (!(c.path[2] & H) || c.path[3] > 1 || (c.path[4] & H)) return false;
+    if (c.pubkey_len != EC_PUBLIC_KEY_LEN) return false;
+    struct ext_key k;
+    uint8_t h[HASH160_LEN];
+    bool ok = bip32_key_from_parent_path(wallet_root(), c.path, c.path_len,
+                                         BIP32_FLAG_KEY_PRIVATE | BIP32_FLAG_SKIP_HASH, &k) == WALLY_OK &&
+              memcmp(k.pub_key, c.pubkey, EC_PUBLIC_KEY_LEN) == 0 &&
+              wally_hash160(k.pub_key, EC_PUBLIC_KEY_LEN, h, sizeof(h)) == WALLY_OK &&
+              script_len == 2 + HASH160_LEN && script[0] == 0x00 && script[1] == HASH160_LEN &&
+              memcmp(script + 2, h, HASH160_LEN) == 0;
+    secure_zero(&k, sizeof(k));
+    return ok;
+}
+
+static void format_address(const uint8_t *script, size_t len, bool testnet, char *out, size_t cap) {
+    char *s = nullptr;
+    if (wally_addr_segwit_from_bytes(script, len, testnet ? "tb" : "bc", 0, &s) != WALLY_OK &&
+        wally_scriptpubkey_to_address(script, len,
+                                      testnet ? WALLY_NETWORK_BITCOIN_TESTNET : WALLY_NETWORK_BITCOIN_MAINNET,
+                                      &s) != WALLY_OK)
+        s = nullptr;
+    snprintf(out, cap, "%s", s ? s : "(non-standard output)");
+    if (s) wally_free_string(s);
+}
+
 PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
     psbt_clear();
     memset(r, 0, sizeof(*r));
     if (!wallet_has_seed()) return r->error = PSBT_NOT_OUR_SEED;
 
-    psbt = new (psbt_mem) PSBT();
-    if (psbt->parse(data, len) != len || !psbt->isValid()) return r->error = PSBT_PARSE_FAILED;
+    if (wally_psbt_from_bytes(data, len, WALLY_PSBT_PARSE_FLAG_COMPLETE, &psbt) != WALLY_OK) {
+        psbt = nullptr;
+        return r->error = PSBT_PARSE_FAILED;
+    }
+    const bool v0 = psbt->version == WALLY_PSBT_VERSION_0;
+    if (v0 && !psbt->tx) return r->error = PSBT_PARSE_FAILED;
 
-    const HDPrivateKey &root = *wallet_root();
     uint8_t fp[4];
     wallet_fingerprint(fp);
 
     // Inputs: all ours, native segwit, with amounts.
-    r->n_inputs = int(psbt->tx.inputsNumber);
+    r->n_inputs = int(psbt->num_inputs);
     if (r->n_inputs == 0) return r->error = PSBT_PARSE_FAILED;
-    for (size_t i = 0; i < psbt->tx.inputsNumber; i++) {
-        const PSBTInputMetadata &m = psbt->txInsMeta[i];
-        bool ours = false;
-        for (uint8_t k = 0; k < m.derivationsLen; k++) {
-            const PSBTDerivation &d = m.derivations[k];
-            if (!fp_equal(d.fingerprint, fp)) continue;
-            ours = true;
-            if (d.derivationLen >= 2) r->testnet = (d.derivation[1] & 0x7FFFFFFF) == 1;
-        }
-        if (!ours) return r->error = PSBT_NOT_OUR_SEED;
-        if (m.txOut.amount == 0) return r->error = PSBT_MISSING_AMOUNTS;
-        if (m.txOut.scriptPubkey.type() != P2WPKH) return r->error = PSBT_UNSUPPORTED;
-        r->input_total += m.txOut.amount;
+    for (size_t i = 0; i < psbt->num_inputs; i++) {
+        const struct wally_psbt_input &in = psbt->inputs[i];
+        Claim c;
+        if (!find_claim(&in.keypaths, fp, &c)) return r->error = PSBT_NOT_OUR_SEED;
+        if (c.path_len >= 2) r->testnet = (c.path[1] & 0x7FFFFFFF) == 1;
+
+        // Anything but ALL leaves outputs or other inputs out of the signature,
+        // so what is shown here would not be what gets signed.
+        if (in.sighash != 0 && in.sighash != WALLY_SIGHASH_ALL) return r->error = PSBT_UNSUPPORTED;
+
+        // The witness UTXO, or the spent output of the full previous transaction.
+        const struct wally_tx_output *utxo = nullptr;
+        if (wally_psbt_get_input_best_utxo(psbt, i, &utxo) != WALLY_OK || !utxo || utxo->satoshi == 0)
+            return r->error = PSBT_MISSING_AMOUNTS;
+        size_t type = 0;
+        if (wally_scriptpubkey_get_type(utxo->script, utxo->script_len, &type) != WALLY_OK ||
+            type != WALLY_SCRIPT_TYPE_P2WPKH)
+            return r->error = PSBT_UNSUPPORTED;
+        r->input_total += utxo->satoshi;
     }
 
     // Outputs
-    if (psbt->tx.outputsNumber > PSBT_MAX_OUTPUTS) return r->error = PSBT_UNSUPPORTED;
-    r->n_outputs = int(psbt->tx.outputsNumber);
-    const Network *net = r->testnet ? &Testnet : &Mainnet;
+    if (psbt->num_outputs > PSBT_MAX_OUTPUTS) return r->error = PSBT_UNSUPPORTED;
+    r->n_outputs = int(psbt->num_outputs);
     uint64_t out_total = 0;
-    for (size_t i = 0; i < psbt->tx.outputsNumber; i++) {
+    for (size_t i = 0; i < psbt->num_outputs; i++) {
         PsbtOutput &o = r->outputs[i];
-        const TxOut &txo = psbt->tx.txOuts[i];
-        o.amount = txo.amount;
-        out_total += txo.amount;
-        if (txo.address(o.address, sizeof(o.address), net) == 0)
-            snprintf(o.address, sizeof(o.address), "(non-standard output)");
+        const struct wally_psbt_output &m = psbt->outputs[i];
+        // PSBT v0 keeps amounts and scripts in the global transaction, v2 per output.
+        const uint8_t *script = v0 ? psbt->tx->outputs[i].script : m.script;
+        const size_t script_len = v0 ? psbt->tx->outputs[i].script_len : m.script_len;
+        o.amount = v0 ? psbt->tx->outputs[i].satoshi : m.amount;
+        out_total += o.amount;
+        format_address(script, script_len, r->testnet, o.address, sizeof(o.address));
 
-        const PSBTOutputMetadata &m = psbt->txOutsMeta[i];
-        const PSBTDerivation *claim = nullptr;
-        for (uint8_t k = 0; k < m.derivationsLen; k++)
-            if (fp_equal(m.derivations[k].fingerprint, fp)) claim = &m.derivations[k];
-
-        if (claim && claim_verifies(root, *claim, txo.scriptPubkey, r->testnet)) {
-            format_path(*claim, o.path, sizeof(o.path));
-            if (claim->derivation[3] == 1) { o.is_change = true; r->change += o.amount; }
+        Claim c;
+        bool claimed = find_claim(&m.keypaths, fp, &c);
+        if (claimed && claim_verifies(c, script, script_len, r->testnet)) {
+            format_path(c, o.path, sizeof(o.path));
+            if (c.path[3] == 1) { o.is_change = true; r->change += o.amount; }
             else { o.is_self = true; r->self += o.amount; }
-        } else if (claim) {
+        } else if (claimed) {
             o.suspicious = true;
             r->error = PSBT_SUSPICIOUS;
         } else {
@@ -116,15 +168,36 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
     }
     if (out_total > r->input_total) return r->error = PSBT_PARSE_FAILED;
     r->fee = r->input_total - out_total;
+    reviewed_ok = r->error == PSBT_OK;
     return r->error;
 }
 
+static size_t count_signatures() {
+    size_t n = 0;
+    for (size_t i = 0; i < psbt->num_inputs; i++) n += psbt->inputs[i].signatures.num_items;
+    return n;
+}
+
+// Sign, then drop what the coordinator already has (UTXOs and key paths), so
+// the signed PSBT stays small enough for few QR frames. Only a PSBT that
+// passed review is signed. A signature that was already there counts too.
 int psbt_sign() {
-    if (!psbt || !wallet_has_seed()) return 0;
-    return psbt->sign(*wallet_root());
+    if (!psbt || !reviewed_ok || !wallet_has_seed()) return 0;
+    if (wally_psbt_sign_bip32(psbt, wallet_root(), EC_FLAG_GRIND_R) != WALLY_OK) return 0;
+    int n = int(count_signatures());
+    if (n > 0) {
+        for (size_t i = 0; i < psbt->num_inputs; i++) {
+            wally_psbt_input_set_utxo(&psbt->inputs[i], nullptr);
+            wally_psbt_input_set_witness_utxo(&psbt->inputs[i], nullptr);
+            wally_map_clear(&psbt->inputs[i].keypaths);
+        }
+        for (size_t i = 0; i < psbt->num_outputs; i++) wally_map_clear(&psbt->outputs[i].keypaths);
+    }
+    return n;
 }
 
 size_t psbt_serialize(uint8_t *out, size_t cap) {
-    if (!psbt || psbt->length() > cap) return 0;
-    return psbt->serialize(out, cap);
+    size_t n = 0;
+    if (!psbt || wally_psbt_to_bytes(psbt, 0, out, cap, &n) != WALLY_OK || n > cap) return 0;
+    return n;
 }

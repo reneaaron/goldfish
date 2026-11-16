@@ -2,7 +2,8 @@
 // Run: pio test -e test
 #include <unity.h>
 #include <string.h>
-#include <Bitcoin.h>
+#include <wally_core.h>
+#include <wally_bip32.h>
 #include "../../src/app/wallet.h"
 
 static SeedEntropy zero_entropy_12() {
@@ -66,11 +67,12 @@ void test_passphrase() {
     TEST_ASSERT_FALSE(wallet_has_passphrase());
     TEST_ASSERT_TRUE(wallet_set_passphrase("TREZOR"));
     TEST_ASSERT_TRUE(wallet_has_passphrase());
-    char xprv[120];
-    wallet_root()->xprv(xprv, sizeof(xprv));
+    char *xprv = nullptr;
+    TEST_ASSERT_EQUAL(WALLY_OK, bip32_key_to_base58(wallet_root(), BIP32_FLAG_KEY_PRIVATE, &xprv));
     TEST_ASSERT_EQUAL_STRING(
         "xprv9s21ZrQH143K3h3fDYiay8mocZ3afhfULfb5GX8kCBdno77K4HiA15Tg23wpbeF1pLfs1c5SPmYHrEpTuuRhxMwvKDwqdKiGJS9XFKzUsAF",
         xprv);
+    wally_free_string(xprv);
     char fp[9];
     wallet_fingerprint_hex(fp);
     TEST_ASSERT_EQUAL_STRING("b4e3f5ed", fp);         // hash160 of that key's public key
