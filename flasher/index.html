@@ -55,7 +55,8 @@
       <li>Hold <strong>BOOT</strong> on the board and plug in USB-C. A drive
           called <code>RP2350</code> appears.</li>
       <li>Press the button and choose that drive.</li>
-      <li>The board restarts into the firmware.</li>
+      <li>The board restarts into the firmware. Its home screen shows the
+          version in the top right corner: it should match the one below.</li>
     </ol>
     <button id="flash" disabled>Loading firmware…</button>
     <div id="status" class="note" role="status"></div>
@@ -64,6 +65,7 @@
   <div class="card">
     <dl>
       <dt>File</dt><dd><a href="firmware.uf2" download>firmware.uf2</a> <span id="size"></span></dd>
+      <dt>Version</dt><dd id="version">…</dd>
       <dt>Commit</dt><dd id="commit">…</dd>
       <dt>SHA-256</dt><dd><code id="sha">…</code></dd>
     </dl>
@@ -102,13 +104,14 @@ async function load() {
   $('sha').textContent = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 
   try {
-    const { commit } = await (await fetch('firmware.json', { cache: 'no-store' })).json();
+    const { version, commit } = await (await fetch('firmware.json', { cache: 'no-store' })).json();
+    $('version').textContent = version;
     const a = document.createElement('a');
     a.href = REPO + '/commit/' + commit;
     a.textContent = commit.slice(0, 7);
     $('commit').replaceChildren(a);
   } catch (e) {
-    $('commit').textContent = 'unknown';
+    $('version').textContent = $('commit').textContent = 'unknown';
   }
 
   if (!window.showDirectoryPicker) {

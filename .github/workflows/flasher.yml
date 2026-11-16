@@ -1,12 +1,15 @@
 name: Web flasher
 
-# Builds the board firmware from main and publishes it with flasher/index.html
-# on GitHub Pages (Settings > Pages > Source: GitHub Actions).
+# Builds the board firmware of a release tag (v0.1.0) and publishes it with
+# flasher/index.html on GitHub Pages, so the page always offers the latest
+# tagged version. Needs, once, in the repo settings:
+# - Pages > Source: GitHub Actions
+# - Environments > github-pages > deployment branches and tags: allow tags v*
+#   (by default only the main branch may deploy)
 
 on:
   push:
-    branches: [main]
-    paths: [firmware/**, flasher/**, .github/workflows/flasher.yml]
+    tags: ['v*']
   workflow_dispatch:
 
 concurrency:
@@ -34,7 +37,10 @@ jobs:
           mkdir site
           cp flasher/index.html site/
           cp firmware/.pio/build/rp2350_touch_lcd_2/firmware.uf2 site/
-          echo '{"commit":"${{ github.sha }}"}' > site/firmware.json
+          # The version the firmware shows on its home screen (firmware/version.py).
+          version=$(sed -n 's/#define FW_VERSION "\(.*\)"/\1/p' firmware/include/version.h)
+          echo "{\"version\":\"$version\",\"commit\":\"${{ github.sha }}\"}" > site/firmware.json
+          echo "Firmware $version" >> "$GITHUB_STEP_SUMMARY"
           # The page shows this same hash, computed in the browser.
           (cd site && sha256sum firmware.uf2) | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-pages-artifact@v3
