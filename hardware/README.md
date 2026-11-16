@@ -8,8 +8,7 @@ No custom PCB: everything is off the shelf.
 |---|---|
 | Waveshare RP2350-Touch-LCD-2-C (SKU 30718) | RP2350A, 16MB flash, 2" 240×320 IPS with capacitive touch (CST816D), microSD, LiPo charger. The -C bundle includes an OV5640 camera. [Product page](https://www.waveshare.com/rp2350-touch-lcd-2.htm?sku=30718) |
 | or: RP2350-Touch-LCD-2 (SKU 30711) + an OV5640 module | Base board without camera. The camera must use the 24-pin 0.5mm DVP connector (ESP32-CAM style). Check its pinout against the board's J1 before plugging in. A 60–75° lens suits QR scanning better than wide-angle ones |
-| Printed case | See [`../case`](../case). Clip-in by default |
-| 4× M2x8 socket head screws | Only for the screw variant of the case |
+| Printed case | See [`../case`](../case). Clip-in, no screws |
 | USB-C data cable | Power and flashing |
 
 No battery for now: the device runs from USB-C. The board has a PH1.25 2-pin

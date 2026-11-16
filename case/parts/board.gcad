@@ -1,40 +1,40 @@
-let gw=37.1 gh=58.8 gr=2.6 dep=7.2 pcb=1.6 so=9.7 bx=14.5 by=21.1 hx=15.24
+let gw=37.1 gh=58.8 gr=2.6 dep=7.2 pcb=1.6 so=9.7 bx=14.5 by=21.1 hx=15.24 oy=-0.3 pin=8.64 usbo=1.3
 plane XY offset=-(dep-pcb)
 rect gw gh r=gr
 lcd: extrude dep-pcb
 plane XY offset=-dep
-rect 35 48.2 r=1
+rect 35 48.2 at=0,oy r=1
 pcbb: extrude pcb
 plane XY offset=-so
-circle 3.4 at=bx,by
-circle 3.4 at=-bx,by
-circle 3.4 at=bx,-by
-circle 3.4 at=-bx,-by
-rect 2.54 35 at=hx,0
-rect 2.54 35 at=-hx,0
-rect 11.9 5 at=-0.25,6.3
+circle 3.4 at=bx,by+oy
+circle 3.4 at=-bx,by+oy
+circle 3.4 at=bx,-by+oy
+circle 3.4 at=-bx,-by+oy
+rect 2.54 35 at=hx,oy
+rect 2.54 35 at=-hx,oy
+rect 11.9 5 at=-0.25,6.3+oy
 parts: extrude so-dep
 plane XY offset=-(dep+3.26)
-rect 8.94 7.35 at=0,-20.4
+rect 8.94 7.35 at=0,oy-24.1-usbo+7.35/2
 usb: extrude 3.26
 plane XY offset=-(dep+4.5)
-rect 8.1 4.4 at=-8.05,-1.1
+rect 8.1 4.4 at=-8.05,-1.1+oy
 bat: extrude 4.5
 plane XY offset=-(dep+2)
-rect 15.1 3.7 at=0.85,-10.05
+rect 15.1 3.7 at=0.85,-10.05+oy
 fpc: extrude 2
-plane XY offset=-(dep+8)
-rect 0.64 35 at=hx,0
-rect 0.64 35 at=-hx,0
-pins: extrude 8-(so-dep)
+plane XY offset=-(dep+pin)
+rect 0.64 35 at=hx,oy
+rect 0.64 35 at=-hx,oy
+pins: extrude pin-(so-dep)
 plane XY offset=-(dep-pcb)
-bores: hole 2 bx,by -bx,by bx,-by -bx,-by depth=so-dep+pcb
+bores: hole 2 bx,by+oy -bx,by+oy bx,-by+oy -bx,-by+oy depth=so-dep+pcb
 color #2a5db0
 body cam
-plane XY offset=-15.2
-rect 8.5 8.5 at=0,8
-cbody: extrude 4
-plane XY offset=-15.2
-circle 6 at=0,8
-barrel: extrude -1.4
+plane XY offset=-16.4
+rect 8.5 8.5 at=0.4,1.8
+cbody: extrude 3.84
+plane XY offset=-16.4
+circle 6 at=0.4,1.8
+barrel: extrude -1.19
 color #444444
