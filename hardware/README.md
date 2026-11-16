@@ -20,6 +20,8 @@ battery connector and an ETA6098 charger if that changes later.
 - No Wi-Fi or Bluetooth hardware on the board (the RP2350 has no radio).
 - Pin map: [`../firmware/include/board_pins.h`](../firmware/include/board_pins.h),
   taken from Waveshare's demo code.
+- The firmware has no USB stack: the running device doesn't show up on a
+  computer. USB-C is power, plus flashing through the ROM bootloader.
 - Buttons on the board: RST and BOOT only, reachable through pinholes in the
   case. BOOT plus plugging in USB-C enters the UF2 bootloader for flashing.
 - Waveshare wiki: https://www.waveshare.com/wiki/RP2350-Touch-LCD-2

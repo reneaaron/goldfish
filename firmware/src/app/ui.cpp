@@ -291,10 +291,17 @@ static void handle_address_payload(QrPayload &p) {
 
 static void handle_confirm_payload(QrPayload &p);
 
+static bool cam_err;   // the scan screen is showing platform_camera_error()
+
 static void scan_tick(lv_timer_t *) {
     int w, h;
     const uint8_t *frame = platform_camera_frame(&w, &h);
-    if (!frame) return;
+    if (!frame) {
+        const char *err = platform_camera_error();
+        if (err && !cam_err) { scan_status("Camera error", err, RED); cam_err = true; }
+        return;
+    }
+    if (cam_err) { scan_status("Camera is back", "Point at the QR", TEXT); cam_err = false; }
     if (w != qr_w || h != qr_h) {
         if (!qrscan_init(w, h)) { scan_status("Camera error", "Restart the device", RED); return; }
         qr_w = w; qr_h = h;
@@ -340,6 +347,7 @@ static void corners(lv_obj_t *parent, int cx, int cy, int size) {
 
 static void build_scan(ScanMode mode) {
     scan_mode = mode;
+    cam_err = false;
     bool seed = mode == SCAN_SEED;
     if (mode == SCAN_PSBT || mode == SCAN_ADDRESS) ur_decoder_reset(&ur_dec);
     lv_obj_t *scr = screen();
