@@ -8,6 +8,9 @@
 //
 // Scripted screenshots of the whole flow (no window):
 //   SIM_SHOTS=docs/screens .pio/build/sim/program
+//
+// Remote control for the end-to-end tests in e2e/ (no window):
+//   SIM_CONTROL=1 .pio/build/sim/program      commands on stdin, see run_control()
 #include <lvgl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,13 +28,20 @@
 #include <wally_core.h>
 #include "../../test/fixtures/multisig_vectors.h"   // SeedSigner's public 2-of-3 test wallet
 #include "src/libs/qrcode/qrcodegen.h"
+#include "src/widgets/buttonmatrix/lv_buttonmatrix_private.h"   // key positions, for run_control()
+#include "src/misc/lv_area_private.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
 #include "stb_image.h"
 
+// Under SIM_CONTROL time only passes when a command says so: runs are fast and repeatable.
+static bool fake_clock;
+static uint32_t fake_ms;
+
 static uint32_t now_ms() {
+    if (fake_clock) return fake_ms;
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec * 1000u + ts.tv_nsec / 1000000u;
@@ -97,7 +107,7 @@ static bool cam_show_matrix(const uint8_t *qr) {
 }
 
 const uint8_t *platform_camera_frame(int *width, int *height) {
-    if (cam_override) { *width = CAM_W; *height = CAM_H; return cam_frame; }
+    if (cam_override) { *width = CAM_W; *height = CAM_H; return cam_ok ? cam_frame : nullptr; }
     struct stat st;
     if (stat(cam_path(), &st) == 0) {
         if (st.st_mtime != cam_mtime || !cam_ok || strcmp(cam_loaded_path, cam_path()) != 0) {
@@ -121,16 +131,18 @@ static uint8_t shot_buf[240 * 320 * 2];
 static lv_display_t *shot_disp;
 
 static void pump(int ms) {
-    for (int t = 0; t < ms; t += 10) { lv_timer_handler(); usleep(10000); }
+    for (int t = 0; t < ms; t += 10) {
+        if (fake_clock) fake_ms += 10;
+        lv_timer_handler();
+        if (!fake_clock) usleep(10000);
+    }
 }
 
-static void save(const char *dir, const char *name) {
+static bool save_ppm(const char *path) {
     lv_obj_invalidate(lv_screen_active());
     lv_refr_now(shot_disp);
-    char path[512];
-    snprintf(path, sizeof(path), "%s/%s.ppm", dir, name);
     FILE *f = fopen(path, "wb");
-    if (!f) { perror(path); return; }
+    if (!f) { perror(path); return false; }
     fprintf(f, "P6\n240 320\n255\n");
     for (int i = 0; i < 240 * 320; i++) {
         uint16_t c = shot_buf[2 * i] | (shot_buf[2 * i + 1] << 8);
@@ -138,15 +150,25 @@ static void save(const char *dir, const char *name) {
         fwrite(rgb, 1, 3, f);
     }
     fclose(f);
-    printf("wrote %s\n", path);
+    return true;
 }
 
-// Walk the flow: home, scan a 12-word Standard SeedQR, menu, xpub, wipe.
-static int run_shots(const char *dir) {
+static void save(const char *dir, const char *name) {
+    char path[512];
+    snprintf(path, sizeof(path), "%s/%s.ppm", dir, name);
+    if (save_ppm(path)) printf("wrote %s\n", path);
+}
+
+static void headless_display() {
     shot_disp = lv_display_create(240, 320);
     lv_display_set_color_format(shot_disp, LV_COLOR_FORMAT_RGB565);
     lv_display_set_buffers(shot_disp, shot_buf, nullptr, sizeof(shot_buf), LV_DISPLAY_RENDER_MODE_DIRECT);
     lv_display_set_flush_cb(shot_disp, [](lv_display_t *d, const lv_area_t *, uint8_t *) { lv_display_flush_ready(d); });
+}
+
+// Walk the flow: home, scan a 12-word Standard SeedQR, menu, xpub, wipe.
+static int run_shots(const char *dir) {
+    headless_display();
 
     setenv("SIM_CAMERA", "sim/samples/does-not-exist.png", 1);
     ui_build();
@@ -402,11 +424,129 @@ static int run_shots(const char *dir) {
     return 0;
 }
 
+// ------------------------------------------------------------ remote control
+// For the end-to-end tests (e2e/): a test plays the user and the wallet app.
+// It only gets what they get: it reads the screen, touches it, and holds
+// pictures up to the camera. One command per line on stdin; the reply is any
+// number of data lines, then "ok" or "err <why>".
+//
+//   widgets              what is on screen, one per line, tab separated:
+//                        kind x1 y1 x2 y2 flags text
+//                        kind: label, key (a keyboard key), slider, qr
+//                        flags: "-", or "off" if scrolled out of view or disabled
+//   tap X Y              touch and release
+//   drag X1 Y1 X2 Y2     touch, move, release
+//   wait MS              let time pass
+//   camera [PATH]        hold a picture (PNG/JPEG) up to the camera; no path: take it away
+//   shot PATH            save the screen as a PPM
+//   screen               the UiScreen number
+static lv_point_t touch_at;
+static bool touch_down;
+
+static void dump_text(const char *t) {
+    for (; t && *t; t++) {
+        if (*t == '\n') fputs("\\n", stdout);
+        else if (*t == '\t') putchar(' ');
+        else putchar(*t);
+    }
+}
+
+static void dump_widgets(lv_obj_t *o, lv_area_t clip) {
+    if (lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return;
+    lv_area_t a;
+    lv_obj_get_coords(o, &a);
+    lv_area_t vis;
+    bool on = lv_area_intersect(&vis, &a, &clip);
+    const char *kind = lv_obj_check_type(o, &lv_label_class) ? "label"
+                     : lv_obj_check_type(o, &lv_slider_class) ? "slider"
+                     : lv_obj_check_type(o, &lv_qrcode_class) ? "qr" : nullptr;
+    if (kind) {
+        printf("%s\t%d\t%d\t%d\t%d\t%s\t", kind, (int)a.x1, (int)a.y1, (int)a.x2, (int)a.y2, on ? "-" : "off");
+        if (kind[0] == 'l') dump_text(lv_label_get_text(o));
+        putchar('\n');
+    }
+    if (lv_obj_check_type(o, &lv_buttonmatrix_class)) {
+        lv_buttonmatrix_t *bm = (lv_buttonmatrix_t *)o;
+        for (uint32_t i = 0; i < bm->btn_cnt; i++) {
+            const lv_area_t *b = &bm->button_areas[i];
+            bool dead = lv_buttonmatrix_has_button_ctrl(o, i, LV_BUTTONMATRIX_CTRL_DISABLED) ||
+                        lv_buttonmatrix_has_button_ctrl(o, i, LV_BUTTONMATRIX_CTRL_HIDDEN);
+            printf("key\t%d\t%d\t%d\t%d\t%s\t", (int)(a.x1 + b->x1), (int)(a.y1 + b->y1), (int)(a.x1 + b->x2),
+                   (int)(a.y1 + b->y2), on && !dead ? "-" : "off");
+            dump_text(lv_buttonmatrix_get_button_text(o, i));
+            putchar('\n');
+        }
+    }
+    if (!on) vis = a;   // children of something out of view are out of view too
+    for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++) {
+        if (on) dump_widgets(lv_obj_get_child(o, i), vis);
+        else { lv_area_t none = {0, 0, -1, -1}; dump_widgets(lv_obj_get_child(o, i), none); }
+    }
+}
+
+static int run_control() {
+    fake_clock = true;
+    headless_display();
+    lv_indev_t *touch = lv_indev_create();
+    lv_indev_set_type(touch, LV_INDEV_TYPE_POINTER);
+    lv_indev_set_read_cb(touch, [](lv_indev_t *, lv_indev_data_t *d) {
+        d->point = touch_at;
+        d->state = touch_down ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+    });
+    cam_override = true;   // no picture until a "camera" command
+    cam_ok = false;
+    ui_build();
+    pump(300);
+
+    static char line[1024];
+    while (fgets(line, sizeof(line), stdin)) {
+        line[strcspn(line, "\r\n")] = 0;
+        const char *err = nullptr;
+        int a, b, c, d;
+        if (!strcmp(line, "widgets")) {
+            lv_area_t all = {0, 0, 239, 319};
+            dump_widgets(lv_screen_active(), all);
+        } else if (sscanf(line, "tap %d %d", &a, &b) == 2) {
+            touch_at.x = a; touch_at.y = b;
+            touch_down = true;  pump(80);
+            touch_down = false; pump(300);
+        } else if (sscanf(line, "drag %d %d %d %d", &a, &b, &c, &d) == 4) {
+            touch_at.x = a; touch_at.y = b;
+            touch_down = true; pump(80);
+            for (int i = 1; i <= 10; i++) {
+                touch_at.x = a + (c - a) * i / 10;
+                touch_at.y = b + (d - b) * i / 10;
+                pump(40);
+            }
+            touch_down = false; pump(300);
+        } else if (sscanf(line, "wait %d", &a) == 1) {
+            pump(a);
+        } else if (!strncmp(line, "camera", 6)) {
+            cam_ok = false;
+            if (line[6] == ' ') {
+                cam_load(line + 7);
+                if (!cam_ok) err = "cannot read the picture";
+            }
+        } else if (!strncmp(line, "shot ", 5)) {
+            if (!save_ppm(line + 5)) err = "cannot write the screenshot";
+        } else if (!strcmp(line, "screen")) {
+            printf("%d\n", (int)ui_current());
+        } else {
+            err = "unknown command";
+        }
+        if (err) printf("err %s\n", err);
+        else puts("ok");
+        fflush(stdout);
+    }
+    return 0;
+}
+
 int main() {
     lv_init();
     lv_tick_set_cb(now_ms);
 
     if (const char *dir = getenv("SIM_SHOTS")) return run_shots(dir);
+    if (getenv("SIM_CONTROL")) return run_control();
 
     lv_display_t *d = lv_x11_window_create("RP2350 signer (sim)", 240, 320);
     lv_x11_inputs_create(d, nullptr);  // the X11 driver hides the system cursor

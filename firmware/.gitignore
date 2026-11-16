@@ -1,3 +1,5 @@
 .pio/
 .vscode/
 sim/camera.png
+e2e/failure_*.png
+.pytest_cache/

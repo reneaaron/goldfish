@@ -168,6 +168,36 @@ pio test -e test
 - BIP-85: the spec's 12 and 24-word BIP39 vectors, child number bounds, and
   the child's fingerprint matching the same seed loaded
 
+## End-to-end tests
+
+```bash
+uv run --with-requirements e2e/requirements.txt pytest e2e
+```
+
+`e2e/` plays both the user and the wallet app against the simulator, with only
+what they have: it reads the screen, touches it (buttons, keyboards, the sign
+slider), holds QR pictures up to the camera and scans the QR codes the signer
+shows. The wallet app is a small stand-in for Sparrow built on embit
+(`e2e/hostwallet.py`), not Sparrow itself: it never sees the seed, makes
+descriptors and PSBTs from the key it scans off Connect wallet, shows them as
+single or animated UR QR codes, and checks every signature that comes back
+before finalizing the transaction. Coins are made up; nothing is broadcast.
+
+- Single-sig: a new seed from dice rolls, its words typed back in, the wallet
+  linked from the xpub QR, a receive address verified, a transaction with
+  change reviewed and signed; SeedQR Standard and Compact; the QR card check;
+  an animated PSBT joined mid-cycle (fountain parts only) and a base64 frame;
+  another seed's transaction, another wallet's address, and fake change
+- Multisig: a 2-of-3 around the linked key, refused until its descriptor is
+  scanned and confirmed, then signed and finalized with a cosigner; every
+  spelling of the descriptor at both scanners; a 3-of-5 after a cosigner has
+  signed; wallets the seed isn't in, a forged fingerprint, `multi`, a wrong
+  checksum; change to another multisig; the descriptor gone after a wipe
+
+The simulator runs headless for this (`SIM_CONTROL=1`, commands on stdin, see
+`src/sim/main.cpp`), on a clock that only moves when the test says so. A
+failing test prints the signer's screen and saves it as `e2e/failure_*.png`.
+
 ## Desktop simulator
 
 `src/app` also builds for Linux, in a 240×320 X11 window where the mouse acts
