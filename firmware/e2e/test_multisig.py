@@ -1,0 +1,210 @@
+"""Multisig, end to end: the signer is one cosigner of a wsh(sortedmulti)
+wallet that the wallet app sets up, the other cosigners live in the app. The
+signer learns the wallet from its descriptor QR, and from then on checks
+transactions and addresses against it.
+
+All seeds here are public test seeds. Never real funds.
+"""
+import pytest
+
+from flows import address_on_screen, connect_wallet, load_by_words, review_and_sign, verify_address
+from hostwallet import Seed, Wallet, psbt_parts, ur_parts, ur_single
+
+MNEMONIC = "crew marble private differ race truly blush basket crater affair prepare unique"
+SIGNER = Seed(MNEMONIC)   # the test typed these words in, so it can know the signer's keys
+COSIGNERS = [Seed(m) for m in (
+    "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong",
+    "legal winner thank year wave sausage worth useful legal winner thank yellow",
+    "letter advice cage absurd amount doctor acoustic avoid letter advice cage above",
+    "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+)]
+BIP48 = "48h/1h/0h/2h"   # testnet, account 0, native segwit multisig
+STRANGER = "tb1q6rz28mcfaxtmd6v789l9rrlrusdprr9pqcpvkl"
+
+
+def two_of_three(signer_key=None):
+    return Wallet.multisig(2, [signer_key or SIGNER.key(BIP48)] + [c.key(BIP48) for c in COSIGNERS[:2]])
+
+
+def loaded(dev):
+    load_by_words(dev, MNEMONIC)
+    dev.tap("Continue")
+
+
+def scan_descriptor(dev, shown, wallet):
+    """Show the descriptor QR (a string, or UR parts) to the open scanner and
+    check the Multisig wallet screen against the wallet app, as the user must."""
+    if isinstance(shown, str):
+        dev.scan(shown)
+    else:
+        dev.scan_animated(shown)
+    assert dev.screen == "MULTISIG", dev.text()
+    text = dev.text()
+    n = len(wallet.desc.keys)
+    assert "%d of %d multisig" % (wallet.desc.miniscript.args[0].num, n) in text
+    for fingerprint in wallet.fingerprints():
+        assert "%s %s" % (fingerprint[:4], fingerprint[4:]) in text
+    assert address_on_screen(dev) == wallet.address(0)
+
+
+def test_linked_key_to_broadcastable_transaction(dev):
+    """Set up a 2-of-3 around the key the signer exports, receive to it, and
+    spend from it with the signer and one cosigner."""
+    loaded(dev)
+    fingerprint, _, key = connect_wallet(dev)   # all the wallet app ever gets from the signer
+    wallet = two_of_three(key)
+    assert fingerprint == SIGNER.fingerprint
+
+    # A multisig transaction is refused until the signer knows the wallet.
+    coins = [wallet.fund(0, 500_000), wallet.fund(1, 250_000)]
+    psbt = wallet.create_psbt(coins, [(STRANGER, 600_000)], fee=1_200, change_index=0)
+    dev.tap("Sign transaction")
+    dev.scan_animated(psbt_parts(psbt))
+    assert dev.screen == "PSBT_ERROR" and "Scan the wallet's descriptor first" in dev.text()
+
+    # The descriptor: checked on screen, and dropped if the user backs out.
+    dev.tap("Scan it")
+    scan_descriptor(dev, wallet.descriptor(), wallet)
+    assert "This seed\n%s %s" % (fingerprint[:4], fingerprint[4:]) in dev.text()
+    dev.tap("Cancel")
+    dev.scan_animated(psbt_parts(psbt))
+    assert dev.screen == "PSBT_ERROR", "an unconfirmed descriptor was used"
+    dev.tap("Scan it")
+    scan_descriptor(dev, wallet.descriptor(), wallet)
+    dev.tap("Use wallet")
+    assert dev.screen == "SCAN_PSBT"
+
+    # Now the same transaction is reviewed against the wallet, and signed.
+    dev.scan_animated(psbt_parts(psbt))
+    assert dev.screen == "PSBT_OVERVIEW", dev.text()
+    signed, (overview, pay, change, confirm) = review_and_sign(dev)
+    assert "2 OF 3" in overview and all(a in overview for a in ("₿600,000", "₿1,200", "₿148,800"))
+    assert "= " + STRANGER in pay
+    assert "YOUR CHANGE" in change and "= " + wallet.address(0, change=True) in change
+    assert "₿601,200" in confirm
+
+    # One signature isn't enough; with a cosigner's the app can broadcast.
+    wallet.combine(psbt, signed)
+    assert wallet.signers(psbt) == {SIGNER.fingerprint}
+    with pytest.raises(AssertionError, match="not enough signatures"):
+        wallet.finalize(psbt)
+    COSIGNERS[1].sign(psbt)
+    assert wallet.signers(psbt) == {SIGNER.fingerprint, COSIGNERS[1].fingerprint}
+    wallet.finalize(psbt)
+
+    # The wallet stays known for receiving: its addresses verify, others don't.
+    assert "2 OF 3" in dev.text()
+    result = verify_address(dev, wallet.address(5))
+    assert "Address verified" in result and "RECEIVE #5" in result
+    result = verify_address(dev, two_of_three().address(5))   # same cosigners, another key of ours
+    assert "Not from this seed" in result
+
+
+SPELLINGS = {
+    "text": lambda w: w.descriptor(),
+    "text, no checksum": lambda w: w.descriptor(checksum=False),
+    "text, {0,1}": lambda w: w.descriptor("{0,1}"),
+    "text, receive only": lambda w: w.descriptor("0"),
+    "crypto-output": lambda w: ur_single(*w.descriptor_ur()),
+    "crypto-output, animated": lambda w: ur_parts(*w.descriptor_ur(), fragment_len=80),
+    "bytes, animated": lambda w: ur_parts(*w.descriptor_bytes_ur(), fragment_len=120, skip=1),
+}
+
+
+@pytest.mark.parametrize("spelling", SPELLINGS)
+@pytest.mark.parametrize("scanner", ["Sign transaction", "Verify address"])
+def test_descriptor_spellings(dev, spelling, scanner):
+    """Every way a wallet app writes the descriptor QR gives the same wallet,
+    at either scanner, with the signer's key at the usual BIP-48 path."""
+    wallet = two_of_three()
+    loaded(dev)
+    dev.tap(scanner)
+    scan_descriptor(dev, SPELLINGS[spelling](wallet), wallet)
+    dev.tap("Use wallet")
+    dev.back()
+    result = verify_address(dev, wallet.address(11, change=True))
+    assert "Address verified" in result and "CHANGE #11" in result
+
+
+def test_three_of_five_after_a_cosigner(dev):
+    """A bigger wallet, shown as an animated crypto-output. A cosigner has
+    signed already: the signer adds its signature and keeps theirs."""
+    wallet = Wallet.multisig(3, [c.key(BIP48) for c in COSIGNERS[:2]] + [SIGNER.key(BIP48)] + [c.key(BIP48) for c in COSIGNERS[2:]])
+    psbt = wallet.create_psbt([wallet.fund(3, 1_000_000)], [(STRANGER, 999_000)], fee=1_000)   # no change
+    COSIGNERS[3].sign(psbt)
+
+    loaded(dev)
+    dev.tap("Sign transaction")
+    scan_descriptor(dev, ur_parts(*wallet.descriptor_ur(), fragment_len=100), wallet)
+    dev.tap("Use wallet")
+    dev.scan_animated(psbt_parts(psbt, skip=7))
+    assert dev.screen == "PSBT_OVERVIEW", dev.text()
+    signed, seen = review_and_sign(dev)
+    assert "3 OF 5" in seen[0] and "None" in seen[0]   # no change
+    assert len(seen) == 3
+
+    assert len(signed.inputs[0].partial_sigs) == 2   # the signer's QR carries both
+    psbt.inputs[0].partial_sigs.clear()
+    wallet.combine(psbt, signed)
+    assert wallet.signers(psbt) == {SIGNER.fingerprint, COSIGNERS[3].fingerprint}
+    COSIGNERS[0].sign(psbt)
+    wallet.finalize(psbt)
+
+
+def test_wallets_we_are_not_in_are_refused(dev):
+    loaded(dev)
+    dev.tap("Sign transaction")
+    # Three other people's keys.
+    dev.scan(Wallet.multisig(2, [c.key(BIP48) for c in COSIGNERS[:3]]).descriptor())
+    assert dev.screen == "SCAN_PSBT" and "Different wallet" in dev.text()
+    # Our fingerprint on somebody else's key: the fingerprint proves nothing.
+    forged = COSIGNERS[2].key(BIP48).replace(COSIGNERS[2].fingerprint, SIGNER.fingerprint)
+    dev.scan(Wallet.multisig(2, [forged] + [c.key(BIP48) for c in COSIGNERS[:2]]).descriptor())
+    assert dev.screen == "SCAN_PSBT" and "Different wallet" in dev.text()
+    # Not sortedmulti.
+    dev.scan(two_of_three().descriptor().split("#")[0].replace("sortedmulti", "multi"))
+    assert dev.screen == "SCAN_PSBT" and "Not supported yet" in dev.text()
+    # A typo: the checksum catches it.
+    good = two_of_three().descriptor()
+    dev.scan(good.replace("sortedmulti(2", "sortedmulti(1"))
+    assert dev.screen == "SCAN_PSBT" and "Damaged descriptor" in dev.text()
+
+
+def test_change_to_another_multisig_blocks_signing(dev):
+    """A compromised wallet app swaps the cosigners in the change output for
+    its own keys, next to ours. Only the descriptor lets the signer notice."""
+    wallet = two_of_three()
+    evil = Wallet.multisig(2, [SIGNER.key(BIP48)] + [c.key(BIP48) for c in COSIGNERS[2:]])
+    psbt = wallet.create_psbt([wallet.fund(0, 300_000)], [(STRANGER, 10_000)], fee=500, change_index=2)
+    theirs = evil.create_psbt([evil.fund(0, 300_000)], [(STRANGER, 10_000)], fee=500, change_index=2)
+    psbt.outputs[-1] = theirs.outputs[-1]   # script, witness script and key paths, all consistent
+
+    loaded(dev)
+    dev.tap("Sign transaction")
+    dev.scan(wallet.descriptor())
+    dev.tap("Use wallet")
+    dev.scan_animated(psbt_parts(psbt))
+    assert dev.screen == "PSBT_ERROR", dev.text()
+    assert "Don't sign this" in dev.text()
+
+
+def test_descriptor_goes_with_the_seed(dev):
+    """Stateless: after Wipe the wallet is unknown again, also to the same seed."""
+    wallet = two_of_three()
+    psbt = wallet.create_psbt([wallet.fund(0, 300_000)], [(STRANGER, 10_000)], fee=500)
+    loaded(dev)
+    dev.tap("Sign transaction")
+    dev.scan(wallet.descriptor())
+    dev.tap("Use wallet")
+    dev.scan_animated(psbt_parts(psbt))
+    assert dev.screen == "PSBT_OVERVIEW"
+    dev.back()
+    dev.tap("Wipe now")
+    dev.tap("Wipe")
+    assert dev.screen == "HOME"
+
+    loaded(dev)
+    assert "2 OF 3" not in dev.text()
+    dev.tap("Sign transaction")
+    dev.scan_animated(psbt_parts(psbt))
+    assert dev.screen == "PSBT_ERROR" and "Scan the wallet's descriptor first" in dev.text()

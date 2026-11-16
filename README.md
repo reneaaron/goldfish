@@ -52,6 +52,7 @@ been tested on real hardware or against Sparrow.
 ```bash
 cd firmware
 pio test -e test                              # unit tests
+uv run --with-requirements e2e/requirements.txt pytest e2e   # end-to-end, against the simulator
 pio run -e sim && .pio/build/sim/program      # simulator window
 pio run                                       # board firmware (UF2)
 ```
