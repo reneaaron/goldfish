@@ -47,9 +47,13 @@ static void bottom_pair(lv_obj_t *secondary, lv_obj_t *primary) {
 static lv_obj_t *scroll_area(lv_obj_t *scr, int y) {
     lv_obj_t *a = lv_obj_create(scr);
     lv_obj_remove_style_all(a);
-    lv_obj_set_size(a, CW, H - M - BTN_H - 4 - y);
+    // Full width, with the side margins as padding: the scrollbar sits at the
+    // very edge of the screen, clear of the cards.
+    lv_obj_set_size(a, W, H - M - BTN_H - 4 - y);
+    lv_obj_set_style_pad_hor(a, M, 0);
     lv_obj_align(a, LV_ALIGN_TOP_MID, 0, y);
     lv_obj_set_scroll_dir(a, LV_DIR_VER);
+    lv_obj_set_style_pad_right(a, 0, LV_PART_SCROLLBAR);
     lv_obj_set_style_width(a, 3, LV_PART_SCROLLBAR);
     lv_obj_set_style_bg_color(a, TEXT_3, LV_PART_SCROLLBAR);
     lv_obj_set_style_bg_opa(a, LV_OPA_COVER, LV_PART_SCROLLBAR);
