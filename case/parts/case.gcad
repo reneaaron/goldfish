@@ -1,5 +1,4 @@
-let clip=1
-let gw=37.1 gh=58.8 gr=2.6 clr=0.3 t=1.6 dep=7.2 hdr=8 up=0.4+clip*0.5
+let gw=37.1 gh=58.8 gr=2.6 clr=0.3 t=1.6 dep=7.2 hdr=8 up=0.9
 let ow=gw+2*clr+2*t oh=gh+2*clr+2*t orr=gr+clr+t zb=-(dep+hdr+t) ht=dep+hdr+t+up
 let bx=14.5 by=21.1 so=9.7 camx=0 camy=8 lens=7 camw=8.9
 let wi=ow/2-t lw=0.9 tab=20 slot=0.8 sd=12
@@ -16,7 +15,6 @@ rect camw+1.6 camw+1.6 at=camx,camy r=1
 rect camw camw at=camx,camy r=0.5
 camframe: extrude 1.2
 plane case.start
-if clip==0 screws: hole M2 bx,by -bx,by bx,-by -bx,-by cbore=M2
 lens: hole lens camx,-camy
 plane XZ offset=oh/2
 rect 12.4 6.6 at=0,-(dep+1.6) r=3.2
@@ -24,15 +22,15 @@ usb: cut 2*t
 circle 2.2 at=8.4,-(dep+1)
 circle 2.2 at=-8.4,-(dep+1)
 keys: cut 2*t
-if clip plane XZ offset=-tab/2
-if clip poly wi,0.05 wi-lw,0.05 wi-lw,0.3 wi-0.15,up-0.05 wi+0.4,up-0.05 wi+0.4,0.05
-if clip poly -wi,0.05 -wi-0.4,0.05 -wi-0.4,up-0.05 -wi+0.15,up-0.05 -wi+lw,0.3 -wi+lw,0.05
-if clip ledges: extrude tab
-if clip plane XY offset=up
-if clip rect t+1 slot at=wi+t/2,tab/2+slot/2
-if clip rect t+1 slot at=wi+t/2,-tab/2-slot/2
-if clip rect t+1 slot at=-wi-t/2,tab/2+slot/2
-if clip rect t+1 slot at=-wi-t/2,-tab/2-slot/2
-if clip slots: cut sd
+plane XZ offset=-tab/2
+poly wi,0.05 wi-lw,0.05 wi-lw,0.3 wi-0.15,up-0.05 wi+0.4,up-0.05 wi+0.4,0.05
+poly -wi,0.05 -wi-0.4,0.05 -wi-0.4,up-0.05 -wi+0.15,up-0.05 -wi+lw,0.3 -wi+lw,0.05
+ledges: extrude tab
+plane XY offset=up
+rect t+1 slot at=wi+t/2,tab/2+slot/2
+rect t+1 slot at=wi+t/2,-tab/2-slot/2
+rect t+1 slot at=-wi-t/2,tab/2+slot/2
+rect t+1 slot at=-wi-t/2,-tab/2-slot/2
+slots: cut sd
 color #1c1c1c
 material pla
