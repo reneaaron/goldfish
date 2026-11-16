@@ -49,12 +49,13 @@ class Seed:
 
 
 def parse_key_export(text):
-    """The signer's Connect wallet QR: "[fingerprint/84h/1h/0h]vpub...".
+    """The signer's Connect wallet QR: "[fingerprint/84h/1h/0h]vpub...", or
+    "[fingerprint/48h/1h/0h/2h]Vpub..." for a multisig wallet.
     Returns (fingerprint, path, descriptor key with a plain tpub)."""
     m = re.fullmatch(r"\[([0-9a-f]{8})/([0-9h'/]+)\]([a-zA-Z0-9]+)", text)
     assert m, "not a key export: %r" % text
     fingerprint, path, xpub = m.groups()
-    tpub = bip32.HDKey.from_string(xpub).to_base58(NET["xpub"])   # vpub is SLIP-132 for the same key
+    tpub = bip32.HDKey.from_string(xpub).to_base58(NET["xpub"])   # vpub and Vpub are SLIP-132 spellings of the same key
     return fingerprint, path, "[%s/%s]%s" % (fingerprint, path, tpub)
 
 

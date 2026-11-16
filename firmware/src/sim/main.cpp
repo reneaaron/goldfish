@@ -185,6 +185,10 @@ static int run_shots(const char *dir) {
     ui_goto(UI_NETWORK);      pump(300); save(dir, "5b_network");
     ui_goto(UI_EXPORT_XPUB);  pump(300); save(dir, "5c_export_vpub");
     wallet_set_testnet(false);
+    ui_goto(UI_KEY_TYPE);     pump(300); save(dir, "5d_key_type");
+    wallet_set_export_multisig(true);
+    ui_goto(UI_EXPORT_XPUB);  pump(300); save(dir, "5e_export_multisig");
+    wallet_set_export_multisig(false);
     ui_goto(UI_WIPE_CONFIRM); pump(300); save(dir, "6_wipe_confirm");
 
     // Transaction: SeedSigner's single-sig testnet vector and its seed.

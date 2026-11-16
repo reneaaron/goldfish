@@ -9,6 +9,7 @@
 //        with the passphrase's fingerprint
 //   Seed menu -> Sign transaction | Verify address | Connect wallet | Back up as QR | Wipe
 //   Connect wallet -> Network (Mainnet / Testnet), RAM only
+//   Connect wallet -> Wallet type (Single-sig / Multisig key), RAM only
 //   Scan transaction -> Review -> each output -> Swipe to sign -> Signed QR
 //   Verify address -> scan address QR -> searching -> verified / not from this seed
 //   Multisig: show the wallet's descriptor QR to the Sign or Verify scanner
@@ -31,6 +32,7 @@ enum UiScreen {
     UI_SCAN_PSBT,
     UI_EXPORT_XPUB,
     UI_NETWORK,          // network for Connect wallet
+    UI_KEY_TYPE,         // single-sig or multisig key for Connect wallet
     UI_WIPE_CONFIRM,
     UI_PSBT_ERROR,
     UI_PSBT_OVERVIEW,

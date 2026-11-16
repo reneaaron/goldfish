@@ -6,6 +6,7 @@ transactions and addresses against it.
 All seeds here are public test seeds. Never real funds.
 """
 import pytest
+from embit.networks import NETWORKS
 
 from flows import address_on_screen, connect_wallet, load_by_words, review_and_sign, verify_address
 from hostwallet import Seed, Wallet, psbt_parts, ur_parts, ur_single
@@ -48,12 +49,12 @@ def scan_descriptor(dev, shown, wallet):
 
 
 def test_linked_key_to_broadcastable_transaction(dev):
-    """Set up a 2-of-3 around the key the signer exports, receive to it, and
-    spend from it with the signer and one cosigner."""
+    """Set up a 2-of-3 around the multisig key the signer exports, receive to
+    it, and spend from it with the signer and one cosigner."""
     loaded(dev)
-    fingerprint, _, key = connect_wallet(dev)   # all the wallet app ever gets from the signer
+    fingerprint, path, key = connect_wallet(dev, multisig=True)   # all the wallet app ever gets from the signer
+    assert (fingerprint, path, key) == (SIGNER.fingerprint, BIP48, SIGNER.key(BIP48))
     wallet = two_of_three(key)
-    assert fingerprint == SIGNER.fingerprint
 
     # A multisig transaction is refused until the signer knows the wallet.
     coins = [wallet.fund(0, 500_000), wallet.fund(1, 250_000)]
@@ -96,8 +97,30 @@ def test_linked_key_to_broadcastable_transaction(dev):
     assert "2 OF 3" in dev.text()
     result = verify_address(dev, wallet.address(5))
     assert "Address verified" in result and "RECEIVE #5" in result
-    result = verify_address(dev, two_of_three().address(5))   # same cosigners, another key of ours
+    result = verify_address(dev, two_of_three(SIGNER.key("84h/1h/0h")).address(5))   # same cosigners, another key of ours
     assert "Not from this seed" in result
+
+
+def test_connect_wallet_shows_either_key(dev):
+    """Single-sig and multisig keys, on both networks, as embit derives them
+    from the same words; switching back and forth doesn't mix them up."""
+    loaded(dev)
+    dev.tap("Connect wallet")
+    seen = {}
+    for kind, network in (("Single-sig", "Mainnet"), ("Multisig", "Mainnet"), ("Multisig", "Testnet"), ("Single-sig", "Testnet")):
+        for now, other in ((kind, "Multisig" if kind == "Single-sig" else "Single-sig"),
+                           (network, "Testnet" if network == "Mainnet" else "Mainnet")):
+            if other + "  {RIGHT}" in dev.texts():
+                dev.tap(other + "  {RIGHT}")
+                dev.tap(now)
+        seen[kind, network] = dev.read_qr()
+    for (kind, network), shown in seen.items():
+        net = NETWORKS["main" if network == "Mainnet" else "test"]
+        path = ("84h/%s/0h" if kind == "Single-sig" else "48h/%s/0h/2h") % ("0h" if network == "Mainnet" else "1h")
+        xpub = SIGNER.root.derive("m/" + path).to_public().to_base58(net["zpub" if kind == "Single-sig" else "Zpub"])
+        assert shown == "[%s/%s]%s" % (SIGNER.fingerprint, path, xpub)
+    assert seen["Multisig", "Mainnet"].split("]")[1].startswith("Zpub")
+    assert seen["Multisig", "Testnet"].split("]")[1].startswith("Vpub")
 
 
 SPELLINGS = {

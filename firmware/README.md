@@ -29,7 +29,10 @@ The seed lives in RAM only: "Wipe seed" or unplugging removes it.
    same static format SeedSigner exports, readable by Sparrow. "Network" switches it
    to testnet (`[fingerprint/84h/1h/0h]vpub…`), which also serves signet and
    Mutinynet. The choice is kept in RAM, so every boot starts on mainnet. Signing and
-   Verify address don't use it: they read the network from the PSBT or the address
+   Verify address don't use it: they read the network from the PSBT or the address.
+   "Single-sig" switches to this seed's key for a multisig wallet,
+   `[fingerprint/48h/0h/0h/2h]Zpub…` (BIP-48, native segwit; `48h/1h/0h/2h` and
+   `Vpub…` on testnet), to add as a cosigner in the wallet app. Also RAM only
 5. Verify address: scan a receive address (plain or `bitcoin:` URI) from your
    wallet app; the device checks the first 500 receive and 100 change
    addresses of this seed and says which one it is, or that it isn't yours;
@@ -98,6 +101,8 @@ Multisig is `wsh(sortedmulti(...))`, up to 15 keys, with the loaded seed as one
 cosigner. The device needs the wallet's output descriptor, because a PSBT alone
 can name any cosigner keys next to ours:
 
+- Connect wallet, set to Multisig, shows the key to add to the wallet in the
+  wallet app. The device only needs the finished wallet's descriptor
 - Show the descriptor QR to the Sign transaction or Verify address scanner: as
   plain text, as a `crypto-output` UR (BCR-2020-010, sortedmulti with HD keys),
   or as text in a `bytes` UR. `/<0;1>/*`, `/{0,1}/*` and `/0/*` are all read as
@@ -147,6 +152,7 @@ pio test -e test
 - SeedQR decoding: the vectors in SeedSigner's SeedQR spec
 - QR scanning: the pictures in `sim/samples`, in a frame the size of the board camera's (240x180)
 - Key derivation: the BIP84 test vector (fingerprint `73c5da0a`, zpub, testnet vpub),
+  the same seed's BIP-48 multisig keys (Zpub, testnet Vpub) worked out by embit,
   and the BIP39 vector with passphrase `TREZOR` (root key, fingerprint `b4e3f5ed`),
   removed again and wiped with the seed
 - UR: SeedSigner's 29-part `crypto-psbt` vector, plus an encode/decode round trip
@@ -188,7 +194,8 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
   change reviewed and signed; SeedQR Standard and Compact; the QR card check;
   an animated PSBT joined mid-cycle (fountain parts only) and a base64 frame;
   another seed's transaction, another wallet's address, and fake change
-- Multisig: a 2-of-3 around the linked key, refused until its descriptor is
+- Multisig: Connect wallet's four keys (single-sig and multisig, mainnet and
+  testnet) against embit; a 2-of-3 around the linked multisig key, refused until its descriptor is
   scanned and confirmed, then signed and finalized with a cosigner; every
   spelling of the descriptor at both scanners; a 3-of-5 after a cosigner has
   signed; wallets the seed isn't in, a forged fingerprint, `multi`, a wrong
