@@ -284,8 +284,12 @@ UrResult ur_decoder_add(UrDecoder *d, const char *text, size_t len, const uint8_
     if (!cbor_head(&c, &major, &msg_len) || major != 0) return UR_BAD;
     if (!cbor_head(&c, &major, &checksum) || major != 0) return UR_BAD;
     if (!cbor_head(&c, &major, &frag_len) || major != 2 || frag_len != size_t(c.end - c.p)) return UR_BAD;
-    if (seq_len == 0 || seq_len > UR_MAX_FRAGMENTS || msg_len > UR_MAX_MESSAGE || frag_len > 256 ||
-        seq_len * frag_len < msg_len)
+    // Fragments are stored back to back in d->message, so the fragment count
+    // must be exactly what the message needs (as bc-ur requires) and fit the
+    // buffer. seq is 1-based: 0 would index fragment 255.
+    if (seq == 0 || seq > UINT32_MAX || seq_len == 0 || seq_len > UR_MAX_FRAGMENTS || msg_len == 0 ||
+        msg_len > UR_MAX_MESSAGE || frag_len == 0 || frag_len > 256 ||
+        seq_len != (msg_len + frag_len - 1) / frag_len || seq_len * frag_len > sizeof(d->message))
         return UR_BAD;
 
     if (d->type != type || d->seq_len != seq_len || d->checksum != checksum || d->message_len != msg_len ||

@@ -45,6 +45,23 @@ void test_not_ur() {
     TEST_ASSERT_EQUAL(UR_WRONG_TYPE, ur_decoder_add(&dec, "ur:crypto-seed/abcd", 19, &p, &pl));
 }
 
+// Parts whose header would make the decoder write outside its buffer.
+void test_out_of_range_parts_rejected() {
+    const uint8_t *p; size_t pl;
+    // seq 0 (sequence numbers are 1-based)
+    const char *seq0 = "UR:CRYPTO-PSBT/1-2/LPAEAOBBAEHDBKFPFPFPFPFPFPFPFPFPFPDWLDCSWT";
+    ur_decoder_reset(&dec);
+    TEST_ASSERT_EQUAL(UR_BAD, ur_decoder_add(&dec, seq0, strlen(seq0), &p, &pl));
+    // 100 fragments of 200 bytes for a 1-byte message: 20 KB, past the buffer
+    static char big[600];
+    strcpy(big, "UR:CRYPTO-PSBT/100-100/LPCSIECSIEADAEHDSP");
+    for (int i = 0; i < 200; i++) strcat(big, "FP");
+    strcat(big, "CYVARDIS");
+    ur_decoder_reset(&dec);
+    TEST_ASSERT_EQUAL(UR_BAD, ur_decoder_add(&dec, big, strlen(big), &p, &pl));
+    TEST_ASSERT_EQUAL(0, (int)dec.found);
+}
+
 void test_encode_roundtrip() {
     // decode the vector, re-encode with a different fragment size, decode again
     ur_decoder_reset(&dec);
@@ -77,5 +94,6 @@ int main() {
     RUN_TEST(test_corrupt_part_rejected);
     RUN_TEST(test_not_ur);
     RUN_TEST(test_encode_roundtrip);
+    RUN_TEST(test_out_of_range_parts_rejected);
     return UNITY_END();
 }

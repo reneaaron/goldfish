@@ -94,6 +94,14 @@ truncated or drawn over other text.
 Review follows SeedSigner's rules: every input must belong to the loaded seed,
 change counts as change only if the seed re-derives that exact output script,
 and an output that claims our fingerprint but doesn't verify blocks signing.
+"Belongs" means the seed re-derives the input's script at every path the PSBT
+gives for our fingerprint (BIP84 paths for single-sig); a multisig input's
+witness script must also be the descriptor's. A transaction without outputs,
+an input that is already finalized, a full previous transaction that isn't the
+one spent or disagrees with the witness UTXO, and a redeem script (or a witness
+script on a single-sig input) are refused as invalid. After signing, every
+signature of ours is checked against the reviewed amounts and our own scripts,
+and nothing is shown if one doesn't match.
 Native segwit only, single-sig or multisig, mainnet or testnet (from the PSBT's
 derivation paths, or the multisig descriptor's keys). BBQr input isn't supported yet.
 
@@ -155,7 +163,9 @@ pio test -e test
   the same seed's BIP-48 multisig keys (Zpub, testnet Vpub) worked out by embit,
   and the BIP39 vector with passphrase `TREZOR` (root key, fingerprint `b4e3f5ed`),
   removed again and wiped with the seed
-- UR: SeedSigner's 29-part `crypto-psbt` vector, plus an encode/decode round trip
+- UR: SeedSigner's 29-part `crypto-psbt` vector, plus an encode/decode round trip,
+  and parts whose header would overrun the decoder's buffer (sequence 0,
+  more fragments than the message needs)
 - Multisig descriptor: SeedSigner's native segwit 2-of-3 test wallet, with
   addresses and a witness script worked out by embit; the three spellings of
   the chains, a `crypto-output` UR made with urtypes (also cut short at every
@@ -166,13 +176,25 @@ pio test -e test
   embit signed; a cosigner's signature kept; no descriptor, a 3-of-3 of the
   same keys, and change that pays another script
 - PSBT review: SeedSigner's single-sig testnet vector (₿25,000 in, ₿24,857 out,
-  ₿143 fee), signing, wrong seed and garbage input
+  ₿143 fee), signing, wrong seed and garbage input; inputs refused for an input
+  script that isn't our key's, a second unverified key path with our
+  fingerprint, no outputs, a finalized input, a mismatched previous
+  transaction, extra redeem or witness scripts, and a multisig witness script
+  that isn't the descriptor's; and a bogus signature of ours already in the
+  PSBT, which signing refuses to hand out
 - Verify address: BIP84 first receive/change addresses, URIs and their
   amounts, testnet, foreign addresses, and a different seed loaded afterwards;
   multisig receive and change addresses, with and without the descriptor
 - Amounts: BIP177 and legacy BTC formatting from ₿0 to the 21M cap
 - BIP-85: the spec's 12 and 24-word BIP39 vectors, child number bounds, and
   the child's fingerprint matching the same seed loaded
+
+## Fuzzing
+
+`fuzz/` fuzzes everything a scanned QR reaches (quirc, UR, SeedQR, addresses,
+PSBT review and signing) with AddressSanitizer and UBSan, and `oracle/`
+checks PSBT review and signatures against embit on random honest and attack
+PSBTs. How to build and run them: [`fuzz/README.md`](fuzz/README.md).
 
 ## End-to-end tests
 

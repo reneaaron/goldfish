@@ -457,6 +457,178 @@ void test_single_sig_with_descriptor_loaded() {
     psbt_clear();
 }
 
+// Our fingerprint, path and real pubkey on an input whose script pays someone
+// else: not our coin, so the whole transaction is refused (not signed).
+void test_input_with_foreign_script_rejected() {
+    load_seed(SINGLESIG_MNEMONIC);
+    const uint32_t path[] = {H + 84, H + 1, H, 0, 0};
+    uint8_t pub[33], ours[22], theirs[22] = {0x00, 20};
+    p2wpkh_at(path, pub, ours);
+    memset(theirs + 2, 0x11, 20);
+
+    struct wally_tx *tx = nullptr;
+    uint8_t txid[32];
+    memset(txid, 0x22, sizeof(txid));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_init_alloc(2, 0, 1, 1, &tx));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_add_raw_input(tx, txid, 32, 0, 0xfffffffd, nullptr, 0, nullptr, 0));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_add_raw_output(tx, 49000, theirs, sizeof(theirs), 0));
+
+    struct wally_psbt *p = nullptr;
+    struct wally_tx_output utxo;
+    uint8_t fp[4];
+    wallet_fingerprint(fp);
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_from_tx(tx, 0, 0, &p));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_output_init(50000, theirs, sizeof(theirs), &utxo));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_set_input_witness_utxo(p, 0, &utxo));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_add_input_keypath(p, 0, pub, sizeof(pub), fp, sizeof(fp), path, 5));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_to_bytes(p, 0, raw, sizeof(raw), &raw_len));
+    wally_psbt_free(p);
+    wally_tx_free(tx);
+
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_NOT_OUR_SEED, psbt_load(raw, raw_len, &r));
+}
+
+// A transaction without outputs isn't valid: refused at review, not at signing.
+void test_no_outputs_rejected() {
+    load_seed(SINGLESIG_MNEMONIC);
+    edit_psbt([](struct wally_psbt *p) {
+        while (p->num_outputs) TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_remove_output(p, 0));
+    });
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_PARSE_FAILED, psbt_load(raw, raw_len, &r));
+}
+
+// A finalized input drops partial signatures when serialized: the signed QR
+// would carry no signature from us. Written into the raw bytes, since libwally
+// strips the key paths of an input it finalizes itself.
+void test_finalized_input_rejected() {
+    load_seed(SINGLESIG_MNEMONIC);
+    size_t at = 5;                                // after "psbt\xff": walk the global map
+    while (raw[at] != 0x00) {
+        TEST_ASSERT_TRUE(raw[at] < 0xfd);         // single-byte key length
+        at += 1 + raw[at];
+        size_t vlen = raw[at], skip = 1;
+        if (vlen == 0xfd) { vlen = raw[at + 1] | (raw[at + 2] << 8); skip = 3; }
+        at += skip + vlen;
+    }
+    at++;                                         // input 0's map starts here
+    const uint8_t final_scriptsig[] = {0x01, 0x07, 0x01, 0x51};   // PSBT_IN_FINAL_SCRIPTSIG = OP_1
+    memmove(raw + at + sizeof(final_scriptsig), raw + at, raw_len - at);
+    memcpy(raw + at, final_scriptsig, sizeof(final_scriptsig));
+    raw_len += sizeof(final_scriptsig);
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_PARSE_FAILED, psbt_load(raw, raw_len, &r));
+}
+
+// A full previous transaction that isn't the one this input spends: the
+// amount shown would come from the witness UTXO, signing from the other copy.
+void test_mismatched_previous_tx_rejected() {
+    load_seed(SINGLESIG_MNEMONIC);
+    edit_psbt([](struct wally_psbt *p) {
+        struct wally_tx *prev = nullptr;
+        uint8_t txid[32] = {0}, script[22] = {0x00, 20};
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_init_alloc(2, 0, 1, 1, &prev));
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_add_raw_input(prev, txid, 32, 0, 0xfffffffd, nullptr, 0, nullptr, 0));
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_add_raw_output(prev, 300000, script, sizeof(script), 0));
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_input_set_utxo(&p->inputs[0], prev));
+        wally_tx_free(prev);
+    });
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_PARSE_FAILED, psbt_load(raw, raw_len, &r));
+}
+
+// Scripts a native single-sig input never has: libwally would sign with them,
+// so signing would fail (or sign something else) after review passed.
+void test_extra_input_scripts_rejected() {
+    static const uint8_t script[] = {0x00, 0x14, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
+    static uint8_t saved[4096];
+    static size_t saved_len;
+    load_seed(SINGLESIG_MNEMONIC);
+    memcpy(saved, raw, raw_len);
+    saved_len = raw_len;
+    PsbtReview r;
+    edit_psbt([](struct wally_psbt *p) {
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_input_set_redeem_script(&p->inputs[0], script, sizeof(script)));
+    });
+    TEST_ASSERT_EQUAL(PSBT_PARSE_FAILED, psbt_load(raw, raw_len, &r));
+    memcpy(raw, saved, saved_len);
+    raw_len = saved_len;
+    edit_psbt([](struct wally_psbt *p) {
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_input_set_witness_script(&p->inputs[0], script, sizeof(script)));
+    });
+    TEST_ASSERT_EQUAL(PSBT_PARSE_FAILED, psbt_load(raw, raw_len, &r));
+}
+
+// The input pays the descriptor's P2WSH, but the PSBT carries another witness
+// script: libwally would sign with it, so review refuses.
+void test_multisig_wrong_witness_script() {
+    load_multisig(MS_PSBT);
+    edit_psbt([](struct wally_psbt *p) {
+        uint8_t ws[600];
+        size_t n = 0;
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_get_input_witness_script(p, 0, ws, sizeof(ws), &n));
+        ws[n - 2] ^= 0x01;                        // flip a bit in the last pubkey
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_input_set_witness_script(&p->inputs[0], ws, n));
+    });
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_WRONG_WALLET, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(0, psbt_sign());
+    psbt_clear();
+}
+
+// A second key path with our fingerprint on the same input, for a key the
+// input's script doesn't pay: every claim has to verify, not just one.
+void test_second_unverified_claim_rejected() {
+    load_seed(SINGLESIG_MNEMONIC);
+    edit_psbt([](struct wally_psbt *p) {
+        const uint32_t other[] = {H + 84, H + 1, H, 0, 7};
+        uint8_t pub[33], script[22], fp[4];
+        p2wpkh_at(other, pub, script);
+        wallet_fingerprint(fp);
+        // The unverified one goes first: that's the key libwally would sign with.
+        struct wally_map *kp = &p->inputs[0].keypaths;
+        uint8_t real_pub[33], real_val[64];
+        size_t real_len = kp->items[0].value_len;
+        memcpy(real_pub, kp->items[0].key, 33);
+        memcpy(real_val, kp->items[0].value, real_len);
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_map_clear(kp));
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_add_input_keypath(p, 0, pub, sizeof(pub), fp, sizeof(fp), other, 5));
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_map_add(kp, real_pub, 33, real_val, real_len));
+        TEST_ASSERT_EQUAL(2, kp->num_items);
+        TEST_ASSERT_EQUAL_MEMORY(pub, kp->items[0].key, 33);
+    });
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_NOT_OUR_SEED, psbt_load(raw, raw_len, &r));
+}
+
+// A signature from our key that is already in the PSBT but signs something
+// else: psbt_sign must not hand it out as ours.
+void test_bogus_existing_signature_not_signed() {
+    load_seed(SINGLESIG_MNEMONIC);
+    edit_psbt([](struct wally_psbt *p) {
+        const struct wally_map_item &kp = p->inputs[0].keypaths.items[0];
+        uint32_t path[5];
+        size_t path_len = 0;
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_map_keypath_get_item_path(&p->inputs[0].keypaths, 0, path, 5, &path_len));
+        struct ext_key k;
+        TEST_ASSERT_EQUAL(WALLY_OK, bip32_key_from_parent_path(wallet_root(), path, path_len, BIP32_FLAG_KEY_PRIVATE, &k));
+        uint8_t hash[32], sig[64], der[73];
+        size_t der_len = 0;
+        memset(hash, 0x42, sizeof(hash));         // not this transaction's sighash
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_ec_sig_from_bytes(k.priv_key + 1, 32, hash, 32, EC_FLAG_ECDSA, sig, 64));
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_ec_sig_to_der(sig, 64, der, sizeof(der) - 1, &der_len));
+        der[der_len++] = WALLY_SIGHASH_ALL;
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_input_add_signature(&p->inputs[0], kp.key, kp.key_len, der, der_len));
+    });
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_OK, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(0, psbt_sign());
+    static uint8_t out[8192];
+    TEST_ASSERT_EQUAL(0, psbt_serialize(out, sizeof(out)));
+    psbt_clear();
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_review_matches_seedsigner);
@@ -479,5 +651,13 @@ int main() {
     RUN_TEST(test_multisig_fake_change);
     RUN_TEST(test_multisig_wrong_wallet);
     RUN_TEST(test_single_sig_with_descriptor_loaded);
+    RUN_TEST(test_input_with_foreign_script_rejected);
+    RUN_TEST(test_no_outputs_rejected);
+    RUN_TEST(test_finalized_input_rejected);
+    RUN_TEST(test_mismatched_previous_tx_rejected);
+    RUN_TEST(test_extra_input_scripts_rejected);
+    RUN_TEST(test_multisig_wrong_witness_script);
+    RUN_TEST(test_second_unverified_claim_rejected);
+    RUN_TEST(test_bogus_existing_signature_not_signed);
     return UNITY_END();
 }
