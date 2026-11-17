@@ -151,6 +151,20 @@ pio run
 
 The firmware ends up at `.pio/build/rp2350_touch_lcd_2/firmware.uf2`.
 
+The build is reproducible: the same commit gives a byte-identical
+`firmware.uf2`, whatever the checkout path or home directory. The platform,
+Arduino core, toolchain, LVGL and libwally are all pinned in `platformio.ini`,
+and `-ffile-prefix-map` keeps the PlatformIO packages path out of the binary.
+To check a release, build its tag on a clean tree (a dirty tree adds `+` to
+the version and so changes the file) and compare against the SHA-256 the web
+flasher shows:
+
+```bash
+git checkout v0.1.0 && pio run && sha256sum .pio/build/rp2350_touch_lcd_2/firmware.uf2
+```
+
+CI prints the same hash in each run's summary.
+
 ## Tests
 
 ```bash

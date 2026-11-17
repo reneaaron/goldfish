@@ -53,6 +53,8 @@ jobs:
           key: pio-board-${{ hashFiles('firmware/platformio.ini') }}
       - run: uv tool install platformio==6.1.19
       - run: pio run
+      # The build is reproducible, so this matches a local build of the same commit.
+      - run: (cd .pio/build/rp2350_touch_lcd_2 && sha256sum firmware.uf2) | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: firmware
