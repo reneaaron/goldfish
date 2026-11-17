@@ -560,6 +560,75 @@ void test_extra_input_scripts_rejected() {
     TEST_ASSERT_EQUAL(PSBT_PARSE_FAILED, psbt_load(raw, raw_len, &r));
 }
 
+// The input pays the descriptor's P2WSH, but the PSBT carries another witness
+// script: libwally would sign with it, so review refuses.
+void test_multisig_wrong_witness_script() {
+    load_multisig(MS_PSBT);
+    edit_psbt([](struct wally_psbt *p) {
+        uint8_t ws[600];
+        size_t n = 0;
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_get_input_witness_script(p, 0, ws, sizeof(ws), &n));
+        ws[n - 2] ^= 0x01;                        // flip a bit in the last pubkey
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_input_set_witness_script(&p->inputs[0], ws, n));
+    });
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_WRONG_WALLET, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(0, psbt_sign());
+    psbt_clear();
+}
+
+// A second key path with our fingerprint on the same input, for a key the
+// input's script doesn't pay: every claim has to verify, not just one.
+void test_second_unverified_claim_rejected() {
+    load_seed(SINGLESIG_MNEMONIC);
+    edit_psbt([](struct wally_psbt *p) {
+        const uint32_t other[] = {H + 84, H + 1, H, 0, 7};
+        uint8_t pub[33], script[22], fp[4];
+        p2wpkh_at(other, pub, script);
+        wallet_fingerprint(fp);
+        // The unverified one goes first: that's the key libwally would sign with.
+        struct wally_map *kp = &p->inputs[0].keypaths;
+        uint8_t real_pub[33], real_val[64];
+        size_t real_len = kp->items[0].value_len;
+        memcpy(real_pub, kp->items[0].key, 33);
+        memcpy(real_val, kp->items[0].value, real_len);
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_map_clear(kp));
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_add_input_keypath(p, 0, pub, sizeof(pub), fp, sizeof(fp), other, 5));
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_map_add(kp, real_pub, 33, real_val, real_len));
+        TEST_ASSERT_EQUAL(2, kp->num_items);
+        TEST_ASSERT_EQUAL_MEMORY(pub, kp->items[0].key, 33);
+    });
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_NOT_OUR_SEED, psbt_load(raw, raw_len, &r));
+}
+
+// A signature from our key that is already in the PSBT but signs something
+// else: psbt_sign must not hand it out as ours.
+void test_bogus_existing_signature_not_signed() {
+    load_seed(SINGLESIG_MNEMONIC);
+    edit_psbt([](struct wally_psbt *p) {
+        const struct wally_map_item &kp = p->inputs[0].keypaths.items[0];
+        uint32_t path[5];
+        size_t path_len = 0;
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_map_keypath_get_item_path(&p->inputs[0].keypaths, 0, path, 5, &path_len));
+        struct ext_key k;
+        TEST_ASSERT_EQUAL(WALLY_OK, bip32_key_from_parent_path(wallet_root(), path, path_len, BIP32_FLAG_KEY_PRIVATE, &k));
+        uint8_t hash[32], sig[64], der[73];
+        size_t der_len = 0;
+        memset(hash, 0x42, sizeof(hash));         // not this transaction's sighash
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_ec_sig_from_bytes(k.priv_key + 1, 32, hash, 32, EC_FLAG_ECDSA, sig, 64));
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_ec_sig_to_der(sig, 64, der, sizeof(der) - 1, &der_len));
+        der[der_len++] = WALLY_SIGHASH_ALL;
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_input_add_signature(&p->inputs[0], kp.key, kp.key_len, der, der_len));
+    });
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_OK, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(0, psbt_sign());
+    static uint8_t out[8192];
+    TEST_ASSERT_EQUAL(0, psbt_serialize(out, sizeof(out)));
+    psbt_clear();
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_review_matches_seedsigner);
@@ -587,5 +656,8 @@ int main() {
     RUN_TEST(test_finalized_input_rejected);
     RUN_TEST(test_mismatched_previous_tx_rejected);
     RUN_TEST(test_extra_input_scripts_rejected);
+    RUN_TEST(test_multisig_wrong_witness_script);
+    RUN_TEST(test_second_unverified_claim_rejected);
+    RUN_TEST(test_bogus_existing_signature_not_signed);
     return UNITY_END();
 }
