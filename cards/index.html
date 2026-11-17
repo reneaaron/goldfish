@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backup cards</title>
+<!-- Blank backup cards to print and fill in by hand while the signer shows the
+     seed. The QR grid matches the device's "Part n of m" screens: columns A..,
+     rows 1.., heavier lines on the part edges (5+5+5+6 for 21x21, 5x5 for 25x25).
+     Self-contained on purpose: no fonts, scripts or requests from anywhere else,
+     so it can be saved and printed offline. -->
+<style>
+  :root {
+    --ink: #1c2234; --grid-major: #9a968e; --grid-minor: #d4d0c8; --label: #6e6a62;
+    --rule: #b9b5ad; --cut: #9a968e;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --bg: #f4f2ed; --panel: #fff; --text: #1c2234; --text-2: #5d6070; --accent: #e8792b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #14161d; --panel: #1d2029; --text: #e9e7e2; --text-2: #9a9caa; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--sans); }
+
+  /* ---------- screen: controls + sheet previews ---------- */
+  .controls { max-width: 760px; margin: 0 auto; padding: 28px 16px 8px; }
+  .controls h1 { font-size: 24px; margin: 0 0 6px; }
+  .controls p { margin: 0 0 14px; color: var(--text-2); }
+  .row { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; margin: 10px 0; }
+  .row > span { min-width: 64px; color: var(--text-2); }
+  fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  label.opt { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+              background: var(--panel); cursor: pointer; border: 1px solid transparent; }
+  label.opt:has(input:checked) { border-color: var(--accent); }
+  label.opt input { accent-color: var(--accent); margin: 0; }
+  button { font: inherit; font-weight: 600; padding: 9px 20px; border-radius: 999px; border: 0;
+           background: var(--accent); color: #fff; cursor: pointer; margin-top: 8px; }
+  .hint { font-size: 13px; color: var(--text-2); margin-top: 14px; }
+
+  .sheets { display: flex; flex-direction: column; align-items: center; gap: 24px; padding: 24px 16px 48px; }
+  .sheet { background: #fff; color: var(--ink); width: var(--pw); min-height: var(--ph);
+           padding: 12mm; box-shadow: 0 2px 16px rgb(0 0 0 / .18); position: relative; }
+  @media (max-width: 860px) {
+    .sheets { zoom: .5; }
+  }
+
+  /* ---------- print ---------- */
+  @media print {
+    @page { margin: 0; }
+    body { background: #fff; }
+    .controls { display: none; }
+    .sheets { padding: 0; gap: 0; zoom: 1; }
+    .sheet { box-shadow: none; width: var(--pw); height: var(--ph); min-height: 0; page-break-after: always; break-after: page; overflow: hidden; }
+    .sheet:last-child { page-break-after: auto; break-after: auto; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+
+  /* ---------- sheet contents (all in mm so print size is exact) ---------- */
+  .sheet { font-family: var(--sans); }
+  .head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: .3mm solid var(--ink); padding-bottom: 2mm; }
+  .head h2 { margin: 0; font-size: 6mm; letter-spacing: -.01em; }
+  .head .sub { font-size: 3.2mm; color: var(--label); }
+  .fields { display: grid; grid-template-columns: 1.1fr 1fr 1.4fr; gap: 5mm; margin: 7mm 0 0; }
+  .field { font-size: 2.8mm; color: var(--label); text-transform: uppercase; letter-spacing: .06em; }
+  .field i { display: block; height: 9mm; border-bottom: .25mm solid var(--rule); }
+  .boxes { display: flex; gap: .8mm; height: auto; border: 0; margin-top: 1.5mm; }
+  .boxes b { width: 6mm; height: 7.5mm; border: .25mm solid var(--rule); border-radius: .8mm; }
+  .boxes b:nth-child(4) { margin-right: 1.6mm; }
+  .gridwrap { display: flex; justify-content: center; margin-top: 8mm; }
+  .note { font-size: 3mm; color: var(--label); line-height: 1.45; margin-top: 6mm; }
+  .note b { color: var(--ink); }
+  .foot { position: absolute; left: 12mm; right: 12mm; bottom: 9mm; font-size: 2.6mm; color: var(--label);
+          display: flex; justify-content: space-between; }
+
+  /* words sheet */
+  .words { display: grid; grid-auto-flow: column; gap: 0 10mm; margin-top: 8mm; }
+  .word { display: flex; align-items: flex-end; gap: 3mm; height: var(--wh); border-bottom: .25mm solid var(--rule); }
+  .word .n { font-family: var(--mono); font-size: 3.4mm; color: var(--label); width: 6mm; text-align: right; padding-bottom: 1.2mm; }
+
+  /* wallet cards: 85.6 x 54 mm, cut marks around each */
+  .cards { display: grid; grid-template-columns: repeat(2, 85.6mm); gap: 8mm 6mm; justify-content: center; margin-top: 6mm; }
+  .card { width: 85.6mm; height: 54mm; position: relative; outline: .2mm dashed var(--cut); outline-offset: 0;
+          display: flex; padding: 3mm 3mm 3mm 4mm; gap: 2mm; }
+  .card .side { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .card .t { font-size: 3.3mm; font-weight: 600; }
+  .card .s { font-size: 2.3mm; color: var(--label); }
+  .card .f { margin-top: auto; font-size: 2mm; color: var(--label); text-transform: uppercase; letter-spacing: .06em; }
+  .card .f i { display: block; height: 5.5mm; border-bottom: .2mm solid var(--rule); margin-bottom: 1.2mm; }
+  .card .boxes { gap: .5mm; margin: .8mm 0 1.2mm; }
+  .card .boxes b { width: 3.3mm; height: 4.4mm; border-width: .2mm; border-radius: .5mm; }
+  .card .boxes b:nth-child(4) { margin-right: .9mm; }
+  .card .g { display: flex; align-items: center; }
+  .cardhint { font-size: 3mm; color: var(--label); margin-top: 5mm; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="controls">
+  <h1>Backup cards</h1>
+  <p>Blank cards to print and fill in by hand while the signer shows your seed. Print them blank: never type
+     words or fill in a QR on a computer.</p>
+
+  <div class="row"><span>Seed</span>
+    <fieldset id="words">
+      <label class="opt"><input type="radio" name="words" value="12" checked> 12 words · 21×21</label>
+      <label class="opt"><input type="radio" name="words" value="24"> 24 words · 25×25</label>
+    </fieldset>
+  </div>
+  <div class="row"><span>Layout</span>
+    <fieldset id="layout">
+      <label class="opt"><input type="radio" name="layout" value="page" checked> Full page (easiest to fill)</label>
+      <label class="opt"><input type="radio" name="layout" value="card"> Wallet cards (6 per sheet, fine pen)</label>
+    </fieldset>
+  </div>
+  <div class="row"><span>Also</span>
+    <fieldset>
+      <label class="opt"><input type="checkbox" id="wordsheet" checked> Words sheet</label>
+    </fieldset>
+  </div>
+  <div class="row"><span>Paper</span>
+    <fieldset id="paper">
+      <label class="opt"><input type="radio" name="paper" value="a4" checked> A4</label>
+      <label class="opt"><input type="radio" name="paper" value="letter"> Letter</label>
+    </fieldset>
+  </div>
+  <button type="button" onclick="window.print()">Print</button>
+  <p class="hint">Print at 100% (no “fit to page”). Fill each square fully with a dark pen; leave the white border
+     around the grid empty. Then choose “Check card” on the signer and scan it.</p>
+</div>
+
+<div class="sheets" id="sheets"></div>
+
+<script>
+// Same split as the firmware (ui.cpp, block_edge): parts of 5, a remainder joins
+// the last part instead of making a sliver, so 21 = 5+5+5+6 and 25 = 5x5.
+function blockEdge(m, n) { const bs = Math.floor(n / 5); return m === 0 || m === n || (m % 5 === 0 && m / 5 < bs); }
+
+// The squares that are the same in every Compact SeedQR of this size, so they
+// come pre-printed: the three finder squares with the light border around them,
+// the timing row and column between them, the always-dark module next to the
+// bottom-left finder, and on 25x25 (version 2) the alignment square. Map from
+// row * n + col to dark. The format bits depend on the mask the firmware picks
+// for each seed (qrcodegen_Mask_AUTO), so those are left to fill in.
+function fixedModules(n) {
+  const fixed = new Map(), set = (r, c, dark) => fixed.set(r * n + c, dark);
+  const square = (r0, c0, size) => {           // concentric rings: dark, light, dark core
+    for (let r = 0; r < size; r++) for (let c = 0; c < size; c++)
+      set(r0 + r, c0 + c, Math.min(r, c, size - 1 - r, size - 1 - c) !== 1);
+  };
+  for (const [r0, c0] of [[0, 0], [0, n - 8], [n - 8, 0]])   // light border, then the finder on top
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) set(r0 + r, c0 + c, false);
+  square(0, 0, 7); square(0, n - 7, 7); square(n - 7, 0, 7);
+  for (let i = 8; i < n - 8; i++) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); }
+  set(n - 8, 8, true);
+  if (n === 25) square(16, 16, 5);
+  return fixed;
+}
+
+// A blank grid as SVG in mm: n x n cells, column letters on top and row numbers
+// on the left (like the device's part screens), inside a white margin of `qz`
+// cells. The labels sit in that margin in light grey, small enough for the
+// scanner to treat it as quiet zone. Grid lines are drawn only along squares to
+// fill in, never through or along the pre-printed parts: a printed line can come
+// out dark enough for the scanner, and a line that touches a finder (with filled
+// squares touching the line) makes the finder one big shape it no longer
+// recognises. Seen on a real print: the border down the right edge hid the
+// top-right finder.
+function gridSvg(n, cell, opts = {}) {
+  const lab = opts.labels ?? true, qz = opts.qz ?? 2;
+  const pad = lab ? Math.max(qz, 1.6) * cell : qz * cell;    // room for labels / quiet zone
+  const size = n * cell, w = size + 2 * pad, h = size + 2 * pad;
+  const fs = Math.min(cell * 0.55, 3.2);
+  const thin = Math.max(cell * 0.03, 0.12), thick = Math.max(cell * 0.07, 0.28);
+  const fixed = fixedModules(n);
+  const fill = (r, c) => r >= 0 && c >= 0 && r < n && c < n && !fixed.has(r * n + c);
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}mm" height="${h}mm" viewBox="0 0 ${w} ${h}">`;
+  s += `<g transform="translate(${pad} ${pad})">`;
+  let minor = '', major = '';
+  const edge = (x1, y1, x2, y2, m) => {
+    if (m) major += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#9a968e" stroke-width="${thick}"/>`;
+    else minor += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#d4d0c8" stroke-width="${thin}"/>`;
+  };
+  for (let i = 0; i <= n; i++) for (let j = 0; j < n; j++) {
+    const m = blockEdge(i, n);
+    if (fill(j, i - 1) || fill(j, i)) edge(i * cell, j * cell, i * cell, (j + 1) * cell, m);   // left of column i
+    if (fill(i - 1, j) || fill(i, j)) edge(j * cell, i * cell, (j + 1) * cell, i * cell, m);   // above row i
+  }
+  s += minor + major;
+  for (const [m, dark] of fixed)
+    if (dark) s += `<rect x="${(m % n) * cell}" y="${Math.floor(m / n) * cell}" width="${cell}" height="${cell}" fill="#000"/>`;
+  if (lab) {
+    const gap = cell * 0.55;
+    for (let i = 0; i < n; i++) {
+      const c = (i + 0.5) * cell;
+      s += `<text x="${c}" y="${-gap}" font-size="${fs}" fill="#6e6a62" text-anchor="middle" font-family="system-ui, sans-serif">${String.fromCharCode(65 + i)}</text>`;
+      s += `<text x="${-gap}" y="${c}" font-size="${fs}" fill="#6e6a62" text-anchor="end" dominant-baseline="central" font-family="system-ui, sans-serif">${i + 1}</text>`;
+    }
+  }
+  return s + `</g></svg>`;
+}
+
+// Eight boxes for the 8 hex digits the signer shows, split 4+4 like on screen.
+const BOXES = `<span class="boxes">${'<b></b>'.repeat(8)}</span>`;
+const PAPER = { a4: [210, 297], letter: [215.9, 279.4] };
+
+function fieldsHtml(cls = 'field') {
+  return `<div class="fields">
+    <div class="${cls}">Fingerprint${BOXES}</div>
+    <div class="${cls}">Date<i></i></div>
+    <div class="${cls}">Label<i></i></div>
+  </div>`;
+}
+
+function foot(page, pages) {
+  return `<div class="foot"><span>Stateless signer · blank backup template</span><span>${page} / ${pages}</span></div>`;
+}
+
+function qrPage(words, n) {
+  // About as big as A4 and Letter both fit: big squares are easier to fill neatly.
+  const cell = n === 21 ? 7.4 : 6.3;
+  return `<div class="head"><span class="sub">Compact · ${words} words · ${n}×${n}</span></div>
+    ${fieldsHtml()}
+    <div class="gridwrap">${gridSvg(n, cell, { qz: 3 })}</div>
+    <div class="note">Copy it <b>one part at a time</b> as the signer shows it (“Part 1 of ${Math.floor(n / 5) ** 2}”): the
+      heavy lines mark the parts, letters are columns, numbers are rows. Fill each dark square completely;
+      the corner squares and the dotted lines between them are already printed.
+      Then scan the card with <b>Check card</b>. Anyone who sees this card has your bitcoin.</div>`;
+}
+
+function cardsPage(words, n) {
+  const cell = n === 21 ? 2.0 : 1.7;
+  const one = `<div class="card">
+      <div class="side">
+        <div class="s">${words} words · ${n}×${n}</div>
+        <div class="f">Fingerprint${BOXES}</div>
+        <div class="f">Date<i></i></div>
+        <div class="f">Label<i></i></div>
+      </div>
+      <div class="g">${gridSvg(n, cell, { qz: 2 })}</div>
+    </div>`;
+  return `<div class="head"><h2>Wallet cards</h2><span class="sub">Compact · ${words} words · ${n}×${n} · 85.6 × 54 mm</span></div>
+    <div class="cards">${one.repeat(6)}</div>
+    <div class="cardhint">Cut along the dashed lines. Use a fine pen (0.3 mm or less), fill each square completely,
+      and check the card with the signer before relying on it.</div>`;
+}
+
+function wordsPage(words) {
+  const rows = words / 2, wh = words === 12 ? 19 : 13;
+  let cells = '';
+  for (let i = 1; i <= words; i++) cells += `<div class="word"><span class="n">${i}</span></div>`;
+  return `<div class="head"><h2>Seed words</h2><span class="sub">BIP-39 · ${words} words</span></div>
+    ${fieldsHtml()}
+    <div class="words" style="grid-template-rows: repeat(${rows}, auto); --wh: ${wh}mm">${cells}</div>
+    <div class="note">Write the words in order as the signer shows them, 4 per page. The first four letters of each
+      word are enough to tell it apart. Store this apart from anything that says what it is.</div>`;
+}
+
+function render() {
+  const words = +document.querySelector('[name=words]:checked').value;
+  const layout = document.querySelector('[name=layout]:checked').value;
+  const paper = document.querySelector('[name=paper]:checked').value;
+  const n = words === 12 ? 21 : 25;
+  const [pw, ph] = PAPER[paper];
+  const root = document.documentElement.style;
+  root.setProperty('--pw', pw + 'mm');
+  root.setProperty('--ph', ph + 'mm');
+  let style = document.getElementById('page-size');
+  if (!style) { style = document.createElement('style'); style.id = 'page-size'; document.head.append(style); }
+  style.textContent = `@page { size: ${paper === 'a4' ? 'A4' : 'letter'} portrait; margin: 0; }`;
+
+  const pages = [layout === 'page' ? qrPage(words, n) : cardsPage(words, n)];
+  if (document.getElementById('wordsheet').checked) pages.push(wordsPage(words));
+  document.getElementById('sheets').innerHTML =
+    pages.map((p, i) => `<section class="sheet">${p}${foot(i + 1, pages.length)}</section>`).join('');
+}
+
+document.querySelectorAll('input').forEach(i => i.addEventListener('change', render));
+render();
+</script>
+</body>
+</html>

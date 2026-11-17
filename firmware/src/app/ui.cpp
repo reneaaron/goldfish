@@ -1178,9 +1178,36 @@ static int blocks_per_side() { return qr_n / 5; }
 static bool block_edge(int m) { return m == qr_n || (m % 5 == 0 && m / 5 < blocks_per_side()); }
 static int block_len(int b) { return b + 1 < blocks_per_side() ? 5 : qr_n - 5 * b; }
 
+// Modules that are the same in every QR code of this size: the three finder
+// squares with the light border around them, the timing row and column between
+// them, the always-dark module and, on 25x25 (version 2), the alignment square.
+// The printable cards (cards/index.html) come with these already printed; the
+// format bits depend on the mask and don't. -1: not fixed, 0: light, 1: dark.
+static int square_module(int r, int c, int r0, int c0, int size) {
+    if (r < r0 || c < c0 || r >= r0 + size || c >= c0 + size) return -1;
+    int a = r - r0, b = c - c0;
+    return LV_MIN(LV_MIN(a, b), LV_MIN(size - 1 - a, size - 1 - b)) != 1;
+}
+static int module_fixed(int r, int c) {
+    const int n = qr_n;
+    const int corners[3][2] = {{0, 0}, {0, n - 7}, {n - 7, 0}};
+    for (auto &f : corners) {
+        int m = square_module(r, c, f[0], f[1], 7);
+        if (m >= 0) return m;
+        // the light border: one module round the finder, inside the symbol
+        if (r >= f[0] - 1 && r <= f[0] + 7 && c >= f[1] - 1 && c <= f[1] + 7 && r >= 0 && c >= 0 && r < n && c < n) return 0;
+    }
+    if ((r == 6 && c >= 8 && c < n - 8) || (c == 6 && r >= 8 && r < n - 8)) return (r + c) % 2 == 0;
+    if (r == n - 8 && c == 8) return 1;
+    return n == 25 ? square_module(r, c, 16, 16, 5) : -1;
+}
+static bool module_to_fill(int r, int c) { return r >= 0 && c >= 0 && r < qr_n && c < qr_n && module_fixed(r, c) < 0; }
+
 // Part of the SeedQR, drawn module by module: dark squares, light grid lines
-// (darker every 5 modules, like the lines on the paper card).
-struct GridView { int c0, r0, cols, rows, cell; bool minor; };
+// (darker every 5 modules, like the lines on the paper card). With `printed`,
+// it looks like the paper card: what the card already has is grey and has no
+// grid lines, which run only along modules left to fill in.
+struct GridView { int c0, r0, cols, rows, cell; bool minor, printed; };
 static GridView whole_view, block_view;
 
 static void grid_draw_cb(lv_event_t *e) {
@@ -1191,6 +1218,7 @@ static void grid_draw_cb(lv_event_t *e) {
     lv_draw_rect_dsc_t d;
     lv_draw_rect_dsc_init(&d);
     d.bg_opa = LV_OPA_COVER;
+    const lv_color_t printed = LV_COLOR_MAKE(0x8A, 0x86, 0x7E);
     d.radius = 0;
     auto rect = [&](int x1, int y1, int x2, int y2, lv_color_t c) {
         lv_area_t r = {a.x1 + x1, a.y1 + y1, a.x1 + x2, a.y1 + y2};
@@ -1200,15 +1228,29 @@ static void grid_draw_cb(lv_event_t *e) {
     for (int r = 0; r < g->rows; r++)
         for (int c = 0; c < g->cols; c++)
             if (qrcodegen_getModule(qr_buf, g->c0 + c, g->r0 + r))
-                rect(c * g->cell, r * g->cell, (c + 1) * g->cell, (r + 1) * g->cell, lv_color_black());
+                rect(c * g->cell, r * g->cell, (c + 1) * g->cell, (r + 1) * g->cell,
+                     g->printed && module_fixed(g->r0 + r, g->c0 + c) == 1 ? printed : lv_color_black());
     const lv_color_t major = LV_COLOR_MAKE(0x9A, 0x96, 0x8E), minor = LV_COLOR_MAKE(0xD4, 0xD0, 0xC8);
+    // One cell edge at a time, skipped between two pre-printed modules.
     for (int i = 0; i <= g->cols; i++) {
-        bool m = block_edge(g->c0 + i);
-        if (m || g->minor) rect(i * g->cell, 0, i * g->cell, g->rows * g->cell, m ? major : minor);
+        int C = g->c0 + i;
+        bool m = block_edge(C);
+        if (!m && !g->minor) continue;
+        for (int j = 0; j < g->rows; j++) {
+            int R = g->r0 + j;
+            if (g->printed && !module_to_fill(R, C - 1) && !module_to_fill(R, C)) continue;
+            rect(i * g->cell, j * g->cell, i * g->cell, (j + 1) * g->cell, m ? major : minor);
+        }
     }
     for (int i = 0; i <= g->rows; i++) {
-        bool m = block_edge(g->r0 + i);
-        if (m || g->minor) rect(0, i * g->cell, g->cols * g->cell, i * g->cell, m ? major : minor);
+        int R = g->r0 + i;
+        bool m = block_edge(R);
+        if (!m && !g->minor) continue;
+        for (int j = 0; j < g->cols; j++) {
+            int C = g->c0 + j;
+            if (g->printed && !module_to_fill(R - 1, C) && !module_to_fill(R, C)) continue;
+            rect(j * g->cell, i * g->cell, (j + 1) * g->cell, i * g->cell, m ? major : minor);
+        }
     }
 }
 
@@ -1250,7 +1292,7 @@ static void build_backup_qr() {
     }
     topbar(scr, "Back up", to_warning_cb);
     const int cell = 180 / qr_n;
-    whole_view = {0, 0, qr_n, qr_n, cell, false};
+    whole_view = {0, 0, qr_n, qr_n, cell, false, false};
     lv_obj_t *c = white_card(scr, qr_n * cell + 17, qr_n * cell + 17);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 2);
     lv_obj_center(grid(c, &whole_view));
@@ -1307,7 +1349,7 @@ static void build_backup_block() {
     // One cell size per QR, so squares don't change size between blocks.
     const int cell = qr_n % 5 ? 28 : 32;
     int c0 = (block_i % bs) * 5, r0 = (block_i / bs) * 5;
-    block_view = {c0, r0, block_len(block_i % bs), block_len(block_i / bs), cell, true};
+    block_view = {c0, r0, block_len(block_i % bs), block_len(block_i / bs), cell, true, true};
     lv_obj_t *c = white_card(scr, CW, (qr_n % 5 ? 6 : 5) * cell + 32);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 2);
     const int gx = 30, gy = 24;

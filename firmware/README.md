@@ -72,7 +72,9 @@ Then an offline warning, the words 4 per page to write down, and an
 optional QR card: a Compact SeedQR (21×21 for 12 words, 25×25 for 24)
 shown whole, then copied one part (5×5 squares) at a time, labelled with column letters
 and row numbers like the card's grid (21×21 splits 5+5+5+6, so no thin
-edge parts). Scanning the finished card checks it. The flow ends with the
+edge parts). Squares that are the same in every SeedQR of that size
+(finder and alignment squares, timing dots) are grey: the blank cards in
+[`cards/`](../cards) come with them printed. Scanning the finished card checks it. The flow ends with the
 fingerprint to write on the backup; leaving it wipes the seed.
 
 Back up as QR runs the same card flow for whatever seed is loaded, scanned
