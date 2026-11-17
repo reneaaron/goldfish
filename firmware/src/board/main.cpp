@@ -6,7 +6,6 @@
 #include "../app/ui.h"
 
 void setup() {
-    Serial.begin(115200);
     lv_init();
     lv_tick_set_cb([]() -> uint32_t { return millis(); });
     display_init();
