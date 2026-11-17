@@ -9,6 +9,7 @@ A stateless, camera-based Bitcoin signer for the Waveshare RP2350-Touch-LCD-2 (2
 - `firmware/`: PlatformIO project (the only code that builds and has tests)
 - `case/`: printed case in gcad (`.gcad` parts, `.gasm` assembly)
 - `hardware/`: parts list, board notes
+- `flasher/`: one static page that copies `firmware.uf2` onto the board's BOOT drive; `.github/workflows/flasher.yml` publishes it with the firmware on GitHub Pages when a `v*` tag is pushed
 - `marketing/`: Blender render scripts that consume `case/exports/case.stl` and `firmware/docs/screens/*.png`
 
 ## Commands
@@ -46,6 +47,7 @@ Rules that follow from this:
 
 - `src/app` must not touch hardware. The platform boundary is small: the two camera hooks in `app/qrscan.h` (`platform_camera_frame`, `platform_camera_stop`), implemented once in `src/board` and once in `src/sim`, plus each target's own `main` that sets up LVGL display/input and calls `ui_build()`.
 - The `test` env lists its source files one by one in `platformio.ini`. A new logic module in `src/app` has to be added to that list, and must not include LVGL: `ui.cpp` and `theme.cpp` are the only LVGL-dependent app files and are deliberately not in the test build.
+- `version.py` (a PlatformIO pre-script for the board and sim builds) writes the git tag or short commit hash to the ignored `include/version.h`; the home screen shows it.
 - Each test suite is `test/test_<name>/test_main.cpp` with its own `main()`; shared vectors live in `test/fixtures/`.
 - `e2e/` (pytest) plays the user and a wallet app against the `sim` binary run headless with `SIM_CONTROL=1`: commands on stdin (`run_control()` in `src/sim/main.cpp`), on a fake clock that only advances when a command says so. `e2e/device.py` reads the screen, touches it and feeds QR images to the camera; `e2e/hostwallet.py` is an embit-based stand-in for Sparrow that never sees the seed. `device.py` parses the `ICON_*` defines in `theme.h` and the `UI_*` enum in `ui.h` by regex, so keep those in their current one-per-line form. A failing test saves the screen as `e2e/failure_*.png`.
 

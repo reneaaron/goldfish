@@ -3,3 +3,4 @@
 sim/camera.png
 e2e/failure_*.png
 .pytest_cache/
+include/version.h

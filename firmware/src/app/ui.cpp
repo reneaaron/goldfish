@@ -16,6 +16,7 @@
 #include "seedqr.h"
 #include "theme.h"
 #include "ur.h"
+#include "version.h"
 #include "wallet.h"
 #include "src/libs/qrcode/qrcodegen.h"
 
@@ -106,6 +107,8 @@ static void build_home() {
     lv_obj_align(icon_badge(scr, ICON_SIGNER, ACCENT, ACCENT_DIM, 56), LV_ALIGN_TOP_MID, 0, 12);
     lv_obj_align(text(scr, "Signer", &fraunces_32, TEXT), LV_ALIGN_TOP_MID, 0, 76);
     lv_obj_align(para(scr, "Your seed stays in memory only, until you unplug."), LV_ALIGN_TOP_MID, 0, 116);
+    // Which build this is, to compare with the one the flasher offers.
+    lv_obj_align(text(scr, FW_VERSION, &inter_13, TEXT_3), LV_ALIGN_TOP_RIGHT, -8, 6);
     // Loading a seed you have: scan it or type it, grouped at the bottom.
     lv_obj_t *words = btn_ghost(scr, ICON_KEYBOARD "   Enter words", go_cb, GO(UI_RESTORE), TEXT);
     lv_obj_set_height(words, 48);

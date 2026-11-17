@@ -248,6 +248,20 @@ the 520KB RAM limit and secure boot only show up on the real board.
    plug in USB-C. A drive called `RP2350` appears.
 2. Copy `firmware.uf2` onto it. The board reboots into the firmware.
 
+[`flasher/index.html`](../flasher/index.html) does step 2 from Chrome or Edge
+on a computer: it asks for the `RP2350` drive, refuses any other folder, and
+writes the file there. The `Web flasher` workflow publishes that page on GitHub
+Pages together with the firmware built from a release tag (`v0.1.0`), and the
+page shows the file's version, commit and SHA-256. Like the firmware, it is
+untested on a real board.
+
+Updating is the same steps with a newer file. Nothing is stored on the board,
+so there is nothing to migrate and an older version can be flashed back. The
+home screen shows the running version in the top right corner: the tag for a
+build of a tagged commit, otherwise the short commit hash, with a `+` when the
+build had uncommitted changes (`version.py`). The bootloader takes any UF2:
+there is no signature check.
+
 The firmware is built without a USB stack, so the running device doesn't show
 up on a computer: there is no serial log and `pio run -t upload` can't reset
 it. Flashing always goes through BOOT, which starts the chip's built-in
