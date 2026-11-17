@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stateless Signer: a Bitcoin signer that forgets</title>
+<meta name="description" content="A Bitcoin signer you build from an off-the-shelf board and a printed case. Load your seed from a QR code, sign, unplug. Nothing is saved.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@72,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* The page wears the firmware's own theme (firmware/src/app/theme.cpp, fonts/README.md):
+     Fraunces headings, Inter text, paper, ink and one orange. Screens are the real ones
+     from firmware/docs/screens, inside devices drawn in CSS. */
+  :root {
+    --bg: #1B1917; --raised: #262320; --line: #37332E;
+    --text: #F3EFE6; --muted: #B5AEA2; --faint: #857E73;
+    --accent: #C2410C; --amber: #A16207; --amber-dim: #F5E6C4;
+    --case: #F2A25C; --graphite: #4A4A48; --white: #ECEAE4; --paper: #F3EFE6;
+    --serif: Fraunces, "Iowan Old Style", Palatino, Georgia, serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 17px/1.55 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  img { display: block; max-width: 100%; }
+  :focus-visible { outline: 2px solid var(--case); outline-offset: 3px; border-radius: 6px; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+  h1, h2, h3, p { margin: 0; }
+  h1, h2, .brand { font-family: var(--serif); font-weight: 600; font-optical-sizing: none; font-variation-settings: "opsz" 72; }
+  h2 { font-size: clamp(30px, 4vw, 38px); letter-spacing: -0.01em; line-height: 1.12; }
+  h3 { font-size: 18px; font-weight: 600; }
+  .lede { color: var(--muted); max-width: 52ch; margin-top: 10px; }
+
+  /* ---- nav */
+  nav { display: flex; align-items: center; gap: 4px; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-size: 20px; text-decoration: none; margin-right: auto; }
+  .brand svg { width: 22px; height: 28px; }
+  nav a.link { color: var(--muted); font-size: 15px; font-weight: 500; text-decoration: none; padding: 8px 12px; border-radius: 8px; }
+  nav a.link:hover { color: var(--text); background: var(--raised); }
+  nav a.link svg { width: 20px; height: 20px; display: block; }
+
+  /* ---- a device: printed case, black glass, the firmware's screen */
+  .device {
+    --w: 240px;
+    width: calc(var(--w) * 1.23);   /* --w is the screen's width: 240px shows the 240x320 screenshot pixel for pixel */
+    padding: calc(var(--w) * .1) calc(var(--w) * .075) calc(var(--w) * .16);
+    border-radius: calc(var(--w) * .13); background: var(--case); position: relative; flex: none;
+    box-shadow: inset 0 calc(var(--w) * -.02) 0 rgba(0, 0, 0, .18);
+  }
+  .device .glass { background: #0c0c0c; border-radius: calc(var(--w) * .06); padding: calc(var(--w) * .04); }
+  .device img { width: 100%; aspect-ratio: 3 / 4; border-radius: calc(var(--w) * .02); background: var(--paper); }
+  .device::after {               /* USB-C socket on the bottom edge */
+    content: ""; position: absolute; left: 50%; bottom: calc(var(--w) * .045); translate: -50% 0;
+    width: calc(var(--w) * .2); height: calc(var(--w) * .05); border-radius: 99px; background: rgba(0, 0, 0, .55);
+  }
+
+  /* ---- hero */
+  .hero { text-align: center; padding: 24px 0 96px; }
+  .hero > .device { --w: 240px; margin: 0 auto 44px; }
+  .hero > .device img { animation: boot .9s ease-out .15s both; }   /* plugged in: the screen comes on, once */
+  @keyframes boot { from { opacity: 0; } }
+  h1 { font-size: clamp(42px, 7.6vw, 72px); letter-spacing: -0.02em; line-height: 1.02; max-width: 12ch; margin: 0 auto; }
+  .hero .sub { color: var(--muted); font-size: clamp(17px, 2.2vw, 20px); margin: 20px auto 0; max-width: 34ch; }
+  .cta {
+    display: inline-flex; align-items: center; gap: 10px; height: 50px; padding: 0 24px; margin-top: 32px;
+    border-radius: 12px; background: var(--text); color: var(--bg); font-weight: 600; font-size: 16px; text-decoration: none;
+    transition: transform .1s;
+  }
+  .cta:active { transform: scale(.98); }
+  .cta svg { width: 18px; height: 18px; }
+  .more { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 22px; margin-top: 18px; font-size: 14px; color: var(--muted); }
+  .more a { text-underline-offset: 3px; text-decoration-color: var(--line); }
+  .more a:hover { color: var(--text); }
+  .status {
+    display: inline-flex; gap: 10px; align-items: baseline; text-align: left; margin-top: 44px; padding: 10px 16px;
+    border: 1px solid var(--line); border-radius: 12px; color: var(--muted); font-size: 15px; max-width: 56ch;
+  }
+  .status b {                  /* the firmware's TESTNET tag */
+    background: var(--amber-dim); color: var(--amber); font-size: 12px; font-weight: 600; letter-spacing: .08em;
+    text-transform: uppercase; padding: 2px 8px; border-radius: 6px; white-space: nowrap;
+  }
+
+  section { padding: 88px 0; border-top: 1px solid var(--line); }
+
+  /* ---- the signing walk-through */
+  .demo { display: grid; grid-template-columns: 1fr auto; gap: 64px; align-items: center; margin-top: 40px; }
+  .steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+  .steps button {
+    display: grid; grid-template-columns: 28px 1fr; column-gap: 14px; width: 100%; text-align: left;
+    padding: 14px 16px; border: 0; border-radius: 14px; background: none; color: var(--faint); font: inherit; cursor: pointer;
+  }
+  .steps button::before {
+    counter-increment: step; content: counter(step); grid-row: span 2; width: 28px; height: 28px; border-radius: 50%;
+    display: grid; place-items: center; font-size: 14px; font-weight: 600; background: var(--raised); color: var(--muted);
+  }
+  .steps button strong { font-weight: 600; font-size: 18px; color: var(--muted); }
+  .steps button span { grid-column: 2; font-size: 15px; display: none; max-width: 40ch; }
+  .steps button:hover strong { color: var(--text); }
+  .steps button[aria-current=step] { background: var(--raised); }
+  .steps button[aria-current=step]::before { background: var(--accent); color: var(--paper); }
+  .steps button[aria-current=step] strong { color: var(--text); }
+  .steps button[aria-current=step] span { display: block; color: var(--muted); margin-top: 2px; }
+  .stage { display: flex; flex-direction: column; align-items: center; width: 330px; }
+  .stage .device { --w: 240px; cursor: pointer; border: 0; font: inherit; display: block; }
+  .stage .device img { transition: opacity .25s; }
+  .stage.off .device img { opacity: 0; }
+  .cable { width: 46px; height: 120px; transition: translate .5s cubic-bezier(.3, 0, .2, 1), opacity .5s; }
+  .stage.off .cable { translate: 0 46px; opacity: .45; }
+  .hint { color: var(--faint); font-size: 14px; margin-top: 4px; min-height: 1.5em; }
+
+  /* ---- three facts */
+  .facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; margin-top: 48px; }
+  .facts svg { width: 44px; height: 44px; margin-bottom: 16px; }
+  .facts p { color: var(--muted); margin-top: 6px; font-size: 16px; }
+
+  /* ---- text beside a picture */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
+  .trio { display: flex; justify-content: center; align-items: flex-end; gap: 12px; }
+  .trio .device { --w: 120px; }
+  .trio .device:nth-child(1) { --case: var(--graphite); rotate: -5deg; }
+  .trio .device:nth-child(2) { translate: 0 -18px; }
+  .trio .device:nth-child(3) { --case: var(--white); rotate: 5deg; }
+  .photo { border-radius: 20px; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+  .ways { list-style: none; padding: 0; margin: 24px 0 0; display: grid; gap: 14px; }
+  .ways li { display: grid; grid-template-columns: 10px 1fr; gap: 14px; align-items: baseline; color: var(--muted); }
+  .ways li::before { content: ""; width: 10px; height: 10px; border-radius: 3px; background: var(--accent); }
+  .ways b { color: var(--text); font-weight: 600; }
+
+  .also { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px 40px; margin-top: 40px; }
+  .also p { color: var(--muted); font-size: 16px; margin-top: 4px; }
+
+  /* ---- build */
+  .build { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 40px; }
+  .build a {
+    display: block; padding: 22px; border-radius: 16px; background: var(--raised); text-decoration: none;
+    border: 1px solid transparent; transition: border-color .15s;
+  }
+  .build a:hover { border-color: var(--accent); }
+  .build i { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--paper); font-style: normal; font-weight: 600; font-size: 14px; margin-bottom: 14px; }
+  .build p { color: var(--muted); font-size: 15px; margin-top: 4px; }
+  .build + .photo { margin-top: 16px; aspect-ratio: 16 / 7; object-position: 50% 42%; }
+
+  footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--faint); font-size: 14px; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+  footer a:hover { color: var(--text); }
+
+  @media (max-width: 820px) {
+    .hero { padding: 32px 0 72px; }
+    section { padding: 64px 0; }
+    .demo, .split { grid-template-columns: 1fr; gap: 40px; }
+    .stage { margin: 0 auto; order: -1; }   /* device above the steps, so a tap on a step shows */
+    .facts, .also, .build { grid-template-columns: 1fr; gap: 28px; }
+    .build { gap: 12px; }
+    .trio .device { --w: 80px; }
+    nav a.link.wide { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .hero > .device img { animation: none; }
+    .cable, .stage .device img, .cta { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="wrap">
+  <nav>
+    <a class="brand" href="#">
+      <svg viewBox="0 0 22 28" aria-hidden="true"><rect width="22" height="28" rx="5" fill="#F2A25C"/><rect x="3.5" y="3.5" width="15" height="19" rx="2" fill="#1B1917"/><path d="M7.5 13l2.6 2.6L14.8 10" fill="none" stroke="#F3EFE6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Stateless Signer
+    </a>
+    <a class="link wide" href="#how">How it works</a>
+    <a class="link wide" href="#build">Build one</a>
+    <a class="link" href="https://github.com/reneaaron/stateless-signer" aria-label="GitHub">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49l-.01-1.9c-2.78.62-3.37-1.21-3.37-1.21-.46-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.9 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05A9.36 9.36 0 0 1 12 6.96c.85 0 1.71.12 2.51.34 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9l-.01 2.82c0 .27.18.59.69.49A10.03 10.03 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/></svg>
+    </a>
+  </nav>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <div class="device"><div class="glass"><img src="img/screens/1_home.png" alt="The signer's home screen: your seed stays in memory only, until you unplug"></div></div>
+    <h1>A Bitcoin signer that forgets.</h1>
+    <p class="sub">Scan your seed, sign, unplug. Nothing is saved, so there is nothing left to find.</p>
+    <a class="cta" href="#build">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+      Build one yourself
+    </a>
+    <div class="more">
+      <a href="#how">How it works</a>
+      <a href="https://reneaaron.github.io/stateless-signer/">Flash the firmware</a>
+      <a href="https://github.com/reneaaron/stateless-signer">Source on GitHub</a>
+    </div>
+    <div><p class="status"><b>Early days</b><span>It works in the desktop simulator and has not been tested on real hardware yet. Don't use it for real funds.</span></p></div>
+  </div>
+
+  <section id="how">
+    <div class="wrap">
+      <h2>Sign a transaction, then pull the plug</h2>
+      <p class="lede">Everything goes in through the camera and out through the screen. Tap through it.</p>
+      <div class="demo">
+        <ol class="steps" id="steps">
+          <li><button data-shot="2_scan_waiting"><strong>Scan your seed</strong><span>Hold your SeedQR up to the camera. Or type your words.</span></button></li>
+          <li><button data-shot="3_seed_loaded"><strong>Match the fingerprint</strong><span>The device shows which seed it loaded, so you can check it against your wallet app.</span></button></li>
+          <li><button data-shot="7_psbt_overview"><strong>Scan the transaction</strong><span>Your wallet app shows it as a QR. The device reads the amount, the fee and the change.</span></button></li>
+          <li><button data-shot="8_psbt_output_1"><strong>Check every address</strong><span>One screen per recipient. Change only counts as change if your seed really owns it.</span></button></li>
+          <li><button data-shot="10_psbt_sign"><strong>Slide to sign</strong><span>The device only signs. Your wallet app sends.</span></button></li>
+          <li><button data-shot="11_psbt_signed"><strong>Scan it back</strong><span>The signed transaction comes out as a QR for your wallet app.</span></button></li>
+          <li><button data-shot=""><strong>Unplug</strong><span>The seed was only in memory. Now it's gone.</span></button></li>
+        </ol>
+        <div class="stage" id="stage">
+          <button class="device" id="demo-device" aria-label="Next step">
+            <div class="glass"><img id="shot" src="img/screens/2_scan_waiting.png" alt="The device's screen at this step"></div>
+          </button>
+          <svg class="cable" viewBox="0 0 46 120" aria-hidden="true">
+            <rect x="12" y="0" width="22" height="10" rx="3" fill="#8a8a86"/>
+            <rect x="7" y="8" width="32" height="34" rx="7" fill="#3a3a38"/>
+            <path d="M23 42v78" stroke="#3a3a38" stroke-width="9" stroke-linecap="round"/>
+          </svg>
+          <p class="hint" id="hint">Tap the device for the next step</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Less to trust</h2>
+      <div class="facts">
+        <div>
+          <svg viewBox="0 0 44 44" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="9" width="30" height="26" rx="6" fill="#F2A25C"/><path d="M15 9V5m7 4V5m7 4V5M15 39v-4m7 4v-4m7 4v-4" stroke="#F2A25C" stroke-width="3"/><path d="M17 18l10 8m0-8l-10 8" stroke="#1B1917" stroke-width="3"/></svg>
+          <h3>Nothing is saved</h3>
+          <p>The seed lives in memory only. The firmware never writes to storage, so an unplugged device holds nothing.</p>
+        </div>
+        <div>
+          <svg viewBox="0 0 44 44" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 18a23 23 0 0 1 32 0M12 25a14.5 14.5 0 0 1 20 0" stroke="#F2A25C" stroke-width="4"/><circle cx="22" cy="33" r="3.5" fill="#F2A25C"/><path d="M7 39L37 6" stroke="#F3EFE6" stroke-width="4"/></svg>
+          <h3>No Wi-Fi, no Bluetooth</h3>
+          <p>The board has no radio hardware at all. Power it from a charger or a power bank.</p>
+        </div>
+        <div>
+          <svg viewBox="0 0 44 44" aria-hidden="true"><g fill="#F2A25C"><rect x="5" y="5" width="14" height="14" rx="3"/><rect x="25" y="5" width="14" height="14" rx="3"/><rect x="5" y="25" width="14" height="14" rx="3"/><rect x="25" y="25" width="6" height="6" rx="1.5"/><rect x="33" y="33" width="6" height="6" rx="1.5"/></g><g fill="#1B1917"><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><rect x="29.5" y="9.5" width="5" height="5" rx="1"/><rect x="9.5" y="29.5" width="5" height="5" rx="1"/></g></svg>
+          <h3>QR codes in, QR codes out</h3>
+          <p>Seeds, transactions and addresses come in through the camera. Signatures leave on the screen.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap split">
+      <div>
+        <h2>You are the random number generator</h2>
+        <p class="lede">The firmware has none. A new seed is made only from what you put in.</p>
+        <ul class="ways">
+          <li><span><b>Roll a die</b> 50 times for 12 words.</span></li>
+          <li><span><b>Flip a coin</b> 128 times.</span></li>
+          <li><span><b>Draw 11 words</b> yourself. The last one comes from coin flips.</span></li>
+        </ul>
+      </div>
+      <div class="trio">
+        <div class="device"><div class="glass"><img src="img/screens/16_dice.png" alt="Dice rolls screen: 23 of 50 rolls entered"></div></div>
+        <div class="device"><div class="glass"><img src="img/screens/24_coins.png" alt="Coin flips screen: 37 of 128 flips entered"></div></div>
+        <div class="device"><div class="glass"><img src="img/screens/15_new_seed.png" alt="New seed screen: dice rolls, coin flips or draw words"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap split">
+      <img class="photo" src="img/renders/13_backup_copy.png" alt="Render: a signer next to a paper card with a seed QR being filled in" loading="lazy">
+      <div>
+        <h2>Back it up with a pen</h2>
+        <p class="lede">Write down the words, or copy the seed onto a paper QR card. The device shows the grid part by part, then scans your card to check you got every square right.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Also in there</h2>
+      <div class="also">
+        <div><h3>Verify an address</h3><p>Scan a receive address to confirm it belongs to your seed before you share it.</p></div>
+        <div><h3>Multisig</h3><p>Scan your wallet's descriptor, check it on the device, then sign as one of the cosigners.</p></div>
+        <div><h3>Child seeds</h3><p>Derive a BIP-85 child seed and back it up like a new one.</p></div>
+        <div><h3>Passphrase</h3><p>Add a BIP-39 passphrase. Only the derived key is kept, and only until you unplug.</p></div>
+        <div><h3>Connect a wallet</h3><p>Show your xpub as a QR so a wallet app can watch your balance and build transactions.</p></div>
+        <div><h3>Native segwit only</h3><p>Single-sig and sorted multisig, on mainnet and testnet.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="build">
+    <div class="wrap">
+      <h2>Build one</h2>
+      <p class="lede">One off-the-shelf board with a touch screen, one camera, one printed case that clips shut. No soldering iron in the parts list.</p>
+      <div class="build">
+        <a href="https://github.com/reneaaron/stateless-signer/tree/main/hardware"><i>1</i><h3>Get the parts</h3><p>A Waveshare RP2350-Touch-LCD-2 and an OV5640 camera.</p></a>
+        <a href="https://github.com/reneaaron/stateless-signer/tree/main/case"><i>2</i><h3>Print the case</h3><p>STL and STEP files, in whatever colour you like.</p></a>
+        <a href="https://reneaaron.github.io/stateless-signer/"><i>3</i><h3>Flash the firmware</h3><p>From your browser: hold BOOT, plug in, pick the drive.</p></a>
+      </div>
+      <img class="photo" src="img/renders/06_lineup.png" alt="Render: four signers in graphite, white and orange cases showing different screens" loading="lazy">
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Open source. Early, and not for real funds yet.</span>
+    <span><a href="https://github.com/reneaaron/stateless-signer">GitHub</a></span>
+  </div>
+</footer>
+
+<script>
+const buttons = [...document.querySelectorAll('#steps button')];
+const stage = document.getElementById('stage');
+const shot = document.getElementById('shot');
+const hint = document.getElementById('hint');
+let at = 0;
+
+function show(i) {
+  at = i;
+  buttons.forEach((b, n) => n === i ? b.setAttribute('aria-current', 'step') : b.removeAttribute('aria-current'));
+  const name = buttons[i].dataset.shot;
+  stage.classList.toggle('off', !name);
+  if (name) shot.src = 'img/screens/' + name + '.png';
+  hint.textContent = name ? 'Tap the device for the next step' : 'Tap to plug it back in';
+}
+
+buttons.forEach((b, i) => b.addEventListener('click', () => show(i)));
+document.getElementById('demo-device').addEventListener('click', () => show((at + 1) % buttons.length));
+buttons.forEach((b) => { if (b.dataset.shot) new Image().src = 'img/screens/' + b.dataset.shot + '.png'; });
+show(0);
+</script>
+</body>
+</html>
