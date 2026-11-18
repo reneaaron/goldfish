@@ -85,6 +85,8 @@ static lv_obj_t *qr_card(lv_obj_t *parent, int y, lv_obj_t **qr_out) {
 
 // ---------------------------------------------------------------- home
 static lv_obj_t *quiet_link(lv_obj_t *parent, const char *s, lv_event_cb_t cb, void *ud);
+static void restore_cb(lv_event_t *);
+static void child_start_cb(lv_event_t *);
 
 // Look of the on-screen keyboards (button matrices): Enter words and Passphrase.
 static void kb_style(lv_obj_t *kb) {
@@ -110,7 +112,7 @@ static void build_home() {
     // Which build this is, to compare with the one the flasher offers.
     lv_obj_align(text(scr, FW_VERSION, &inter_13, TEXT_3), LV_ALIGN_TOP_RIGHT, -8, 6);
     // Loading a seed you have: scan it or type it, grouped at the bottom.
-    lv_obj_t *words = btn_ghost(scr, ICON_KEYBOARD "   Enter words", go_cb, GO(UI_RESTORE), TEXT);
+    lv_obj_t *words = btn_ghost(scr, ICON_KEYBOARD "   Enter words", restore_cb, nullptr, TEXT);
     lv_obj_set_height(words, 48);
     lv_obj_set_style_bg_opa(words, LV_OPA_COVER, 0);
     lv_obj_align(words, LV_ALIGN_BOTTOM_MID, 0, -40 - 48 - 8);
@@ -625,7 +627,7 @@ static void build_seed_menu() {
     }
 
     // Advanced and destructive actions stay quiet, side by side under the list.
-    lv_obj_align(quiet_link(scr, ICON_KEY "  Child seed", go_cb, GO(UI_CHILD_LENGTH)), LV_ALIGN_BOTTOM_LEFT, M - 12, -6);
+    lv_obj_align(quiet_link(scr, ICON_KEY "  Child seed", child_start_cb, nullptr), LV_ALIGN_BOTTOM_LEFT, M - 12, -6);
     lv_obj_align(quiet_link(scr, ICON_TRASH "  Wipe now", go_cb, GO(UI_WIPE_CONFIRM)), LV_ALIGN_BOTTOM_RIGHT, -(M - 12), -6);
     show(scr);
 }
@@ -724,7 +726,7 @@ static void build_wipe_confirm() {
 // new seed is never loaded: the user loads it like any other, by Scan QR or
 // Enter words. Enter words loads straight away. "Back up as QR" runs the card
 // flow for the loaded seed.
-static int new_words = 12;               // 12 or 24
+static int new_words = 12;               // 12; Enter words can switch to 24
 static char entropy_in[257];             // dice '1'..'6' or coins '1'/'0' so far
 static int entropy_n;
 static bool entropy_dice;
@@ -773,14 +775,13 @@ void ui_seed_entry(UiScreen method, int words, bool draw) {
     ui_goto(method);
 }
 
-static void words_cb(lv_event_t *e) {
-    new_words = (int)(intptr_t)lv_event_get_user_data(e);
-    ui_goto(UI_NEW_SEED);
-}
-static void method_cb(lv_event_t *e) { ui_seed_entry((UiScreen)(intptr_t)lv_event_get_user_data(e), new_words); }
-static void draw_cb(lv_event_t *) { ui_seed_entry(UI_ENTER_WORDS, new_words, true); }
-static void to_new_seed_cb(lv_event_t *) { ui_seed_entry(UI_NEW_SEED, new_words); }
-static void restore_cb(lv_event_t *e) { ui_seed_entry(UI_ENTER_WORDS, (int)(intptr_t)lv_event_get_user_data(e)); }
+// New seeds are always 12 words; 24 only exists for entering an existing seed.
+static void method_cb(lv_event_t *e) { ui_seed_entry((UiScreen)(intptr_t)lv_event_get_user_data(e), 12); }
+static void draw_cb(lv_event_t *) { ui_seed_entry(UI_ENTER_WORDS, 12, true); }
+static void to_new_seed_cb(lv_event_t *) { ui_seed_entry(UI_NEW_SEED, 12); }
+static void restore_cb(lv_event_t *) { ui_seed_entry(UI_ENTER_WORDS, 12); }
+// "24 words" / "12 words" on the first word screen of Enter words.
+static void restore_length_cb(lv_event_t *) { ui_seed_entry(UI_ENTER_WORDS, new_words == 12 ? 24 : 12); }
 
 void ui_backup_loaded() {
     new_seed_wipe();
@@ -794,63 +795,14 @@ static void backup_existing_cb(lv_event_t *) { ui_backup_loaded(); }
 // Leaving the card flow: back to the wallet, or for a new seed, to Seed ready.
 static void backup_exit_cb(lv_event_t *) { ui_goto(backup_existing ? UI_SEED_MENU : UI_SEED_READY); }
 
-// Enter words: restore from a words backup.
-// "12 words" / "24 words" rows with a note under them; cb gets 12 or 24 as user data.
-static void build_length_picker(const char *title, lv_event_cb_t back_cb, const char *icon, lv_event_cb_t cb,
-                                const char *note) {
-    lv_obj_t *scr = screen();
-    topbar(scr, title, back_cb);
-    lv_obj_t *c = card(scr, CW, 2 * 62 + 1);
-    lv_obj_set_style_pad_all(c, 0, 0);
-    lv_obj_set_style_clip_corner(c, true, 0);
-    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 4);
-    lv_obj_t *r1 = list_row(c, icon, "12 words", nullptr, cb, (void *)12);
-    lv_obj_align(r1, LV_ALIGN_TOP_MID, 0, 0);
-    divider(c, 62);
-    lv_obj_t *r2 = list_row(c, icon, "24 words", nullptr, cb, (void *)24);
-    lv_obj_align(r2, LV_ALIGN_TOP_MID, 0, 63);
-    lv_obj_align(para(scr, note, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, BAR + 4 + 125 + 14);
-    show(scr);
-}
-
-static void build_restore() {
-    build_length_picker("Enter words", to_home_cb, ICON_KEYBOARD, restore_cb,
-                        "Type the words of your backup. The seed loads right away.");
-}
-
-// Two-way toggle, e.g. 12 / 24 words.
-static void segmented(lv_obj_t *parent, int y, const char *a, const char *b, bool a_on, lv_event_cb_t cb, void *ua,
-                      void *ub) {
-    lv_obj_t *seg = lv_obj_create(parent);
-    lv_obj_remove_style_all(seg);
-    lv_obj_set_size(seg, CW, 40);
-    lv_obj_set_style_radius(seg, 12, 0);
-    lv_obj_set_style_bg_color(seg, SURFACE_2, 0);
-    lv_obj_set_style_bg_opa(seg, LV_OPA_COVER, 0);
-    lv_obj_align(seg, LV_ALIGN_TOP_MID, 0, y);
-    for (int i = 0; i < 2; i++) {
-        bool on = i == 0 ? a_on : !a_on;
-        lv_obj_t *o = lv_button_create(seg);
-        lv_obj_remove_style_all(o);
-        lv_obj_set_size(o, (CW - 8) / 2, 32);
-        lv_obj_set_pos(o, 4 + i * (CW - 8) / 2, 4);
-        lv_obj_set_style_radius(o, 9, 0);
-        lv_obj_set_style_bg_color(o, ACCENT_DIM, 0);
-        lv_obj_set_style_bg_opa(o, on ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
-        lv_obj_add_event_cb(o, cb, LV_EVENT_CLICKED, i == 0 ? ua : ub);
-        lv_obj_center(text(o, i == 0 ? a : b, &inter_15, on ? ACCENT : TEXT_2));
-    }
-}
-
 static void build_new_seed() {
     lv_obj_t *scr = screen();
     topbar(scr, "New seed", to_home_cb);
-    segmented(scr, BAR + 4, "12 words", "24 words", new_words == 12, words_cb, (void *)12, (void *)24);
 
     lv_obj_t *c = card(scr, CW, 3 * 62 + 2);
     lv_obj_set_style_pad_all(c, 0, 0);
     lv_obj_set_style_clip_corner(c, true, 0);
-    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 56);
+    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 4);
     char dice[24], coins[24];
     snprintf(dice, sizeof(dice), "%d rolls of one die", seed_dice_rolls(new_words));
     snprintf(coins, sizeof(coins), "%d coin flips", seed_coin_flips(new_words));
@@ -1061,7 +1013,7 @@ static bool word_accept(int idx) {
         }
         ok = ok && wallet_load(e);
         seedqr_wipe(&e);
-        ui_goto(ok ? UI_SEED_LOADED : UI_RESTORE);
+        ui_goto(ok ? UI_SEED_LOADED : UI_HOME);
         return ok;
     }
     if (word_is_last()) {
@@ -1093,7 +1045,7 @@ static void kb_cb(lv_event_t *e) {
 }
 
 static void words_back_cb(lv_event_t *) {
-    if (!word_n) { if (drawing) to_new_seed_cb(nullptr); else ui_goto(UI_RESTORE); return; }
+    if (!word_n) { if (drawing) to_new_seed_cb(nullptr); else ui_goto(UI_HOME); return; }
     word_idx[--word_n] = 0;
     word_prefix[0] = 0;
     ui_goto(UI_ENTER_WORDS);
@@ -1135,6 +1087,10 @@ static void build_enter_words() {
     lv_obj_set_style_text_color(word_kb, TEXT_3, LV_PART_ITEMS | LV_STATE_DISABLED);
     lv_buttonmatrix_set_button_width(word_kb, 26, 2);   // "Del" spans two keys
     lv_obj_add_event_cb(word_kb, kb_cb, LV_EVENT_VALUE_CHANGED, nullptr);
+    // Enter words starts at 12; a seed with 24 switches here, before the first word.
+    if (!drawing && !word_n)
+        lv_obj_align(quiet_link(scr, new_words == 12 ? "24 words" : "12 words", restore_length_cb, nullptr),
+                     LV_ALIGN_TOP_MID, 0, BAR + 92);
     words_refresh();
     show(scr);
 }
@@ -1178,36 +1134,23 @@ static int blocks_per_side() { return qr_n / 5; }
 static bool block_edge(int m) { return m == qr_n || (m % 5 == 0 && m / 5 < blocks_per_side()); }
 static int block_len(int b) { return b + 1 < blocks_per_side() ? 5 : qr_n - 5 * b; }
 
-// Modules that are the same in every QR code of this size: the three finder
-// squares with the light border around them, the timing row and column between
-// them, the always-dark module and, on 25x25 (version 2), the alignment square.
-// The printable 12-word cards (cards/index.html) come with these already printed; the
-// format bits depend on the mask and don't. -1: not fixed, 0: light, 1: dark.
-static int square_module(int r, int c, int r0, int c0, int size) {
-    if (r < r0 || c < c0 || r >= r0 + size || c >= c0 + size) return -1;
-    int a = r - r0, b = c - c0;
-    return LV_MIN(LV_MIN(a, b), LV_MIN(size - 1 - a, size - 1 - b)) != 1;
+// Modules a SeedQR card template already has printed, the same in every QR of
+// its size: the three finder squares with their light border, the timing
+// lines (row 7, column G), the dark module beside the lower finder (I14 on
+// 21x21), and on 25x25 the alignment square.
+static bool preprinted(int x, int y) {
+    int far = qr_n - 8;
+    if ((x <= 7 || x >= far) && (y <= 7 || y >= far) && !(x >= far && y >= far)) return true;
+    if ((y == 6 && x > 7 && x < far) || (x == 6 && y > 7 && y < far)) return true;
+    if (x == 8 && y == far) return true;
+    return qr_n == 25 && x >= 16 && x <= 20 && y >= 16 && y <= 20;
 }
-static int module_fixed(int r, int c) {
-    const int n = qr_n;
-    const int corners[3][2] = {{0, 0}, {0, n - 7}, {n - 7, 0}};
-    for (auto &f : corners) {
-        int m = square_module(r, c, f[0], f[1], 7);
-        if (m >= 0) return m;
-        // the light border: one module round the finder, inside the symbol
-        if (r >= f[0] - 1 && r <= f[0] + 7 && c >= f[1] - 1 && c <= f[1] + 7 && r >= 0 && c >= 0 && r < n && c < n) return 0;
-    }
-    if ((r == 6 && c >= 8 && c < n - 8) || (c == 6 && r >= 8 && r < n - 8)) return (r + c) % 2 == 0;
-    if (r == n - 8 && c == 8) return 1;
-    return n == 25 ? square_module(r, c, 16, 16, 5) : -1;
-}
-static bool module_to_fill(int r, int c) { return r >= 0 && c >= 0 && r < qr_n && c < qr_n && module_fixed(r, c) < 0; }
 
 // Part of the SeedQR, drawn module by module: dark squares, light grid lines
-// (darker every 5 modules, like the lines on the paper card). With `printed`,
-// it looks like the paper card: what the card already has is grey and has no
-// grid lines, which run only along modules left to fill in.
-struct GridView { int c0, r0, cols, rows, cell; bool minor, printed; };
+// (darker every 5 modules, like the lines on the paper card). With `ring`,
+// the view is the active part plus one module around it: neighbours greyed,
+// pre-printed modules hatched, the part itself framed.
+struct GridView { int c0, r0, cols, rows, cell; bool ring; int ac0, ar0, acols, arows; };
 static GridView whole_view, block_view;
 
 static void grid_draw_cb(lv_event_t *e) {
@@ -1218,46 +1161,62 @@ static void grid_draw_cb(lv_event_t *e) {
     lv_draw_rect_dsc_t d;
     lv_draw_rect_dsc_init(&d);
     d.bg_opa = LV_OPA_COVER;
-    const lv_color_t printed = LV_COLOR_MAKE(0x8A, 0x86, 0x7E);
     d.radius = 0;
+    const int o = g->ring ? 1 : 0;   // room for the part's frame at the edge
     auto rect = [&](int x1, int y1, int x2, int y2, lv_color_t c) {
-        lv_area_t r = {a.x1 + x1, a.y1 + y1, a.x1 + x2, a.y1 + y2};
+        lv_area_t r = {a.x1 + o + x1, a.y1 + o + y1, a.x1 + o + x2, a.y1 + o + y2};
         d.bg_color = c;
         lv_draw_rect(layer, &d, &r);
     };
-    for (int r = 0; r < g->rows; r++)
-        for (int c = 0; c < g->cols; c++)
-            if (qrcodegen_getModule(qr_buf, g->c0 + c, g->r0 + r))
-                rect(c * g->cell, r * g->cell, (c + 1) * g->cell, (r + 1) * g->cell,
-                     g->printed && module_fixed(g->r0 + r, g->c0 + c) == 1 ? printed : lv_color_black());
+    lv_draw_line_dsc_t ld;
+    lv_draw_line_dsc_init(&ld);
+    ld.width = 1;
+    auto line = [&](int x1, int y1, int x2, int y2, lv_color_t c) {
+        ld.color = c;
+        ld.p1.x = a.x1 + o + x1; ld.p1.y = a.y1 + o + y1;
+        ld.p2.x = a.x1 + o + x2; ld.p2.y = a.y1 + o + y2;
+        lv_draw_line(layer, &ld);
+    };
+    const lv_color_t ghost = LV_COLOR_MAKE(0xC4, 0xC0, 0xB8);
     const lv_color_t major = LV_COLOR_MAKE(0x9A, 0x96, 0x8E), minor = LV_COLOR_MAKE(0xD4, 0xD0, 0xC8);
-    // One cell edge at a time, skipped between two pre-printed modules.
-    for (int i = 0; i <= g->cols; i++) {
-        int C = g->c0 + i;
-        bool m = block_edge(C);
-        if (!m && !g->minor) continue;
-        for (int j = 0; j < g->rows; j++) {
-            int R = g->r0 + j;
-            if (g->printed && !module_to_fill(R, C - 1) && !module_to_fill(R, C)) continue;
-            rect(i * g->cell, j * g->cell, i * g->cell, (j + 1) * g->cell, m ? major : minor);
+    const int s = g->cell;
+    for (int r = 0; r < g->rows; r++)
+        for (int c = 0; c < g->cols; c++) {
+            int x = g->c0 + c, y = g->r0 + r, x1 = c * s, y1 = r * s;
+            if (!qrcodegen_getModule(qr_buf, x, y)) continue;
+            bool active = x >= g->ac0 && x < g->ac0 + g->acols && y >= g->ar0 && y < g->ar0 + g->arows;
+            if (g->ring && preprinted(x, y)) {
+                // Already on the card: diagonal hatch, not a square to fill.
+                for (int k = 4; k < 2 * s; k += 6)
+                    line(x1 + LV_MIN(k, s), y1 + LV_MAX(0, k - s), x1 + LV_MAX(0, k - s), y1 + LV_MIN(k, s), major);
+            } else {
+                rect(x1, y1, x1 + s, y1 + s, active ? lv_color_black() : ghost);
+            }
         }
+    if (!g->ring) {
+        for (int i = 0; i <= g->cols; i++)
+            if (block_edge(g->c0 + i)) rect(i * s, 0, i * s, g->rows * s, major);
+        for (int i = 0; i <= g->rows; i++)
+            if (block_edge(g->r0 + i)) rect(0, i * s, g->cols * s, i * s, major);
+        return;
     }
-    for (int i = 0; i <= g->rows; i++) {
-        int R = g->r0 + i;
-        bool m = block_edge(R);
-        if (!m && !g->minor) continue;
-        for (int j = 0; j < g->cols; j++) {
-            int C = g->c0 + j;
-            if (g->printed && !module_to_fill(R - 1, C) && !module_to_fill(R, C)) continue;
-            rect(j * g->cell, i * g->cell, (j + 1) * g->cell, i * g->cell, m ? major : minor);
-        }
-    }
+    const lv_color_t faint = LV_COLOR_MAKE(0xE6, 0xE2, 0xDA);
+    for (int i = 0; i <= g->cols; i++) rect(i * s, 0, i * s, g->rows * s, faint);
+    for (int i = 0; i <= g->rows; i++) rect(0, i * s, g->cols * s, i * s, faint);
+    int ax = (g->ac0 - g->c0) * s, ay = (g->ar0 - g->r0) * s, aw = g->acols * s, ah = g->arows * s;
+    for (int i = 1; i < g->acols; i++) rect(ax + i * s, ay, ax + i * s, ay + ah, minor);
+    for (int i = 1; i < g->arows; i++) rect(ax, ay + i * s, ax + aw, ay + i * s, minor);
+    const lv_color_t frame = LV_COLOR_MAKE(0x3A, 0x37, 0x32);
+    rect(ax - 1, ay - 1, ax + aw + 1, ay, frame);
+    rect(ax - 1, ay + ah, ax + aw + 1, ay + ah + 1, frame);
+    rect(ax - 1, ay - 1, ax, ay + ah + 1, frame);
+    rect(ax + aw, ay - 1, ax + aw + 1, ay + ah + 1, frame);
 }
 
 static lv_obj_t *grid(lv_obj_t *parent, GridView *g) {
     lv_obj_t *o = lv_obj_create(parent);
     lv_obj_remove_style_all(o);
-    lv_obj_set_size(o, g->cols * g->cell + 1, g->rows * g->cell + 1);
+    lv_obj_set_size(o, g->cols * g->cell + 1 + (g->ring ? 2 : 0), g->rows * g->cell + 1 + (g->ring ? 2 : 0));
     lv_obj_add_event_cb(o, grid_draw_cb, LV_EVENT_DRAW_MAIN, g);
     return o;
 }
@@ -1292,7 +1251,7 @@ static void build_backup_qr() {
     }
     topbar(scr, "Back up", to_warning_cb);
     const int cell = 180 / qr_n;
-    whole_view = {0, 0, qr_n, qr_n, cell, false, false};
+    whole_view = {0, 0, qr_n, qr_n, cell, false, 0, 0, qr_n, qr_n};
     lv_obj_t *c = white_card(scr, qr_n * cell + 17, qr_n * cell + 17);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 2);
     lv_obj_center(grid(c, &whole_view));
@@ -1321,7 +1280,9 @@ static void block_gesture_cb(lv_event_t *) {
     else if (d == LV_DIR_RIGHT) block_prev_cb(nullptr);
 }
 
-// One 5x5 block at a time, labelled with the card's column letters and row numbers.
+// One 5x5 block at a time, labelled with the card's column letters and row
+// numbers, inside one module of its neighbours. Every part of the card's grid
+// is shown, also the corners that are all pre-printed (all hatched).
 static void build_backup_block() {
     lv_obj_t *scr = screen();
     int bs = blocks_per_side(), n = bs * bs;
@@ -1346,28 +1307,35 @@ static void build_backup_block() {
         lv_obj_set_style_bg_opa(q, LV_OPA_COVER, 0);
     }
 
-    // One cell size per QR, so squares don't change size between blocks.
-    const int cell = qr_n % 5 ? 28 : 32;
-    int c0 = (block_i % bs) * 5, r0 = (block_i / bs) * 5;
-    block_view = {c0, r0, block_len(block_i % bs), block_len(block_i / bs), cell, true, true};
-    lv_obj_t *c = white_card(scr, CW, (qr_n % 5 ? 6 : 5) * cell + 32);
+    // The part plus one module around it (at most 7x7, also for the 6-wide
+    // last part, which has no neighbour past the edge). One cell size for
+    // every part, so squares don't change size between parts.
+    const int cell = 25;
+    int ac0 = (block_i % bs) * 5, ar0 = (block_i / bs) * 5;
+    int acols = block_len(block_i % bs), arows = block_len(block_i / bs);
+    int c0 = LV_MAX(ac0 - 1, 0), r0 = LV_MAX(ar0 - 1, 0);
+    int c1 = LV_MIN(ac0 + acols, qr_n - 1), r1 = LV_MIN(ar0 + arows, qr_n - 1);
+    block_view = {c0, r0, c1 - c0 + 1, r1 - r0 + 1, cell, true, ac0, ar0, acols, arows};
+    const int gx = 22, gy = 18;
+    lv_obj_t *c = white_card(scr, CW, gy + 7 * cell + 4);   // clears the buttons
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 2);
-    const int gx = 30, gy = 24;
-    lv_obj_set_pos(grid(c, &block_view), gx, gy);
-    const lv_color_t lab = LV_COLOR_MAKE(0x6E, 0x6A, 0x62);
+    lv_obj_set_pos(grid(c, &block_view), gx - 1, gy - 1);
+    const lv_color_t lab = LV_COLOR_MAKE(0x6E, 0x6A, 0x62), lab_dim = LV_COLOR_MAKE(0xB4, 0xB0, 0xA8);
     for (int i = 0; i < block_view.cols; i++) {
         char l[4];
-        col_label(c0 + i, l);
-        lv_obj_t *t = text(c, l, &inter_13, lab);
+        int col = c0 + i;
+        col_label(col, l);
+        lv_obj_t *t = text(c, l, &inter_13, col >= ac0 && col < ac0 + acols ? lab : lab_dim, LV_TEXT_ALIGN_CENTER);
         lv_obj_set_width(t, cell);
-        lv_obj_set_pos(t, gx + i * cell, 4);
+        lv_obj_set_pos(t, gx + i * cell, 1);
     }
     for (int i = 0; i < block_view.rows; i++) {
         char l[12];
-        snprintf(l, sizeof(l), "%d", r0 + i + 1);
-        lv_obj_t *t = text(c, l, &inter_13, lab, LV_TEXT_ALIGN_RIGHT);
-        lv_obj_set_width(t, 22);
-        lv_obj_set_pos(t, 2, gy + i * cell + cell / 2 - 8);
+        int row = r0 + i;
+        snprintf(l, sizeof(l), "%d", row + 1);
+        lv_obj_t *t = text(c, l, &inter_13, row >= ar0 && row < ar0 + arows ? lab : lab_dim, LV_TEXT_ALIGN_RIGHT);
+        lv_obj_set_width(t, 18);
+        lv_obj_set_pos(t, 0, gy + i * cell + cell / 2 - 8);
     }
     lv_obj_add_event_cb(scr, block_gesture_cb, LV_EVENT_GESTURE, nullptr);
     bool last = block_i + 1 == n;
@@ -1499,16 +1467,11 @@ static void handle_confirm_payload(QrPayload &p) {
 // ---------------------------------------------------------------- BIP-85 child seed
 // A child of the loaded seed (bip85.h), handed out like a new seed: the same
 // warning, words, optional QR card and Seed ready. Same seed and number, same child.
-static void child_length_cb(lv_event_t *e) {
-    new_words = (int)(intptr_t)lv_event_get_user_data(e);
+// Always 12 words, like New seed.
+static void child_start_cb(lv_event_t *) {
     strcpy(child_num, "0");
     child_failed = false;
     ui_goto(UI_CHILD_INDEX);
-}
-
-static void build_child_length() {
-    build_length_picker("Child seed", to_menu_cb, ICON_KEY, child_length_cb,
-                        "A new seed made from this one (BIP-85). The same number always gives the same child.");
 }
 
 static lv_obj_t *child_num_lbl;
@@ -1535,12 +1498,11 @@ static void digit_key(lv_obj_t *scr, int x, int y, int w, int h, const char *s, 
     lv_obj_center(text(key_button(scr, x, y, w, h, digit_cb, k), s, k < 0 ? &inter_15 : &mono_22, TEXT));
 }
 
-static void to_child_length_cb(lv_event_t *) { ui_goto(UI_CHILD_LENGTH); }
-static void child_continue_cb(lv_event_t *) { ui_child_seed(new_words, (uint32_t)strtoul(child_num, nullptr, 10)); }
+static void child_continue_cb(lv_event_t *) { ui_child_seed((uint32_t)strtoul(child_num, nullptr, 10)); }
 
 static void build_child_index() {
     lv_obj_t *scr = screen();
-    topbar(scr, "Child number", to_child_length_cb);
+    topbar(scr, "Child seed", to_menu_cb);
     if (child_failed) child_num_lbl = text(scr, "Couldn't make this child. Try again.", &inter_13, RED);
     else child_num_lbl = text(scr, child_num, &mono_26, TEXT);
     lv_obj_align(child_num_lbl, LV_ALIGN_TOP_MID, 0, child_failed ? BAR + 10 : BAR + 2);
@@ -1551,15 +1513,13 @@ static void build_child_index() {
     }
     digit_key(scr, M, Y0 + 3 * (KH + GAP), KW, KH, "Del", -1);
     digit_key(scr, M + KW + GAP, Y0 + 3 * (KH + GAP), KW, KH, "0", 0);
-    char btn[32];
-    snprintf(btn, sizeof(btn), "Continue  \xC2\xB7  %d words", new_words);
-    place_bottom(btn_primary(scr, btn, child_continue_cb));
+    place_bottom(btn_primary(scr, "Continue", child_continue_cb));
     show(scr);
 }
 
-void ui_child_seed(int words, uint32_t index) {
+void ui_child_seed(uint32_t index) {
     new_seed_wipe();
-    new_words = words == 24 ? 24 : 12;
+    new_words = 12;
     if (!wallet_has_seed() || !bip85_bip39_entropy(*wallet_root(), new_words, index, &pending)) {
         seedqr_wipe(&pending);
         child_failed = true;
@@ -1947,7 +1907,7 @@ static void build_multisig() {
 // ---------------------------------------------------------------- navigation
 // Making or entering a seed: only while none is loaded.
 static bool seed_entry_screen(UiScreen s) {
-    return s == UI_NEW_SEED || s == UI_ENTROPY_DICE || s == UI_ENTROPY_COINS || s == UI_RESTORE || s == UI_ENTER_WORDS;
+    return s == UI_NEW_SEED || s == UI_ENTROPY_DICE || s == UI_ENTROPY_COINS || s == UI_ENTER_WORDS;
 }
 // The card flow: for a new seed, or the loaded one.
 static bool backup_screen(UiScreen s) {
@@ -1994,7 +1954,6 @@ void ui_goto(UiScreen s) {
         case UI_NEW_SEED: build_new_seed(); break;
         case UI_ENTROPY_DICE: build_entropy(true); break;
         case UI_ENTROPY_COINS: build_entropy(false); break;
-        case UI_RESTORE: build_restore(); break;
         case UI_ENTER_WORDS: build_enter_words(); break;
         case UI_BACKUP_WARNING: build_backup_warning(); break;
         case UI_BACKUP_WORDS: build_backup_words(); break;
@@ -2003,7 +1962,6 @@ void ui_goto(UiScreen s) {
         case UI_BACKUP_QR: build_backup_qr(); break;
         case UI_BACKUP_BLOCK: build_backup_block(); break;
         case UI_BACKUP_SCAN: build_scan(SCAN_CONFIRM); break;
-        case UI_CHILD_LENGTH: build_child_length(); break;
         case UI_CHILD_INDEX: build_child_index(); break;
         case UI_MULTISIG: build_multisig(); break;
     }

@@ -165,3 +165,11 @@ def test_psbt_joined_mid_animation(dev):
     dev.tap("Sign transaction")
     dev.scan(psbt.to_base64())
     assert dev.screen == "PSBT_OVERVIEW", dev.text()
+
+
+def test_24_words_by_hand(dev):
+    """Enter words starts at 12; "24 words" on the first word switches for a
+    24-word backup, and the seed loads like any other."""
+    words = "zoo " * 23 + "vote"
+    load_by_words(dev, words)
+    assert fingerprint_on_screen(dev) == Seed(words).fingerprint
