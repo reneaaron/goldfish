@@ -1181,7 +1181,7 @@ static int block_len(int b) { return b + 1 < blocks_per_side() ? 5 : qr_n - 5 * 
 // Modules that are the same in every QR code of this size: the three finder
 // squares with the light border around them, the timing row and column between
 // them, the always-dark module and, on 25x25 (version 2), the alignment square.
-// The printable cards (cards/index.html) come with these already printed; the
+// The printable 12-word cards (cards/index.html) come with these already printed; the
 // format bits depend on the mask and don't. -1: not fixed, 0: light, 1: dark.
 static int square_module(int r, int c, int r0, int c0, int size) {
     if (r < r0 || c < c0 || r >= r0 + size || c >= c0 + size) return -1;

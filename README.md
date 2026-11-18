@@ -25,7 +25,7 @@ been tested on real hardware or against Sparrow.
 | [`firmware/`](firmware) | PlatformIO firmware (RP2350, LVGL, libwally-core), desktop simulator, tests |
 | [`case/`](case) | Printed case in gcad: clip-in, STL and STEP exports |
 | [`hardware/`](hardware) | Parts list and board notes |
-| [`cards/`](cards) | Blank SeedQR and seed-words cards to print (open `index.html`, works offline) |
+| [`cards/`](cards) | Blank SeedQR and word cards for 12-word seeds, to print (open `index.html`, works offline) |
 | [`marketing/`](marketing) | Product renders made from the real case and firmware screens |
 
 ## How it works
@@ -36,7 +36,7 @@ been tested on real hardware or against Sparrow.
    draw (the last word from coin flips), shows the words to write down and
    optionally walks you through a paper QR card, square by square. Any
    loaded seed can be backed up as a QR card the same way. Blank cards
-   to print are in [`cards/`](cards).
+   for 12-word seeds to print are in [`cards/`](cards).
 2. Connect wallet: show the xpub as a QR so Sparrow (or another wallet app)
    can track your balance and build transactions.
 3. Sign transaction: scan the transaction QR from your wallet, check the

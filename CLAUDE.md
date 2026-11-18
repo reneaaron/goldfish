@@ -10,7 +10,7 @@ A stateless, camera-based Bitcoin signer for the Waveshare RP2350-Touch-LCD-2 (2
 - `case/`: printed case in gcad (`.gcad` parts, `.gasm` assembly)
 - `hardware/`: parts list, board notes
 - `flasher/`: one static page that copies `firmware.uf2` onto the board's BOOT drive; `.github/workflows/flasher.yml` publishes it with the firmware on GitHub Pages when a `v*` tag is pushed
-- `cards/`: one self-contained page (no external requests) that prints blank SeedQR grids (full page or wallet cards) and a words sheet; the grid's labels and part lines must match the device's `build_backup_block` in `ui.cpp`
+- `cards/`: one self-contained page (no external requests) that prints blank cards for 12-word seeds only: the 21×21 SeedQR grid (full page or wallet cards) and word cards; the grid's labels and part lines must match the device's `build_backup_block` in `ui.cpp`
 - `marketing/`: Blender render scripts that consume `case/exports/case.stl` and `firmware/docs/screens/*.png`
 
 ## Commands
