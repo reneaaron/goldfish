@@ -7,7 +7,7 @@
 // (LCD_2in.cpp, MIT-style license). 0xFF marks a delay in ms, 0xFE a command.
 static const uint8_t INIT_SEQ[] = {
     0xFE, 0x11, 0xFF, 120,
-    0xFE, 0x36, 0x08,                  // portrait, BGR order as in the demo
+    0xFE, 0x36, 0x48,                  // portrait, MX (columns mirrored on this panel), BGR
     0xFE, 0x3A, 0x05,                  // RGB565
     0xFE, 0xF0, 0xC3,
     0xFE, 0xF0, 0x96,
@@ -74,8 +74,8 @@ static void flush_cb(lv_display_t *disp, const lv_area_t *a, uint8_t *px) {
     lv_display_flush_ready(disp);
 }
 
-static uint8_t buf1[LCD_W * 40 * 2];
-static uint8_t buf2[LCD_W * 40 * 2];
+alignas(LV_DRAW_BUF_ALIGN) static uint8_t buf1[LCD_W * 40 * 2];
+alignas(LV_DRAW_BUF_ALIGN) static uint8_t buf2[LCD_W * 40 * 2];
 
 lv_display_t *display_init() {
     spi_init(spi0, 62500000);
