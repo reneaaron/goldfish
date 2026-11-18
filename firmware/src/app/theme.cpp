@@ -73,6 +73,9 @@ lv_obj_t *topbar(lv_obj_t *scr, const char *title, lv_event_cb_t back_cb, const 
         plain(b);
         lv_obj_set_size(b, 44, 44);
         lv_obj_align(b, LV_ALIGN_LEFT_MID, 4, 2);
+        // the board's touch reads ~30px too far right near the top-left corner:
+        // reach past the arrow (the bar itself caps it vertically)
+        lv_obj_set_ext_click_area(b, 24);
         lv_obj_add_event_cb(b, back_cb, LV_EVENT_CLICKED, nullptr);
         lv_obj_t *i = text(b, ICON_LEFT, &inter_17_semi, TEXT_2);
         lv_obj_center(i);
