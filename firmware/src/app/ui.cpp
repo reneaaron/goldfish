@@ -1178,11 +1178,15 @@ static int blocks_per_side() { return qr_n / 5; }
 static bool block_edge(int m) { return m == qr_n || (m % 5 == 0 && m / 5 < blocks_per_side()); }
 static int block_len(int b) { return b + 1 < blocks_per_side() ? 5 : qr_n - 5 * b; }
 
-// Modules every SeedQR card already has printed: the three finder squares with
-// their light border, and on 25x25 the alignment square.
+// Modules a SeedQR card template already has printed, the same in every QR of
+// its size: the three finder squares with their light border, the timing
+// lines (row 7, column G), the dark module beside the lower finder (I14 on
+// 21x21), and on 25x25 the alignment square.
 static bool preprinted(int x, int y) {
     int far = qr_n - 8;
     if ((x <= 7 || x >= far) && (y <= 7 || y >= far) && !(x >= far && y >= far)) return true;
+    if ((y == 6 && x > 7 && x < far) || (x == 6 && y > 7 && y < far)) return true;
+    if (x == 8 && y == far) return true;
     return qr_n == 25 && x >= 16 && x <= 20 && y >= 16 && y <= 20;
 }
 
