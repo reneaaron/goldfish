@@ -774,7 +774,7 @@ static char txt_words[4][12], txt_field[16], txt_sugg[2][12], txt_tail[40];
 // kept until the list is done, to show each word's own picture; it, the
 // strips and the words are wiped by page_flow_wipe().
 struct PageCand { int16_t word; bool ok; uint8_t piece; };
-struct Slot { int16_t word; int16_t piece; };   // word -1: unknown; piece -1: typed
+struct Slot { int16_t word; int16_t piece; bool typed; };   // word -1: unknown; piece -1: no picture
 #define MAX_SLOTS 48
 static Page page;
 static const uint8_t *page_still;
@@ -1218,9 +1218,9 @@ static lv_obj_t *page_lbl, *page_bar;
 // Words typed before the camera, then every piece found, in reading order.
 static void page_make_slots() {
     nslots = 0;
-    for (int i = 0; i < word_n && nslots < MAX_SLOTS; i++) slots[nslots++] = {int16_t(word_idx[i]), -1};
+    for (int i = 0; i < word_n && nslots < MAX_SLOTS; i++) slots[nslots++] = {int16_t(word_idx[i]), -1, true};
     for (int i = 0; i < ncands && nslots < MAX_SLOTS; i++)
-        slots[nslots++] = {int16_t(cands[i].ok ? cands[i].word : -1), int16_t(cands[i].piece)};
+        slots[nslots++] = {int16_t(cands[i].ok ? cands[i].word : -1), int16_t(cands[i].piece), false};
     secure_zero(word_idx, sizeof(word_idx));
     secure_zero(cands, sizeof(cands));
     word_n = 0;
@@ -1302,10 +1302,10 @@ static bool page_set_word(int idx) {
     if (idx < 0 || edit_slot < 0) return false;
     if (edit_insert && nslots < MAX_SLOTS) {
         memmove(&slots[edit_slot + 1], &slots[edit_slot], sizeof(Slot) * (nslots - edit_slot));
-        slots[edit_slot] = {int16_t(idx), -1};
+        slots[edit_slot] = {int16_t(idx), -1, true};
         nslots++;
     } else if (!edit_insert) {
-        slots[edit_slot] = {int16_t(idx), slots[edit_slot].piece};
+        slots[edit_slot] = {int16_t(idx), slots[edit_slot].piece, true};
     }
     edit_slot = -1;
     word_prefix[0] = 0;
@@ -1369,12 +1369,40 @@ static void page_remove_cb(lv_event_t *) { ui_page_remove(); }
 // per row, not a button with three labels: a 24-word list plus the screen
 // fading out plus a pressed button's layer ran LVGL's 96 KB heap out, and its
 // allocator hung.
-static lv_obj_t *page_row(lv_obj_t *parent, int y, const char *line, lv_color_t c, bool rule, lv_event_cb_t cb,
-                          void *ud) {
-    lv_obj_t *l = text(parent, line, &mono_22, c, LV_TEXT_ALIGN_LEFT);
+// A row's number (small, grey) and status (read from the photo, typed, or
+// unread), drawn onto the row label instead of being objects of their own:
+// one object per row keeps a 24-word list well inside LVGL's heap.
+static void page_row_draw_cb(lv_event_t *e) {
+    int i = (int)(intptr_t)lv_event_get_user_data(e);
+    if (i < 0 || i >= nslots) return;
+    lv_layer_t *layer = lv_event_get_layer(e);
+    lv_area_t a;
+    lv_obj_get_coords(lv_event_get_target_obj(e), &a);
+    char num[4];
+    snprintf(num, sizeof(num), "%d", i + 1);
+    lv_draw_label_dsc_t d;
+    lv_draw_label_dsc_init(&d);
+    d.font = &inter_13;
+    d.color = TEXT_3;
+    d.align = LV_TEXT_ALIGN_RIGHT;
+    d.text = num;
+    d.text_local = 1;   // copied: drawing may happen after this returns
+    lv_area_t na = {a.x1 + 4, a.y1 + 11, a.x1 + 30, a.y2};
+    lv_draw_label(layer, &d, &na);
+    const Slot &sl = slots[i];
+    d.align = LV_TEXT_ALIGN_RIGHT;
+    d.text = sl.word < 0 ? ICON_WARNING : sl.typed || sl.piece < 0 ? ICON_KEYBOARD : ICON_CHECK;
+    d.color = sl.word < 0 ? AMBER : sl.typed || sl.piece < 0 ? TEXT_3 : GREEN;
+    lv_area_t ia = {a.x2 - 40, a.y1 + 11, a.x2 - CARD_PX, a.y2};
+    lv_draw_label(layer, &d, &ia);
+}
+
+static lv_obj_t *page_row(lv_obj_t *parent, int y, const char *word, lv_color_t c, bool rule, lv_event_cb_t cb,
+                          void *ud, bool marks) {
+    lv_obj_t *l = text(parent, word, &mono_22, c, LV_TEXT_ALIGN_LEFT);
     lv_obj_set_size(l, CW - 2, 36);
     lv_obj_set_pos(l, 0, y);
-    lv_obj_set_style_pad_left(l, CARD_PX, 0);
+    lv_obj_set_style_pad_left(l, 46, 0);
     lv_obj_set_style_pad_top(l, 5, 0);
     lv_obj_set_style_bg_color(l, SURFACE_2, LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(l, LV_OPA_COVER, LV_STATE_PRESSED);
@@ -1385,6 +1413,7 @@ static lv_obj_t *page_row(lv_obj_t *parent, int y, const char *line, lv_color_t 
     }
     lv_obj_add_flag(l, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(l, cb, LV_EVENT_CLICKED, ud);
+    if (marks) lv_obj_add_event_cb(l, page_row_draw_cb, LV_EVENT_DRAW_MAIN_END, ud);
     return l;
 }
 
@@ -1442,12 +1471,11 @@ static void build_page_review() {
     lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
     int y = 0;
     for (int i = 0; i < nslots; i++, y += 36) {
-        char line[24];
         bool known = slots[i].word >= 0;
-        snprintf(line, sizeof(line), "%2d  %s", i + 1, known ? seed_word(slots[i].word) : "?");
-        page_row(box, y, line, known ? TEXT : AMBER, i + 1 < rows, page_row_cb, (void *)(intptr_t)i);
+        page_row(box, y, known ? seed_word(slots[i].word) : "?", known ? TEXT : AMBER, i + 1 < rows, page_row_cb,
+                 (void *)(intptr_t)i, true);
     }
-    if (nslots < new_words) page_row(box, y, " +  add a word", TEXT_3, false, page_add_cb, nullptr);
+    if (nslots < new_words) page_row(box, y, "+ add a word", TEXT_3, false, page_add_cb, nullptr, false);
 
     lv_obj_t *btn = page_picking_extra ? btn_ghost(scr, action, act, nullptr, TEXT) : btn_primary(scr, action, act ? act : page_list_cb);
     place_bottom(btn);
@@ -1494,6 +1522,7 @@ int ui_page_suggestion() { return ui_current() == UI_PAGE_WORD ? page_suggest : 
 void ui_page_use_suggestion() {
     if (ui_current() != UI_PAGE_WORD || page_suggest < 0) return;
     slots[open_slot].word = int16_t(page_suggest);
+    slots[open_slot].typed = true;
     ui_goto(UI_PAGE_REVIEW);
 }
 static void page_suggest_cb(lv_event_t *) { ui_page_use_suggestion(); }
