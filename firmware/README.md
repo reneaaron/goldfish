@@ -41,8 +41,8 @@ The seed lives in RAM only: "Wipe seed" or unplugging removes it.
    base64 frame), review the amount, fee and change, check each output's
    address, slide to sign, then show the signed PSBT as an animated UR
 
-Enter words restores from a words backup: pick 12 or 24, then type each
-word. The keyboard only offers letters that lead to a word and, on the last
+Enter words restores from a words backup: type each word. It starts at 12
+words; a 24-word backup taps "24 words" on the first word. The keyboard only offers letters that lead to a word and, on the last
 word, only words with a valid checksum. The seed loads right away.
 
 Add passphrase opens a keyboard for a BIP-39 passphrase (the "25th word"):
@@ -56,16 +56,16 @@ then all use the passphrase wallet. Back up as QR still writes the seed alone:
 the passphrase is never part of a backup. Characters outside ASCII and a
 passphrase QR aren't supported.
 
-New seed is a tool: it makes a 12 or 24 word seed and its backup, but
+New seed is a tool: it makes a 12-word seed and its backup, but
 doesn't load it. To use the seed, load it like any other (Scan QR or Enter
 words). The device has no RNG of any kind, not even in tests: every bit
 comes from the user and can be re-checked offline.
 
-- Dice: 50 or 99 rolls; coins: 128 or 256 flips (heads = 1). The input
+- Dice: 50 rolls; coins: 128 flips (heads = 1). The input
   string is hashed with SHA256, same as SeedSigner and bitcoiner.guide/seed,
   so the result can be checked there.
-- Draw words: e.g. from a box. Type the first 11 (or 23) words, then flip a
-  coin for each free bit of the last word (7 for 12 words, 3 for 24). The
+- Draw words: e.g. from a box. Type the first 11 words, then flip a
+  coin for each of the 7 free bits of the last word. The
   flips are the bits themselves, so the last word can be checked by hand.
 
 Then an offline warning, the words 4 per page to write down, and an
@@ -82,7 +82,7 @@ Back up as QR runs the same card flow for whatever seed is loaded, scanned
 or typed, e.g. to turn a words backup into a QR card.
 
 Child seed derives a [BIP-85](https://github.com/bitcoin/bips/blob/master/bip-0085.mediawiki)
-child of the loaded seed (BIP39, English, 12 or 24 words, child number 0 to
+child of the loaded seed (BIP39, English, 12 words, child number 0 to
 2147483647) and hands it out like a new seed: warning, words, optional QR card
 and check, then its fingerprint. The same seed and number always give the same
 child; leaving the flow wipes it.
@@ -230,7 +230,7 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
 
 - Single-sig: a new seed from dice rolls, its words typed back in, the wallet
   linked from the xpub QR, a receive address verified, a transaction with
-  change reviewed and signed; SeedQR Standard and Compact; the QR card check;
+  change reviewed and signed; a 24-word seed typed in; SeedQR Standard and Compact; the QR card check;
   an animated PSBT joined mid-cycle (fountain parts only) and a base64 frame;
   another seed's transaction, another wallet's address, and fake change
 - Multisig: Connect wallet's four keys (single-sig and multisig, mainnet and

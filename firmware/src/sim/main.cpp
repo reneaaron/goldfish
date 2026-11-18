@@ -284,8 +284,7 @@ static int run_shots(const char *dir) {
     // Restore from words: loads straight away, then "Back up as QR" with an
     // optional card check.
     ui_goto(UI_HOME);
-    ui_goto(UI_RESTORE); pump(300); save(dir, "26_restore");
-    ui_seed_entry(UI_ENTER_WORDS, 12);
+    ui_seed_entry(UI_ENTER_WORDS, 12); pump(300); save(dir, "26_restore");
     const char *words[] = {"crew", "marble", "private", "differ", "race", "truly", "blush", "basket", "crater", "affair", "prepare"};
     for (const char *w : words)
         if (!ui_enter_word(w)) { fprintf(stderr, "word %s refused\n", w); return 1; }
@@ -310,20 +309,19 @@ static int run_shots(const char *dir) {
 
     // BIP-85 child seed of the loaded seed: words, QR card, card check.
     ui_goto(UI_SEED_MENU);    pump(300); save(dir, "30_menu_child");
-    ui_goto(UI_CHILD_LENGTH); pump(300); save(dir, "31_child_length");
     ui_goto(UI_CHILD_INDEX);
     // Keypad: the largest child number, a digit past it is ignored, Del back to 0.
     for (const char *d = "21474836479"; *d; d++) ui_child_digit(*d - '0');
     if (strcmp(ui_child_number(), "2147483647")) { fprintf(stderr, "child number not capped: %s\n", ui_child_number()); return 1; }
     for (int i = 0; i < 11; i++) ui_child_digit(-1);
     if (strcmp(ui_child_number(), "0")) { fprintf(stderr, "Del did not clear: %s\n", ui_child_number()); return 1; }
-    ui_child_seed(12, 0x80000000u);   // past the hardened range: stays on the keypad with a note
+    ui_child_seed(0x80000000u);   // past the hardened range: stays on the keypad with a note
     if (ui_current() != UI_CHILD_INDEX) { fprintf(stderr, "bad child number not refused\n"); return 1; }
     pump(300); save(dir, "32b_child_failed");
     ui_child_digit(0);
     ui_child_digit(3);
     pump(300); save(dir, "32_child_index");
-    ui_child_seed(12, (uint32_t)strtoul(ui_child_number(), nullptr, 10));
+    ui_child_seed((uint32_t)strtoul(ui_child_number(), nullptr, 10));
     if (ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "child seed did not start\n"); return 1; }
     ui_goto(UI_BACKUP_WORDS); pump(300); save(dir, "33_child_words");
     ui_goto(UI_BACKUP_QR);

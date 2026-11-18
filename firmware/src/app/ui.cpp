@@ -85,6 +85,8 @@ static lv_obj_t *qr_card(lv_obj_t *parent, int y, lv_obj_t **qr_out) {
 
 // ---------------------------------------------------------------- home
 static lv_obj_t *quiet_link(lv_obj_t *parent, const char *s, lv_event_cb_t cb, void *ud);
+static void restore_cb(lv_event_t *);
+static void child_start_cb(lv_event_t *);
 
 // Look of the on-screen keyboards (button matrices): Enter words and Passphrase.
 static void kb_style(lv_obj_t *kb) {
@@ -110,7 +112,7 @@ static void build_home() {
     // Which build this is, to compare with the one the flasher offers.
     lv_obj_align(text(scr, FW_VERSION, &inter_13, TEXT_3), LV_ALIGN_TOP_RIGHT, -8, 6);
     // Loading a seed you have: scan it or type it, grouped at the bottom.
-    lv_obj_t *words = btn_ghost(scr, ICON_KEYBOARD "   Enter words", go_cb, GO(UI_RESTORE), TEXT);
+    lv_obj_t *words = btn_ghost(scr, ICON_KEYBOARD "   Enter words", restore_cb, nullptr, TEXT);
     lv_obj_set_height(words, 48);
     lv_obj_set_style_bg_opa(words, LV_OPA_COVER, 0);
     lv_obj_align(words, LV_ALIGN_BOTTOM_MID, 0, -40 - 48 - 8);
@@ -625,7 +627,7 @@ static void build_seed_menu() {
     }
 
     // Advanced and destructive actions stay quiet, side by side under the list.
-    lv_obj_align(quiet_link(scr, ICON_KEY "  Child seed", go_cb, GO(UI_CHILD_LENGTH)), LV_ALIGN_BOTTOM_LEFT, M - 12, -6);
+    lv_obj_align(quiet_link(scr, ICON_KEY "  Child seed", child_start_cb, nullptr), LV_ALIGN_BOTTOM_LEFT, M - 12, -6);
     lv_obj_align(quiet_link(scr, ICON_TRASH "  Wipe now", go_cb, GO(UI_WIPE_CONFIRM)), LV_ALIGN_BOTTOM_RIGHT, -(M - 12), -6);
     show(scr);
 }
@@ -724,7 +726,7 @@ static void build_wipe_confirm() {
 // new seed is never loaded: the user loads it like any other, by Scan QR or
 // Enter words. Enter words loads straight away. "Back up as QR" runs the card
 // flow for the loaded seed.
-static int new_words = 12;               // 12 or 24
+static int new_words = 12;               // 12; Enter words can switch to 24
 static char entropy_in[257];             // dice '1'..'6' or coins '1'/'0' so far
 static int entropy_n;
 static bool entropy_dice;
@@ -773,14 +775,13 @@ void ui_seed_entry(UiScreen method, int words, bool draw) {
     ui_goto(method);
 }
 
-static void words_cb(lv_event_t *e) {
-    new_words = (int)(intptr_t)lv_event_get_user_data(e);
-    ui_goto(UI_NEW_SEED);
-}
-static void method_cb(lv_event_t *e) { ui_seed_entry((UiScreen)(intptr_t)lv_event_get_user_data(e), new_words); }
-static void draw_cb(lv_event_t *) { ui_seed_entry(UI_ENTER_WORDS, new_words, true); }
-static void to_new_seed_cb(lv_event_t *) { ui_seed_entry(UI_NEW_SEED, new_words); }
-static void restore_cb(lv_event_t *e) { ui_seed_entry(UI_ENTER_WORDS, (int)(intptr_t)lv_event_get_user_data(e)); }
+// New seeds are always 12 words; 24 only exists for entering an existing seed.
+static void method_cb(lv_event_t *e) { ui_seed_entry((UiScreen)(intptr_t)lv_event_get_user_data(e), 12); }
+static void draw_cb(lv_event_t *) { ui_seed_entry(UI_ENTER_WORDS, 12, true); }
+static void to_new_seed_cb(lv_event_t *) { ui_seed_entry(UI_NEW_SEED, 12); }
+static void restore_cb(lv_event_t *) { ui_seed_entry(UI_ENTER_WORDS, 12); }
+// "24 words" / "12 words" on the first word screen of Enter words.
+static void restore_length_cb(lv_event_t *) { ui_seed_entry(UI_ENTER_WORDS, new_words == 12 ? 24 : 12); }
 
 void ui_backup_loaded() {
     new_seed_wipe();
@@ -794,63 +795,14 @@ static void backup_existing_cb(lv_event_t *) { ui_backup_loaded(); }
 // Leaving the card flow: back to the wallet, or for a new seed, to Seed ready.
 static void backup_exit_cb(lv_event_t *) { ui_goto(backup_existing ? UI_SEED_MENU : UI_SEED_READY); }
 
-// Enter words: restore from a words backup.
-// "12 words" / "24 words" rows with a note under them; cb gets 12 or 24 as user data.
-static void build_length_picker(const char *title, lv_event_cb_t back_cb, const char *icon, lv_event_cb_t cb,
-                                const char *note) {
-    lv_obj_t *scr = screen();
-    topbar(scr, title, back_cb);
-    lv_obj_t *c = card(scr, CW, 2 * 62 + 1);
-    lv_obj_set_style_pad_all(c, 0, 0);
-    lv_obj_set_style_clip_corner(c, true, 0);
-    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 4);
-    lv_obj_t *r1 = list_row(c, icon, "12 words", nullptr, cb, (void *)12);
-    lv_obj_align(r1, LV_ALIGN_TOP_MID, 0, 0);
-    divider(c, 62);
-    lv_obj_t *r2 = list_row(c, icon, "24 words", nullptr, cb, (void *)24);
-    lv_obj_align(r2, LV_ALIGN_TOP_MID, 0, 63);
-    lv_obj_align(para(scr, note, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, BAR + 4 + 125 + 14);
-    show(scr);
-}
-
-static void build_restore() {
-    build_length_picker("Enter words", to_home_cb, ICON_KEYBOARD, restore_cb,
-                        "Type the words of your backup. The seed loads right away.");
-}
-
-// Two-way toggle, e.g. 12 / 24 words.
-static void segmented(lv_obj_t *parent, int y, const char *a, const char *b, bool a_on, lv_event_cb_t cb, void *ua,
-                      void *ub) {
-    lv_obj_t *seg = lv_obj_create(parent);
-    lv_obj_remove_style_all(seg);
-    lv_obj_set_size(seg, CW, 40);
-    lv_obj_set_style_radius(seg, 12, 0);
-    lv_obj_set_style_bg_color(seg, SURFACE_2, 0);
-    lv_obj_set_style_bg_opa(seg, LV_OPA_COVER, 0);
-    lv_obj_align(seg, LV_ALIGN_TOP_MID, 0, y);
-    for (int i = 0; i < 2; i++) {
-        bool on = i == 0 ? a_on : !a_on;
-        lv_obj_t *o = lv_button_create(seg);
-        lv_obj_remove_style_all(o);
-        lv_obj_set_size(o, (CW - 8) / 2, 32);
-        lv_obj_set_pos(o, 4 + i * (CW - 8) / 2, 4);
-        lv_obj_set_style_radius(o, 9, 0);
-        lv_obj_set_style_bg_color(o, ACCENT_DIM, 0);
-        lv_obj_set_style_bg_opa(o, on ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
-        lv_obj_add_event_cb(o, cb, LV_EVENT_CLICKED, i == 0 ? ua : ub);
-        lv_obj_center(text(o, i == 0 ? a : b, &inter_15, on ? ACCENT : TEXT_2));
-    }
-}
-
 static void build_new_seed() {
     lv_obj_t *scr = screen();
     topbar(scr, "New seed", to_home_cb);
-    segmented(scr, BAR + 4, "12 words", "24 words", new_words == 12, words_cb, (void *)12, (void *)24);
 
     lv_obj_t *c = card(scr, CW, 3 * 62 + 2);
     lv_obj_set_style_pad_all(c, 0, 0);
     lv_obj_set_style_clip_corner(c, true, 0);
-    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 56);
+    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 4);
     char dice[24], coins[24];
     snprintf(dice, sizeof(dice), "%d rolls of one die", seed_dice_rolls(new_words));
     snprintf(coins, sizeof(coins), "%d coin flips", seed_coin_flips(new_words));
@@ -1061,7 +1013,7 @@ static bool word_accept(int idx) {
         }
         ok = ok && wallet_load(e);
         seedqr_wipe(&e);
-        ui_goto(ok ? UI_SEED_LOADED : UI_RESTORE);
+        ui_goto(ok ? UI_SEED_LOADED : UI_HOME);
         return ok;
     }
     if (word_is_last()) {
@@ -1093,7 +1045,7 @@ static void kb_cb(lv_event_t *e) {
 }
 
 static void words_back_cb(lv_event_t *) {
-    if (!word_n) { if (drawing) to_new_seed_cb(nullptr); else ui_goto(UI_RESTORE); return; }
+    if (!word_n) { if (drawing) to_new_seed_cb(nullptr); else ui_goto(UI_HOME); return; }
     word_idx[--word_n] = 0;
     word_prefix[0] = 0;
     ui_goto(UI_ENTER_WORDS);
@@ -1135,6 +1087,10 @@ static void build_enter_words() {
     lv_obj_set_style_text_color(word_kb, TEXT_3, LV_PART_ITEMS | LV_STATE_DISABLED);
     lv_buttonmatrix_set_button_width(word_kb, 26, 2);   // "Del" spans two keys
     lv_obj_add_event_cb(word_kb, kb_cb, LV_EVENT_VALUE_CHANGED, nullptr);
+    // Enter words starts at 12; a seed with 24 switches here, before the first word.
+    if (!drawing && !word_n)
+        lv_obj_align(quiet_link(scr, new_words == 12 ? "24 words" : "12 words", restore_length_cb, nullptr),
+                     LV_ALIGN_TOP_MID, 0, BAR + 92);
     words_refresh();
     show(scr);
 }
@@ -1511,16 +1467,11 @@ static void handle_confirm_payload(QrPayload &p) {
 // ---------------------------------------------------------------- BIP-85 child seed
 // A child of the loaded seed (bip85.h), handed out like a new seed: the same
 // warning, words, optional QR card and Seed ready. Same seed and number, same child.
-static void child_length_cb(lv_event_t *e) {
-    new_words = (int)(intptr_t)lv_event_get_user_data(e);
+// Always 12 words, like New seed.
+static void child_start_cb(lv_event_t *) {
     strcpy(child_num, "0");
     child_failed = false;
     ui_goto(UI_CHILD_INDEX);
-}
-
-static void build_child_length() {
-    build_length_picker("Child seed", to_menu_cb, ICON_KEY, child_length_cb,
-                        "A new seed made from this one (BIP-85). The same number always gives the same child.");
 }
 
 static lv_obj_t *child_num_lbl;
@@ -1547,12 +1498,11 @@ static void digit_key(lv_obj_t *scr, int x, int y, int w, int h, const char *s, 
     lv_obj_center(text(key_button(scr, x, y, w, h, digit_cb, k), s, k < 0 ? &inter_15 : &mono_22, TEXT));
 }
 
-static void to_child_length_cb(lv_event_t *) { ui_goto(UI_CHILD_LENGTH); }
-static void child_continue_cb(lv_event_t *) { ui_child_seed(new_words, (uint32_t)strtoul(child_num, nullptr, 10)); }
+static void child_continue_cb(lv_event_t *) { ui_child_seed((uint32_t)strtoul(child_num, nullptr, 10)); }
 
 static void build_child_index() {
     lv_obj_t *scr = screen();
-    topbar(scr, "Child number", to_child_length_cb);
+    topbar(scr, "Child seed", to_menu_cb);
     if (child_failed) child_num_lbl = text(scr, "Couldn't make this child. Try again.", &inter_13, RED);
     else child_num_lbl = text(scr, child_num, &mono_26, TEXT);
     lv_obj_align(child_num_lbl, LV_ALIGN_TOP_MID, 0, child_failed ? BAR + 10 : BAR + 2);
@@ -1563,15 +1513,13 @@ static void build_child_index() {
     }
     digit_key(scr, M, Y0 + 3 * (KH + GAP), KW, KH, "Del", -1);
     digit_key(scr, M + KW + GAP, Y0 + 3 * (KH + GAP), KW, KH, "0", 0);
-    char btn[32];
-    snprintf(btn, sizeof(btn), "Continue  \xC2\xB7  %d words", new_words);
-    place_bottom(btn_primary(scr, btn, child_continue_cb));
+    place_bottom(btn_primary(scr, "Continue", child_continue_cb));
     show(scr);
 }
 
-void ui_child_seed(int words, uint32_t index) {
+void ui_child_seed(uint32_t index) {
     new_seed_wipe();
-    new_words = words == 24 ? 24 : 12;
+    new_words = 12;
     if (!wallet_has_seed() || !bip85_bip39_entropy(*wallet_root(), new_words, index, &pending)) {
         seedqr_wipe(&pending);
         child_failed = true;
@@ -1959,7 +1907,7 @@ static void build_multisig() {
 // ---------------------------------------------------------------- navigation
 // Making or entering a seed: only while none is loaded.
 static bool seed_entry_screen(UiScreen s) {
-    return s == UI_NEW_SEED || s == UI_ENTROPY_DICE || s == UI_ENTROPY_COINS || s == UI_RESTORE || s == UI_ENTER_WORDS;
+    return s == UI_NEW_SEED || s == UI_ENTROPY_DICE || s == UI_ENTROPY_COINS || s == UI_ENTER_WORDS;
 }
 // The card flow: for a new seed, or the loaded one.
 static bool backup_screen(UiScreen s) {
@@ -2006,7 +1954,6 @@ void ui_goto(UiScreen s) {
         case UI_NEW_SEED: build_new_seed(); break;
         case UI_ENTROPY_DICE: build_entropy(true); break;
         case UI_ENTROPY_COINS: build_entropy(false); break;
-        case UI_RESTORE: build_restore(); break;
         case UI_ENTER_WORDS: build_enter_words(); break;
         case UI_BACKUP_WARNING: build_backup_warning(); break;
         case UI_BACKUP_WORDS: build_backup_words(); break;
@@ -2015,7 +1962,6 @@ void ui_goto(UiScreen s) {
         case UI_BACKUP_QR: build_backup_qr(); break;
         case UI_BACKUP_BLOCK: build_backup_block(); break;
         case UI_BACKUP_SCAN: build_scan(SCAN_CONFIRM); break;
-        case UI_CHILD_LENGTH: build_child_length(); break;
         case UI_CHILD_INDEX: build_child_index(); break;
         case UI_MULTISIG: build_multisig(); break;
     }
