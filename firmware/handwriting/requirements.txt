@@ -1,0 +1,5 @@
+# Training only; the firmware uses the generated header, not these.
+torch
+torchvision
+numpy
+pillow

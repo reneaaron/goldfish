@@ -45,6 +45,41 @@ Enter words restores from a words backup: type each word. It starts at 12
 words; a 24-word backup taps "24 words" on the first word. The keyboard only offers letters that lead to a word and, on the last
 word, only words with a valid checksum. The seed loads right away.
 
+Experimental: the camera button next to the word field opens Scan words, for a
+handwritten backup on any paper (plain, ruled, a printed card; one or more
+columns; numbered or not). Fit the page in view and tap Read words: the device
+takes one picture, finds the words (`src/app/page_reader.cpp`: the paper's
+brightness, the photo's tilt, ruled and margin lines erased, blobs of ink
+grouped into words, a row number joined to its word, reading order by columns
+then rows) and reads each as a whole word (`src/app/word_reader.cpp`: a small
+int8 network, 138k weights, trained on synthetic strips by
+`handwriting/train_words.py` and exported by `handwriting/export_words.py`;
+see `handwriting/README.md`,
+gives letter probabilities across the word; every BIP-39 word and its first 4
+letters is scored by its best path through them, and the best is offered only
+if it clearly beats the next).
+
+Then Check words lists the words found, in order, with "?" where one couldn't
+be read. A word too faint to be found at all still gets its place: a column
+whose rows skip one (or a shorter column next to longer ones) gets a "?" row
+there, with that part of the photo as its picture, when the page has fewer
+words than the backup. Tap a word to see its own picture from the photo and
+change it, remove it (a heading, a passphrase line), or add a missing word
+before it. The button at the bottom always names the next step (Fix word 7, Add
+word 24) and becomes "Matches my backup" only once there are exactly 12 or 24
+words with a valid checksum; nothing goes in without it. The last word is read
+like the others, not forced to fit the checksum, since a checksum that doesn't
+match is how a misread word further up shows; if it doesn't fit (or couldn't be
+read) while all other words are known, its screen offers the word that does
+fit, read again from its picture among only those. Scan seed has a "Written
+words instead?" link for anyone who points the QR scanner at paper. On 384
+words in 18 phone and web photos (demo seeds) at 1000 pixels: 65% read, 2
+wrong, the rest left to fix; real text that isn't a seed word is sometimes read
+as one. The simulator reads the camera image file at up to 1000 pixels; on the
+board, a picture is one 240x320 frame for now, too small for a whole page, and
+the page finder's buffers don't fit its memory yet. Speed on the board is
+unmeasured.
+
 Add passphrase opens a keyboard for a BIP-39 passphrase (the "25th word"):
 letters, digits and all ASCII symbols, up to 64 characters, with a Show/Hide
 switch. OK derives the key again (a few seconds on the board, like loading) and
@@ -206,6 +241,13 @@ pio test -e test
 - Amounts: BIP177 and legacy BTC formatting from ₿0 to the 21M cap
 - BIP-85: the spec's 12 and 24-word BIP39 vectors, child number bounds, and
   the child's fingerprint matching the same seed loaded
+- Word reader: the integer network bit for bit against `handwriting/export_words.py`,
+  log-probabilities and words read for synthetic strips, a ruled-out word never
+  picked, a blank strip read as no word
+- Page reader: a synthetic photo (`sim/samples/handwritten_page.png`, made by
+  `handwriting/make_page.py`) of 24 numbered words in two offset columns on ruled
+  paper, tilted: every word offered is right and in reading order, at least 20
+  offered; a blank page has no words
 
 ## Fuzzing
 

@@ -206,6 +206,33 @@ const uint8_t *platform_camera_frame(int *width, int *height) {
 
 const char *platform_camera_error() { return cam_err[0] ? cam_err : nullptr; }
 
+// A still: a copy of the last full frame (all 240x320, not just the middle
+// rows the preview uses). Too small for a whole page; zoomed captures will
+// replace this.
+static uint8_t *still;
+
+const uint8_t *platform_camera_still(int *width, int *height) {
+    platform_camera_still_free();
+    if (state == CAM_BUSY) {   // the preview re-arms every other tick: wait for that frame
+        uint32_t t0 = millis();
+        while (dma_channel_is_busy(dma_ch) && millis() - t0 < 1000) {}
+        if (dma_channel_is_busy(dma_ch)) return nullptr;
+        state = CAM_READY;
+    }
+    if (state != CAM_READY) return nullptr;
+    still = (uint8_t *)malloc(sizeof(frame));
+    if (!still) return nullptr;
+    memcpy(still, frame, sizeof(frame));
+    *width = CAM_W;
+    *height = CAM_H;
+    return still;
+}
+
+void platform_camera_still_free() {
+    if (still) { memset(still, 0, sizeof(frame)); free(still); }
+    still = nullptr;
+}
+
 void platform_camera_stop() {
     if (state != CAM_BUSY && state != CAM_READY) return;
     dma_channel_abort(dma_ch);

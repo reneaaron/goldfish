@@ -24,3 +24,11 @@ const uint8_t *platform_camera_frame(int *width, int *height);
 const char *platform_camera_error();
 // Platform hook: scanning ended. Stop the camera and wipe its frame buffer.
 void platform_camera_stop();
+// Platform hooks: one still picture, as large as the platform can give, for
+// reading a whole handwritten page (page_reader.h). The simulator: the camera
+// image file, at most 1000 pixels on its longer side. The board: a copy of its
+// last full 240x320 frame (too small for a whole page; zoomed captures are to
+// come). Grayscale, *width x *height, kept until platform_camera_still_free(),
+// which wipes it. nullptr if there's no picture.
+const uint8_t *platform_camera_still(int *width, int *height);
+void platform_camera_still_free();
