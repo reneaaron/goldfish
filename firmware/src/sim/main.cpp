@@ -240,7 +240,8 @@ static int run_shots(const char *dir) {
     ui_goto(UI_BACKUP_WORDS);   pump(300); save(dir, "18_backup_words");
     ui_goto(UI_BACKUP_CHOICE);  pump(300); save(dir, "19_backup_choice");
     ui_goto(UI_BACKUP_QR);      pump(300); save(dir, "20_backup_qr");
-    ui_goto(UI_BACKUP_BLOCK);   pump(300); save(dir, "21_backup_block_1");
+    // Part 1 is all pre-printed finder square; show the first part with squares to copy.
+    ui_goto(UI_BACKUP_BLOCK); ui_backup_next(); pump(300); save(dir, "21_backup_block_1");
     while (ui_current() == UI_BACKUP_BLOCK) ui_backup_next();
     if (ui_current() != UI_BACKUP_SCAN) { fprintf(stderr, "no card check after the last block\n"); return 1; }
     setenv("SIM_CAMERA", "sim/samples/vector4_compact_12word.png", 1);   // somebody else's seed
