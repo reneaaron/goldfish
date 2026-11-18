@@ -66,7 +66,7 @@ there, with that part of the photo as its picture, when the page has fewer
 words than the backup. Tap a word to see its own picture from the photo and
 change it, remove it (a heading, a passphrase line), or add a missing word
 before it. The button at the bottom always names the next step (Fix word 7, Add
-word 24) and becomes "Matches my paper" only once there are exactly 12 or 24
+word 24) and becomes "Matches my backup" only once there are exactly 12 or 24
 words with a valid checksum; nothing goes in without it. The last word is read
 like the others, not forced to fit the checksum, since a checksum that doesn't
 match is how a misread word further up shows; if it doesn't fit (or couldn't be

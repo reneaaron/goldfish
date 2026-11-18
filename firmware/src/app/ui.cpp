@@ -770,7 +770,7 @@ static char txt_words[4][12], txt_field[16], txt_sugg[2][12], txt_tail[40];
 // ---------------------------------------------------------------- written page
 // Scan words: one still of the written backup (platform_camera_still), its
 // words found by page_reader in reading order, each read by word_reader, then
-// one list of the words ("slots") to check against the paper. The still is
+// one list of the words ("slots") to check against the backup. The still is
 // kept until the list is done, to show each word's own picture; it, the
 // strips and the words are wiped by page_flow_wipe().
 struct PageCand { int16_t word; bool ok; uint8_t piece; };
@@ -1460,7 +1460,7 @@ static void build_page_review() {
         for (int i = 0; i < nslots; i++) typed |= slots[i].typed || slots[i].piece < 0;
         if (typed) snprintf(status, sizeof(status), ICON_CHECK "  %d words \xC2\xB7 checksum valid", nslots);
         else snprintf(status, sizeof(status), ICON_CHECK "  All %d read \xC2\xB7 checksum valid", nslots);
-        snprintf(action, sizeof(action), "Matches my paper");
+        snprintf(action, sizeof(action), "Matches my backup");
         act = page_confirm_cb;
         sc = GREEN;
     }

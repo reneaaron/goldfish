@@ -20,7 +20,7 @@
 //        -> Reading words -> Check words (12 or 24, from how many were found): the
 //        words in order, "?" where unread; tap one -> its picture -> Change /
 //        Remove / Add a word before (keyboard, then back to the list) -> "Matches
-//        my paper" once there are 12/24 words with a valid checksum -> Seed loaded
+//        my backup" once there are 12/24 words with a valid checksum -> Seed loaded
 //   Scan seed -> "Written words instead?" -> Scan words
 //   Home -> New seed (12 words) -> dice rolls | coin flips | draw words + coins for the last
 //        -> offline warning -> write down the words -> QR card? (whole SeedQR,
@@ -62,7 +62,7 @@ enum UiScreen {
     UI_MULTISIG,         // a scanned multisig descriptor, to check before it is used
     UI_SCAN_PAGE,        // photo of a handwritten backup, from Enter words
     UI_PAGE_READING,     // progress while the page's words are read
-    UI_PAGE_REVIEW,      // the words found, as one list to check against the paper
+    UI_PAGE_REVIEW,      // the words found, as one list to check against the backup
     UI_PAGE_WORD,        // one of them: its picture; change, remove, or add one before it
 };
 
@@ -94,7 +94,7 @@ void ui_page_type();           // there: "Change" / "Type it" (keyboard, then ba
 void ui_page_insert();         // there: "Add a word before this"
 void ui_page_remove();         // there: remove it from the list
 void ui_page_add();            // on the list: "add a word" at the end
-bool ui_page_confirm();        // "Matches my paper": loads the seed; false if not ready
+bool ui_page_confirm();        // "Matches my backup": loads the seed; false if not ready
 int ui_page_suggestion();      // on the last word's screen: the word that fits the checksum, or -1
 void ui_page_use_suggestion(); // tap it
 void ui_child_digit(int k);           // a keypad digit 0-9, or -1 for Del
