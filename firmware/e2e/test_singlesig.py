@@ -105,7 +105,8 @@ def test_seedqr_card_is_copied_and_checked(dev):
     while "Check card" not in dev.texts():
         dev.tap("Next")
         parts += 1
-    assert "Part 16 of 16" in dev.text() and parts == 15   # 21x21 in 5x5 parts
+    # 21x21 in 5x5 parts; the three corner parts are pre-printed on the card
+    assert "Part 13 of 13" in dev.text() and parts == 12
     dev.tap("Check card")
     assert dev.screen == "BACKUP_SCAN", dev.text()
     dev.scan(seedqr(STRANGER.mnemonic, compact=True))

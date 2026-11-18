@@ -1178,9 +1178,19 @@ static int blocks_per_side() { return qr_n / 5; }
 static bool block_edge(int m) { return m == qr_n || (m % 5 == 0 && m / 5 < blocks_per_side()); }
 static int block_len(int b) { return b + 1 < blocks_per_side() ? 5 : qr_n - 5 * b; }
 
+// Modules every SeedQR card already has printed: the three finder squares with
+// their light border, and on 25x25 the alignment square.
+static bool preprinted(int x, int y) {
+    int far = qr_n - 8;
+    if ((x <= 7 || x >= far) && (y <= 7 || y >= far) && !(x >= far && y >= far)) return true;
+    return qr_n == 25 && x >= 16 && x <= 20 && y >= 16 && y <= 20;
+}
+
 // Part of the SeedQR, drawn module by module: dark squares, light grid lines
-// (darker every 5 modules, like the lines on the paper card).
-struct GridView { int c0, r0, cols, rows, cell; bool minor; };
+// (darker every 5 modules, like the lines on the paper card). With `ring`,
+// the view is the active part plus one module around it: neighbours greyed,
+// pre-printed modules hatched, the part itself framed.
+struct GridView { int c0, r0, cols, rows, cell; bool ring; int ac0, ar0, acols, arows; };
 static GridView whole_view, block_view;
 
 static void grid_draw_cb(lv_event_t *e) {
@@ -1192,30 +1202,61 @@ static void grid_draw_cb(lv_event_t *e) {
     lv_draw_rect_dsc_init(&d);
     d.bg_opa = LV_OPA_COVER;
     d.radius = 0;
+    const int o = g->ring ? 1 : 0;   // room for the part's frame at the edge
     auto rect = [&](int x1, int y1, int x2, int y2, lv_color_t c) {
-        lv_area_t r = {a.x1 + x1, a.y1 + y1, a.x1 + x2, a.y1 + y2};
+        lv_area_t r = {a.x1 + o + x1, a.y1 + o + y1, a.x1 + o + x2, a.y1 + o + y2};
         d.bg_color = c;
         lv_draw_rect(layer, &d, &r);
     };
+    lv_draw_line_dsc_t ld;
+    lv_draw_line_dsc_init(&ld);
+    ld.width = 1;
+    auto line = [&](int x1, int y1, int x2, int y2, lv_color_t c) {
+        ld.color = c;
+        ld.p1.x = a.x1 + o + x1; ld.p1.y = a.y1 + o + y1;
+        ld.p2.x = a.x1 + o + x2; ld.p2.y = a.y1 + o + y2;
+        lv_draw_line(layer, &ld);
+    };
+    const lv_color_t ghost = LV_COLOR_MAKE(0xC4, 0xC0, 0xB8), hatch = LV_COLOR_MAKE(0x9A, 0x96, 0x8E);
+    const int s = g->cell;
     for (int r = 0; r < g->rows; r++)
-        for (int c = 0; c < g->cols; c++)
-            if (qrcodegen_getModule(qr_buf, g->c0 + c, g->r0 + r))
-                rect(c * g->cell, r * g->cell, (c + 1) * g->cell, (r + 1) * g->cell, lv_color_black());
+        for (int c = 0; c < g->cols; c++) {
+            int x = g->c0 + c, y = g->r0 + r, x1 = c * s, y1 = r * s;
+            if (!qrcodegen_getModule(qr_buf, x, y)) continue;
+            bool active = x >= g->ac0 && x < g->ac0 + g->acols && y >= g->ar0 && y < g->ar0 + g->arows;
+            if (g->ring && preprinted(x, y)) {
+                // Already on the card: diagonal hatch, not a square to fill.
+                for (int k = 4; k < 2 * s; k += 6)
+                    line(x1 + LV_MIN(k, s), y1 + LV_MAX(0, k - s), x1 + LV_MAX(0, k - s), y1 + LV_MIN(k, s), hatch);
+            } else {
+                rect(x1, y1, x1 + s, y1 + s, active ? lv_color_black() : ghost);
+            }
+        }
     const lv_color_t major = LV_COLOR_MAKE(0x9A, 0x96, 0x8E), minor = LV_COLOR_MAKE(0xD4, 0xD0, 0xC8);
-    for (int i = 0; i <= g->cols; i++) {
-        bool m = block_edge(g->c0 + i);
-        if (m || g->minor) rect(i * g->cell, 0, i * g->cell, g->rows * g->cell, m ? major : minor);
+    if (!g->ring) {
+        for (int i = 0; i <= g->cols; i++)
+            if (block_edge(g->c0 + i)) rect(i * s, 0, i * s, g->rows * s, major);
+        for (int i = 0; i <= g->rows; i++)
+            if (block_edge(g->r0 + i)) rect(0, i * s, g->cols * s, i * s, major);
+        return;
     }
-    for (int i = 0; i <= g->rows; i++) {
-        bool m = block_edge(g->r0 + i);
-        if (m || g->minor) rect(0, i * g->cell, g->cols * g->cell, i * g->cell, m ? major : minor);
-    }
+    const lv_color_t faint = LV_COLOR_MAKE(0xE6, 0xE2, 0xDA);
+    for (int i = 0; i <= g->cols; i++) rect(i * s, 0, i * s, g->rows * s, faint);
+    for (int i = 0; i <= g->rows; i++) rect(0, i * s, g->cols * s, i * s, faint);
+    int ax = (g->ac0 - g->c0) * s, ay = (g->ar0 - g->r0) * s, aw = g->acols * s, ah = g->arows * s;
+    for (int i = 1; i < g->acols; i++) rect(ax + i * s, ay, ax + i * s, ay + ah, minor);
+    for (int i = 1; i < g->arows; i++) rect(ax, ay + i * s, ax + aw, ay + i * s, minor);
+    const lv_color_t frame = LV_COLOR_MAKE(0x3A, 0x37, 0x32);
+    rect(ax - 1, ay - 1, ax + aw + 1, ay, frame);
+    rect(ax - 1, ay + ah, ax + aw + 1, ay + ah + 1, frame);
+    rect(ax - 1, ay - 1, ax, ay + ah + 1, frame);
+    rect(ax + aw, ay - 1, ax + aw + 1, ay + ah + 1, frame);
 }
 
 static lv_obj_t *grid(lv_obj_t *parent, GridView *g) {
     lv_obj_t *o = lv_obj_create(parent);
     lv_obj_remove_style_all(o);
-    lv_obj_set_size(o, g->cols * g->cell + 1, g->rows * g->cell + 1);
+    lv_obj_set_size(o, g->cols * g->cell + 1 + (g->ring ? 2 : 0), g->rows * g->cell + 1 + (g->ring ? 2 : 0));
     lv_obj_add_event_cb(o, grid_draw_cb, LV_EVENT_DRAW_MAIN, g);
     return o;
 }
@@ -1250,7 +1291,7 @@ static void build_backup_qr() {
     }
     topbar(scr, "Back up", to_warning_cb);
     const int cell = 180 / qr_n;
-    whole_view = {0, 0, qr_n, qr_n, cell, false};
+    whole_view = {0, 0, qr_n, qr_n, cell, false, 0, 0, qr_n, qr_n};
     lv_obj_t *c = white_card(scr, qr_n * cell + 17, qr_n * cell + 17);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 2);
     lv_obj_center(grid(c, &whole_view));
@@ -1263,15 +1304,26 @@ static void col_label(int col, char out[4]) { snprintf(out, 4, "%c", 'A' + col);
 
 const uint8_t *ui_backup_qr() { return qr_n ? qr_buf : nullptr; }
 
+// Parts that lie wholly on the card's pre-printed squares have nothing to copy.
+static bool part_printed(int b) {
+    int bs = blocks_per_side(), c0 = (b % bs) * 5, r0 = (b / bs) * 5;
+    for (int y = r0; y < r0 + block_len(b / bs); y++)
+        for (int x = c0; x < c0 + block_len(b % bs); x++)
+            if (!preprinted(x, y)) return false;
+    return true;
+}
+
 void ui_backup_next() {
     int n = blocks_per_side() * blocks_per_side();
-    if (block_i + 1 < n) { block_i++; ui_goto(UI_BACKUP_BLOCK); }
-    else ui_goto(UI_BACKUP_SCAN);
+    for (int b = block_i + 1; b < n; b++)
+        if (!part_printed(b)) { block_i = b; ui_goto(UI_BACKUP_BLOCK); return; }
+    ui_goto(UI_BACKUP_SCAN);
 }
 static void block_next_cb(lv_event_t *) { ui_backup_next(); }
 static void block_prev_cb(lv_event_t *) {
-    if (block_i > 0) { block_i--; ui_goto(UI_BACKUP_BLOCK); }
-    else ui_goto(UI_BACKUP_QR);
+    for (int b = block_i - 1; b >= 0; b--)
+        if (!part_printed(b)) { block_i = b; ui_goto(UI_BACKUP_BLOCK); return; }
+    ui_goto(UI_BACKUP_QR);
 }
 static void block_gesture_cb(lv_event_t *) {
     lv_dir_t d = lv_indev_get_gesture_dir(lv_indev_active());
@@ -1279,16 +1331,27 @@ static void block_gesture_cb(lv_event_t *) {
     else if (d == LV_DIR_RIGHT) block_prev_cb(nullptr);
 }
 
-// One 5x5 block at a time, labelled with the card's column letters and row numbers.
+// One 5x5 block at a time, labelled with the card's column letters and row
+// numbers, inside one module of its neighbours. Parts with nothing to copy
+// are left out of the count.
 static void build_backup_block() {
     lv_obj_t *scr = screen();
     int bs = blocks_per_side(), n = bs * bs;
+    while (part_printed(block_i)) block_i++;
+    int k = 0, m = 0;
+    bool last = true;
+    for (int b = 0; b < n; b++) {
+        if (part_printed(b)) continue;
+        m++;
+        if (b <= block_i) k++;
+        else last = false;
+    }
     char title[32];
-    snprintf(title, sizeof(title), "Part %d of %d", block_i + 1, n);
+    snprintf(title, sizeof(title), "Part %d of %d", k, m);
     lv_obj_t *bar = topbar(scr, title, to_whole_qr_cb);
 
     // Where this block sits in the QR: one square per block, this one lit,
-    // the ones already copied dimmed.
+    // the ones already copied (or pre-printed) dimmed.
     const int sq = bs > 4 ? 6 : 7, gap = 2, side = bs * sq + (bs - 1) * gap;
     lv_obj_t *map = lv_obj_create(bar);
     lv_obj_remove_style_all(map);
@@ -1300,35 +1363,41 @@ static void build_backup_block() {
         lv_obj_set_size(q, sq, sq);
         lv_obj_set_pos(q, (b % bs) * (sq + gap), (b / bs) * (sq + gap));
         lv_obj_set_style_radius(q, 1, 0);
-        lv_obj_set_style_bg_color(q, b == block_i ? ACCENT : b < block_i ? TEXT_3 : SURFACE_2, 0);
+        lv_obj_set_style_bg_color(q, b == block_i ? ACCENT : b < block_i || part_printed(b) ? TEXT_3 : SURFACE_2, 0);
         lv_obj_set_style_bg_opa(q, LV_OPA_COVER, 0);
     }
 
-    // One cell size per QR, so squares don't change size between blocks.
-    const int cell = qr_n % 5 ? 28 : 32;
-    int c0 = (block_i % bs) * 5, r0 = (block_i / bs) * 5;
-    block_view = {c0, r0, block_len(block_i % bs), block_len(block_i / bs), cell, true};
-    lv_obj_t *c = white_card(scr, CW, (qr_n % 5 ? 6 : 5) * cell + 32);
+    // The part plus one module around it (at most 7x7, also for the 6-wide
+    // last part, which has no neighbour past the edge). One cell size for
+    // every part, so squares don't change size between parts.
+    const int cell = 26;
+    int ac0 = (block_i % bs) * 5, ar0 = (block_i / bs) * 5;
+    int acols = block_len(block_i % bs), arows = block_len(block_i / bs);
+    int c0 = LV_MAX(ac0 - 1, 0), r0 = LV_MAX(ar0 - 1, 0);
+    int c1 = LV_MIN(ac0 + acols, qr_n - 1), r1 = LV_MIN(ar0 + arows, qr_n - 1);
+    block_view = {c0, r0, c1 - c0 + 1, r1 - r0 + 1, cell, true, ac0, ar0, acols, arows};
+    const int gx = 22, gy = 18;
+    lv_obj_t *c = white_card(scr, CW, gy + 7 * cell + 6);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 2);
-    const int gx = 30, gy = 24;
-    lv_obj_set_pos(grid(c, &block_view), gx, gy);
-    const lv_color_t lab = LV_COLOR_MAKE(0x6E, 0x6A, 0x62);
+    lv_obj_set_pos(grid(c, &block_view), gx - 1, gy - 1);
+    const lv_color_t lab = LV_COLOR_MAKE(0x6E, 0x6A, 0x62), lab_dim = LV_COLOR_MAKE(0xB4, 0xB0, 0xA8);
     for (int i = 0; i < block_view.cols; i++) {
         char l[4];
-        col_label(c0 + i, l);
-        lv_obj_t *t = text(c, l, &inter_13, lab);
+        int col = c0 + i;
+        col_label(col, l);
+        lv_obj_t *t = text(c, l, &inter_13, col >= ac0 && col < ac0 + acols ? lab : lab_dim, LV_TEXT_ALIGN_CENTER);
         lv_obj_set_width(t, cell);
-        lv_obj_set_pos(t, gx + i * cell, 4);
+        lv_obj_set_pos(t, gx + i * cell, 1);
     }
     for (int i = 0; i < block_view.rows; i++) {
         char l[12];
-        snprintf(l, sizeof(l), "%d", r0 + i + 1);
-        lv_obj_t *t = text(c, l, &inter_13, lab, LV_TEXT_ALIGN_RIGHT);
-        lv_obj_set_width(t, 22);
-        lv_obj_set_pos(t, 2, gy + i * cell + cell / 2 - 8);
+        int row = r0 + i;
+        snprintf(l, sizeof(l), "%d", row + 1);
+        lv_obj_t *t = text(c, l, &inter_13, row >= ar0 && row < ar0 + arows ? lab : lab_dim, LV_TEXT_ALIGN_RIGHT);
+        lv_obj_set_width(t, 18);
+        lv_obj_set_pos(t, 0, gy + i * cell + cell / 2 - 8);
     }
     lv_obj_add_event_cb(scr, block_gesture_cb, LV_EVENT_GESTURE, nullptr);
-    bool last = block_i + 1 == n;
     // The seed is already backed up elsewhere (wallet, or the written words), so checking is optional.
     lv_obj_t *secondary = last ? btn_ghost(scr, "Done", backup_exit_cb, nullptr, TEXT)
                                                   : btn_ghost(scr, ICON_LEFT, block_prev_cb, nullptr, TEXT);
