@@ -99,7 +99,7 @@
 
   /* word cards: same size and cut line as the wallet cards, two columns of six */
   .card.wc { flex-direction: column; padding: 4.5mm 5mm 4mm; gap: 2.5mm; }
-  .wc .top { display: flex; flex-direction: column; }
+  .wc .top { display: flex; align-items: center; justify-content: space-between; }
   .wc .list { flex: 1; display: grid; grid-auto-flow: column; grid-template-rows: repeat(6, 1fr); column-gap: 6mm; }
   .wc .word { display: flex; align-items: flex-end; gap: 2mm; border-bottom: .2mm solid var(--line); }
   .wc .n { font-size: 2.4mm; font-weight: 600; color: var(--ink); width: 3.6mm; text-align: right; padding-bottom: .9mm;
@@ -119,7 +119,7 @@
   .card .boxes b { width: 2.8mm; height: 3.8mm; border-width: .2mm; border-radius: .45mm; }
   .card .boxes b:nth-child(4) { margin-right: 1.3mm; }
   /* the word card has the full width: boxes big enough to write in comfortably */
-  .card.wc .boxes { gap: .8mm; margin-top: 1.4mm; }
+  .card.wc .boxes { gap: .8mm; margin-top: 0; }
   .card.wc .boxes b { width: 5mm; height: 6.5mm; border-radius: .6mm; }
   .card.wc .boxes b:nth-child(4) { margin-right: 2.4mm; }
   .card .line { height: 5.5mm; border-bottom: .2mm solid var(--line); }
