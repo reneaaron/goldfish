@@ -14,6 +14,26 @@ No custom PCB: everything is off the shelf.
 No battery for now: the device runs from USB-C. The board has a PH1.25 2-pin
 battery connector and an ETA6098 charger if that changes later.
 
+## Where to buy
+
+Waveshare sells the board direct and ships worldwide from China. Resellers
+found in November 2026 (prices and stock change, check the listing):
+
+| Region | Seller | Version | Notes |
+|---|---|---|---|
+| Worldwide | [Waveshare](https://www.waveshare.com/rp2350-touch-lcd-2.htm?sku=30718) | -C and base | $19.99 with camera, $14.99 without |
+| US | [Amazon](https://www.amazon.com/Waveshare-Capacitive-Display-Development-Interface/dp/B0F38FP89S), [Newegg](https://www.newegg.com/p/3D0-006J-002N4) | -C and base | |
+| EU | [OpenELAB](https://openelab.io/products/waveshare-rp2350-2inch-capacitive-touch-display-dev-board-240x320) | base (30711) | ~€17, ships from Germany |
+| UK | [The Pi Hut](https://thepihut.com/products/rp2350-2-capacitive-touch-display-dev-board-with-6-axis-imu) | base (30711) | Sold out in Nov 2026 |
+| Australia | [Little Bird](https://littlebirdelectronics.com.au/products/rp2350-2-touchscreen-board-240x320-ips-camera-interface-ws-30711) | base (30711) | |
+| Japan | [Switch Science](https://www.switch-science.com/products/10387) | -C | ¥4,059 |
+
+No reseller found yet for India, Brazil or Africa; order from Waveshare
+direct. With the base board, add an OV5640 module as described above.
+
+Price and availability compared with SeedSigner, and candidate boards for
+a second port: [sourcing-research.md](sourcing-research.md).
+
 ## Board notes
 
 - No Wi-Fi or Bluetooth hardware on the board (the RP2350 has no radio).
