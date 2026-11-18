@@ -61,9 +61,12 @@
      labels and part lines, --line for rules, boxes, fine grid lines and cut lines. */
   .sheet { font-family: Inter, "Helvetica Neue", Arial, var(--sans); padding: 14mm; display: flex; flex-direction: column; }
   .cap { font-size: 2.6mm; letter-spacing: .14em; text-transform: uppercase; color: var(--grey); }
-  .meta { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 3mm; border-bottom: .2mm solid var(--line); }
-  .meta .title { font-size: 3.4mm; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--ink); }
-  .meta .title span { font-weight: 400; color: var(--grey); }
+  /* the warning heads every sheet */
+  .alert { display: flex; align-items: center; gap: 3mm; padding-bottom: 3.5mm; border-bottom: .3mm solid var(--ink);
+           font-size: 3.6mm; font-weight: 600; color: var(--ink); }
+  .alert::before { content: "!"; flex: none; width: 5.6mm; height: 5.6mm; border-radius: 50%; background: var(--ink); color: #fff;
+                   display: flex; align-items: center; justify-content: center; font-size: 3.4mm; font-weight: 700; }
+  .alert span { font-weight: 400; color: var(--grey); }
   .body { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 7mm; padding: 6mm 0; }
   .gridwrap { display: flex; justify-content: center; }
 
@@ -85,15 +88,14 @@
                       border: .25mm solid var(--ink); color: var(--ink); font-size: 2.8mm; font-weight: 600;
                       display: flex; align-items: center; justify-content: center; }
   .steps strong { color: var(--ink); font-weight: 600; font-size: 3.1mm; }
-  .warn { padding-top: 3mm; border-top: .2mm solid var(--line); font-size: 2.7mm; color: var(--grey);
-          display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1mm 6mm; }
+  /* storing it: the foot of every sheet */
+  .store { padding-top: 3.5mm; border-top: .2mm solid var(--line); display: grid; grid-template-columns: auto repeat(3, 1fr);
+           gap: 6mm; font-size: 2.7mm; line-height: 1.45; color: var(--grey); }
+  .store strong { display: block; color: var(--ink); font-weight: 600; font-size: 2.9mm; }
 
   /* word cards: same size and cut line as the wallet cards, two columns of six */
   .card.wc { flex-direction: column; padding: 4.5mm 5mm 4mm; gap: 2.5mm; }
-  .wc .top { display: flex; align-items: center; justify-content: space-between; }
-  .card.wc .boxes { gap: .6mm; flex-wrap: nowrap; width: auto; margin: 0; }
-  .card.wc .boxes b { width: 3.6mm; height: 4.6mm; border-width: .2mm; border-radius: .5mm; }
-  .card.wc .boxes b:nth-child(4) { margin-right: 1.4mm; }
+  .wc .top { display: flex; flex-direction: column; }
   .wc .list { flex: 1; display: grid; grid-auto-flow: column; grid-template-rows: repeat(6, 1fr); column-gap: 6mm; }
   .wc .word { display: flex; align-items: flex-end; gap: 2mm; border-bottom: .2mm solid var(--line); }
   .wc .n { font-size: 2.4mm; font-weight: 600; color: var(--ink); width: 3.6mm; text-align: right; padding-bottom: .9mm;
@@ -108,9 +110,10 @@
   .card { width: 85.6mm; height: 54mm; border: .15mm solid var(--line); border-radius: 3.18mm; display: flex; overflow: hidden; }
   .card .side { width: 31.6mm; padding: 5mm 0 5mm 4.5mm; display: flex; flex-direction: column; justify-content: space-between; }
   .card .cap { font-size: 1.9mm; letter-spacing: .12em; color: var(--ink); }
-  .card .boxes { flex-wrap: wrap; gap: .7mm; width: 20mm; margin-top: 1.4mm; }
-  .card .boxes b { width: 4.4mm; height: 5.4mm; border-width: .2mm; border-radius: .6mm; }
-  .card .boxes b:nth-child(4) { margin-right: 0; }
+  /* the fingerprint always on one line, 4 + 4, as the signer shows it */
+  .card .boxes { gap: .5mm; margin-top: 1.2mm; }
+  .card .boxes b { width: 2.8mm; height: 3.8mm; border-width: .2mm; border-radius: .45mm; }
+  .card .boxes b:nth-child(4) { margin-right: 1.3mm; }
   .card .line { height: 5.5mm; border-bottom: .2mm solid var(--line); }
   .card .g { width: 54mm; height: 54mm; display: flex; align-items: center; justify-content: center; }
 </style>
@@ -229,18 +232,21 @@ const strip = () => `<div class="strip">
     <div><span class="cap">Label</span></div>
   </div>`;
 
-const meta = (title, rest, right = '') =>
-  `<div class="meta"><span class="title">${title} <span>· ${rest}</span></span><span class="cap">${right}</span></div>`;
+const alert = `<div class="alert">Anyone who sees this can take your bitcoin. <span>Keep it out of sight and out of photos.</span></div>`;
 
-const warn = (right = '') =>
-  `<div class="warn"><span>Anyone who sees this has your bitcoin. Keep it out of sight and photos.</span><span>${right}</span></div>`;
+const store = `<div class="store">
+    <span class="cap">Storing it</span>
+    <div><strong>Two places</strong>QR card and word card apart, each sealed against water and fire, away from the signer.</div>
+    <div><strong>No photos</strong>Never photograph, scan or type them into a phone or computer.</div>
+    <div><strong>Check now and then</strong>Scan the QR card with <b>Check card</b>. Paper fades: make a new one if it struggles.</div>
+  </div>`;
 
 function qrPage(n, [pw, ph]) {
   // As big as the paper allows, with room for the header, strip, steps and
-  // footer (~95 mm): big squares are easier to fill neatly.
-  const span = n + 6, cell = Math.min((pw - 2 * MARGIN) / span, (ph - 2 * MARGIN - 95) / span);
+  // storage notes (~100 mm): big squares are easier to fill neatly.
+  const span = n + 6, cell = Math.min((pw - 2 * MARGIN) / span, (ph - 2 * MARGIN - 100) / span);
   const parts = Math.floor(n / 5) ** 2;
-  return `${meta('12 words', `${n} × ${n}`)}
+  return `${alert}
     <div class="body">
       <div class="gridwrap">${gridSvg(n, cell, { qz: 3, all: true })}</div>
       ${strip()}
@@ -250,7 +256,7 @@ function qrPage(n, [pw, ph]) {
         <li><strong>Check the card</strong><span>Choose <b>Check card</b> on the signer and scan it. Keep the white border clear.</span></li>
       </ol>
     </div>
-    ${warn()}`;
+    ${store}`;
 }
 
 // One card each, actual size and centred, with the same kind of steps as the
@@ -288,21 +294,20 @@ function wordCard() {
   return section('Word card', card, [
     ['Write in order', 'The signer shows 4 words per page. Number by number, no gaps.'],
     ['Write clearly', 'Capitals help. The first four letters of each word are enough to tell it apart.'],
-    ['Store apart', 'Cut on the grey line. Keep it away from the QR card and anything that says what it is.'],
+    ['Check each word', 'Compare it with the signer\'s screen before you go on. Then cut on the grey line.'],
   ]);
 }
 
 function walletPage(n, words) {
-  const cell = 54 / (n + 6);
-  return `${meta('Wallet size', `12 words · ${n} × ${n}`, `85.6 × 54 mm · squares ${cell.toFixed(1)} mm`)}
+  return `${alert}
     <div class="body">${qrCard(n)}${words ? wordCard() : ''}</div>
-    ${warn()}`;
+    ${store}`;
 }
 
 function wordPage() {
-  return `${meta('Word card', '12 words', '85.6 × 54 mm')}
+  return `${alert}
     <div class="body">${wordCard()}</div>
-    ${warn()}`;
+    ${store}`;
 }
 
 function render() {
