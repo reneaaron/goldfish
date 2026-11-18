@@ -1221,7 +1221,8 @@ static void grid_draw_cb(lv_event_t *e) {
         ld.p2.x = a.x1 + o + x2; ld.p2.y = a.y1 + o + y2;
         lv_draw_line(layer, &ld);
     };
-    const lv_color_t ghost = LV_COLOR_MAKE(0xC4, 0xC0, 0xB8), hatch = LV_COLOR_MAKE(0x9A, 0x96, 0x8E);
+    const lv_color_t ghost = LV_COLOR_MAKE(0xC4, 0xC0, 0xB8);
+    const lv_color_t major = LV_COLOR_MAKE(0x9A, 0x96, 0x8E), minor = LV_COLOR_MAKE(0xD4, 0xD0, 0xC8);
     const int s = g->cell;
     for (int r = 0; r < g->rows; r++)
         for (int c = 0; c < g->cols; c++) {
@@ -1231,12 +1232,11 @@ static void grid_draw_cb(lv_event_t *e) {
             if (g->ring && preprinted(x, y)) {
                 // Already on the card: diagonal hatch, not a square to fill.
                 for (int k = 4; k < 2 * s; k += 6)
-                    line(x1 + LV_MIN(k, s), y1 + LV_MAX(0, k - s), x1 + LV_MAX(0, k - s), y1 + LV_MIN(k, s), hatch);
+                    line(x1 + LV_MIN(k, s), y1 + LV_MAX(0, k - s), x1 + LV_MAX(0, k - s), y1 + LV_MIN(k, s), major);
             } else {
                 rect(x1, y1, x1 + s, y1 + s, active ? lv_color_black() : ghost);
             }
         }
-    const lv_color_t major = LV_COLOR_MAKE(0x9A, 0x96, 0x8E), minor = LV_COLOR_MAKE(0xD4, 0xD0, 0xC8);
     if (!g->ring) {
         for (int i = 0; i <= g->cols; i++)
             if (block_edge(g->c0 + i)) rect(i * s, 0, i * s, g->rows * s, major);
@@ -1354,14 +1354,14 @@ static void build_backup_block() {
     // The part plus one module around it (at most 7x7, also for the 6-wide
     // last part, which has no neighbour past the edge). One cell size for
     // every part, so squares don't change size between parts.
-    const int cell = 26;
+    const int cell = 25;
     int ac0 = (block_i % bs) * 5, ar0 = (block_i / bs) * 5;
     int acols = block_len(block_i % bs), arows = block_len(block_i / bs);
     int c0 = LV_MAX(ac0 - 1, 0), r0 = LV_MAX(ar0 - 1, 0);
     int c1 = LV_MIN(ac0 + acols, qr_n - 1), r1 = LV_MIN(ar0 + arows, qr_n - 1);
     block_view = {c0, r0, c1 - c0 + 1, r1 - r0 + 1, cell, true, ac0, ar0, acols, arows};
     const int gx = 22, gy = 18;
-    lv_obj_t *c = white_card(scr, CW, gy + 7 * cell + 6);
+    lv_obj_t *c = white_card(scr, CW, gy + 7 * cell + 4);   // clears the buttons
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 2);
     lv_obj_set_pos(grid(c, &block_view), gx - 1, gy - 1);
     const lv_color_t lab = LV_COLOR_MAKE(0x6E, 0x6A, 0x62), lab_dim = LV_COLOR_MAKE(0xB4, 0xB0, 0xA8);
