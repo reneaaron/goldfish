@@ -29,26 +29,9 @@ static bool rd(uint8_t reg, uint8_t *out, size_t n) {
     return true;
 }
 
-// LVGL only polls between timers, and a scan screen's frame (preview redraw +
-// quirc) can stall it longer than a tap lasts. The touch INT line latches that
-// a touch happened, so a tap that came and went unseen still becomes a click.
-static volatile bool touched;
-static bool was_pressed;
-
-static void touch_isr() { touched = true; }
-
 static void read_cb(lv_indev_t *, lv_indev_data_t *data) {
     uint8_t r[5];  // fingers, XH, XL, YH, YL
-    if (!rd(REG_FINGERS, r, sizeof(r))) {
-        data->state = LV_INDEV_STATE_RELEASED;
-        was_pressed = false;
-        return;
-    }
-    bool down = r[0] > 0;
-    if (!down && was_pressed) touched = false;   // the pulses of a press we already reported
-    if (down || touched) {
-        touched = false;
-        // after a lift the chip keeps the last point: that's where the missed tap was
+    if (rd(REG_FINGERS, r, sizeof(r)) && r[0] > 0) {
         int32_t x = ((r[1] & 0x0F) << 8) | r[2];
         int32_t y = ((r[3] & 0x0F) << 8) | r[4];
         // TODO: confirm orientation on hardware. The demo maps landscape as
@@ -56,10 +39,8 @@ static void read_cb(lv_indev_t *, lv_indev_data_t *data) {
         data->point.x = LV_CLAMP(0, x, LCD_W - 1);
         data->point.y = LV_CLAMP(0, y, LCD_H - 1);
         data->state = LV_INDEV_STATE_PRESSED;
-        was_pressed = true;
     } else {
         data->state = LV_INDEV_STATE_RELEASED;
-        was_pressed = false;
     }
 }
 
@@ -73,9 +54,6 @@ lv_indev_t *touch_init() {
     wr(REG_IRQ_CTL, 0x41);        // point mode
     wr(REG_IRQ_PULSE, 0x01);
     wr(REG_SCAN_PERIOD, 0x01);
-
-    pinMode(PIN_TOUCH_INT, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(PIN_TOUCH_INT), touch_isr, FALLING);
 
     lv_indev_t *t = lv_indev_create();
     lv_indev_set_type(t, LV_INDEV_TYPE_POINTER);
