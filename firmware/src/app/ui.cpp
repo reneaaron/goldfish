@@ -1369,15 +1369,20 @@ static void page_remove_cb(lv_event_t *) { ui_page_remove(); }
 // per row, not a button with three labels: a 24-word list plus the screen
 // fading out plus a pressed button's layer ran LVGL's 96 KB heap out, and its
 // allocator hung.
-static lv_obj_t *page_row(lv_obj_t *parent, int y, const char *line, lv_color_t c, lv_event_cb_t cb, void *ud) {
+static lv_obj_t *page_row(lv_obj_t *parent, int y, const char *line, lv_color_t c, bool rule, lv_event_cb_t cb,
+                          void *ud) {
     lv_obj_t *l = text(parent, line, &mono_22, c, LV_TEXT_ALIGN_LEFT);
-    lv_obj_set_size(l, CW, 34);
+    lv_obj_set_size(l, CW - 2, 36);
     lv_obj_set_pos(l, 0, y);
-    lv_obj_set_style_pad_left(l, 8, 0);
-    lv_obj_set_style_pad_top(l, 4, 0);
-    lv_obj_set_style_radius(l, 10, 0);
+    lv_obj_set_style_pad_left(l, CARD_PX, 0);
+    lv_obj_set_style_pad_top(l, 5, 0);
     lv_obj_set_style_bg_color(l, SURFACE_2, LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(l, LV_OPA_COVER, LV_STATE_PRESSED);
+    if (rule) {   // the card's divider, as a border on the row itself: no extra object
+        lv_obj_set_style_border_side(l, LV_BORDER_SIDE_BOTTOM, 0);
+        lv_obj_set_style_border_width(l, 1, 0);
+        lv_obj_set_style_border_color(l, BORDER, 0);
+    }
     lv_obj_add_flag(l, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(l, cb, LV_EVENT_CLICKED, ud);
     return l;
@@ -1409,7 +1414,7 @@ static void build_page_review() {
         snprintf(action, sizeof(action), ICON_KEYBOARD "   Add word %d", nslots + 1);
         act = page_add_cb;
     } else if (nslots > new_words && page_picking_extra) {
-        snprintf(status, sizeof(status), "Tap the word that isn't in the seed");
+        snprintf(status, sizeof(status), "Tap the word to remove");
         snprintf(action, sizeof(action), "Cancel");
         act = page_cancel_pick_cb;
         sc = TEXT_2;
@@ -1418,25 +1423,31 @@ static void build_page_review() {
         snprintf(action, sizeof(action), ICON_TRASH "   Remove extra word");
         act = page_pick_extra_cb;
     } else if (!ready) {
-        snprintf(status, sizeof(status), "A word may be misread: check each");
+        snprintf(status, sizeof(status), "A word may be misread");
         snprintf(action, sizeof(action), "Checksum doesn't match");
     } else {
-        snprintf(status, sizeof(status), "Compare every word with your paper");
+        snprintf(status, sizeof(status), "Compare with your paper");
         snprintf(action, sizeof(action), "Matches my paper");
         act = page_confirm_cb;
         sc = TEXT_3;
     }
     lv_obj_align(text(scr, status, &inter_13, sc), LV_ALIGN_TOP_MID, 0, BAR + 2);
 
+    // the words in a card, like the menus: rows with a rule between them
     lv_obj_t *list = scroll_area(scr, BAR + 24);
+    int rows = nslots + (nslots < new_words);
+    lv_obj_t *box = card(list, CW, rows * 36 + 2);
+    lv_obj_set_style_pad_all(box, 0, 0);
+    lv_obj_set_style_clip_corner(box, true, 0);
+    lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
     int y = 0;
     for (int i = 0; i < nslots; i++, y += 36) {
         char line[24];
         bool known = slots[i].word >= 0;
         snprintf(line, sizeof(line), "%2d  %s", i + 1, known ? seed_word(slots[i].word) : "?");
-        page_row(list, y, line, known ? TEXT : AMBER, page_row_cb, (void *)(intptr_t)i);
+        page_row(box, y, line, known ? TEXT : AMBER, i + 1 < rows, page_row_cb, (void *)(intptr_t)i);
     }
-    if (nslots < new_words) page_row(list, y, " +  add a word", TEXT_3, page_add_cb, nullptr);
+    if (nslots < new_words) page_row(box, y, " +  add a word", TEXT_3, false, page_add_cb, nullptr);
 
     lv_obj_t *btn = page_picking_extra ? btn_ghost(scr, action, act, nullptr, TEXT) : btn_primary(scr, action, act ? act : page_list_cb);
     place_bottom(btn);
