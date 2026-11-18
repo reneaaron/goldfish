@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backup cards</title>
+<!-- Blank backup cards to print and fill in by hand while the signer shows the
+     seed. The QR grid matches the device's "Part n of m" screens: columns A..,
+     rows 1.., heavier lines on the part edges (5+5+5+6). 12-word seeds only
+     (a 21x21 Compact SeedQR).
+     Self-contained on purpose: no fonts, scripts or requests from anywhere else,
+     so it can be saved and printed offline. -->
+<style>
+  :root {
+    --ink: #1c2234; --grey: #7a766e; --line: #d2cdc4;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --bg: #f4f2ed; --panel: #fff; --text: #1c2234; --text-2: #5d6070; --accent: #e8792b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #14161d; --panel: #1d2029; --text: #e9e7e2; --text-2: #9a9caa; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--sans); }
+
+  /* ---------- screen: controls + sheet previews ---------- */
+  .controls { max-width: 760px; margin: 0 auto; padding: 28px 16px 8px; }
+  .controls h1 { font-size: 24px; margin: 0 0 6px; }
+  .controls p { margin: 0 0 14px; color: var(--text-2); }
+  .row { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; margin: 10px 0; }
+  .row > span { min-width: 64px; color: var(--text-2); }
+  fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  label.opt { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+              background: var(--panel); cursor: pointer; border: 1px solid transparent; }
+  label.opt:has(input:checked) { border-color: var(--accent); }
+  label.opt input { accent-color: var(--accent); margin: 0; }
+  button { font: inherit; font-weight: 600; padding: 9px 20px; border-radius: 999px; border: 0;
+           background: var(--accent); color: #fff; cursor: pointer; margin-top: 8px; }
+  .hint { font-size: 13px; color: var(--text-2); margin-top: 14px; }
+
+  .sheets { display: flex; flex-direction: column; align-items: center; gap: 24px; padding: 24px 16px 48px; }
+  .sheet { background: #fff; color: var(--ink); width: var(--pw); min-height: var(--ph);
+           box-shadow: 0 2px 16px rgb(0 0 0 / .18); position: relative; }
+  @media (max-width: 860px) {
+    .sheets { zoom: .5; }
+  }
+
+  /* ---------- print ---------- */
+  @media print {
+    @page { margin: 0; }
+    body { background: #fff; }
+    .controls { display: none; }
+    .sheets { padding: 0; gap: 0; zoom: 1; }
+    .sheet { box-shadow: none; width: var(--pw); height: var(--ph); min-height: 0; page-break-after: always; break-after: page; overflow: hidden; }
+    .sheet:last-child { page-break-after: auto; break-after: auto; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+
+  /* ---------- sheet contents (all in mm so print size is exact) ----------
+     Black for what matters, two greys for everything else: --grey for text,
+     labels and part lines, --line for rules, boxes, fine grid lines and cut lines. */
+  .sheet { font-family: Inter, "Helvetica Neue", Arial, var(--sans); padding: 14mm; display: flex; flex-direction: column; }
+  .cap { font-size: 2.6mm; letter-spacing: .14em; text-transform: uppercase; color: var(--grey); }
+  /* the warning heads every sheet */
+  .alert { display: flex; align-items: center; gap: 3mm; padding-bottom: 3.5mm; border-bottom: .3mm solid var(--ink);
+           font-size: 3.6mm; font-weight: 600; color: var(--ink); }
+  .alert::before { content: "!"; flex: none; width: 5.6mm; height: 5.6mm; border-radius: 50%; background: var(--ink); color: #fff;
+                   display: flex; align-items: center; justify-content: center; font-size: 3.4mm; font-weight: 700; }
+  .alert span { font-weight: 400; color: var(--grey); }
+  .body { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 7mm; padding: 6mm 0; }
+  .gridwrap { display: flex; justify-content: center; }
+
+  /* label strip: fingerprint | date | label, one box with hairline dividers */
+  .strip { display: grid; grid-template-columns: auto 1fr 1.4fr; border: .3mm solid var(--line); border-radius: 2mm; }
+  .strip > div { padding: 2.6mm 4mm 3.4mm; display: flex; flex-direction: column; gap: 2mm; }
+  .strip > div + div { border-left: .2mm solid var(--line); }
+  .strip .cap { color: var(--ink); }
+  .boxes { display: flex; gap: .9mm; }
+  .boxes b { width: 6.2mm; height: 8mm; border: .25mm solid var(--line); border-radius: .8mm; }
+  .boxes b:nth-child(4) { margin-right: 2mm; }
+
+  /* numbered steps */
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6mm; margin: -2mm 0 0; padding: 0; list-style: none;
+           counter-reset: step; font-size: 2.9mm; line-height: 1.45; color: var(--grey); }
+  .steps li { counter-increment: step; display: grid; grid-template-columns: 6mm 1fr; grid-template-rows: min-content 1fr;
+              column-gap: 2mm; align-items: start; }
+  .steps li::before { content: counter(step); grid-row: 1 / 3; width: 5.4mm; height: 5.4mm; border-radius: 50%;
+                      border: .25mm solid var(--ink); color: var(--ink); font-size: 2.8mm; font-weight: 600;
+                      display: flex; align-items: center; justify-content: center; }
+  .steps strong { color: var(--ink); font-weight: 600; font-size: 3.1mm; }
+  /* storing it: the foot of every sheet */
+  .store { padding-top: 3.5mm; border-top: .2mm solid var(--line); display: grid; grid-template-columns: repeat(3, 1fr);
+           gap: 3.5mm 6mm; font-size: 2.6mm; line-height: 1.4; color: var(--grey); }
+  .store > .cap { grid-column: 1 / -1; color: var(--ink); font-weight: 600; }
+  .store > div { display: grid; grid-template-columns: 6mm 1fr; grid-template-rows: min-content 1fr; column-gap: 2.5mm; align-items: start; }
+  .store svg { width: 6mm; height: 6mm; grid-row: 1 / 3; fill: none; stroke: var(--ink); stroke-width: 1.6;
+               stroke-linecap: round; stroke-linejoin: round; }
+  .store strong { color: var(--ink); font-weight: 600; font-size: 2.85mm; }
+
+  /* word cards: same size and cut line as the wallet cards, two columns of six */
+  .card.wc { flex-direction: column; padding: 4.5mm 5mm 4mm; gap: 2.5mm; }
+  .wc .top { display: flex; align-items: center; justify-content: space-between; }
+  .wc .list { flex: 1; display: grid; grid-auto-flow: column; grid-template-rows: repeat(6, 1fr); column-gap: 6mm; }
+  .wc .word { display: flex; align-items: flex-end; gap: 2mm; border-bottom: .2mm solid var(--line); }
+  .wc .n { font-size: 2.4mm; font-weight: 600; color: var(--ink); width: 3.6mm; text-align: right; padding-bottom: .9mm;
+           font-variant-numeric: tabular-nums; }
+
+  /* wallet cards: ID-1 size (85.6 x 54 mm, 3.18 mm corners), a faint cut line round each */
+  /* one card, actual size and centred, with its steps under it */
+  .section { display: flex; flex-direction: column; align-items: center; gap: 6mm; }
+  .section .steps { width: 100%; max-width: 150mm; margin: 0; }
+  .section > .cap { color: var(--ink); font-weight: 600; margin-bottom: -2mm; }
+  .section + .section { border-top: .2mm solid var(--line); padding-top: 10mm; }
+  .card { width: 85.6mm; height: 54mm; border: .15mm solid var(--line); border-radius: 3.18mm; display: flex; overflow: hidden; }
+  .card .side { width: 31.6mm; padding: 5mm 0 5mm 4.5mm; display: flex; flex-direction: column; justify-content: space-between; }
+  .card .cap { font-size: 1.9mm; letter-spacing: .12em; color: var(--ink); }
+  /* the fingerprint always on one line, 4 + 4, as the signer shows it */
+  .card .boxes { gap: .5mm; margin-top: 1.2mm; }
+  .card .boxes b { width: 2.8mm; height: 3.8mm; border-width: .2mm; border-radius: .45mm; }
+  .card .boxes b:nth-child(4) { margin-right: 1.3mm; }
+  /* the word card has the full width: boxes big enough to write in comfortably */
+  .card.wc .boxes { gap: .8mm; margin-top: 0; }
+  .card.wc .boxes b { width: 5mm; height: 6.5mm; border-radius: .6mm; }
+  .card.wc .boxes b:nth-child(4) { margin-right: 2.4mm; }
+  .card .line { height: 5.5mm; border-bottom: .2mm solid var(--line); }
+  .card .g { width: 54mm; height: 54mm; display: flex; align-items: center; justify-content: center; }
+</style>
+</head>
+<body>
+
+<div class="controls">
+  <h1>Backup cards</h1>
+  <p>Blank cards for a 12-word seed, to print and fill in by hand while the signer shows it. Print them blank:
+     never type words or fill in a QR on a computer.</p>
+
+  <div class="row"><span>Layout</span>
+    <fieldset id="layout">
+      <label class="opt"><input type="radio" name="layout" value="page" checked> Full page (easiest to fill)</label>
+      <label class="opt"><input type="radio" name="layout" value="card"> Wallet card (fine pen)</label>
+    </fieldset>
+  </div>
+  <div class="row"><span>Also</span>
+    <fieldset>
+      <label class="opt"><input type="checkbox" id="wordcards" checked> Word card</label>
+    </fieldset>
+  </div>
+  <div class="row"><span>Paper</span>
+    <fieldset id="paper">
+      <label class="opt"><input type="radio" name="paper" value="a4" checked> A4</label>
+      <label class="opt"><input type="radio" name="paper" value="letter"> Letter</label>
+    </fieldset>
+  </div>
+  <button type="button" onclick="window.print()">Print</button>
+  <p class="hint">Print at 100% (no “fit to page”). Fill each square fully with a dark pen; leave the white border
+     around the grid empty. Then choose “Check card” on the signer and scan it.</p>
+</div>
+
+<div class="sheets" id="sheets"></div>
+
+<script>
+// Same split as the firmware (ui.cpp, block_edge): parts of 5, a remainder joins
+// the last part instead of making a sliver, so 21 = 5+5+5+6.
+function blockEdge(m, n) { const bs = Math.floor(n / 5); return m === 0 || m === n || (m % 5 === 0 && m / 5 < bs); }
+
+// The squares that are the same in every Compact SeedQR of this size, so they
+// come pre-printed: the three finder squares with the light border around them,
+// the timing row and column between them, the always-dark module next to the
+// bottom-left finder. Map from row * n + col to dark. The format bits depend on the mask the firmware picks
+// for each seed (qrcodegen_Mask_AUTO), so those are left to fill in.
+function fixedModules(n) {
+  const fixed = new Map(), set = (r, c, dark) => fixed.set(r * n + c, dark);
+  const square = (r0, c0, size) => {           // concentric rings: dark, light, dark core
+    for (let r = 0; r < size; r++) for (let c = 0; c < size; c++)
+      set(r0 + r, c0 + c, Math.min(r, c, size - 1 - r, size - 1 - c) !== 1);
+  };
+  for (const [r0, c0] of [[0, 0], [0, n - 8], [n - 8, 0]])   // light border, then the finder on top
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) set(r0 + r, c0 + c, false);
+  square(0, 0, 7); square(0, n - 7, 7); square(n - 7, 0, 7);
+  for (let i = 8; i < n - 8; i++) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); }
+  set(n - 8, 8, true);
+  return fixed;
+}
+
+// A blank grid as SVG in mm: n x n cells inside a white quiet zone of `qz`
+// cells. Column letters and row numbers (as on the device's part screens) sit
+// in that zone in light grey, small enough for the scanner to ignore: on top
+// and left, or with `all` on every side so the far rows are easy to find. Grid
+// lines are drawn only along squares to fill in, never through or along the
+// pre-printed parts: a printed line can come out dark enough for the scanner,
+// and a line that touches a finder (with filled squares touching the line)
+// makes the finder one big shape it no longer recognises. Seen on a real
+// print: the part lines through a finder's ring hid it.
+function gridSvg(n, cell, { qz = 3, all = false, sparse = false, ticks = true } = {}) {
+  const pad = qz * cell, size = n * cell, w = size + 2 * pad;
+  const fs = sparse ? Math.min(cell * 0.8, 3.1) : Math.min(cell * 0.5, 3.1);
+  const thin = Math.max(cell * 0.03, 0.12), thick = Math.max(cell * 0.07, 0.26);
+  const fixed = fixedModules(n);
+  const fill = (r, c) => r >= 0 && c >= 0 && r < n && c < n && !fixed.has(r * n + c);
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}mm" height="${w}mm" viewBox="0 0 ${w} ${w}">`;
+  s += `<g transform="translate(${pad} ${pad})">`;
+  let minor = '', major = '';
+  const edge = (x1, y1, x2, y2, m) => {
+    if (m) major += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#7a766e" stroke-width="${thick}"/>`;
+    else minor += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#d2cdc4" stroke-width="${thin}"/>`;
+  };
+  for (let i = 0; i <= n; i++) for (let j = 0; j < n; j++) {
+    const m = blockEdge(i, n);
+    if (fill(j, i - 1) || fill(j, i)) edge(i * cell, j * cell, i * cell, (j + 1) * cell, m);   // left of column i
+    if (fill(i - 1, j) || fill(i, j)) edge(j * cell, i * cell, (j + 1) * cell, i * cell, m);   // above row i
+  }
+  s += minor + major;
+  for (const [m, dark] of fixed)
+    if (dark) s += `<rect x="${(m % n) * cell}" y="${Math.floor(m / n) * cell}" width="${cell}" height="${cell}" fill="#000"/>`;
+  const gap = cell * 0.7, t = (x, y, a, txt) =>
+    `<text x="${x}" y="${y}" font-size="${fs}" fill="#7a766e" text-anchor="${a}" dominant-baseline="central" font-family="Inter, Helvetica, Arial, sans-serif">${txt}</text>`;
+  // Corner ticks frame the code, well clear of it, since its outline has gaps
+  // where nothing is to be filled in. Wallet cards have their cut line instead.
+  const o = Math.min(2.2, qz - 0.4) * cell, k = cell;
+  if (ticks) for (const [x, y, dx, dy] of [[-o, -o, 1, 1], [size + o, -o, -1, 1], [-o, size + o, 1, -1], [size + o, size + o, -1, -1]])
+    s += `<path d="M${x} ${y + dy * k}V${y}H${x + dx * k}" fill="none" stroke="#7a766e" stroke-width="${thin * 1.6}"/>`;
+  for (let i = 0; i < n; i++) {
+    // Sparse (wallet cards): only where a part starts, and the last row/column.
+    if (sparse && i % 5 && i !== n - 1) continue;
+    const c = (i + 0.5) * cell, L = String.fromCharCode(65 + i);
+    s += t(c, -gap, 'middle', L) + t(-gap, c, 'end', i + 1);
+    if (all) s += t(c, size + gap, 'middle', L) + t(size + gap, c, 'start', i + 1);
+  }
+  return s + `</g></svg>`;
+}
+
+// Eight boxes for the 8 hex digits the signer shows, split 4+4 like on screen.
+const BOXES = `<span class="boxes">${'<b></b>'.repeat(8)}</span>`;
+const PAPER = { a4: [210, 297], letter: [215.9, 279.4] };
+const MARGIN = 14;
+const N = 21;   // a 12-word Compact SeedQR
+
+const strip = () => `<div class="strip">
+    <div><span class="cap">Fingerprint</span>${BOXES}</div>
+    <div><span class="cap">Date</span></div>
+    <div><span class="cap">Label</span></div>
+  </div>`;
+
+const alert = `<div class="alert">Anyone who sees this can take your bitcoin. <span>Keep it out of sight and out of photos.</span></div>`;
+
+// How to keep the cards, with a line icon each (drawn here, 24-unit grid).
+const ICON = {
+  places: '<path d="M7 20s-4.5-4.6-4.5-8.3a4.5 4.5 0 0 1 9 0C11.5 15.4 7 20 7 20z"/><circle cx="7" cy="11.7" r="1.5"/><path d="M17 15s-4.5-4.6-4.5-8.3a4.5 4.5 0 0 1 9 0C21.5 10.4 17 15 17 15z"/><circle cx="17" cy="6.7" r="1.5"/>',
+  water:  '<path d="M12 3s-6 6.8-6 11a6 6 0 0 0 12 0c0-4.2-6-11-6-11z"/><path d="M9.5 14.5a2.5 2.5 0 0 0 2.5 2.5"/>',
+  fire:   '<path d="M12 21a6 6 0 0 0 6-6c0-4.5-4-6-4-11-2.5 1.5-4 4-4 6.5-1-1-1.5-2-1.5-3C6.5 9.5 6 12.5 6 15a6 6 0 0 0 6 6z"/><path d="M12 21a2.5 2.5 0 0 1-2.5-2.5c0-2 2.5-3.5 2.5-3.5s2.5 1.5 2.5 3.5A2.5 2.5 0 0 1 12 21z"/>',
+  sight:  '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.5"/><path d="M4 20 20 4"/>',
+  heirs:  '<circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9.5" r="2.5"/><path d="M15.5 14.4A5 5 0 0 1 21 19"/>',
+  check:  '<circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.7 2.7L16 9.7"/>',
+};
+const tip = (icon, title, text) =>
+  `<div><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[icon]}</svg><strong>${title}</strong><span>${text}</span></div>`;
+const store = `<div class="store">
+    <span class="cap">Storing it</span>
+    ${tip('places', 'Two copies, two places', 'The QR card and the word card hold the same seed. Keep them apart, so one fire, flood or break-in can\'t take both.')}
+    ${tip('water', 'Keep it dry', 'Seal each card in a zip bag. Wet paper tears and ink runs.')}
+    ${tip('fire', 'Think about fire', 'Paper burns. A fire safe helps; for the long run, also stamp the words into steel.')}
+    ${tip('sight', 'Out of sight', 'No photos, scans or typing into a phone or computer. No label on the envelope.')}
+    ${tip('heirs', 'Plan for heirs', 'Someone you trust should know the backup exists and where, not what it says.')}
+    ${tip('check', 'Check yearly', 'Scan the QR card with <b>Check card</b>. If it struggles, make a new one.')}
+  </div>`;
+
+function qrPage(n, [pw, ph]) {
+  // As big as the paper allows, with room for the header, strip, steps and
+  // storage notes (~117 mm): big squares are easier to fill neatly.
+  const span = n + 6, cell = Math.min((pw - 2 * MARGIN) / span, (ph - 2 * MARGIN - 117) / span);
+  const parts = Math.floor(n / 5) ** 2;
+  return `${alert}
+    <div class="body">
+      <div class="gridwrap">${gridSvg(n, cell, { qz: 3, all: true })}</div>
+      ${strip()}
+      <ol class="steps">
+        <li><strong>Copy part by part</strong><span>The signer shows ${parts} parts. Heavy lines mark them here; letters are columns, numbers rows.</span></li>
+        <li><strong>Fill whole squares</strong><span>Dark pen, edge to edge. Corner squares and the dotted lines are already printed.</span></li>
+        <li><strong>Check the card</strong><span>Choose <b>Check card</b> on the signer and scan it. Keep the white border clear.</span></li>
+      </ol>
+    </div>
+    ${store}`;
+}
+
+// One card each, actual size and centred, with the same kind of steps as the
+// full page: most people make one backup, maybe two, so a sheet of copies
+// would mostly go unused.
+const steps = items => `<ol class="steps">${items.map(([t, d]) => `<li><strong>${t}</strong><span>${d}</span></li>`).join('')}</ol>`;
+const section = (title, card, items) => `<div class="section"><span class="cap">${title}</span>${card}${steps(items)}</div>`;
+
+function qrCard(n) {
+  // The QR gets the card's full height with its quiet zone inside the card,
+  // so it scans wherever the card lies.
+  const cell = 54 / (n + 6), parts = Math.floor(n / 5) ** 2;
+  const card = `<div class="card">
+      <div class="side">
+        <div><span class="cap">Fingerprint</span>${BOXES}</div>
+        <div><span class="cap">Date</span><div class="line"></div></div>
+        <div><span class="cap">Label</span><div class="line"></div></div>
+      </div>
+      <div class="g">${gridSvg(n, cell, { qz: 3, sparse: true, ticks: false })}</div>
+    </div>`;
+  return section('QR card', card, [
+    ['Copy part by part', `The signer shows ${parts} parts. Heavy lines mark them; the labels say where each starts.`],
+    ['Fill whole squares', 'Fine pen, 0.3 mm or less, edge to edge. Corner squares and dotted lines are printed.'],
+    ['Cut and check', 'Cut on the grey line, then choose <b>Check card</b> on the signer and scan it.'],
+  ]);
+}
+
+function wordCard() {
+  let words = '';
+  for (let i = 1; i <= 12; i++) words += `<div class="word"><span class="n">${i}</span></div>`;
+  const card = `<div class="card wc">
+      <div class="top"><span class="cap">Fingerprint</span>${BOXES}</div>
+      <div class="list">${words}</div>
+    </div>`;
+  return section('Word card', card, [
+    ['Write in order', 'The signer shows 4 words per page. Number by number, no gaps.'],
+    ['Write clearly', 'Capitals help. The first four letters of each word are enough to tell it apart.'],
+    ['Check each word', 'Compare it with the signer\'s screen before you go on. Then cut on the grey line.'],
+  ]);
+}
+
+function walletPage(n, words) {
+  return `${alert}
+    <div class="body">${qrCard(n)}${words ? wordCard() : ''}</div>
+    ${store}`;
+}
+
+function wordPage() {
+  return `${alert}
+    <div class="body">${wordCard()}</div>
+    ${store}`;
+}
+
+function render() {
+  const layout = document.querySelector('[name=layout]:checked').value;
+  const paper = document.querySelector('[name=paper]:checked').value;
+  const [pw, ph] = PAPER[paper];
+  const root = document.documentElement.style;
+  root.setProperty('--pw', pw + 'mm');
+  root.setProperty('--ph', ph + 'mm');
+  let style = document.getElementById('page-size');
+  if (!style) { style = document.createElement('style'); style.id = 'page-size'; document.head.append(style); }
+  style.textContent = `@page { size: ${paper === 'a4' ? 'A4' : 'letter'} portrait; margin: 0; }`;
+
+  const words = document.getElementById('wordcards').checked;
+  // The wallet card and the word card share one sheet; the full page gets its own.
+  const pages = layout === 'page' ? [qrPage(N, PAPER[paper]), ...(words ? [wordPage()] : [])] : [walletPage(N, words)];
+  document.getElementById('sheets').innerHTML =
+    pages.map(p => `<section class="sheet">${p}</section>`).join('');
+}
+
+document.querySelectorAll('input').forEach(i => i.addEventListener('change', render));
+render();
+</script>
+</body>
+</html>

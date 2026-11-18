@@ -75,7 +75,8 @@ and row numbers like the card's grid (21×21 splits 5+5+5+6, so no thin
 edge parts). Each part shows one ring of its neighbours greyed, to line up
 with what is already on the card; squares a card template pre-prints (the finder
 squares, the timing lines, the fixed dark module, and the alignment square on
-25×25) are hatched. Scanning the finished card checks it. The flow ends with the
+25×25) are hatched. The blank 12-word cards in [`cards/`](../cards) come with
+them printed. Scanning the finished card checks it. The flow ends with the
 fingerprint to write on the backup; leaving it wipes the seed.
 
 Back up as QR runs the same card flow for whatever seed is loaded, scanned
