@@ -1455,10 +1455,14 @@ static void build_page_review() {
         snprintf(status, sizeof(status), "A word may be misread");
         snprintf(action, sizeof(action), "Checksum doesn't match");
     } else {
-        snprintf(status, sizeof(status), "Compare with your paper");
+        // all in and the checksum fits: say so, and whether the photo read them all
+        bool typed = false;
+        for (int i = 0; i < nslots; i++) typed |= slots[i].typed || slots[i].piece < 0;
+        if (typed) snprintf(status, sizeof(status), ICON_CHECK "  %d words \xC2\xB7 checksum valid", nslots);
+        else snprintf(status, sizeof(status), ICON_CHECK "  All %d read \xC2\xB7 checksum valid", nslots);
         snprintf(action, sizeof(action), "Matches my paper");
         act = page_confirm_cb;
-        sc = TEXT_3;
+        sc = GREEN;
     }
     lv_obj_align(text(scr, status, &inter_13, sc), LV_ALIGN_TOP_MID, 0, BAR + 2);
 
