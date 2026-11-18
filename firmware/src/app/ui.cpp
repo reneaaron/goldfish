@@ -1308,26 +1308,15 @@ static void col_label(int col, char out[4]) { snprintf(out, 4, "%c", 'A' + col);
 
 const uint8_t *ui_backup_qr() { return qr_n ? qr_buf : nullptr; }
 
-// Parts that lie wholly on the card's pre-printed squares have nothing to copy.
-static bool part_printed(int b) {
-    int bs = blocks_per_side(), c0 = (b % bs) * 5, r0 = (b / bs) * 5;
-    for (int y = r0; y < r0 + block_len(b / bs); y++)
-        for (int x = c0; x < c0 + block_len(b % bs); x++)
-            if (!preprinted(x, y)) return false;
-    return true;
-}
-
 void ui_backup_next() {
     int n = blocks_per_side() * blocks_per_side();
-    for (int b = block_i + 1; b < n; b++)
-        if (!part_printed(b)) { block_i = b; ui_goto(UI_BACKUP_BLOCK); return; }
-    ui_goto(UI_BACKUP_SCAN);
+    if (block_i + 1 < n) { block_i++; ui_goto(UI_BACKUP_BLOCK); }
+    else ui_goto(UI_BACKUP_SCAN);
 }
 static void block_next_cb(lv_event_t *) { ui_backup_next(); }
 static void block_prev_cb(lv_event_t *) {
-    for (int b = block_i - 1; b >= 0; b--)
-        if (!part_printed(b)) { block_i = b; ui_goto(UI_BACKUP_BLOCK); return; }
-    ui_goto(UI_BACKUP_QR);
+    if (block_i > 0) { block_i--; ui_goto(UI_BACKUP_BLOCK); }
+    else ui_goto(UI_BACKUP_QR);
 }
 static void block_gesture_cb(lv_event_t *) {
     lv_dir_t d = lv_indev_get_gesture_dir(lv_indev_active());
@@ -1336,26 +1325,17 @@ static void block_gesture_cb(lv_event_t *) {
 }
 
 // One 5x5 block at a time, labelled with the card's column letters and row
-// numbers, inside one module of its neighbours. Parts with nothing to copy
-// are left out of the count.
+// numbers, inside one module of its neighbours. Every part of the card's grid
+// is shown, also the corners that are all pre-printed (all hatched).
 static void build_backup_block() {
     lv_obj_t *scr = screen();
     int bs = blocks_per_side(), n = bs * bs;
-    while (part_printed(block_i)) block_i++;
-    int k = 0, m = 0;
-    bool last = true;
-    for (int b = 0; b < n; b++) {
-        if (part_printed(b)) continue;
-        m++;
-        if (b <= block_i) k++;
-        else last = false;
-    }
     char title[32];
-    snprintf(title, sizeof(title), "Part %d of %d", k, m);
+    snprintf(title, sizeof(title), "Part %d of %d", block_i + 1, n);
     lv_obj_t *bar = topbar(scr, title, to_whole_qr_cb);
 
     // Where this block sits in the QR: one square per block, this one lit,
-    // the ones already copied (or pre-printed) dimmed.
+    // the ones already copied dimmed.
     const int sq = bs > 4 ? 6 : 7, gap = 2, side = bs * sq + (bs - 1) * gap;
     lv_obj_t *map = lv_obj_create(bar);
     lv_obj_remove_style_all(map);
@@ -1367,7 +1347,7 @@ static void build_backup_block() {
         lv_obj_set_size(q, sq, sq);
         lv_obj_set_pos(q, (b % bs) * (sq + gap), (b / bs) * (sq + gap));
         lv_obj_set_style_radius(q, 1, 0);
-        lv_obj_set_style_bg_color(q, b == block_i ? ACCENT : b < block_i || part_printed(b) ? TEXT_3 : SURFACE_2, 0);
+        lv_obj_set_style_bg_color(q, b == block_i ? ACCENT : b < block_i ? TEXT_3 : SURFACE_2, 0);
         lv_obj_set_style_bg_opa(q, LV_OPA_COVER, 0);
     }
 
@@ -1402,6 +1382,7 @@ static void build_backup_block() {
         lv_obj_set_pos(t, 0, gy + i * cell + cell / 2 - 8);
     }
     lv_obj_add_event_cb(scr, block_gesture_cb, LV_EVENT_GESTURE, nullptr);
+    bool last = block_i + 1 == n;
     // The seed is already backed up elsewhere (wallet, or the written words), so checking is optional.
     lv_obj_t *secondary = last ? btn_ghost(scr, "Done", backup_exit_cb, nullptr, TEXT)
                                                   : btn_ghost(scr, ICON_LEFT, block_prev_cb, nullptr, TEXT);
