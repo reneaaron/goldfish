@@ -1173,7 +1173,7 @@ static void build_enter_words() {
     lv_buttonmatrix_set_button_width(word_kb, 26, 2);   // "Del" spans two keys
     lv_obj_add_event_cb(word_kb, kb_cb, LV_EVENT_VALUE_CHANGED, nullptr);
     // Enter words starts at 12; a seed with 24 switches here, before the first word.
-    if (!drawing && !word_n)
+    if (!drawing && !word_n && edit_slot < 0)   // not while fixing one word of a page
         lv_obj_align(quiet_link(scr, new_words == 12 ? "24 words" : "12 words", restore_length_cb, nullptr),
                      LV_ALIGN_TOP_MID, 0, BAR + 92);
     words_refresh();
