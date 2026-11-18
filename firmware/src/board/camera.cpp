@@ -59,7 +59,7 @@ static const uint16_t init_regs[][2] = {
     {0x380c, 0x0a}, {0x380d, 0x20}, {0x380e, 0x07}, {0x380f, 0x98},
     {0x3810, 0x00}, {0x3811, 0x10}, {0x3812, 0x00}, {0x3813, 0x0e}, {DELAY, 50},
     // Binning
-    {0x3820, 0x07}, {0x3821, 0x00},  // vertical flip: unflipped, the image comes out mirrored top to bottom
+    {0x3820, 0x01}, {0x3821, 0x00},  // no sensor flip: 0x07 gave black frames, flip_rows() does it instead
     {0x4514, 0xaa}, {0x4520, 0x0b}, {0x3814, 0x31}, {0x3815, 0x31},
     {DELAY, 50},
     // PLL for the 37.5MHz XCLK: about 20MHz PCLK
@@ -152,6 +152,17 @@ static bool camera_init() {
     return true;
 }
 
+// Unflipped, the image comes out mirrored top to bottom.
+static void flip_rows() {
+    static uint8_t tmp[CAM_W];
+    for (int y = 0; y < CAM_H / 2; y++) {
+        uint8_t *a = frame + y * CAM_W, *b = frame + (CAM_H - 1 - y) * CAM_W;
+        memcpy(tmp, a, CAM_W);
+        memcpy(a, b, CAM_W);
+        memcpy(b, tmp, CAM_W);
+    }
+}
+
 static void set_focus(bool on) {
     // 0x3603: bit 7 power down, bits 5:0 D[9:4]. 0x3602: bits 7:4 D[3:0], low bits 0 = jump directly
     wr(0x3602, on ? (CAM_FOCUS & 0x0F) << 4 : 0x00);
@@ -193,6 +204,7 @@ const uint8_t *platform_camera_frame(int *width, int *height) {
             state = CAM_IDLE;
         } else {
             state = CAM_READY;
+            flip_rows();
             cam_err[0] = 0;
             *width = CAM_W;
             *height = OUT_H;
@@ -219,6 +231,7 @@ const uint8_t *platform_camera_still(int *width, int *height) {
         while (dma_channel_is_busy(dma_ch) && millis() - t0 < 1000) {}
         if (dma_channel_is_busy(dma_ch)) return nullptr;
         state = CAM_READY;
+        flip_rows();
     }
     if (state != CAM_READY) return nullptr;
     still = (uint8_t *)malloc(sizeof(frame));
