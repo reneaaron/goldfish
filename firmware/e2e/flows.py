@@ -23,7 +23,8 @@ def type_words(dev, mnemonic):
 
 def load_by_words(dev, mnemonic):
     dev.tap("Enter words")
-    dev.tap("%d words" % len(mnemonic.split()))
+    if len(mnemonic.split()) == 24:
+        dev.tap("24 words")
     type_words(dev, mnemonic)
     assert dev.screen == "SEED_LOADED", dev.text()
 
