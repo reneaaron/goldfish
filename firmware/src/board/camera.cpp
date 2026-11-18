@@ -213,6 +213,12 @@ static uint8_t *still;
 
 const uint8_t *platform_camera_still(int *width, int *height) {
     platform_camera_still_free();
+    if (state == CAM_BUSY) {   // the preview re-arms every other tick: wait for that frame
+        uint32_t t0 = millis();
+        while (dma_channel_is_busy(dma_ch) && millis() - t0 < 1000) {}
+        if (dma_channel_is_busy(dma_ch)) return nullptr;
+        state = CAM_READY;
+    }
     if (state != CAM_READY) return nullptr;
     still = (uint8_t *)malloc(sizeof(frame));
     if (!still) return nullptr;

@@ -134,6 +134,7 @@ static lv_obj_t *preview_img, *scan_msg, *scan_sub, *scan_bar;
 static lv_timer_t *scan_timer;
 enum ScanMode { SCAN_SEED, SCAN_PSBT, SCAN_ADDRESS, SCAN_CONFIRM, SCAN_PAGE };
 static ScanMode scan_mode;
+static bool page_from_scan_seed;   // Scan words was opened from Scan seed: Back returns there
 static AddressCheck check;
 static int qr_w, qr_h;
 static UrDecoder ur_dec;
@@ -334,7 +335,7 @@ static void scan_back_cb(lv_event_t *) {
     ur_decoder_reset(&ur_dec);
     ui_goto(scan_mode == SCAN_SEED      ? UI_HOME
             : scan_mode == SCAN_CONFIRM ? UI_BACKUP_BLOCK
-            : scan_mode == SCAN_PAGE    ? UI_ENTER_WORDS
+            : scan_mode == SCAN_PAGE    ? (page_from_scan_seed ? UI_SCAN_SEED : UI_ENTER_WORDS)
                                         : UI_SEED_MENU);
 }
 
@@ -788,11 +789,16 @@ static bool edit_insert;
 // "Remove extra word": the list waits for a tap on the word to drop (only the
 // user can tell a heading or a passphrase line from a seed word).
 static bool page_picking_extra;
+// The last word's checksum-fitting suggestion, and the slot it was worked out for (-1: none).
+static int page_suggest = -1, page_suggest_slot = -1;
+static lv_timer_t *suggest_timer;
 static lv_timer_t *page_timer;
 static uint8_t page_strip_buf[WR_H * WR_W];
 
 static void page_flow_wipe() {
     if (page_timer) { lv_timer_delete(page_timer); page_timer = nullptr; }
+    if (suggest_timer) { lv_timer_delete(suggest_timer); suggest_timer = nullptr; }
+    page_suggest = page_suggest_slot = -1;
     if (page_still) platform_camera_still_free();
     page_still = nullptr;
     word_reader_free();
@@ -839,7 +845,10 @@ static void restore_length_cb(lv_event_t *) { ui_seed_entry(UI_ENTER_WORDS, new_
 // Scan seed -> "Written words instead?": straight to Scan words (the word
 // count comes from the words found on the page).
 static void written_cb(lv_event_t *) {
-    ui_seed_entry(UI_ENTER_WORDS, 12);
+    new_seed_wipe();   // what ui_seed_entry does, without building the keyboard screen first
+    new_words = 12;
+    drawing = false;
+    page_from_scan_seed = true;
     ui_goto(UI_SCAN_PAGE);
 }
 
@@ -1121,6 +1130,7 @@ static void words_back_cb(lv_event_t *) {
 
 static void scan_page_cb(lv_event_t *) {
     word_prefix[0] = 0;
+    page_from_scan_seed = false;
     ui_goto(UI_SCAN_PAGE);
 }
 
@@ -1133,8 +1143,10 @@ static void build_enter_words() {
 
     // the camera, in the header opposite Back: a written backup, read in one go
     // (not while drawing words, or when the keyboard is fixing one word of a
-    // page already read)
-    if (!drawing && edit_slot < 0) {
+    // page already read).
+    // Only before the first word: words typed and then a page read would be in
+    // the list twice, and lost again on Back.
+    if (!drawing && edit_slot < 0 && !word_n) {
         lv_obj_t *cam = lv_button_create(bar);
         lv_obj_remove_style_all(cam);
         lv_obj_set_size(cam, 44, 44);
@@ -1215,10 +1227,9 @@ static void page_read_cb(lv_event_t *) { ui_page_read(); }
 
 static lv_obj_t *page_lbl, *page_bar;
 
-// Words typed before the camera, then every piece found, in reading order.
+// Every piece found, in reading order (the camera is only offered before the first word).
 static void page_make_slots() {
     nslots = 0;
-    for (int i = 0; i < word_n && nslots < MAX_SLOTS; i++) slots[nslots++] = {int16_t(word_idx[i]), -1, true};
     for (int i = 0; i < ncands && nslots < MAX_SLOTS; i++)
         slots[nslots++] = {int16_t(cands[i].ok ? cands[i].word : -1), int16_t(cands[i].piece), false};
     secure_zero(word_idx, sizeof(word_idx));
@@ -1299,7 +1310,7 @@ static bool page_checksum_ok() {
 }
 
 static bool page_set_word(int idx) {
-    if (idx < 0 || edit_slot < 0) return false;
+    if (idx < 0 || edit_slot < 0 || (edit_insert && nslots >= MAX_SLOTS)) return false;
     if (edit_insert && nslots < MAX_SLOTS) {
         memmove(&slots[edit_slot + 1], &slots[edit_slot], sizeof(Slot) * (nslots - edit_slot));
         slots[edit_slot] = {int16_t(idx), -1, true};
@@ -1309,6 +1320,7 @@ static bool page_set_word(int idx) {
     }
     edit_slot = -1;
     word_prefix[0] = 0;
+    page_suggest_slot = -1;
     ui_goto(UI_PAGE_REVIEW);
     return true;
 }
@@ -1327,12 +1339,13 @@ static void page_keyboard(int slot, bool insert) {
     ui_goto(UI_ENTER_WORDS);
 }
 void ui_page_type() { if (ui_current() == UI_PAGE_WORD) page_keyboard(open_slot, false); }
-void ui_page_insert() { if (ui_current() == UI_PAGE_WORD) page_keyboard(open_slot, true); }
+void ui_page_insert() { if (ui_current() == UI_PAGE_WORD && nslots < MAX_SLOTS) page_keyboard(open_slot, true); }
 void ui_page_add() { if (ui_current() == UI_PAGE_REVIEW && nslots < MAX_SLOTS) page_keyboard(nslots, true); }
 void ui_page_remove() {
     if (ui_current() != UI_PAGE_WORD) return;
     memmove(&slots[open_slot], &slots[open_slot + 1], sizeof(Slot) * (nslots - open_slot - 1));
     secure_zero(&slots[--nslots], sizeof(Slot));
+    page_suggest_slot = -1;
     ui_goto(UI_PAGE_REVIEW);
 }
 bool ui_page_confirm() {
@@ -1349,6 +1362,7 @@ static void page_row_cb(lv_event_t *e) {
     page_picking_extra = false;
     memmove(&slots[i], &slots[i + 1], sizeof(Slot) * (nslots - i - 1));
     secure_zero(&slots[--nslots], sizeof(Slot));
+    page_suggest_slot = -1;
     ui_goto(UI_PAGE_REVIEW);
 }
 static void page_pick_extra_cb(lv_event_t *) { page_picking_extra = true; ui_goto(UI_PAGE_REVIEW); }
@@ -1493,7 +1507,6 @@ static void build_page_review() {
 // ---- one word: its picture, and what to do with it
 static lv_image_dsc_t page_strip_dsc;
 static uint8_t page_last_ok[256];   // bitmap: last words that fit the other words' checksum
-static int page_suggest = -1;
 
 static bool page_last_allowed(int i) { return (page_last_ok[i >> 3] >> (i & 7)) & 1; }
 
@@ -1520,6 +1533,17 @@ static int page_last_suggestion(const Slot &sl) {
     }
     secure_zero(page_last_ok, sizeof(page_last_ok));
     return w;
+}
+
+// The re-read takes a moment on the board: done by a timer once the word's
+// screen shows, never inside the tap that opened it.
+static void page_suggest_tick(lv_timer_t *) {
+    lv_timer_delete(suggest_timer);
+    suggest_timer = nullptr;
+    if (ui_current() != UI_PAGE_WORD) return;
+    page_suggest = page_last_suggestion(slots[open_slot]);
+    page_suggest_slot = open_slot;
+    if (page_suggest >= 0) ui_goto(UI_PAGE_WORD);
 }
 
 int ui_page_suggestion() { return ui_current() == UI_PAGE_WORD ? page_suggest : -1; }
@@ -1561,9 +1585,12 @@ static void build_page_word() {
     }
     if (sl.word >= 0) lv_obj_align(text(scr, seed_word(sl.word), &mono_22, TEXT), LV_ALIGN_TOP_MID, 0, y + 8);
     else lv_obj_align(text(scr, "Couldn't read it", &inter_17_semi, AMBER), LV_ALIGN_TOP_MID, 0, y + 10);
-    page_suggest = page_last_suggestion(sl);
+    if (page_suggest_slot != open_slot) {
+        page_suggest = -1;
+        if (open_slot == new_words - 1 && !suggest_timer) suggest_timer = lv_timer_create(page_suggest_tick, 50, nullptr);
+    }
     if (page_suggest >= 0) {
-        lv_obj_align(text(scr, sl.word >= 0 ? "Doesn't fit the checksum. This one does:" : "Fits the checksum:",
+        lv_obj_align(text(scr, "This one fits the checksum:",
                           &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, y + 44);
         lv_obj_t *b = btn_ghost(scr, seed_word(page_suggest), page_suggest_cb, nullptr, ACCENT);
         lv_obj_set_style_bg_color(b, ACCENT_DIM, 0);

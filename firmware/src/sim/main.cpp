@@ -513,6 +513,19 @@ static int run_shots(const char *dir) {
         i++, k++;
     }
     while (ui_page_count() > 24) { ui_page_open(24); ui_page_remove(); }
+    // The last word typed wrong: the checksum stops it, and its screen offers
+    // the word that fits, read again from its picture.
+    ui_page_open(23); ui_page_type();
+    if (!ui_enter_word("zoo")) { fprintf(stderr, "zoo refused\n"); return 1; }
+    if (ui_page_confirm()) { fprintf(stderr, "wrong last word accepted\n"); return 1; }
+    ui_page_open(23);
+    for (int i = 0; i < 40 && ui_page_suggestion() < 0; i++) pump(50);
+    if (ui_page_suggestion() < 0 || strcmp(seed_word(ui_page_suggestion()), "test")) {
+        fprintf(stderr, "no checksum suggestion for the last word\n");
+        return 1;
+    }
+    pump(300); save(dir, "54b_page_suggestion");
+    ui_page_use_suggestion();
     pump(300); save(dir, "55_page_ready");
     if (!ui_page_confirm() || ui_current() != UI_SEED_LOADED || !wallet_has_seed()) {
         fprintf(stderr, "page seed did not load\n");

@@ -227,7 +227,8 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
             b.n += r.u1 - r.u0 + 1;
         }
         // the letter height: median height of blobs that aren't specks
-        int hs[MAX_HS], nh = 0;
+        static int hs[MAX_HS];   // static: the board's stack is small
+        int nh = 0;
         for (int i = 0; i < nruns && nh < MAX_HS; i++)
             if (find_run(i) == i && blobs[i].n >= 8 && blobs[i].v1 - blobs[i].v0 >= 3) hs[nh++] = blobs[i].v1 - blobs[i].v0 + 1;
         if (!nh) goto done;
@@ -360,7 +361,7 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
             int j = i;
             while (j < page->n && page->words[j].column == page->words[i].column) j++;
             int cn = j - i;
-            float steps[PAGE_MAX_WORDS], hts[PAGE_MAX_WORDS], u0s[PAGE_MAX_WORDS];
+            static float steps[PAGE_MAX_WORDS], hts[PAGE_MAX_WORDS], u0s[PAGE_MAX_WORDS];   // not on the stack
             for (int k = 0; k < cn; k++) {
                 const PageWord &q = page->words[i + k];
                 hts[k] = q.v1 - q.v0;
