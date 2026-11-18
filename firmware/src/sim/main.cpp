@@ -128,6 +128,39 @@ const char *platform_camera_error() { return nullptr; }
 
 void platform_camera_stop() {}
 
+// A still: the camera image file itself, box-filtered down to at most 1000
+// pixels on its longer side (more than the board will get, for now).
+static uint8_t *still;
+static int still_w, still_h;
+
+const uint8_t *platform_camera_still(int *width, int *height) {
+    platform_camera_still_free();
+    if (cam_override) return nullptr;
+    int w, h, n;
+    uint8_t *img = stbi_load(cam_path(), &w, &h, &n, 1);
+    if (!img) return nullptr;
+    int f = 1;
+    while ((w + f - 1) / f > 1000 || (h + f - 1) / f > 1000) f++;
+    still_w = w / f; still_h = h / f;
+    still = (uint8_t *)malloc((size_t)still_w * still_h);
+    for (int y = 0; still && y < still_h; y++)
+        for (int x = 0; x < still_w; x++) {
+            int sum = 0;
+            for (int j = 0; j < f; j++)
+                for (int i = 0; i < f; i++) sum += img[(y * f + j) * w + x * f + i];
+            still[y * still_w + x] = uint8_t(sum / (f * f));
+        }
+    stbi_image_free(img);
+    *width = still_w;
+    *height = still_h;
+    return still;
+}
+
+void platform_camera_still_free() {
+    if (still) { memset(still, 0, (size_t)still_w * still_h); free(still); }
+    still = nullptr;
+}
+
 // ------------------------------------------------------------ screenshots
 static uint8_t shot_buf[240 * 320 * 2];
 static lv_display_t *shot_disp;
@@ -426,6 +459,66 @@ static int run_shots(const char *dir) {
     for (int i = 0; i < 400 && !(ui_current() == UI_VERIFY_RESULT && verify_done()); i++) pump(30);
     if (ui_current() != UI_VERIFY_RESULT) { fprintf(stderr, "multisig address was not accepted (screen %d)\n", ui_current()); return 1; }
     pump(300); save(dir, "50_multisig_verify");
+
+    // Scan words (experimental): a photo of a written 24-word test seed
+    // (handwriting/make_page.py). Words read are used; the rest are typed.
+    static const char *const page_words[24] = {
+        "calm", "scene", "merit", "capable", "noble", "great", "task", "reject", "also", "fury", "media", "vendor",
+        "kiwi", "leaf", "census", "when", "skate", "canal", "obvious", "page", "ball", "certain", "unable", "test"};
+    wallet_wipe();
+    ui_goto(UI_HOME);
+    cam_override = false;
+    setenv("SIM_CAMERA", "sim/samples/handwritten_page.png", 1);
+    ui_goto(UI_SCAN_SEED);   // a written page shown to the QR scanner: the way out
+    pump(300); save(dir, "50b_scan_seed_written");
+    ui_seed_entry(UI_ENTER_WORDS, 24);
+    ui_goto(UI_SCAN_PAGE);
+    pump(300); save(dir, "51_scan_page");
+    if (!ui_page_read()) { fprintf(stderr, "no page picture\n"); return 1; }
+    pump(40); save(dir, "52_page_reading");
+    for (int i = 0; i < 400 && ui_current() == UI_PAGE_READING; i++) pump(20);
+    if (ui_current() != UI_PAGE_REVIEW) { fprintf(stderr, "page not read (screen %d)\n", ui_current()); return 1; }
+    pump(300); save(dir, "53_page_list");
+    fprintf(stderr, "page list:");
+    for (int j = 0; j < ui_page_count(); j++) fprintf(stderr, " %s", ui_page_slot(j) >= 0 ? seed_word(ui_page_slot(j)) : "?");
+    fprintf(stderr, "\n");
+    ui_page_open(11);   // word 12: too faint to find, guessed from the gap in its column
+    pump(300); save(dir, "53b_page_guessed");
+    ui_goto(UI_PAGE_REVIEW);
+    // Check the list like a person with the paper next to it: keep words that
+    // match, remove pieces that aren't words, type unread or wrong ones, add
+    // missing ones before the word that follows them.
+    int k = 0, used = 0, i = 0;
+    bool shot_word = false;
+    while (k < 24) {
+        if (ui_current() != UI_PAGE_REVIEW) { fprintf(stderr, "not on the list (screen %d)\n", ui_current()); return 1; }
+        if (i >= ui_page_count()) {
+            ui_page_add();
+            if (!ui_enter_word(page_words[k])) { fprintf(stderr, "added word %s refused\n", page_words[k]); return 1; }
+            i++, k++;
+            continue;
+        }
+        int w = ui_page_slot(i);
+        if (w >= 0 && !strcmp(seed_word(w), page_words[k])) { i++, k++, used++; continue; }
+        bool later = false;
+        for (int j = k + 1; w >= 0 && j < 24; j++) later |= !strcmp(seed_word(w), page_words[j]);
+        int next = -1;
+        for (int j = i + 1; j < ui_page_count() && next < 0; j++) next = ui_page_slot(j);
+        ui_page_open(i);
+        if (!shot_word) { pump(300); save(dir, "54_page_word"); shot_word = true; }
+        if (later) ui_page_insert();
+        else if (w < 0 && next >= 0 && !strcmp(seed_word(next), page_words[k])) { ui_page_remove(); continue; }
+        else ui_page_type();
+        if (!ui_enter_word(page_words[k])) { fprintf(stderr, "typed word %s refused\n", page_words[k]); return 1; }
+        i++, k++;
+    }
+    while (ui_page_count() > 24) { ui_page_open(24); ui_page_remove(); }
+    pump(300); save(dir, "55_page_ready");
+    if (!ui_page_confirm() || ui_current() != UI_SEED_LOADED || !wallet_has_seed()) {
+        fprintf(stderr, "page seed did not load\n");
+        return 1;
+    }
+    fprintf(stderr, "page: %d of 24 words used as read\n", used);
     return 0;
 }
 
@@ -532,6 +625,10 @@ static int run_control() {
                 cam_load(line + 7);
                 if (!cam_ok) err = "cannot read the picture";
             }
+        } else if (!strncmp(line, "page ", 5)) {   // a written page: the still is read from this file
+            setenv("SIM_CAMERA", line + 5, 1);
+            cam_override = false;
+            cam_ok = false;
         } else if (!strncmp(line, "shot ", 5)) {
             if (!save_ppm(line + 5)) err = "cannot write the screenshot";
         } else if (!strcmp(line, "screen")) {

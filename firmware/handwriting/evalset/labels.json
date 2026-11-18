@@ -1,0 +1,3278 @@
+[
+ {
+  "file": "img01.png",
+  "source": "https://econoalchemist.github.io/SeedSigner/05_Seed-Backup.html",
+  "image_url": "https://econoalchemist.github.io/SeedSigner/assets/backup00.png",
+  "style": "mixed",
+  "background": "SeedSigner SEED WORDS ruled card",
+  "words": [
+   {
+    "text": "swear",
+    "box": [
+     452,
+     157,
+     507,
+     170
+    ]
+   },
+   {
+    "text": "click",
+    "box": [
+     460,
+     176,
+     505,
+     191
+    ]
+   },
+   {
+    "text": "pact",
+    "box": [
+     460,
+     196,
+     498,
+     211
+    ]
+   },
+   {
+    "text": "nerve",
+    "box": [
+     460,
+     215,
+     509,
+     229
+    ]
+   },
+   {
+    "text": "task",
+    "box": [
+     463,
+     231,
+     510,
+     246
+    ]
+   },
+   {
+    "text": "cotton",
+    "box": [
+     461,
+     247,
+     519,
+     263
+    ]
+   },
+   {
+    "text": "drop",
+    "box": [
+     467,
+     268,
+     512,
+     283
+    ]
+   },
+   {
+    "text": "stove",
+    "box": [
+     468,
+     286,
+     516,
+     302
+    ]
+   },
+   {
+    "text": "sketch",
+    "box": [
+     471,
+     305,
+     533,
+     320
+    ]
+   },
+   {
+    "text": "attitude",
+    "box": [
+     476,
+     323,
+     540,
+     340
+    ]
+   },
+   {
+    "text": "first",
+    "box": [
+     569,
+     146,
+     612,
+     164
+    ]
+   },
+   {
+    "text": "spatial",
+    "box": [
+     570,
+     163,
+     620,
+     182
+    ]
+   },
+   {
+    "text": "media",
+    "box": [
+     571,
+     186,
+     619,
+     200
+    ]
+   },
+   {
+    "text": "dismiss",
+    "box": [
+     567,
+     201,
+     632,
+     220
+    ]
+   },
+   {
+    "text": "movie",
+    "box": [
+     570,
+     221,
+     620,
+     237
+    ]
+   },
+   {
+    "text": "surge",
+    "box": [
+     575,
+     240,
+     622,
+     257
+    ]
+   },
+   {
+    "text": "hybrid",
+    "box": [
+     576,
+     260,
+     630,
+     275
+    ]
+   },
+   {
+    "text": "wrestle",
+    "box": [
+     571,
+     276,
+     630,
+     293
+    ]
+   }
+  ]
+ },
+ {
+  "file": "img02.png",
+  "source": "https://econoalchemist.github.io/COLDCARD-UltraQuick/03%20Seed%20Phrase.html",
+  "image_url": "https://econoalchemist.github.io/COLDCARD-UltraQuick/Assets/SaveWords2.jpg",
+  "style": "caps",
+  "background": "Coldcard Wallet Backup Card (grid boxes), photo downscaled from 4032px",
+  "words": [
+   {
+    "text": "grass",
+    "box": [
+     1169,
+     742,
+     1292,
+     788
+    ]
+   },
+   {
+    "text": "aspect",
+    "box": [
+     1166,
+     798,
+     1328,
+     838
+    ]
+   },
+   {
+    "text": "limit",
+    "box": [
+     1169,
+     847,
+     1322,
+     887
+    ]
+   },
+   {
+    "text": "fork",
+    "box": [
+     1180,
+     892,
+     1300,
+     941
+    ]
+   },
+   {
+    "text": "harbor",
+    "box": [
+     1171,
+     943,
+     1338,
+     988
+    ]
+   },
+   {
+    "text": "knee",
+    "box": [
+     1174,
+     997,
+     1300,
+     1040
+    ]
+   },
+   {
+    "text": "more",
+    "box": [
+     1177,
+     1045,
+     1316,
+     1091
+    ]
+   },
+   {
+    "text": "palm",
+    "box": [
+     1180,
+     1093,
+     1319,
+     1143
+    ]
+   },
+   {
+    "text": "upset",
+    "box": [
+     1177,
+     1145,
+     1311,
+     1192
+    ]
+   },
+   {
+    "text": "add",
+    "box": [
+     1182,
+     1195,
+     1273,
+     1241
+    ]
+   },
+   {
+    "text": "city",
+    "box": [
+     1177,
+     1245,
+     1300,
+     1293
+    ]
+   },
+   {
+    "text": "veteran",
+    "box": [
+     1171,
+     1294,
+     1376,
+     1342
+    ]
+   },
+   {
+    "text": "kiwi",
+    "box": [
+     1463,
+     740,
+     1600,
+     788
+    ]
+   },
+   {
+    "text": "question",
+    "box": [
+     1448,
+     788,
+     1635,
+     834
+    ]
+   },
+   {
+    "text": "gas",
+    "box": [
+     1463,
+     836,
+     1541,
+     884
+    ]
+   },
+   {
+    "text": "give",
+    "box": [
+     1459,
+     887,
+     1563,
+     930
+    ]
+   },
+   {
+    "text": "focus",
+    "box": [
+     1452,
+     935,
+     1598,
+     986
+    ]
+   },
+   {
+    "text": "comic",
+    "box": [
+     1459,
+     995,
+     1609,
+     1035
+    ]
+   },
+   {
+    "text": "force",
+    "box": [
+     1461,
+     1040,
+     1595,
+     1083
+    ]
+   },
+   {
+    "text": "skill",
+    "box": [
+     1463,
+     1088,
+     1600,
+     1136
+    ]
+   },
+   {
+    "text": "media",
+    "box": [
+     1463,
+     1131,
+     1626,
+     1181
+    ]
+   },
+   {
+    "text": "globe",
+    "box": [
+     1466,
+     1184,
+     1595,
+     1233
+    ]
+   },
+   {
+    "text": "hazard",
+    "box": [
+     1463,
+     1241,
+     1611,
+     1288
+    ]
+   },
+   {
+    "text": "blame",
+    "box": [
+     1469,
+     1286,
+     1611,
+     1338
+    ]
+   },
+   {
+    "text": "erosion",
+    "box": [
+     1139,
+     619,
+     1332,
+     667
+    ]
+   },
+   {
+    "text": "differ",
+    "box": [
+     1448,
+     613,
+     1587,
+     659
+    ]
+   }
+  ]
+ },
+ {
+  "file": "img03.png",
+  "source": "https://econoalchemist.github.io/Dice-Rolls/03_Verifying-Dice-Rolls.html",
+  "image_url": "https://econoalchemist.github.io/Dice-Rolls/assets/IMG_4817.JPG",
+  "style": "mixed",
+  "background": "ruled notebook paper, photo downscaled from 4032px",
+  "words": [
+   {
+    "text": "sugar",
+    "box": [
+     203,
+     584,
+     327,
+     632
+    ]
+   },
+   {
+    "text": "clerk",
+    "box": [
+     206,
+     648,
+     332,
+     688
+    ]
+   },
+   {
+    "text": "derive",
+    "box": [
+     209,
+     702,
+     346,
+     745
+    ]
+   },
+   {
+    "text": "whisper",
+    "box": [
+     209,
+     755,
+     375,
+     798
+    ]
+   },
+   {
+    "text": "birth",
+    "box": [
+     220,
+     804,
+     341,
+     852
+    ]
+   },
+   {
+    "text": "prosper",
+    "box": [
+     227,
+     868,
+     394,
+     913
+    ]
+   },
+   {
+    "text": "bronze",
+    "box": [
+     227,
+     922,
+     396,
+     970
+    ]
+   },
+   {
+    "text": "fringe",
+    "box": [
+     222,
+     980,
+     380,
+     1023
+    ]
+   },
+   {
+    "text": "chimney",
+    "box": [
+     667,
+     600,
+     834,
+     654
+    ]
+   },
+   {
+    "text": "club",
+    "box": [
+     667,
+     654,
+     766,
+     697
+    ]
+   },
+   {
+    "text": "divide",
+    "box": [
+     673,
+     712,
+     798,
+     752
+    ]
+   },
+   {
+    "text": "neglect",
+    "box": [
+     670,
+     766,
+     834,
+     806
+    ]
+   },
+   {
+    "text": "diagram",
+    "box": [
+     677,
+     820,
+     845,
+     857
+    ]
+   },
+   {
+    "text": "refuse",
+    "box": [
+     673,
+     873,
+     817,
+     913
+    ]
+   },
+   {
+    "text": "other",
+    "box": [
+     670,
+     927,
+     788,
+     967
+    ]
+   },
+   {
+    "text": "sudden",
+    "box": [
+     667,
+     986,
+     795,
+     1027
+    ]
+   },
+   {
+    "text": "tip",
+    "box": [
+     1179,
+     595,
+     1249,
+     634
+    ]
+   },
+   {
+    "text": "sweet",
+    "box": [
+     1163,
+     651,
+     1276,
+     691
+    ]
+   },
+   {
+    "text": "shoe",
+    "box": [
+     1160,
+     707,
+     1245,
+     748
+    ]
+   },
+   {
+    "text": "winter",
+    "box": [
+     1149,
+     763,
+     1278,
+     804
+    ]
+   },
+   {
+    "text": "smart",
+    "box": [
+     1152,
+     825,
+     1281,
+     855
+    ]
+   },
+   {
+    "text": "mango",
+    "box": [
+     1152,
+     879,
+     1297,
+     913
+    ]
+   },
+   {
+    "text": "shuffle",
+    "box": [
+     1160,
+     927,
+     1311,
+     970
+    ]
+   },
+   {
+    "text": "sentence",
+    "box": [
+     1163,
+     986,
+     1329,
+     1027
+    ]
+   }
+  ]
+ },
+ {
+  "file": "img04.png",
+  "source": "https://passport1.econoalchemist.com/07%20Testing%20Backups.html",
+  "image_url": "https://econoalchemist.github.io/Foundation-Passport/assets/passport99.jpg",
+  "style": "caps",
+  "background": "ruled spiral notebook paper, photo downscaled from 4032px",
+  "words": [
+   {
+    "text": "flip",
+    "box": [
+     563,
+     358,
+     648,
+     392
+    ]
+   },
+   {
+    "text": "smile",
+    "box": [
+     561,
+     403,
+     676,
+     435
+    ]
+   },
+   {
+    "text": "midnight",
+    "box": [
+     554,
+     458,
+     731,
+     488
+    ]
+   },
+   {
+    "text": "cool",
+    "box": [
+     556,
+     507,
+     641,
+     536
+    ]
+   },
+   {
+    "text": "corn",
+    "box": [
+     561,
+     555,
+     665,
+     583
+    ]
+   },
+   {
+    "text": "company",
+    "box": [
+     561,
+     597,
+     732,
+     633
+    ]
+   },
+   {
+    "text": "mountain",
+    "box": [
+     558,
+     647,
+     766,
+     683
+    ]
+   },
+   {
+    "text": "stage",
+    "box": [
+     565,
+     698,
+     680,
+     732
+    ]
+   },
+   {
+    "text": "sad",
+    "box": [
+     921,
+     363,
+     982,
+     396
+    ]
+   },
+   {
+    "text": "aspect",
+    "box": [
+     918,
+     410,
+     1030,
+     444
+    ]
+   },
+   {
+    "text": "twin",
+    "box": [
+     921,
+     458,
+     1030,
+     491
+    ]
+   },
+   {
+    "text": "velvet",
+    "box": [
+     921,
+     502,
+     1045,
+     534
+    ]
+   },
+   {
+    "text": "proud",
+    "box": [
+     923,
+     550,
+     1034,
+     585
+    ]
+   },
+   {
+    "text": "oil",
+    "box": [
+     921,
+     604,
+     989,
+     633
+    ]
+   },
+   {
+    "text": "describe",
+    "box": [
+     923,
+     645,
+     1089,
+     683
+    ]
+   },
+   {
+    "text": "rather",
+    "box": [
+     930,
+     697,
+     1065,
+     733
+    ]
+   },
+   {
+    "text": "detect",
+    "box": [
+     1253,
+     356,
+     1376,
+     391
+    ]
+   },
+   {
+    "text": "world",
+    "box": [
+     1248,
+     407,
+     1360,
+     439
+    ]
+   },
+   {
+    "text": "sweet",
+    "box": [
+     1248,
+     454,
+     1355,
+     484
+    ]
+   },
+   {
+    "text": "harvest",
+    "box": [
+     1244,
+     501,
+     1374,
+     531
+    ]
+   },
+   {
+    "text": "core",
+    "box": [
+     1249,
+     552,
+     1335,
+     584
+    ]
+   },
+   {
+    "text": "song",
+    "box": [
+     1244,
+     601,
+     1332,
+     631
+    ]
+   },
+   {
+    "text": "will",
+    "box": [
+     1244,
+     650,
+     1336,
+     677
+    ]
+   },
+   {
+    "text": "kiss",
+    "box": [
+     1247,
+     696,
+     1325,
+     727
+    ]
+   },
+   {
+    "text": "impact",
+    "box": [
+     916,
+     223,
+     1039,
+     250
+    ]
+   },
+   {
+    "text": "early",
+    "box": [
+     1079,
+     218,
+     1181,
+     250
+    ]
+   },
+   {
+    "text": "news",
+    "box": [
+     863,
+     901,
+     944,
+     933
+    ]
+   }
+  ]
+ },
+ {
+  "file": "img05.png",
+  "source": "https://github.com/Vayras/bitcoin-vision-site",
+  "image_url": "https://raw.githubusercontent.com/Vayras/bitcoin-vision-site/main/public/samples/recovery-words.jpg",
+  "style": "mixed",
+  "background": "plain paper (grey, uneven light), downscaled from 2250x3000; test phrase sample of the bitcoin-vision handwriting reader",
+  "words": [
+   {
+    "text": "shop",
+    "box": [
+     277,
+     102,
+     474,
+     204
+    ]
+   },
+   {
+    "text": "exhaust",
+    "box": [
+     234,
+     257,
+     602,
+     341
+    ]
+   },
+   {
+    "text": "erase",
+    "box": [
+     236,
+     402,
+     523,
+     477
+    ]
+   },
+   {
+    "text": "demand",
+    "box": [
+     234,
+     509,
+     595,
+     613
+    ]
+   },
+   {
+    "text": "switch",
+    "box": [
+     227,
+     680,
+     560,
+     766
+    ]
+   },
+   {
+    "text": "powder",
+    "box": [
+     244,
+     804,
+     549,
+     911
+    ]
+   },
+   {
+    "text": "now",
+    "box": [
+     1200,
+     155,
+     1370,
+     220
+    ]
+   },
+   {
+    "text": "fault",
+    "box": [
+     1184,
+     257,
+     1393,
+     359
+    ]
+   },
+   {
+    "text": "anchor",
+    "box": [
+     1155,
+     423,
+     1463,
+     504
+    ]
+   },
+   {
+    "text": "enact",
+    "box": [
+     1152,
+     541,
+     1441,
+     632
+    ]
+   },
+   {
+    "text": "rather",
+    "box": [
+     1141,
+     675,
+     1458,
+     766
+    ]
+   },
+   {
+    "text": "cook",
+    "box": [
+     1147,
+     788,
+     1396,
+     902
+    ]
+   }
+  ]
+ },
+ {
+  "file": "img06.png",
+  "source": "https://hodlr1.econoalchemist.com/03_PreMarking-Stamping.html",
+  "image_url": "https://hodlr1.econoalchemist.com/assets/hodlr_14.jpg",
+  "style": "caps",
+  "background": "Hodlr One orange recovery sheet, letter boxes (one letter per box), downscaled from 4080px",
+  "words": [
+   {
+    "text": "album",
+    "box": [
+     1350,
+     79,
+     1675,
+     143
+    ]
+   },
+   {
+    "text": "odor",
+    "box": [
+     1359,
+     247,
+     1620,
+     310
+    ]
+   },
+   {
+    "text": "omit",
+    "box": [
+     1359,
+     423,
+     1631,
+     483
+    ]
+   },
+   {
+    "text": "spy",
+    "box": [
+     1364,
+     598,
+     1558,
+     667
+    ]
+   },
+   {
+    "text": "stairs",
+    "box": [
+     1380,
+     774,
+     1781,
+     845
+    ]
+   },
+   {
+    "text": "resource",
+    "box": [
+     1394,
+     950,
+     1943,
+     1037
+    ]
+   },
+   {
+    "text": "brick",
+    "box": [
+     1400,
+     1150,
+     1752,
+     1227
+    ]
+   },
+   {
+    "text": "plug",
+    "box": [
+     1402,
+     1350,
+     1699,
+     1429
+    ]
+   }
+  ]
+ },
+ {
+  "file": "img07.png",
+  "source": "https://hodlr1.econoalchemist.com/03_PreMarking-Stamping.html",
+  "image_url": "https://hodlr1.econoalchemist.com/assets/hodlr_19.jpg",
+  "style": "caps",
+  "background": "Hodlr One orange recovery sheet, letter boxes, downscaled from 4080px",
+  "words": [
+   {
+    "text": "rebel",
+    "box": [
+     1249,
+     105,
+     1618,
+     184
+    ]
+   },
+   {
+    "text": "divide",
+    "box": [
+     1261,
+     305,
+     1674,
+     381
+    ]
+   },
+   {
+    "text": "size",
+    "box": [
+     1270,
+     497,
+     1538,
+     573
+    ]
+   },
+   {
+    "text": "sea",
+    "box": [
+     1279,
+     704,
+     1468,
+     778
+    ]
+   },
+   {
+    "text": "beyond",
+    "box": [
+     1279,
+     903,
+     1700,
+     993
+    ]
+   },
+   {
+    "text": "duck",
+    "box": [
+     1280,
+     1104,
+     1566,
+     1198
+    ]
+   }
+  ]
+ },
+ {
+  "file": "img08.png",
+  "source": "https://hodlr1.econoalchemist.com/03_PreMarking-Stamping.html",
+  "image_url": "https://hodlr1.econoalchemist.com/assets/hodlr_20.jpg",
+  "style": "caps",
+  "background": "Hodlr One orange recovery sheet, letter boxes, perspective/rotated ~15 deg, downscaled from 4080px",
+  "words": [
+   {
+    "text": "find",
+    "box": [
+     1276,
+     131,
+     1521,
+     205
+    ]
+   },
+   {
+    "text": "rebel",
+    "box": [
+     1305,
+     253,
+     1630,
+     331
+    ]
+   },
+   {
+    "text": "divide",
+    "box": [
+     1356,
+     376,
+     1738,
+     468
+    ]
+   },
+   {
+    "text": "size",
+    "box": [
+     1402,
+     519,
+     1653,
+     593
+    ]
+   },
+   {
+    "text": "sea",
+    "box": [
+     1456,
+     684,
+     1647,
+     755
+    ]
+   },
+   {
+    "text": "beyond",
+    "box": [
+     1499,
+     815,
+     1920,
+     935
+    ]
+   },
+   {
+    "text": "duck",
+    "box": [
+     1550,
+     992,
+     1852,
+     1112
+    ]
+   }
+  ]
+ },
+ {
+  "file": "img09.png",
+  "source": "https://bitcoinmagazine.com/guides/how-to-use-coldcard-and-seed-xor",
+  "image_url": "https://bitcoinmagazine.com/wp-content/uploads/2024/11/passphrase-words.jpg",
+  "style": "mixed",
+  "background": "ruled spiral notebook paper, 4 columns of 24 words (Seed XOR demo parts), downscaled from 4032px",
+  "words": [
+   {
+    "text": "brass",
+    "box": [
+     617,
+     420,
+     689,
+     454
+    ]
+   },
+   {
+    "text": "amount",
+    "box": [
+     613,
+     464,
+     711,
+     493
+    ]
+   },
+   {
+    "text": "rug",
+    "box": [
+     618,
+     506,
+     678,
+     538
+    ]
+   },
+   {
+    "text": "lobster",
+    "box": [
+     615,
+     547,
+     718,
+     579
+    ]
+   },
+   {
+    "text": "pizza",
+    "box": [
+     621,
+     586,
+     700,
+     618
+    ]
+   },
+   {
+    "text": "cruel",
+    "box": [
+     621,
+     624,
+     700,
+     656
+    ]
+   },
+   {
+    "text": "debate",
+    "box": [
+     619,
+     666,
+     718,
+     698
+    ]
+   },
+   {
+    "text": "fringe",
+    "box": [
+     619,
+     700,
+     710,
+     737
+    ]
+   },
+   {
+    "text": "noise",
+    "box": [
+     615,
+     750,
+     702,
+     777
+    ]
+   },
+   {
+    "text": "online",
+    "box": [
+     615,
+     791,
+     704,
+     825
+    ]
+   },
+   {
+    "text": "consider",
+    "box": [
+     613,
+     835,
+     738,
+     868
+    ]
+   },
+   {
+    "text": "unfair",
+    "box": [
+     612,
+     870,
+     716,
+     900
+    ]
+   },
+   {
+    "text": "palm",
+    "box": [
+     620,
+     914,
+     695,
+     947
+    ]
+   },
+   {
+    "text": "anger",
+    "box": [
+     612,
+     954,
+     707,
+     985
+    ]
+   },
+   {
+    "text": "debate",
+    "box": [
+     611,
+     998,
+     716,
+     1033
+    ]
+   },
+   {
+    "text": "glove",
+    "box": [
+     613,
+     1037,
+     697,
+     1069
+    ]
+   },
+   {
+    "text": "hard",
+    "box": [
+     619,
+     1081,
+     690,
+     1116
+    ]
+   },
+   {
+    "text": "bike",
+    "box": [
+     619,
+     1123,
+     689,
+     1156
+    ]
+   },
+   {
+    "text": "novel",
+    "box": [
+     612,
+     1166,
+     691,
+     1195
+    ]
+   },
+   {
+    "text": "mobile",
+    "box": [
+     610,
+     1204,
+     704,
+     1242
+    ]
+   },
+   {
+    "text": "wish",
+    "box": [
+     610,
+     1246,
+     690,
+     1278
+    ]
+   },
+   {
+    "text": "minor",
+    "box": [
+     606,
+     1290,
+     698,
+     1320
+    ]
+   },
+   {
+    "text": "snow",
+    "box": [
+     608,
+     1331,
+     693,
+     1365
+    ]
+   },
+   {
+    "text": "canal",
+    "box": [
+     604,
+     1373,
+     704,
+     1408
+    ]
+   },
+   {
+    "text": "learn",
+    "box": [
+     862,
+     421,
+     951,
+     451
+    ]
+   },
+   {
+    "text": "air",
+    "box": [
+     864,
+     461,
+     922,
+     494
+    ]
+   },
+   {
+    "text": "diagram",
+    "box": [
+     864,
+     504,
+     989,
+     534
+    ]
+   },
+   {
+    "text": "success",
+    "box": [
+     855,
+     549,
+     961,
+     576
+    ]
+   },
+   {
+    "text": "smile",
+    "box": [
+     859,
+     581,
+     933,
+     612
+    ]
+   },
+   {
+    "text": "excuse",
+    "box": [
+     861,
+     626,
+     957,
+     655
+    ]
+   },
+   {
+    "text": "resource",
+    "box": [
+     861,
+     667,
+     987,
+     699
+    ]
+   },
+   {
+    "text": "seat",
+    "box": [
+     864,
+     710,
+     926,
+     738
+    ]
+   },
+   {
+    "text": "kit",
+    "box": [
+     867,
+     752,
+     918,
+     779
+    ]
+   },
+   {
+    "text": "oil",
+    "box": [
+     868,
+     788,
+     913,
+     820
+    ]
+   },
+   {
+    "text": "alert",
+    "box": [
+     864,
+     829,
+     939,
+     863
+    ]
+   },
+   {
+    "text": "bullet",
+    "box": [
+     862,
+     872,
+     949,
+     903
+    ]
+   },
+   {
+    "text": "tomorrow",
+    "box": [
+     863,
+     916,
+     999,
+     946
+    ]
+   },
+   {
+    "text": "poet",
+    "box": [
+     878,
+     953,
+     940,
+     987
+    ]
+   },
+   {
+    "text": "flame",
+    "box": [
+     879,
+     988,
+     962,
+     1028
+    ]
+   },
+   {
+    "text": "credit",
+    "box": [
+     881,
+     1082,
+     969,
+     1111
+    ]
+   },
+   {
+    "text": "debris",
+    "box": [
+     880,
+     1124,
+     968,
+     1157
+    ]
+   },
+   {
+    "text": "slot",
+    "box": [
+     886,
+     1161,
+     950,
+     1196
+    ]
+   },
+   {
+    "text": "dune",
+    "box": [
+     887,
+     1209,
+     958,
+     1242
+    ]
+   },
+   {
+    "text": "ivory",
+    "box": [
+     890,
+     1248,
+     974,
+     1285
+    ]
+   },
+   {
+    "text": "unveil",
+    "box": [
+     886,
+     1289,
+     988,
+     1324
+    ]
+   },
+   {
+    "text": "piece",
+    "box": [
+     897,
+     1338,
+     988,
+     1367
+    ]
+   },
+   {
+    "text": "catalog",
+    "box": [
+     892,
+     1375,
+     1021,
+     1410
+    ]
+   },
+   {
+    "text": "owner",
+    "box": [
+     1145,
+     425,
+     1229,
+     450
+    ]
+   },
+   {
+    "text": "vendor",
+    "box": [
+     1146,
+     462,
+     1226,
+     490
+    ]
+   },
+   {
+    "text": "bargain",
+    "box": [
+     1139,
+     504,
+     1247,
+     536
+    ]
+   },
+   {
+    "text": "share",
+    "box": [
+     1142,
+     544,
+     1212,
+     576
+    ]
+   },
+   {
+    "text": "rug",
+    "box": [
+     1145,
+     585,
+     1205,
+     615
+    ]
+   },
+   {
+    "text": "private",
+    "box": [
+     1142,
+     622,
+     1244,
+     655
+    ]
+   },
+   {
+    "text": "network",
+    "box": [
+     1141,
+     669,
+     1253,
+     698
+    ]
+   },
+   {
+    "text": "nation",
+    "box": [
+     1140,
+     708,
+     1240,
+     741
+    ]
+   },
+   {
+    "text": "believe",
+    "box": [
+     1145,
+     744,
+     1247,
+     784
+    ]
+   },
+   {
+    "text": "horn",
+    "box": [
+     1151,
+     790,
+     1215,
+     822
+    ]
+   },
+   {
+    "text": "scale",
+    "box": [
+     1145,
+     830,
+     1218,
+     859
+    ]
+   },
+   {
+    "text": "inquiry",
+    "box": [
+     1143,
+     875,
+     1245,
+     911
+    ]
+   },
+   {
+    "text": "age",
+    "box": [
+     1151,
+     915,
+     1203,
+     947
+    ]
+   },
+   {
+    "text": "cruise",
+    "box": [
+     1148,
+     960,
+     1239,
+     988
+    ]
+   },
+   {
+    "text": "impulse",
+    "box": [
+     1150,
+     998,
+     1261,
+     1031
+    ]
+   },
+   {
+    "text": "just",
+    "box": [
+     1158,
+     1038,
+     1232,
+     1069
+    ]
+   },
+   {
+    "text": "this",
+    "box": [
+     1163,
+     1078,
+     1230,
+     1112
+    ]
+   },
+   {
+    "text": "space",
+    "box": [
+     1161,
+     1123,
+     1235,
+     1153
+    ]
+   },
+   {
+    "text": "zero",
+    "box": [
+     1164,
+     1167,
+     1241,
+     1195
+    ]
+   },
+   {
+    "text": "vast",
+    "box": [
+     1167,
+     1206,
+     1244,
+     1236
+    ]
+   },
+   {
+    "text": "light",
+    "box": [
+     1167,
+     1248,
+     1253,
+     1279
+    ]
+   },
+   {
+    "text": "column",
+    "box": [
+     1170,
+     1297,
+     1281,
+     1324
+    ]
+   },
+   {
+    "text": "improve",
+    "box": [
+     1179,
+     1338,
+     1290,
+     1370
+    ]
+   },
+   {
+    "text": "innocent",
+    "box": [
+     1165,
+     1379,
+     1305,
+     1410
+    ]
+   },
+   {
+    "text": "wink",
+    "box": [
+     1454,
+     415,
+     1532,
+     442
+    ]
+   },
+   {
+    "text": "young",
+    "box": [
+     1452,
+     453,
+     1546,
+     490
+    ]
+   },
+   {
+    "text": "nation",
+    "box": [
+     1456,
+     501,
+     1554,
+     529
+    ]
+   },
+   {
+    "text": "oxygen",
+    "box": [
+     1459,
+     540,
+     1565,
+     578
+    ]
+   },
+   {
+    "text": "staff",
+    "box": [
+     1458,
+     578,
+     1533,
+     610
+    ]
+   },
+   {
+    "text": "spawn",
+    "box": [
+     1451,
+     618,
+     1543,
+     652
+    ]
+   },
+   {
+    "text": "brand",
+    "box": [
+     1459,
+     668,
+     1541,
+     701
+    ]
+   },
+   {
+    "text": "army",
+    "box": [
+     1457,
+     709,
+     1536,
+     748
+    ]
+   },
+   {
+    "text": "wine",
+    "box": [
+     1450,
+     751,
+     1524,
+     779
+    ]
+   },
+   {
+    "text": "huge",
+    "box": [
+     1464,
+     792,
+     1535,
+     823
+    ]
+   },
+   {
+    "text": "truly",
+    "box": [
+     1456,
+     833,
+     1533,
+     869
+    ]
+   },
+   {
+    "text": "margin",
+    "box": [
+     1453,
+     874,
+     1564,
+     906
+    ]
+   },
+   {
+    "text": "leisure",
+    "box": [
+     1458,
+     920,
+     1574,
+     952
+    ]
+   },
+   {
+    "text": "open",
+    "box": [
+     1465,
+     963,
+     1533,
+     992
+    ]
+   },
+   {
+    "text": "banana",
+    "box": [
+     1467,
+     999,
+     1570,
+     1036
+    ]
+   },
+   {
+    "text": "brand",
+    "box": [
+     1473,
+     1044,
+     1553,
+     1077
+    ]
+   },
+   {
+    "text": "road",
+    "box": [
+     1472,
+     1083,
+     1547,
+     1120
+    ]
+   },
+   {
+    "text": "wrap",
+    "box": [
+     1472,
+     1129,
+     1543,
+     1162
+    ]
+   },
+   {
+    "text": "pigeon",
+    "box": [
+     1472,
+     1169,
+     1589,
+     1207
+    ]
+   },
+   {
+    "text": "design",
+    "box": [
+     1474,
+     1213,
+     1587,
+     1245
+    ]
+   },
+   {
+    "text": "armor",
+    "box": [
+     1479,
+     1251,
+     1572,
+     1293
+    ]
+   },
+   {
+    "text": "excess",
+    "box": [
+     1477,
+     1302,
+     1584,
+     1339
+    ]
+   },
+   {
+    "text": "brief",
+    "box": [
+     1480,
+     1345,
+     1560,
+     1377
+    ]
+   },
+   {
+    "text": "kiwi",
+    "box": [
+     1486,
+     1383,
+     1555,
+     1414
+    ]
+   }
+  ]
+ },
+ {
+  "file": "img10.png",
+  "source": "https://bitcoinmagazine.com/guides/how-to-use-the-seedsigner-bitcoin-wallet",
+  "image_url": "https://bitcoinmagazine.com/wp-content/uploads/2024/11/seedsigner-bitcoin-wallet-recovery-phrase.jpg",
+  "style": "caps",
+  "background": "printed SeedSigner-style ruled sheet on plain paper, finger covers word 1, downscaled from 4032px",
+  "words": [
+   {
+    "text": "tragic",
+    "box": [
+     323,
+     585,
+     496,
+     621
+    ]
+   },
+   {
+    "text": "trend",
+    "box": [
+     320,
+     636,
+     497,
+     676
+    ]
+   },
+   {
+    "text": "sense",
+    "box": [
+     328,
+     690,
+     492,
+     721
+    ]
+   },
+   {
+    "text": "script",
+    "box": [
+     321,
+     737,
+     494,
+     776
+    ]
+   },
+   {
+    "text": "virus",
+    "box": [
+     315,
+     793,
+     446,
+     829
+    ]
+   },
+   {
+    "text": "predict",
+    "box": [
+     304,
+     842,
+     506,
+     886
+    ]
+   },
+   {
+    "text": "apology",
+    "box": [
+     290,
+     897,
+     512,
+     956
+    ]
+   },
+   {
+    "text": "cheap",
+    "box": [
+     282,
+     953,
+     457,
+     999
+    ]
+   },
+   {
+    "text": "wait",
+    "box": [
+     280,
+     1015,
+     436,
+     1063
+    ]
+   },
+   {
+    "text": "usage",
+    "box": [
+     281,
+     1073,
+     443,
+     1120
+    ]
+   },
+   {
+    "text": "ignore",
+    "box": [
+     269,
+     1132,
+     450,
+     1182
+    ]
+   },
+   {
+    "text": "margin",
+    "box": [
+     692,
+     528,
+     880,
+     572
+    ]
+   },
+   {
+    "text": "winner",
+    "box": [
+     697,
+     576,
+     885,
+     617
+    ]
+   },
+   {
+    "text": "fiber",
+    "box": [
+     695,
+     628,
+     837,
+     664
+    ]
+   },
+   {
+    "text": "novel",
+    "box": [
+     707,
+     686,
+     856,
+     719
+    ]
+   },
+   {
+    "text": "arrive",
+    "box": [
+     697,
+     730,
+     876,
+     769
+    ]
+   },
+   {
+    "text": "universe",
+    "box": [
+     691,
+     784,
+     928,
+     826
+    ]
+   },
+   {
+    "text": "daughter",
+    "box": [
+     685,
+     839,
+     943,
+     886
+    ]
+   },
+   {
+    "text": "seek",
+    "box": [
+     689,
+     898,
+     828,
+     936
+    ]
+   },
+   {
+    "text": "animal",
+    "box": [
+     685,
+     943,
+     894,
+     989
+    ]
+   },
+   {
+    "text": "obey",
+    "box": [
+     680,
+     1008,
+     831,
+     1077
+    ]
+   },
+   {
+    "text": "weird",
+    "box": [
+     683,
+     1128,
+     879,
+     1174
+    ]
+   }
+  ]
+ },
+ {
+  "file": "img11.png",
+  "source": "https://bitcoinmagazine.com/guides/how-to-bitcoin-seed-backup-roninsteel",
+  "image_url": "https://bitcoinmagazine.com/wp-content/uploads/2024/11/img_6032.jpg",
+  "style": "caps",
+  "background": "ruled spiral notebook paper; 4-letter abbreviations of a 12-word demo seed, downscaled from 4032px",
+  "words": [
+   {
+    "text": "poss",
+    "box": [
+     521,
+     321,
+     616,
+     359
+    ]
+   },
+   {
+    "text": "heal",
+    "box": [
+     513,
+     366,
+     622,
+     401
+    ]
+   },
+   {
+    "text": "nove",
+    "box": [
+     512,
+     407,
+     633,
+     440
+    ]
+   },
+   {
+    "text": "mule",
+    "box": [
+     509,
+     444,
+     644,
+     477
+    ]
+   },
+   {
+    "text": "brig",
+    "box": [
+     515,
+     484,
+     638,
+     520
+    ]
+   },
+   {
+    "text": "wort",
+    "box": [
+     510,
+     521,
+     648,
+     553
+    ]
+   },
+   {
+    "text": "bala",
+    "box": [
+     513,
+     565,
+     629,
+     598
+    ]
+   },
+   {
+    "text": "cook",
+    "box": [
+     509,
+     603,
+     635,
+     637
+    ]
+   },
+   {
+    "text": "supp",
+    "box": [
+     510,
+     640,
+     634,
+     676
+    ]
+   },
+   {
+    "text": "exci",
+    "box": [
+     505,
+     679,
+     631,
+     715
+    ]
+   },
+   {
+    "text": "indu",
+    "box": [
+     505,
+     723,
+     632,
+     754
+    ]
+   },
+   {
+    "text": "mino",
+    "box": [
+     507,
+     757,
+     645,
+     789
+    ]
+   }
+  ]
+ },
+ {
+  "file": "img12.png",
+  "source": "https://bitcoinmagazine.com/guides/how-to-use-bitplates-domino-bitcoin-seed",
+  "image_url": "https://bitcoinmagazine.com/wp-content/uploads/2024/11/img_6052.jpg",
+  "style": "mixed",
+  "background": "Coldcard Wallet Backup Card (grid boxes), full resolution",
+  "words": [
+   {
+    "text": "head",
+    "box": [
+     194,
+     771,
+     348,
+     833
+    ]
+   },
+   {
+    "text": "novel",
+    "box": [
+     192,
+     852,
+     375,
+     908
+    ]
+   },
+   {
+    "text": "digital",
+    "box": [
+     187,
+     927,
+     391,
+     985
+    ]
+   },
+   {
+    "text": "step",
+    "box": [
+     208,
+     1000,
+     352,
+     1052
+    ]
+   },
+   {
+    "text": "urban",
+    "box": [
+     190,
+     1079,
+     401,
+     1136
+    ]
+   },
+   {
+    "text": "public",
+    "box": [
+     187,
+     1157,
+     391,
+     1213
+    ]
+   },
+   {
+    "text": "throw",
+    "box": [
+     178,
+     1231,
+     413,
+     1295
+    ]
+   },
+   {
+    "text": "light",
+    "box": [
+     190,
+     1306,
+     369,
+     1364
+    ]
+   },
+   {
+    "text": "caught",
+    "box": [
+     186,
+     1375,
+     430,
+     1440
+    ]
+   },
+   {
+    "text": "half",
+    "box": [
+     193,
+     1454,
+     340,
+     1524
+    ]
+   },
+   {
+    "text": "advice",
+    "box": [
+     178,
+     1525,
+     388,
+     1586
+    ]
+   },
+   {
+    "text": "tag",
+    "box": [
+     190,
+     1611,
+     331,
+     1679
+    ]
+   },
+   {
+    "text": "arch",
+    "box": [
+     646,
+     770,
+     803,
+     830
+    ]
+   },
+   {
+    "text": "mixture",
+    "box": [
+     637,
+     856,
+     880,
+     909
+    ]
+   },
+   {
+    "text": "fit",
+    "box": [
+     657,
+     924,
+     762,
+     986
+    ]
+   },
+   {
+    "text": "master",
+    "box": [
+     638,
+     1004,
+     876,
+     1061
+    ]
+   },
+   {
+    "text": "fork",
+    "box": [
+     649,
+     1074,
+     798,
+     1138
+    ]
+   },
+   {
+    "text": "basic",
+    "box": [
+     637,
+     1149,
+     816,
+     1217
+    ]
+   },
+   {
+    "text": "beach",
+    "box": [
+     638,
+     1231,
+     827,
+     1291
+    ]
+   },
+   {
+    "text": "urge",
+    "box": [
+     642,
+     1307,
+     798,
+     1360
+    ]
+   },
+   {
+    "text": "eternal",
+    "box": [
+     637,
+     1373,
+     857,
+     1440
+    ]
+   },
+   {
+    "text": "october",
+    "box": [
+     633,
+     1463,
+     885,
+     1518
+    ]
+   },
+   {
+    "text": "brush",
+    "box": [
+     643,
+     1521,
+     846,
+     1589
+    ]
+   },
+   {
+    "text": "foil",
+    "box": [
+     643,
+     1589,
+     775,
+     1671
+    ]
+   },
+   {
+    "text": "output",
+    "box": [
+     145,
+     591,
+     384,
+     643
+    ]
+   },
+   {
+    "text": "farm",
+    "box": [
+     651,
+     583,
+     795,
+     652
+    ]
+   }
+  ]
+ },
+ {
+  "file": "img13.png",
+  "source": "https://bitcoinmagazine.com/guides/how-to-use-bitplates-domino-bitcoin-seed",
+  "image_url": "https://bitcoinmagazine.com/wp-content/uploads/2024/11/img_6051.jpg",
+  "style": "mixed",
+  "background": "Coldcard Wallet Backup Card (grid boxes), same card as img12 in a different shot, full resolution",
+  "words": [
+   {
+    "text": "head",
+    "box": [
+     2814,
+     592,
+     2939,
+     642
+    ]
+   },
+   {
+    "text": "novel",
+    "box": [
+     2813,
+     656,
+     2961,
+     707
+    ]
+   },
+   {
+    "text": "digital",
+    "box": [
+     2809,
+     719,
+     2974,
+     772
+    ]
+   },
+   {
+    "text": "step",
+    "box": [
+     2827,
+     783,
+     2940,
+     829
+    ]
+   },
+   {
+    "text": "urban",
+    "box": [
+     2813,
+     849,
+     2985,
+     898
+    ]
+   },
+   {
+    "text": "public",
+    "box": [
+     2813,
+     914,
+     2978,
+     961
+    ]
+   },
+   {
+    "text": "throw",
+    "box": [
+     2807,
+     976,
+     2997,
+     1031
+    ]
+   },
+   {
+    "text": "light",
+    "box": [
+     2817,
+     1039,
+     2965,
+     1088
+    ]
+   },
+   {
+    "text": "caught",
+    "box": [
+     2814,
+     1096,
+     3014,
+     1152
+    ]
+   },
+   {
+    "text": "half",
+    "box": [
+     2816,
+     1162,
+     2940,
+     1219
+    ]
+   },
+   {
+    "text": "advice",
+    "box": [
+     2811,
+     1221,
+     2981,
+     1272
+    ]
+   },
+   {
+    "text": "tag",
+    "box": [
+     2822,
+     1292,
+     2937,
+     1349
+    ]
+   },
+   {
+    "text": "arch",
+    "box": [
+     3181,
+     579,
+     3312,
+     632
+    ]
+   },
+   {
+    "text": "mixture",
+    "box": [
+     3175,
+     653,
+     3376,
+     700
+    ]
+   },
+   {
+    "text": "fit",
+    "box": [
+     3191,
+     712,
+     3279,
+     764
+    ]
+   },
+   {
+    "text": "master",
+    "box": [
+     3177,
+     778,
+     3373,
+     826
+    ]
+   },
+   {
+    "text": "fork",
+    "box": [
+     3188,
+     840,
+     3311,
+     893
+    ]
+   },
+   {
+    "text": "basic",
+    "box": [
+     3178,
+     904,
+     3329,
+     961
+    ]
+   },
+   {
+    "text": "beach",
+    "box": [
+     3180,
+     972,
+     3338,
+     1026
+    ]
+   },
+   {
+    "text": "urge",
+    "box": [
+     3185,
+     1038,
+     3317,
+     1084
+    ]
+   },
+   {
+    "text": "eternal",
+    "box": [
+     3182,
+     1095,
+     3366,
+     1152
+    ]
+   },
+   {
+    "text": "october",
+    "box": [
+     3180,
+     1172,
+     3392,
+     1219
+    ]
+   },
+   {
+    "text": "brush",
+    "box": [
+     3188,
+     1221,
+     3360,
+     1279
+    ]
+   },
+   {
+    "text": "foil",
+    "box": [
+     3190,
+     1278,
+     3302,
+     1350
+    ]
+   }
+  ]
+ },
+ {
+  "file": "img14.png",
+  "source": "https://github.com/penlock-io/bitcoin-vision",
+  "image_url": "https://raw.githubusercontent.com/penlock-io/bitcoin-vision/main/words/examples/photos/handwritten.png",
+  "style": "mixed",
+  "background": "plain grey paper, dim light; same test sheet as img05 but a separate photo, downscaled from 3456x4608",
+  "words": [
+   {
+    "text": "shop",
+    "box": [
+     320,
+     67,
+     550,
+     241
+    ]
+   },
+   {
+    "text": "exhaust",
+    "box": [
+     268,
+     225,
+     699,
+     394
+    ]
+   },
+   {
+    "text": "erase",
+    "box": [
+     268,
+     457,
+     603,
+     556
+    ]
+   },
+   {
+    "text": "demand",
+    "box": [
+     265,
+     572,
+     689,
+     722
+    ]
+   },
+   {
+    "text": "switch",
+    "box": [
+     260,
+     764,
+     645,
+     882
+    ]
+   },
+   {
+    "text": "powder",
+    "box": [
+     276,
+     923,
+     633,
+     1052
+    ]
+   },
+   {
+    "text": "now",
+    "box": [
+     1382,
+     158,
+     1578,
+     253
+    ]
+   },
+   {
+    "text": "fault",
+    "box": [
+     1363,
+     284,
+     1619,
+     417
+    ]
+   },
+   {
+    "text": "anchor",
+    "box": [
+     1332,
+     466,
+     1669,
+     585
+    ]
+   },
+   {
+    "text": "enact",
+    "box": [
+     1324,
+     588,
+     1650,
+     733
+    ]
+   },
+   {
+    "text": "rather",
+    "box": [
+     1312,
+     752,
+     1648,
+     874
+    ]
+   },
+   {
+    "text": "cook",
+    "box": [
+     1319,
+     897,
+     1610,
+     1038
+    ]
+   }
+  ]
+ },
+ {
+  "file": "img15.png",
+  "source": "https://bitcoinmagazine.com/guides/seesigner-bitcoin-wallet-seed-transcription",
+  "image_url": "https://bitcoinmagazine.com/wp-content/uploads/2024/11/seedsigner-bitcoin-wallet-seed-transcription.jpg",
+  "style": "caps",
+  "background": "printed ruled seed sheet on plain paper, video thumbnail 1280x720, slightly blurry, hand covers words 1-4 and 13-15",
+  "words": [
+   {
+    "text": "rude",
+    "box": [
+     110,
+     374,
+     196,
+     401
+    ]
+   },
+   {
+    "text": "real",
+    "box": [
+     100,
+     409,
+     186,
+     434
+    ]
+   },
+   {
+    "text": "best",
+    "box": [
+     100,
+     444,
+     191,
+     473
+    ]
+   },
+   {
+    "text": "together",
+    "box": [
+     85,
+     482,
+     243,
+     511
+    ]
+   },
+   {
+    "text": "attack",
+    "box": [
+     82,
+     514,
+     196,
+     546
+    ]
+   },
+   {
+    "text": "mandate",
+    "box": [
+     77,
+     559,
+     221,
+     588
+    ]
+   },
+   {
+    "text": "crucial",
+    "box": [
+     70,
+     599,
+     218,
+     631
+    ]
+   },
+   {
+    "text": "wrestle",
+    "box": [
+     63,
+     639,
+     228,
+     668
+    ]
+   },
+   {
+    "text": "live",
+    "box": [
+     350,
+     339,
+     438,
+     368
+    ]
+   },
+   {
+    "text": "jelly",
+    "box": [
+     353,
+     372,
+     466,
+     413
+    ]
+   },
+   {
+    "text": "kind",
+    "box": [
+     350,
+     412,
+     446,
+     441
+    ]
+   },
+   {
+    "text": "junk",
+    "box": [
+     343,
+     449,
+     443,
+     476
+    ]
+   },
+   {
+    "text": "police",
+    "box": [
+     335,
+     479,
+     448,
+     511
+    ]
+   },
+   {
+    "text": "arrive",
+    "box": [
+     328,
+     517,
+     448,
+     551
+    ]
+   },
+   {
+    "text": "kit",
+    "box": [
+     338,
+     562,
+     406,
+     593
+    ]
+   },
+   {
+    "text": "clinic",
+    "box": [
+     330,
+     602,
+     468,
+     633
+    ]
+   },
+   {
+    "text": "human",
+    "box": [
+     325,
+     642,
+     476,
+     676
+    ]
+   }
+  ]
+ },
+ {
+  "file": "img16.png",
+  "source": "https://github.com/PlanB-Network/bitcoin-educational-content/tree/dev/tutorials/wallet/generate-mnemonic-phrase",
+  "image_url": "https://raw.githubusercontent.com/PlanB-Network/bitcoin-educational-content/dev/tutorials/wallet/generate-mnemonic-phrase/assets/notext/26.webp",
+  "style": "lower",
+  "background": "plain white paper with binary/decimal working (dice-to-words tutorial), words in rightmost column, 1280x720",
+  "words": [
+   {
+    "text": "strike",
+    "box": [
+     773,
+     9,
+     846,
+     40
+    ]
+   },
+   {
+    "text": "talk",
+    "box": [
+     773,
+     72,
+     831,
+     97
+    ]
+   },
+   {
+    "text": "correct",
+    "box": [
+     770,
+     127,
+     840,
+     155
+    ]
+   },
+   {
+    "text": "shaft",
+    "box": [
+     779,
+     173,
+     842,
+     209
+    ]
+   },
+   {
+    "text": "advice",
+    "box": [
+     781,
+     234,
+     851,
+     259
+    ]
+   },
+   {
+    "text": "barrel",
+    "box": [
+     787,
+     279,
+     860,
+     321
+    ]
+   },
+   {
+    "text": "slab",
+    "box": [
+     787,
+     341,
+     839,
+     370
+    ]
+   },
+   {
+    "text": "topple",
+    "box": [
+     785,
+     394,
+     849,
+     429
+    ]
+   },
+   {
+    "text": "wisdom",
+    "box": [
+     783,
+     457,
+     862,
+     485
+    ]
+   },
+   {
+    "text": "pass",
+    "box": [
+     789,
+     537,
+     829,
+     559
+    ]
+   },
+   {
+    "text": "since",
+    "box": [
+     787,
+     596,
+     844,
+     617
+    ]
+   },
+   {
+    "text": "relief",
+    "box": [
+     789,
+     648,
+     853,
+     702
+    ]
+   }
+  ]
+ }
+]

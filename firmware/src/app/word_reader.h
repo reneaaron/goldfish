@@ -1,0 +1,44 @@
+#pragma once
+#include <stdint.h>
+
+// Reads one handwritten BIP-39 word from a strip: one row of a straightened
+// photo of a backup, WR_H x WR_W grayscale, the word's letters filling about
+// two thirds of the height, an optional row number in front ("7", "7.", "7)").
+// Capitals, lowercase or mixed. Experimental.
+//
+// A small convolutional network (word_model.h, trained by
+// handwriting/train_words.py, exported by handwriting/export_words.py) gives,
+// for 48 steps across the strip, the probability of each letter, digit, '.',
+// ')' or nothing. The letters are never spelled out on their own: every
+// BIP-39 word (and the first 4 letters of the longer ones, the usual short
+// form) is scored by its best path through those probabilities (CTC), and the
+// best word is offered only if it clearly beats the runner-up.
+//
+// Integer maths (int8 weights, int16 activations), bit for bit the same as
+// qforward() in export_words.py. Strips and buffers can show seed words:
+// word_reader_free() wipes them.
+
+#define WR_H 32
+#define WR_W 192
+#define WR_T 48             // steps across the strip
+#define WR_C 39             // blank, A-Z, 0-9, '.', ')'
+#define WR_MIN_MARGIN 5.0f  // natural log: the word must be ~150x likelier than the next
+
+struct WordResult {
+    int word;       // BIP-39 index of the best word, -1 if none
+    float margin;   // its score lead over the next best word
+};
+
+bool word_reader_init();    // allocates the network's buffers (~72 KB)
+void word_reader_free();
+
+// allowed: which word indexes may be picked (nullptr = all). True when the
+// best word leads by WR_MIN_MARGIN; out is filled either way.
+bool word_reader_read(const uint8_t *strip, bool (*allowed)(int), WordResult *out);
+
+// Exposed for tests.
+void word_reader_normalise(const uint8_t *strip, int16_t *in);   // WR_H * WR_W
+// Log-probabilities, WR_T x WR_C; t2: the last hidden layer (96 x WR_T), or nullptr.
+void word_reader_logp(const uint8_t *strip, float *logp, int16_t *t2);
+// Best-path word scores from log-probabilities.
+void word_reader_decode(const float *logp, bool (*allowed)(int), WordResult *out);

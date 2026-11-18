@@ -9,3 +9,5 @@ fuzz/corpus/
 fuzz/crashes*/
 fuzz/crash-*
 oracle/out/
+handwriting/out/
+handwriting/data/

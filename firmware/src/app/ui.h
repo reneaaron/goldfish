@@ -16,6 +16,12 @@
 //        -> Multisig wallet (M of N, key fingerprints, first address) -> Use wallet
 //        -> back to that scanner, which now takes the wallet's transactions / addresses
 //   Home -> Enter words (12, or 24 from the first word) -> one screen per word -> Seed loaded
+//        camera -> Scan words (a photo of the written backup, experimental) -> Read
+//        -> Reading words -> Check words (12 or 24, from how many were found): the
+//        words in order, "?" where unread; tap one -> its picture -> Change /
+//        Remove / Add a word before (keyboard, then back to the list) -> "Matches
+//        my paper" once there are 12/24 words with a valid checksum -> Seed loaded
+//   Scan seed -> "Written words instead?" -> Scan words
 //   Home -> New seed (12 words) -> dice rolls | coin flips | draw words + coins for the last
 //        -> offline warning -> write down the words -> QR card? (whole SeedQR,
 //        each block, optional card check) -> Seed ready (not loaded) -> Home
@@ -54,6 +60,10 @@ enum UiScreen {
     UI_SEED_READY,       // end of New seed: fingerprint, nothing loaded
     UI_CHILD_INDEX,      // BIP-85 child seed: child number keypad, 12 words
     UI_MULTISIG,         // a scanned multisig descriptor, to check before it is used
+    UI_SCAN_PAGE,        // photo of a handwritten backup, from Enter words
+    UI_PAGE_READING,     // progress while the page's words are read
+    UI_PAGE_REVIEW,      // the words found, as one list to check against the paper
+    UI_PAGE_WORD,        // one of them: its picture; change, remove, or add one before it
 };
 
 void ui_build();               // shows the home screen
@@ -76,6 +86,17 @@ void ui_backup_next();         // "Next part"
 const uint8_t *ui_backup_qr();
 // "Continue" on the child number screen: derive the BIP-85 child, start its card flow.
 void ui_child_seed(uint32_t index);
+bool ui_page_read();           // "Read words" on Scan words: false if there's no picture
+int ui_page_count();           // words on the Check words list
+int ui_page_slot(int i);       // its word i (BIP-39 index), -1 if unread
+void ui_page_open(int i);      // tap row i: its own screen
+void ui_page_type();           // there: "Change" / "Type it" (keyboard, then back to the list)
+void ui_page_insert();         // there: "Add a word before this"
+void ui_page_remove();         // there: remove it from the list
+void ui_page_add();            // on the list: "add a word" at the end
+bool ui_page_confirm();        // "Matches my paper": loads the seed; false if not ready
+int ui_page_suggestion();      // on the last word's screen: the word that fits the checksum, or -1
+void ui_page_use_suggestion(); // tap it
 void ui_child_digit(int k);           // a keypad digit 0-9, or -1 for Del
 const char *ui_child_number();        // the child number as typed
 // A key of the passphrase keyboard, by its label: one character, or "space",
