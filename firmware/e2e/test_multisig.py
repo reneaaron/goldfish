@@ -179,11 +179,11 @@ def test_wallets_we_are_not_in_are_refused(dev):
     dev.tap("Sign transaction")
     # Three other people's keys.
     dev.scan(Wallet.multisig(2, [c.key(BIP48) for c in COSIGNERS[:3]]).descriptor())
-    assert dev.screen == "SCAN_PSBT" and "Different wallet" in dev.text()
+    assert dev.screen == "SCAN_PSBT" and "Wrong descriptor" in dev.text()
     # Our fingerprint on somebody else's key: the fingerprint proves nothing.
     forged = COSIGNERS[2].key(BIP48).replace(COSIGNERS[2].fingerprint, SIGNER.fingerprint)
     dev.scan(Wallet.multisig(2, [forged] + [c.key(BIP48) for c in COSIGNERS[:2]]).descriptor())
-    assert dev.screen == "SCAN_PSBT" and "Different wallet" in dev.text()
+    assert dev.screen == "SCAN_PSBT" and "Wrong descriptor" in dev.text()
     # Not sortedmulti.
     dev.scan(two_of_three().descriptor().split("#")[0].replace("sortedmulti", "multi"))
     assert dev.screen == "SCAN_PSBT" and "Not supported yet" in dev.text()

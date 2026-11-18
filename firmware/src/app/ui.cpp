@@ -208,11 +208,11 @@ static void descriptor_result(MsResult r) {
         ur_decoder_reset(&ur_dec);
         ui_goto(UI_MULTISIG);
     } else if (r == MS_NOT_OURS) {
-        scan_status("Different wallet", "This seed isn't one of its keys", AMBER);
+        scan_status("Wrong descriptor", "This seed isn't one of its keys", AMBER);
     } else if (r == MS_UNSUPPORTED) {
         scan_status("Not supported yet", "Only wsh(sortedmulti) multisig", AMBER);
     } else {
-        scan_status("Damaged descriptor", "Export it again from your wallet", RED);
+        scan_status("Damaged descriptor", "Export it again", RED);
     }
 }
 
@@ -236,7 +236,7 @@ static void handle_ur(QrPayload &p) {
         MsResult m = ur_dec.type == UR_TYPE_OUTPUT ? multisig_load_ur_output(payload, plen)
                                                    : multisig_load((const char *)payload, plen);
         if (m != MS_NOT_DESCRIPTOR) descriptor_result(m);
-        else if (sign) scan_status("Not a transaction", "Show the transaction QR instead", AMBER);
+        else if (sign) scan_status("Not a transaction", "Show a transaction QR", AMBER);
         else scan_status("Not an address", "Show the receive address QR", AMBER);
     } else if (r == UR_PROGRESS) {
         char m[32];
@@ -245,7 +245,7 @@ static void handle_ur(QrPayload &p) {
         lv_obj_remove_flag(scan_bar, LV_OBJ_FLAG_HIDDEN);
         lv_bar_set_value(scan_bar, ur_decoder_percent(&ur_dec), LV_ANIM_ON);
     } else if (r == UR_WRONG_TYPE) {
-        if (sign) scan_status("Not a transaction", "Show the transaction QR instead", AMBER);
+        if (sign) scan_status("Not a transaction", "Show a transaction QR", AMBER);
         else scan_status("Not an address", "Show the receive address QR", AMBER);
     }
 }
@@ -270,14 +270,14 @@ static void handle_psbt_payload(QrPayload &p) {
         }
     }
     if (p.len >= 5 && memcmp(p.data, "psbt\xff", 5) == 0) { psbt_complete(p.data, p.len); return; }
-    if (starts_with_ci(p, "B$")) { scan_status("BBQr isn't supported yet", "Switch your wallet to UR", AMBER); return; }
+    if (starts_with_ci(p, "B$")) { scan_status("BBQr not supported", "Export it as UR instead", AMBER); return; }
     if (handle_descriptor_text(p)) return;
 
     SeedEntropy e;
     bool seed = seedqr_decode(p.data, p.len, &e) == SEEDQR_OK;
     seedqr_wipe(&e);
     if (seed) scan_status("That's a seed", "A seed is already loaded", AMBER);
-    else scan_status("Not a transaction", "Show the transaction QR instead", AMBER);
+    else scan_status("Not a transaction", "Show a transaction QR", AMBER);
 }
 
 static void handle_address_payload(QrPayload &p) {
@@ -288,14 +288,14 @@ static void handle_address_payload(QrPayload &p) {
         return;
     }
     if (r == ADDR_UNSUPPORTED) { scan_status("Not supported yet", "Only bc1q addresses for now", AMBER); return; }
-    if (r == ADDR_NEEDS_DESCRIPTOR) { scan_status("Multisig address", "Scan the wallet's descriptor first", AMBER); return; }
+    if (r == ADDR_NEEDS_DESCRIPTOR) { scan_status("Multisig address", "Scan the descriptor first", AMBER); return; }
     if (looks_like_psbt(p)) { scan_status("That's a transaction", "Use Sign transaction instead", AMBER); return; }
     if (starts_with_ci(p, "ur:")) { handle_ur(p); return; }
     if (handle_descriptor_text(p)) return;
     SeedEntropy e;
     bool seed = seedqr_decode(p.data, p.len, &e) == SEEDQR_OK;
     seedqr_wipe(&e);
-    if (seed) scan_status("That's a seed", "Show a receive address instead", AMBER);
+    if (seed) scan_status("That's a seed", "Show a receive address", AMBER);
     else scan_status("Not an address", "Show the receive address QR", AMBER);
 }
 
@@ -371,10 +371,10 @@ static void build_scan(ScanMode mode) {
     if (mode == SCAN_PSBT || mode == SCAN_ADDRESS) ur_decoder_reset(&ur_dec);
     lv_obj_t *scr = screen();
     static const char *titles[] = {"Scan seed", "Scan transaction", "Verify address", "Check card", "Scan words"};
-    static const char *prompts[] = {"Point at your seed QR", "Point at your wallet's QR", "Point at the address QR",
+    static const char *prompts[] = {"Point at your seed QR", "Point at the transaction", "Point at the address QR",
                                     "Point at your new card", "Fit all the words in view"};
-    static const char *hints[] = {"Hold it flat and well lit", "Sparrow, Nunchuk or any PSBT wallet",
-                                  "The receive address in your wallet", "It must hold the seed you just made", ""};
+    static const char *hints[] = {"Hold it flat and well lit", "Animated QRs work too",
+                                  "A bc1q receive address", "The seed you just made", ""};
     topbar(scr, titles[mode], scan_back_cb);
 
     preview_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
@@ -391,9 +391,16 @@ static void build_scan(ScanMode mode) {
     else corners(scr, W / 2, BAR + PREV_H / 2, 150, 150);
 
     // a page has the Read button below the preview: the prompt goes in one small line
-    scan_msg = text(scr, prompts[mode], mode == SCAN_PAGE ? &inter_13 : &inter_17_semi, mode == SCAN_PAGE ? TEXT_2 : TEXT);
+    scan_msg = text(scr, prompts[mode], mode == SCAN_PAGE ? &inter_13 : &inter_17_semi, mode == SCAN_PAGE ? TEXT_2 : TEXT,
+                    LV_TEXT_ALIGN_CENTER);
     lv_obj_align(scan_msg, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + (mode == SCAN_PAGE ? 6 : 14));
-    scan_sub = text(scr, hints[mode], &inter_13, TEXT_3);
+    scan_sub = text(scr, hints[mode], &inter_13, TEXT_3, LV_TEXT_ALIGN_CENTER);
+    // one line each, kept off the screen edge: status texts are written to fit, this only catches a slip
+    lv_obj_t *lines[] = {scan_msg, scan_sub};
+    for (lv_obj_t *l : lines) {
+        lv_obj_set_width(l, CW);
+        lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+    }
     (void)seed;
     lv_obj_align(scan_sub, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + 40);
 
@@ -1970,9 +1977,9 @@ static void handle_confirm_payload(QrPayload &p) {
         ui_goto(UI_SEED_READY);
         return;
     }
-    if (r == SEEDQR_OK) scan_status("Wrong seed", "This card holds a different seed", RED);
+    if (r == SEEDQR_OK) scan_status("Wrong seed", "This card has another seed", RED);
     else if (r == SEEDQR_BAD_CHECKSUM || r == SEEDQR_BAD_WORD_INDEX) scan_status("Damaged QR", "Check the squares again", RED);
-    else scan_status("No seed found", "Some squares are probably off", AMBER);
+    else scan_status("No seed found", "Some squares look off", AMBER);
 }
 
 // ---------------------------------------------------------------- BIP-85 child seed
