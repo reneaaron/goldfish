@@ -108,8 +108,10 @@ static void kb_style(lv_obj_t *kb) {
 
 static void build_home() {
     lv_obj_t *scr = screen();
-    lv_obj_align(icon_badge(scr, ICON_SIGNER, ACCENT, ACCENT_DIM, 56), LV_ALIGN_TOP_MID, 0, 12);
-    lv_obj_align(text(scr, "Signer", &fraunces_32, TEXT), LV_ALIGN_TOP_MID, 0, 76);
+    lv_obj_t *logo = lv_image_create(scr);
+    lv_image_set_src(logo, &hermitkey_56);
+    lv_obj_align(logo, LV_ALIGN_TOP_MID, 0, 12);
+    lv_obj_align(text(scr, "Hermitkey", &fraunces_32, TEXT), LV_ALIGN_TOP_MID, 0, 76);
     lv_obj_align(para(scr, "Your seed stays in memory only, until you unplug."), LV_ALIGN_TOP_MID, 0, 116);
     // Which build this is, to compare with the one the flasher offers.
     lv_obj_align(text(scr, FW_VERSION, &inter_13, TEXT_3), LV_ALIGN_TOP_RIGHT, -8, 6);
