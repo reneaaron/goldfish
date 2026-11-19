@@ -24,10 +24,10 @@ SCREENS = os.path.join(ROOT, "firmware", "docs", "screens")
 OUT = os.path.join(HERE, "out")
 os.makedirs(OUT, exist_ok=True)
 
-ZB, ZT = -1.68, 0.09               # case bottom / rim top (cm)
-GW, GH, GR = 3.71, 5.88, 0.26      # cover glass
-SW, SH, SCY = 3.10, 4.12, 0.129    # active display (240x320), centre y
-CAMY = 0.8                         # lens hole centre y
+ZB, ZT = -1.80, 0.0                # case bottom / top of the glass (cm)
+GW, GH, GR, GT, GE = 3.71, 5.88, 0.26, 0.11, 0.10  # cover glass on the case rim, top edge radius
+SW, SH, SCY = 3.10, 4.12, 0.139    # active display (240x320), centre y
+CAMY, LENSZ = 0.515, -1.505        # lens centre y, front of the lens
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
@@ -44,13 +44,17 @@ def mat(name, color, rough=0.5, metal=0.0, coat=0.0):
     return m
 
 
-def rounded_box(name, w, h, d, r, edge, material, parent, loc=(0, 0, 0)):
+def rounded_box(name, w, h, d, r, edge, material, parent, loc=(0, 0, 0), top_edge=0):
     me = bpy.data.meshes.new(name)
     bm = bmesh.new()
     bmesh.ops.create_cube(bm, size=1.0)
     bmesh.ops.scale(bm, vec=(w, h, d), verts=bm.verts)
     vert_edges = [e for e in bm.edges if abs((e.verts[0].co - e.verts[1].co).normalized().z) > 0.99]
     bmesh.ops.bevel(bm, geom=vert_edges, offset=r, segments=12, affect='EDGES', profile=0.5)
+    if top_edge > 0:   # round only the top rim, like 2.5D cover glass
+        rim = [e for e in bm.edges if all(abs(v.co.z - d / 2) < 1e-6 for v in e.verts)
+               and len(e.link_faces) == 2 and any(abs(f.normal.z) < 0.99 for f in e.link_faces)]
+        bmesh.ops.bevel(bm, geom=rim, offset=top_edge, segments=16, affect='EDGES', profile=0.5)
     bm.to_mesh(me); bm.free()
     ob = bpy.data.objects.new(name, me)
     bpy.context.collection.objects.link(ob)
@@ -68,7 +72,8 @@ def rounded_box(name, w, h, d, r, edge, material, parent, loc=(0, 0, 0)):
 
 m_glass = mat("glass", (0.004, 0.004, 0.004, 1), rough=0.03, coat=1.0)
 m_dark = mat("interior", (0.01, 0.01, 0.01, 1), rough=0.8)
-m_metal = mat("metal", (0.6, 0.6, 0.62, 1), rough=0.25, metal=1.0)
+m_metal = mat("metal", (0.85, 0.85, 0.87, 1), rough=0.45, metal=1.0)
+m_gold = mat("gold", (0.9, 0.65, 0.25, 1), rough=0.3, metal=1.0)
 m_lens = mat("lens", (0.01, 0.012, 0.05, 1), rough=0.02, coat=1.0)
 
 _screen_mats = {}
@@ -102,6 +107,27 @@ bpy.ops.object.shade_auto_smooth(angle=math.radians(35))
 CASE_SRC.hide_render = True; CASE_SRC.hide_viewport = True
 
 
+USB_FRONT, USB_Z = -2.57, -0.883     # front of the USB-C socket (cm), its centre height
+
+
+def usb_receptacle(name, root):
+    """USB-C socket: a steel shell open at the front, dark inside, with the
+    contact tongue in the middle (8.94 x 3.26 mm shell, 0.3 mm sheet)."""
+    shell = rounded_box(name + "_usb", 0.894, 0.735, 0.326, 0.162, 0.0, m_metal, root,
+                        (0, USB_FRONT + 0.3675, USB_Z))
+    cut = rounded_box(name + "_usbcut", 0.834, 0.62, 0.266, 0.132, 0.0, m_dark, root,
+                      (0, USB_FRONT + 0.30, USB_Z))
+    bm_mod = shell.modifiers.new("open", 'BOOLEAN')
+    bm_mod.operation = 'DIFFERENCE'; bm_mod.object = cut; bm_mod.solver = 'EXACT'
+    bpy.context.view_layer.objects.active = shell
+    bpy.ops.object.modifier_apply(modifier="open")
+    bpy.data.objects.remove(cut, do_unlink=True)
+    rounded_box(name + "_usbback", 0.83, 0.02, 0.26, 0.13, 0.0, m_dark, root, (0, USB_FRONT + 0.58, USB_Z))
+    rounded_box(name + "_tongue", 0.67, 0.46, 0.07, 0.03, 0.0, m_dark, root, (0, USB_FRONT + 0.06 + 0.23, USB_Z))
+    for dz in (0.036, -0.036):
+        rounded_box(name + "_pins", 0.58, 0.34, 0.004, 0.0, 0.0, m_gold, root, (0, USB_FRONT + 0.10 + 0.17, USB_Z + dz))
+
+
 def device(name, body_color, screen, loc, rot):
     root = bpy.data.objects.new(name, None)
     bpy.context.collection.objects.link(root)
@@ -113,20 +139,19 @@ def device(name, body_color, screen, loc, rot):
         shell.data.materials.append(None)
     shell.material_slots[0].link = 'OBJECT'
     shell.material_slots[0].material = mat(name + "_pla", body_color, rough=0.62)
-    rounded_box(name + "_inner", 3.6, 5.8, 1.35, 0.2, 0.0, m_dark, root, (0, 0, -0.78))
-    rounded_box(name + "_glass", GW, GH, 0.06, GR, 0.015, m_glass, root, (0, 0, -0.03))
+    rounded_box(name + "_inner", 3.3, 4.4, 1.35, 0.2, 0.0, m_dark, root, (0, 0.5, -0.80))
+    rounded_box(name + "_glass", GW, GH, GT, GR, 0.005, m_glass, root, (0, 0, -GT / 2), top_edge=GE)
     bpy.ops.mesh.primitive_plane_add(size=1, location=(0, SCY, 0.001))
     disp = bpy.context.object
     disp.scale = (SW, SH, 1); disp.parent = root
     disp.data.materials.append(screen_mat(screen))
     # USB-C receptacle seen through the cutout
-    rounded_box(name + "_usb", 0.894, 0.735, 0.326, 0.15, 0.0, m_metal, root, (0, -2.04, -0.883))
-    rounded_box(name + "_usbin", 0.80, 0.02, 0.24, 0.11, 0.0, m_dark, root, (0, -2.415, -0.883))
+    usb_receptacle(name, root)
     # camera lens in the back
-    bpy.ops.mesh.primitive_cylinder_add(radius=0.3, depth=0.12, vertices=96, location=(0, CAMY, ZB + 0.12))
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.3, depth=0.12, vertices=96, location=(0, CAMY, LENSZ + 0.12))
     barrel = bpy.context.object; barrel.parent = root; barrel.data.materials.append(m_dark)
     bpy.ops.object.shade_smooth()
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.2, segments=64, ring_count=32, location=(0, CAMY, ZB + 0.06))
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.2, segments=64, ring_count=32, location=(0, CAMY, LENSZ + 0.06))
     lens = bpy.context.object; lens.scale = (1, 1, 0.3); lens.parent = root
     lens.data.materials.append(m_lens); bpy.ops.object.shade_smooth()
     root.location = loc; root.rotation_euler = rot
@@ -173,7 +198,7 @@ GRAPHITE = (0.03, 0.03, 0.028, 1)
 SIGNAL = (0.78, 0.30, 0.04, 1)
 BONE = (0.70, 0.68, 0.63, 1)
 UP = -ZB + 0.001       # face up, back on the floor
-DOWN = ZT + 0.001      # face down, rim on the floor
+DOWN = ZT + 0.001      # face down, glass on the floor
 
 
 def clear_devices():
