@@ -48,10 +48,10 @@ Measured off the photos in that drawing, good to about 0.3 mm:
 - The PCB sits 0.3 mm toward the USB end of the glass (`oy`).
 - The USB-C socket ends about 3.7 mm inside the outer wall, so the plug's
   shell has to pass through the wall. A block behind the end wall turns the
-  opening into a 13.2 mm wide tunnel up to the socket (`usbw`, `pd` long). Above the
-  socket the display limits it to about 3.2 mm, below it has 3.6 (`usbb`);
-  the wall opening runs higher (`usbt`). The first print at 12.6 × 6.4 only
-  took the plug with force: FDM holes come out undersize.
+  opening into a 13.6 × 8.6 mm tunnel up to the socket (`usbw`, `usbb`,
+  `usbt`, `pd` long), about 1 mm round a measured 11.7 × 6.4 plug body.
+  A first print at 12.6 × 6.4 only took the plug with force: FDM holes come
+  out undersize.
 - BOOT and RST stay closed in. Unplugging resets, and the firmware restarts
   into the bootloader from its home screen, so they're only needed for the
   first flash, with the board out of the case. A printed flexing button in
