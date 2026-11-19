@@ -311,47 +311,35 @@ bool platform_camera_band(int y0, int rows, uint8_t *buf) {
     }
     // Rows come bottom up (see flip_rows): the band is the sensor's rows
     // [zh - y0 - rows, zh - y0); the PIO program drops the rows before it.
+    // Now and then a whole frame comes out one flat shade (a full 480x640 of
+    // it, measured on the board): that band is taken again, from the next frame.
     uint32_t n = uint32_t(rows) * zw;
-    restart_sm(uint32_t(zh - y0 - rows) * zw);
-    dma_channel_config dc = dma_channel_get_default_config(dma_ch);
-    channel_config_set_read_increment(&dc, false);
-    channel_config_set_write_increment(&dc, true);
-    channel_config_set_transfer_data_size(&dc, DMA_SIZE_8);
-    channel_config_set_dreq(&dc, pio_get_dreq(pio, sm, false));
-    dma_channel_configure(dma_ch, &dc, buf, &pio->rxf[sm], n, true);
-    pio_sm_set_enabled(pio, sm, true);
-    uint32_t t0 = millis();
-    while (dma_channel_is_busy(dma_ch) && millis() - t0 < 1000) {}
-    bool ok = !dma_channel_is_busy(dma_ch);
-    dma_channel_abort(dma_ch);
-    pio_sm_set_enabled(pio, sm, false);
-    if (!ok) {
-        snprintf(cam_err, sizeof(cam_err), "No image within 1s");
-        memset(buf, 0, n);
-        return false;
-    }
-    // a band of one shade is no picture (it once came back all black)
-    uint8_t lo = 255, hi = 0;
-    for (uint32_t i = 0; i < n; i += 7) { lo = buf[i] < lo ? buf[i] : lo; hi = buf[i] > hi ? buf[i] : hi; }
-    if (hi - lo < 8) {
-        // How many bytes one whole frame really has, for the error line: the
-        // camera's rows can be fewer than asked for, or black past some row.
-        static uint8_t sink;
-        const uint32_t big = 0x0FFFFFFF;
-        restart_sm(0);
+    for (int tries = 1;; tries++) {
+        restart_sm(uint32_t(zh - y0 - rows) * zw);
         dma_channel_config dc = dma_channel_get_default_config(dma_ch);
         channel_config_set_read_increment(&dc, false);
-        channel_config_set_write_increment(&dc, false);
+        channel_config_set_write_increment(&dc, true);
         channel_config_set_transfer_data_size(&dc, DMA_SIZE_8);
         channel_config_set_dreq(&dc, pio_get_dreq(pio, sm, false));
-        dma_channel_configure(dma_ch, &dc, &sink, &pio->rxf[sm], big, true);
+        dma_channel_configure(dma_ch, &dc, buf, &pio->rxf[sm], n, true);
         pio_sm_set_enabled(pio, sm, true);
-        wait_frames(2);
-        uint32_t got = big - (dma_channel_hw_addr(dma_ch)->transfer_count & 0x0FFFFFFF);
+        uint32_t t0 = millis();
+        while (dma_channel_is_busy(dma_ch) && millis() - t0 < 1000) {}
+        bool ok = !dma_channel_is_busy(dma_ch);
         dma_channel_abort(dma_ch);
         pio_sm_set_enabled(pio, sm, false);
-        snprintf(cam_err, sizeof(cam_err), "Blank %d-%d, frame %lu B", y0, y0 + rows, (unsigned long)got);
-        return false;
+        if (!ok) {
+            snprintf(cam_err, sizeof(cam_err), "No image within 1s");
+            memset(buf, 0, n);
+            return false;
+        }
+        uint8_t lo = 255, hi = 0;
+        for (uint32_t i = 0; i < n; i += 7) { lo = buf[i] < lo ? buf[i] : lo; hi = buf[i] > hi ? buf[i] : hi; }
+        if (hi - lo >= 8) break;
+        if (tries == 3) {
+            snprintf(cam_err, sizeof(cam_err), "Blank picture, 3 tries");
+            return false;
+        }
     }
     static uint8_t tmp[CAM_W * CAM_ZOOM];
     for (int y = 0; y < rows / 2; y++) {

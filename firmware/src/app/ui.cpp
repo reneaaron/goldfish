@@ -1250,7 +1250,7 @@ bool ui_page_read() {
     int w, h;
     uint8_t *g = platform_camera_still(&w, &h, &page_room);
     if (!g) { scan_status("No picture yet", "Hold still and try again", AMBER); return false; }
-    scan_stop(false);   // the camera stays on for the sharper bands
+    scan_stop(false);   // the camera stays on for the sharper bands (ui_goto leaves it on too)
     page_still = g; page_w = w; page_h = h;
     ncands = 0;
     read_i = 0;
@@ -1362,7 +1362,7 @@ static void page_tick(lv_timer_t *) {
             for (int x = 0; x < PREV_W; x++)
                 preview_buf[y * PREV_W + x] = page_still[(y * page_h / PREV_H) * page_w + x * page_w / PREV_W];
         if (page_find_words()) page_step = PAGE_BANDS;   // the sharp picture right away, while the user holds still
-        else ui_goto(UI_PAGE_FOUND);                     // nothing found: the photo, to see why
+        else { platform_camera_stop(); ui_goto(UI_PAGE_FOUND); }   // nothing found: the photo, to see why
         return;
     }
     if (page_step == PAGE_BANDS) {
@@ -1370,6 +1370,7 @@ static void page_tick(lv_timer_t *) {
         if (!page_band()) {   // Words found says why, over the photo (Scan words has no room for it)
             const char *err = platform_camera_error();
             page_err = err ? err : "Hold still and try again";
+            platform_camera_stop();
             ui_goto(UI_PAGE_FOUND);
             return;
         }
@@ -2617,8 +2618,10 @@ static bool backup_screen(UiScreen s) {
 
 void ui_goto(UiScreen s) {
     // (Words found shows preview_buf: the photo, kept there; scanning stopped before it)
+    // Reading words keeps the camera on: a camera just woken gave blank frames, and the
+    // sharp picture comes right after the still (the reading step stops it).
     if (s != UI_SCAN_SEED && s != UI_SCAN_PSBT && s != UI_SCAN_ADDRESS && s != UI_BACKUP_SCAN && s != UI_PAGE_FOUND)
-        scan_stop();
+        scan_stop(s != UI_PAGE_READING);
     if (s != UI_PASSPHRASE) pass_wipe();
     // A scanned descriptor that wasn't confirmed on its screen is never used.
     if (s != UI_MULTISIG && !ms_confirmed) multisig_clear();
