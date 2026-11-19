@@ -803,7 +803,7 @@ static void reboot_cb(lv_event_t *) { platform_reboot_to_bootloader(); }
 static void build_update() {
     lv_obj_t *scr = screen();
     lv_obj_align(text(scr, "Update firmware?", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, 60);
-    lv_obj_align(para(scr, "The device restarts as a USB drive. Copy the new firmware.uf2 onto it, or use the flasher page. Unplug to cancel."),
+    lv_obj_align(para(scr, "It restarts as a USB drive for firmware.uf2 or the flasher page. Unplug to cancel."),
                  LV_ALIGN_TOP_MID, 0, 100);
     bottom_pair(btn_ghost(scr, "Cancel", go_cb, GO(UI_HOME), TEXT), btn_primary(scr, "Restart", reboot_cb));
     show(scr);
@@ -1233,7 +1233,7 @@ static void build_enter_words() {
     lv_obj_align(f, LV_ALIGN_TOP_MID, 0, BAR + 2);
     word_field = text(f, "", &mono_22, TEXT, LV_TEXT_ALIGN_LEFT);
     lv_obj_align(word_field, LV_ALIGN_LEFT_MID, 0, 0);
-    if (word_is_last()) lv_obj_align(text(f, "checksum", &inter_13, TEXT_3), LV_ALIGN_RIGHT_MID, 0, 0);
+    if (word_is_last()) lv_obj_align(text(f, "fits the checksum", &inter_13, TEXT_3), LV_ALIGN_RIGHT_MID, 0, 0);
 
     for (int i = 0; i < 2; i++) {
         lv_obj_t *s = lv_button_create(scr);
