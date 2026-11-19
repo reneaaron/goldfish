@@ -2084,22 +2084,27 @@ static void child_continue_cb(lv_event_t *) { ui_child_seed((uint32_t)strtoul(ch
 
 static void build_child_index() {
     lv_obj_t *scr = screen();
-    topbar(scr, "Child seed", to_menu_cb);
-    // What the number is, the number, then what it does (or why it failed).
-    lv_obj_align(caption(scr, "CHILD NUMBER"), LV_ALIGN_TOP_MID, 0, BAR - 2);
+    topbar(scr, "Child number", to_menu_cb);
+    // The number and what it does (or why it failed), then a phone-style keypad
+    // whose last key is OK, so no separate button has to squeeze in below.
     child_num_lbl = text(scr, child_num, &mono_26, TEXT);
-    lv_obj_align(child_num_lbl, LV_ALIGN_TOP_MID, 0, BAR + 14);
+    lv_obj_align(child_num_lbl, LV_ALIGN_TOP_MID, 0, BAR + 4);
     lv_obj_align(text(scr, child_failed ? "Couldn't make it. Try again." : "Each number, another seed",
                       &inter_13, child_failed ? RED : TEXT_3),
-                 LV_ALIGN_TOP_MID, 0, BAR + 46);
-    const int GAP = 6, KW = (CW - 2 * GAP) / 3, KH = 30, Y0 = BAR + 68;
+                 LV_ALIGN_TOP_MID, 0, BAR + 40);
+    const int GAP = 8, KW = (CW - 2 * GAP) / 3, KH = 40, Y0 = H - M - 4 * KH - 3 * GAP;
     for (int i = 0; i < 9; i++) {
         char d[2] = {char('1' + i), 0};
         digit_key(scr, M + (i % 3) * (KW + GAP), Y0 + (i / 3) * (KH + GAP), KW, KH, d, i + 1);
     }
-    digit_key(scr, M, Y0 + 3 * (KH + GAP), KW, KH, "Del", -1);
-    digit_key(scr, M + KW + GAP, Y0 + 3 * (KH + GAP), KW, KH, "0", 0);
-    place_bottom(btn_primary(scr, "Continue", child_continue_cb));
+    const int Y3 = Y0 + 3 * (KH + GAP);
+    digit_key(scr, M, Y3, KW, KH, "Del", -1);
+    digit_key(scr, M + KW + GAP, Y3, KW, KH, "0", 0);
+    lv_obj_t *ok = key_button(scr, M + 2 * (KW + GAP), Y3, KW, KH, child_continue_cb, 0);
+    lv_obj_set_style_bg_color(ok, TEXT, 0);
+    lv_obj_set_style_border_width(ok, 0, 0);
+    lv_obj_set_style_bg_color(ok, TEXT_2, LV_STATE_PRESSED);
+    lv_obj_center(text(ok, "OK", &inter_17_semi, BG));
     show(scr);
 }
 
