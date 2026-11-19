@@ -1,6 +1,6 @@
 let gw=37.1 gh=58.8 gr=2.6 clr=0.3 t=1.6 dep=7.2 hdr=9.2 up=0.9 play=0.15
 let ow=gw+2*clr+2*t oh=gh+2*clr+2*t orr=gr+clr+t zb=-(dep+hdr+t) ht=dep+hdr+t+up
-let bx=14.5 by=21.1 oy=-0.3 so=9.7 camx=0.4 camy=1.8 lens=6.8 camw=9 rib=0.25 keyx=9.45
+let bx=14.5 by=21.1 oy=-0.3 so=9.7 camx=0.4 camy=5.5 lens=6.8 camw=9 rib=0.25 keyx=9.45
 let wi=ow/2-t lw=0.9 tab=20 slot=0.8 sd=12
 plane XY offset=zb
 rect ow oh r=orr
