@@ -46,10 +46,17 @@ Measured off the photos in that drawing, good to about 0.3 mm:
 - Header pins end 8.64 mm behind the PCB (standard 2.54 mm header). The case
   leaves 9.2 (`hdr`).
 - The PCB sits 0.3 mm toward the USB end of the glass (`oy`).
-- The USB-C socket ends about 5.6 mm inside the outer wall, so the plug's
-  overmould has to pass through the wall. The cutout is 14 × 8 mm for that.
-- BOOT and RST are side buttons about 7 mm behind their 2.6 mm holes. Press
-  them with a paperclip.
+- The USB-C socket ends about 3.7 mm inside the outer wall, so the plug's
+  shell has to pass through the wall. A block behind the end wall turns the
+  opening into a 13.2 mm wide tunnel up to the socket (`usbw`, `pd` long). Above the
+  socket the display limits it to about 3.2 mm, below it has 3.6 (`usbb`);
+  the wall opening runs higher (`usbt`). The first print at 12.6 × 6.4 only
+  took the plug with force: FDM holes come out undersize.
+- BOOT and RST stay closed in. Unplugging resets, and the firmware restarts
+  into the bootloader from its home screen, so they're only needed for the
+  first flash, with the board out of the case. A printed flexing button in
+  the end wall was tried and snapped: printed on its back, it bent across
+  the layer lines.
 
 ## Camera
 

@@ -1,6 +1,7 @@
 let gw=37.1 gh=58.8 gr=2.6 glass=1.1 clr=0.3 t=1.6 dep=7.2 pcb=1.6 hdr=9.2
 let ow=gw oh=gh orr=gr top=-glass zb=-(dep+hdr+t) ht=top-zb
-let bx=14.5 by=21.1 oy=-0.3 so=glass+8.9 lift=0.4 deep=0.5 sock=3.36 sr=sock/2 rw=0.45 camx=0.4 camy=5.5 lens=6.8 camw=9 rib=0.25 keyx=9.45
+let bx=14.5 by=21.1 oy=-0.3 so=glass+8.9 lift=0.4 deep=0.5 sock=3.36 sr=sock/2 rw=0.45 camx=0.4 camy=5.5 lens=6.8 camw=9 rib=0.25
+let usbw=13.2 usbz=-(dep+1.63) usbb=usbz-3.6 usbt=-(dep-1.9) pd=oh/2-t-25.7 ptop=-(dep-1.45) pw=usbw+0.8
 plane XY offset=zb
 rect ow oh r=orr
 case: extrude ht
@@ -43,10 +44,11 @@ plane XY offset=top
 rect 35+2*clr 48.2+2*clr at=0,oy r=1
 pocket: cut dep-glass+0.2
 plane XZ offset=oh/2
-rect 14 8 at=0,-(dep+1.6) r=3.5
+rect usbw usbt-usbb at=0,(usbt+usbb)/2 r=2.5
 usb: cut 2*t
-circle 2.6 at=keyx,-(dep+1)
-circle 2.6 at=-keyx,-(dep+1)
-keys: cut 2*t
+plane XZ offset=oh/2-t
+poly -pw/2,zb+t pw/2,zb+t pw/2,ptop usbw/2,ptop usbw/2,usbb -usbw/2,usbb -usbw/2,ptop -pw/2,ptop
+port: extrude -pd
+chamfer 0.5 usb.side&<Y
 color #1c1c1c
 material pla

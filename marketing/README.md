@@ -18,7 +18,7 @@ ONLY=1,3 SAMPLES=64 PCT=50 blender -b -P marketing/renders/render.py    # quick 
 | `out/01_hero_review.png` | Reviewing a transaction |
 | `out/02_back.png` | Back: camera, USB-C |
 | `out/03_colorways.png` | Three colours across the flow: seed loaded, slide to sign, signed QR |
-| `out/04_edge.png` | USB-C and button pinholes |
+| `out/04_edge.png` | USB-C tunnel |
 | `out/05_wallet_topdown.png` | Wallet menu |
 | `out/06_lineup.png` | Four devices: start, new seed, wallet menu, connect wallet |
 

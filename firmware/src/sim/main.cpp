@@ -128,6 +128,9 @@ const char *platform_camera_error() { return nullptr; }
 
 void platform_camera_stop() {}
 
+// The board vanishes from the screen and comes back as a drive; here, just quit.
+void platform_reboot_to_bootloader() { fprintf(stderr, "[sim] reboot to bootloader\n"); exit(0); }
+
 // A still: the camera image file itself, box-filtered down to at most 1000
 // pixels on its longer side (more than the board will get, for now).
 static uint8_t *still;
@@ -208,6 +211,7 @@ static int run_shots(const char *dir) {
     setenv("SIM_CAMERA", "sim/samples/does-not-exist.png", 1);
     ui_build();
     pump(300); save(dir, "1_home");
+    ui_goto(UI_UPDATE); pump(300); save(dir, "1b_update");
     ui_goto(UI_SCAN_SEED);
     pump(300); save(dir, "2_scan_waiting");
     setenv("SIM_CAMERA", "sim/samples/vector4_standard_12word.png", 1);

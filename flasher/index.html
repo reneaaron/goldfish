@@ -171,13 +171,15 @@
     <ol class="steps">
       <li class="active" id="step-boot">
         <div class="mark"><span>1</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
-        <h2>Hold BOOT and plug in USB-C</h2>
-        <p>BOOT is right of the USB-C socket, seen from the back. In the case,
-           press it with a paperclip through the pinhole. A drive called
-           <code>RP2350</code> appears on your computer.</p>
+        <h2>Start update mode</h2>
+        <p>Plug the device into your computer. On its home screen, tap the
+           version number in the top right corner, then Restart. A drive
+           called <code>RP2350</code> appears on your computer.</p>
         <details>
-          <summary>No drive?</summary>
+          <summary>First flash, or the device doesn't start?</summary>
           <ul>
+            <li>Take the board out of the case, hold BOOT (right of the USB-C
+                socket, seen from the back) and plug in USB-C.</li>
             <li>Keep BOOT held until the cable is in.</li>
             <li>Use a cable that carries data. Some only charge.</li>
             <li>Unplug and try again: the board only looks at BOOT when it gets power.</li>
@@ -338,7 +340,7 @@ async function flash() {
     return;   // picker closed
   }
   if (!await isBootDrive(dir)) {
-    say('error', '"' + dir.name + '" is not the RP2350 drive. Nothing was written. Unplug the board, hold BOOT while plugging it in, then choose the drive called RP2350.');
+    say('error', '"' + dir.name + '" is not the RP2350 drive. Nothing was written. Start update mode again (Restart on the device, or hold BOOT while plugging in), then choose the drive called RP2350.');
     return;
   }
 

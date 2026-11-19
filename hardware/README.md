@@ -41,6 +41,8 @@ a second port: [sourcing-research.md](sourcing-research.md).
   taken from Waveshare's demo code.
 - The firmware has no USB stack: the running device doesn't show up on a
   computer. USB-C is power, plus flashing through the ROM bootloader.
-- Buttons on the board: RST and BOOT only, reachable through pinholes in the
-  case. BOOT plus plugging in USB-C enters the UF2 bootloader for flashing.
+- Buttons on the board: RST and BOOT only, closed in by the case. Unplugging
+  resets; Update firmware on the home screen starts the UF2 bootloader. BOOT
+  plus plugging in USB-C does the same with the board out of the case, for the
+  first flash.
 - Waveshare wiki: https://www.waveshare.com/wiki/RP2350-Touch-LCD-2
