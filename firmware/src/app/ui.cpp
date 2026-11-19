@@ -367,7 +367,6 @@ static void build_scan(ScanMode mode) {
     // line stays empty until there is something to report.
     static const char *prompts[] = {"Hold it in the frame", "A transaction or an address",
                                     "Let's check it matches", "Fit all the words in view"};
-    static const char *hints[] = {"", "", "", ""};
     topbar(scr, titles[mode], scan_back_cb);
 
     preview_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
@@ -387,7 +386,7 @@ static void build_scan(ScanMode mode) {
     scan_msg = text(scr, prompts[mode], mode == SCAN_PAGE ? &inter_13 : &inter_17_semi, mode == SCAN_PAGE ? TEXT_2 : TEXT,
                     LV_TEXT_ALIGN_CENTER);
     lv_obj_align(scan_msg, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + (mode == SCAN_PAGE ? 6 : 14));
-    scan_sub = text(scr, hints[mode], &inter_13, TEXT_3, LV_TEXT_ALIGN_CENTER);
+    scan_sub = text(scr, "", &inter_13, TEXT_3, LV_TEXT_ALIGN_CENTER);
     // one line each, kept off the screen edge: status texts are written to fit, this only catches a slip
     lv_obj_t *lines[] = {scan_msg, scan_sub};
     for (lv_obj_t *l : lines) {
@@ -459,7 +458,7 @@ static void build_wallet() {
         lv_obj_align(row, LV_ALIGN_TOP_MID, 0, y);
         y += 30;
     }
-    const char *note = fresh_backup ? (pass ? "Backup checked. The card holds the seed only, not the passphrase."
+    const char *note = fresh_backup ? (pass ? "Backup checked. The card has no passphrase."
                                             : "Backup checked. Write the fingerprint on your card.")
                                     : "Check it matches the fingerprint in your wallet app.";
     fresh_backup = false;
@@ -733,8 +732,8 @@ static void build_export_xpub() {
     // Testnet says so in amber, so it isn't mistaken for the real thing.
     const char *title = ms ? (tn ? "Testnet multisig key" : "Your multisig key") : (tn ? "Your testnet key" : "Your public key");
     lv_obj_align(text(scr, title, &inter_17_semi, tn ? AMBER : TEXT), LV_ALIGN_TOP_MID, 0, BAR + 2 + QR_CARD + 8);
-    char shortkey[24];
-    snprintf(shortkey, sizeof(shortkey), "%.8s\xE2\x80\xA6%s", key, key + strlen(key) - 4);
+    char shortkey[24] = "";
+    if (n && strlen(key) >= 12) snprintf(shortkey, sizeof(shortkey), "%.8s\xE2\x80\xA6%s", key, key + strlen(key) - 4);
     lv_obj_t *sk = text(scr, shortkey, &mono_16, TEXT_2);
     lv_obj_align(sk, LV_ALIGN_TOP_MID, 0, BAR + 2 + QR_CARD + 32);
     lv_obj_add_flag(sk, LV_OBJ_FLAG_CLICKABLE);

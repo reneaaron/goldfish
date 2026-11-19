@@ -170,3 +170,14 @@ def test_24_words_by_hand(dev):
     words = "zoo " * 23 + "vote"
     load_by_words(dev, words)
     assert fingerprint_on_screen(dev) == Seed(words).fingerprint
+
+
+def test_child_seed_from_the_keypad(dev):
+    """Child seed: type a number on the keypad and confirm with its OK key."""
+    load_by_words(dev, MNEMONIC)
+    dev.tap("Wallet options")
+    dev.tap("Child seed")
+    assert dev.screen == "CHILD_INDEX", dev.text()
+    dev.tap("3")
+    dev.tap("OK")
+    assert dev.screen == "BACKUP_WARNING", dev.text()
