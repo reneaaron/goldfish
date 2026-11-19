@@ -262,7 +262,8 @@ pio test -e test
   from 100-row bands of one twice as large) still gives at least 20, where the
   small picture's own strips give about half; with the sharp picture moved 8
   pixels right and 6 up, the shift is found for every word and the reading
-  recovers (uncorrected, about a third is read); a blank page has no words
+  recovers (uncorrected, about a third is read); at 30% brightness (a dim
+  room) every word is still found and as many read; a blank page has no words
 
 ## Fuzzing
 

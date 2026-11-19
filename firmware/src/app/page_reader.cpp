@@ -10,6 +10,7 @@
 static const uint8_t *img;
 static int W, H, gw, gh;
 static uint8_t *bg;   // paper brightness per BLK x BLK block
+static int paper_ref;  // the picture's paper brightness: what "dark" and "much darker" are relative to
 
 static void paper_levels() {
     uint16_t hist[256];
@@ -39,11 +40,24 @@ static inline int paper_at(int x, int y) {
     return int(top * (1 - ay) + bot * ay);
 }
 
-// Ink: clearly darker than the paper around it (pencil included).
+// The paper's brightness over the whole picture: the 75th percentile of the
+// blocks' (most blocks are paper). The ink test is relative to it, so a dim
+// picture (a dark room, the board's camera) works like a bright one.
+static void paper_reference() {
+    uint16_t hist[256] = {};
+    for (int i = 0; i < gw * gh; i++) hist[bg[i]]++;
+    int k = gw * gh * 3 / 4, v = 0;
+    for (int seen = 0; v < 255 && (seen += hist[v]) <= k; v++) {}
+    paper_ref = v;
+}
+
+// Ink: clearly darker than the paper around it (pencil included), where
+// there is paper (not the desk around it). At ordinary light (paper about
+// 200) that's paper above 60 and ink 20 below it.
 static inline bool ink(int x, int y) {
     int p = paper_at(x, y);
-    int d = p / 5 > 20 ? p / 5 : 20;
-    return p > 60 && img[y * W + x] < p - d;
+    int d = p / 5 > paper_ref / 10 ? p / 5 : paper_ref / 10;
+    return p > paper_ref * 3 / 10 && img[y * W + x] < p - d;
 }
 
 // ---------------------------------------------------------------- tilt
@@ -142,6 +156,7 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
     bg = (uint8_t *)malloc(gw * gh);
     if (!bg) return false;
     paper_levels();
+    paper_reference();
 
     float a = find_tilt(), c = cosf(a), s = sinf(a);
     page->cos_a = c; page->sin_a = s;

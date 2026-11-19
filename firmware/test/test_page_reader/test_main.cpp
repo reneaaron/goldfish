@@ -160,6 +160,25 @@ static void test_band_shift() {
     free(moved);
 }
 
+// A dim room: the same board-sized page at 30% brightness (paper about 65).
+// The ink test is relative to the picture's paper, so the words are still
+// all found and read about as well.
+static void test_dim_page() {
+    const int lw = 200, lh = lw * 1800 / 1400, Z = 2;
+    uint8_t *low = load_resized(lw, lh), *hi = load_resized(lw * Z, lh * Z);
+    for (int i = 0; i < lw * lh; i++) low[i] = uint8_t(low[i] * 3 / 10);
+    for (int i = 0; i < lw * lh * Z * Z; i++) hi[i] = uint8_t(hi[i] * 3 / 10);
+    TEST_ASSERT_TRUE(page_find(low, lw, lh, &page));
+    static uint8_t strips[PAGE_MAX_WORDS][WR_H * WR_W];
+    for (int i = 0; i < page.n; i++) page_strip_band(hi, 0, lh * Z, Z, 0, 0, &page, i, strips[i]);
+    int offered = read_in_order(&strips[0][0], page.n);
+    printf("dim page: %d words found, %d read\n", page.n, offered);
+    TEST_ASSERT_GREATER_OR_EQUAL(24, page.n);
+    TEST_ASSERT_GREATER_OR_EQUAL(18, offered);
+    free(low);
+    free(hi);
+}
+
 static void test_blank_page() {
     memset(gray, 210, (size_t)gw * gh);
     TEST_ASSERT_FALSE(page_find(gray, gw, gh, &page));
@@ -170,6 +189,7 @@ int main() {
     RUN_TEST(test_reads_page_in_order);
     RUN_TEST(test_board_sized_bands);
     RUN_TEST(test_band_shift);
+    RUN_TEST(test_dim_page);
     RUN_TEST(test_blank_page);
     return UNITY_END();
 }
