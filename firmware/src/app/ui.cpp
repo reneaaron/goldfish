@@ -811,7 +811,9 @@ static char txt_words[4][12], txt_field[16], txt_sugg[2][12], txt_tail[40];
 // done, to show each word's own picture; they and the words are wiped by
 // page_flow_wipe().
 struct PageCand { int16_t word; bool ok, cut; uint8_t piece; int16_t y0, y1; };
-struct Slot { int16_t word; int16_t piece; bool typed; };   // word -1: unknown; piece -1: no picture
+// word -1: unknown; piece -1: no picture; guess: an unknown word's best reading,
+// not sure enough to fill in (often right in poor light), -1 if none
+struct Slot { int16_t word; int16_t piece; bool typed; int16_t guess = -1; };
 #define MAX_SLOTS 48
 static Page page;
 static uint8_t *page_still;   // the still, then the strips' store (page_room bytes)
@@ -1339,7 +1341,8 @@ static lv_obj_t *page_lbl, *page_bar;
 static void page_make_slots() {
     nslots = 0;
     for (int i = 0; i < ncands && nslots < MAX_SLOTS; i++)
-        slots[nslots++] = {int16_t(cands[i].ok ? cands[i].word : -1), int16_t(cands[i].piece), false};
+        slots[nslots++] = {int16_t(cands[i].ok ? cands[i].word : -1), int16_t(cands[i].piece), false,
+                           int16_t(cands[i].ok ? -1 : cands[i].word)};
     secure_zero(word_idx, sizeof(word_idx));
     secure_zero(cands, sizeof(cands));
     word_n = 0;
@@ -1746,6 +1749,21 @@ void ui_page_use_suggestion() {
 }
 static void page_suggest_cb(lv_event_t *) { ui_page_use_suggestion(); }
 
+// An unread word's best guess, offered on its screen (the checksum's suggestion comes first).
+int ui_page_guess() {
+    if (ui_current() != UI_PAGE_WORD || page_suggest >= 0) return -1;
+    const Slot &sl = slots[open_slot];
+    return sl.word < 0 && sl.piece >= 0 ? sl.guess : -1;
+}
+void ui_page_use_guess() {
+    int g = ui_page_guess();
+    if (g < 0) return;
+    slots[open_slot].word = int16_t(g);
+    slots[open_slot].typed = true;   // the user's pick, like a typed word
+    ui_goto(UI_PAGE_REVIEW);
+}
+static void page_guess_cb(lv_event_t *) { ui_page_use_guess(); }
+
 static void build_page_word() {
     const Slot &sl = slots[open_slot];
     lv_obj_t *scr = screen();
@@ -1780,10 +1798,12 @@ static void build_page_word() {
         page_suggest = -1;
         if (open_slot == new_words - 1 && !suggest_timer) suggest_timer = lv_timer_create(page_suggest_tick, 50, nullptr);
     }
-    if (page_suggest >= 0) {
-        lv_obj_align(text(scr, "This one fits the checksum:",
+    int guess = ui_page_guess();
+    if (page_suggest >= 0 || guess >= 0) {
+        lv_obj_align(text(scr, page_suggest >= 0 ? "This one fits the checksum:" : "Best guess, if it matches:",
                           &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, y + 44);
-        lv_obj_t *b = btn_ghost(scr, seed_word(page_suggest), page_suggest_cb, nullptr, ACCENT);
+        lv_obj_t *b = page_suggest >= 0 ? btn_ghost(scr, seed_word(page_suggest), page_suggest_cb, nullptr, ACCENT)
+                                        : btn_ghost(scr, seed_word(guess), page_guess_cb, nullptr, ACCENT);
         lv_obj_set_style_bg_color(b, ACCENT_DIM, 0);
         lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
         lv_obj_align(b, LV_ALIGN_TOP_MID, 0, y + 64);

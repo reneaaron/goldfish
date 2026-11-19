@@ -105,6 +105,8 @@ void ui_page_add();            // on the list: "add a word" at the end
 bool ui_page_confirm();        // "Matches my backup": loads the seed; false if not ready
 int ui_page_suggestion();      // on the last word's screen: the word that fits the checksum, or -1
 void ui_page_use_suggestion(); // tap it
+int ui_page_guess();           // on an unread word's screen: its best guess (not sure enough to fill in), or -1
+void ui_page_use_guess();      // tap it
 void ui_child_digit(int k);           // a keypad digit 0-9, or -1 for Del
 const char *ui_child_number();        // the child number as typed
 // A key of the passphrase keyboard, by its label: one character, or "space",

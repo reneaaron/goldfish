@@ -515,8 +515,8 @@ static int run_shots(const char *dir) {
     // Check the list like a person with the paper next to it: keep words that
     // match, remove pieces that aren't words, type unread or wrong ones, add
     // missing ones before the word that follows them.
-    int k = 0, used = 0, i = 0;
-    bool shot_word = false;
+    int k = 0, used = 0, guessed = 0, i = 0;
+    bool shot_word = false, shot_guess = false;
     while (k < 24) {
         if (ui_current() != UI_PAGE_REVIEW) { fprintf(stderr, "not on the list (screen %d)\n", ui_current()); return 1; }
         if (i >= ui_page_count()) {
@@ -535,6 +535,12 @@ static int run_shots(const char *dir) {
         if (!shot_word) { pump(300); save(dir, "54_page_word"); shot_word = true; }
         if (later) ui_page_insert();
         else if (w < 0 && next >= 0 && !strcmp(seed_word(next), page_words[k])) { ui_page_remove(); continue; }
+        else if (ui_page_guess() >= 0 && !strcmp(seed_word(ui_page_guess()), page_words[k])) {   // the guess matches the paper
+            if (!shot_guess) { pump(300); save(dir, "54a_page_guess"); shot_guess = true; }
+            ui_page_use_guess();
+            i++, k++, guessed++;
+            continue;
+        }
         else ui_page_type();
         if (!ui_enter_word(page_words[k])) { fprintf(stderr, "typed word %s refused\n", page_words[k]); return 1; }
         i++, k++;
@@ -558,7 +564,7 @@ static int run_shots(const char *dir) {
         fprintf(stderr, "page seed did not load\n");
         return 1;
     }
-    fprintf(stderr, "page: %d of 24 words used as read\n", used);
+    fprintf(stderr, "page: %d of 24 words used as read, %d from a best guess\n", used, guessed);
     return 0;
 }
 
