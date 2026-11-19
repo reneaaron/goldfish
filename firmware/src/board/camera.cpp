@@ -311,8 +311,9 @@ bool platform_camera_band(int y0, int rows, uint8_t *buf) {
     }
     // Rows come bottom up (see flip_rows): the band is the sensor's rows
     // [zh - y0 - rows, zh - y0); the PIO program drops the rows before it.
-    // Now and then a whole frame comes out one flat shade (a full 480x640 of
-    // it, measured on the board): that band is taken again, from the next frame.
+    // Now and then a whole frame comes out black (a full 480x640 of it,
+    // measured on the board): that band is taken again, from the next frame.
+    // Only dark and flat counts: plain, evenly lit paper is flat too, but bright.
     uint32_t n = uint32_t(rows) * zw;
     for (int tries = 1;; tries++) {
         restart_sm(uint32_t(zh - y0 - rows) * zw);
@@ -335,7 +336,7 @@ bool platform_camera_band(int y0, int rows, uint8_t *buf) {
         }
         uint8_t lo = 255, hi = 0;
         for (uint32_t i = 0; i < n; i += 7) { lo = buf[i] < lo ? buf[i] : lo; hi = buf[i] > hi ? buf[i] : hi; }
-        if (hi - lo >= 8) break;
+        if (hi - lo >= 8 || hi >= 40) break;
         if (tries == 3) {
             snprintf(cam_err, sizeof(cam_err), "Blank picture, 3 tries");
             return false;
