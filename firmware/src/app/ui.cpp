@@ -867,6 +867,20 @@ static int page_suggest = -1, page_suggest_slot = -1;
 static lv_timer_t *suggest_timer;
 static lv_timer_t *page_timer;
 static uint8_t page_strip_buf[WR_H * WR_W];
+static lv_image_dsc_t page_strip_dsc;
+
+// page_strip_buf as an image source, its old picture dropped from LVGL's cache.
+static const lv_image_dsc_t *page_strip_src() {
+    page_strip_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
+    page_strip_dsc.header.cf = LV_COLOR_FORMAT_L8;
+    page_strip_dsc.header.w = WR_W;
+    page_strip_dsc.header.h = WR_H;
+    page_strip_dsc.header.stride = WR_W;
+    page_strip_dsc.data_size = sizeof(page_strip_buf);
+    page_strip_dsc.data = page_strip_buf;
+    lv_image_cache_drop(&page_strip_dsc);
+    return &page_strip_dsc;
+}
 
 static void page_flow_wipe() {
     if (page_timer) { lv_timer_delete(page_timer); page_timer = nullptr; }
@@ -1298,7 +1312,172 @@ static bool page_find_words() {
 
 static void page_read_cb(lv_event_t *) { ui_page_read(); }
 
-static lv_obj_t *page_lbl, *page_bar;
+
+// ---- the reading scene: a scan sweeps the strip the word reader gets, the
+// crab's eyes following it, and the words read line up below as they come.
+constexpr int ST_H = (WR_H * CW + WR_W - 1) / WR_W;      // the strip, scaled to fill a CW-wide pill
+constexpr int SCAN_W = 40;                               // the scan's fading trail
+constexpr int LIST_ROWS = 3;                             // the last words read, as rows
+static int crab_x, crab_y, st_y;                         // st_y: under the crab
+static lv_obj_t *crab_pupil[2], *page_scan, *page_strip_img, *page_count, *page_of;
+static bool page_cut;   // the current word's strip is cut and shown, not read yet
+// eye centres and shell colour in crab_reading (see marketing/mascot/hermitkey-reading.svg)
+static const int crab_eye[2][2] = {{47, 11}, {67, 9}};
+#define CRAB_SHELL lv_color_hex(0xD9772E)
+
+static void anim_y(void *o, int32_t v) { lv_obj_set_y((lv_obj_t *)o, v); }
+static void anim_opa(void *o, int32_t v) { lv_obj_set_style_opa((lv_obj_t *)o, v, 0); }
+
+// The scan's leading edge at x (from the strip's left), and the crab's eyes on it.
+static void scan_at(void *, int32_t x) {
+    lv_obj_set_x(page_scan, x - SCAN_W);
+    x += M;
+    int ly = st_y + ST_H / 2;
+    for (int e = 0; e < 2; e++) {
+        int dx = x - (crab_x + crab_eye[e][0]), dy = ly - (crab_y + crab_eye[e][1]);
+        int d = abs(dx) > abs(dy) ? abs(dx) : abs(dy);
+        if (d < 1) d = 1;
+        lv_obj_set_pos(crab_pupil[e], crab_eye[e][0] - 3 + dx * 3 / d, crab_eye[e][1] - 3 + dy * 3 / d);
+    }
+}
+
+// back: also run a0 <- a1, else jump back to a0
+static void loop_anim(lv_obj_t *o, lv_anim_exec_xcb_t cb, int32_t a0, int32_t a1, uint32_t ms, uint32_t pause,
+                      bool back = true) {
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, o);
+    lv_anim_set_exec_cb(&a, cb);
+    lv_anim_set_values(&a, a0, a1);
+    lv_anim_set_duration(&a, ms);
+    if (back) lv_anim_set_playback_duration(&a, ms);
+    lv_anim_set_repeat_delay(&a, pause);
+    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
+    lv_anim_start(&a);
+}
+
+// The scan, from the left again: each new strip gets a sweep of its own.
+static void page_scan_restart() {
+    lv_anim_delete(page_scan, scan_at);
+    loop_anim(page_scan, scan_at, 0, CW + SCAN_W, 900, 150, false);
+}
+
+// One word read, added to the list as a row like those on Check words
+// (page_row and page_row_draw_cb): number, word (or "?"), and a check or a
+// warning. Only the last LIST_ROWS stay: a page can have many stray pieces.
+static lv_obj_t *page_box;
+static void page_list_add(int n, bool ok, int word) {
+    int rows = lv_obj_get_child_count(page_box);
+    if (rows) {   // the card's divider, under every row but the last
+        lv_obj_t *prev = lv_obj_get_child(page_box, -1);
+        lv_obj_set_style_border_side(prev, LV_BORDER_SIDE_BOTTOM, 0);
+        lv_obj_set_style_border_width(prev, 1, 0);
+        lv_obj_set_style_border_color(prev, BORDER, 0);
+    }
+    if (rows == LIST_ROWS) { lv_obj_delete(lv_obj_get_child(page_box, 0)); rows--; }
+    for (int i = 0; i < rows; i++) lv_obj_set_y(lv_obj_get_child(page_box, i), i * 36);
+    lv_obj_t *l = text(page_box, ok ? seed_word(word) : "?", &mono_22, ok ? TEXT : AMBER, LV_TEXT_ALIGN_LEFT);
+    lv_obj_set_size(l, CW - 2, 36);
+    lv_obj_set_pos(l, 0, rows * 36);
+    lv_obj_set_style_pad_left(l, 46, 0);
+    lv_obj_set_style_pad_top(l, 5, 0);
+    // placed from the row's corner, as page_row_draw_cb draws them (children start inside the padding)
+    lv_obj_t *num = text(l, "", &inter_13, TEXT_3, LV_TEXT_ALIGN_RIGHT);
+    lv_label_set_text_fmt(num, "%d", n);
+    lv_obj_set_width(num, 26);
+    lv_obj_set_pos(num, 4 - 46, 11 - 5);
+    lv_obj_t *mark = text(l, ok ? ICON_CHECK : ICON_WARNING, &inter_13, ok ? GREEN : AMBER, LV_TEXT_ALIGN_RIGHT);
+    lv_obj_set_width(mark, 40 - CARD_PX);
+    lv_obj_set_pos(mark, CW - 2 - 40 - 46, 11 - 5);
+    lv_obj_set_height(page_box, (rows + 1) * 36 + 2);
+    lv_obj_remove_flag(page_box, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void build_page_scene(lv_obj_t *scr) {
+    // where it is: "Word 7 of 24", left of the crab
+    lv_obj_align(caption(scr, "READING"), LV_ALIGN_TOP_LEFT, M, BAR + 10);
+    page_count = text(scr, "", &fraunces_32, TEXT, LV_TEXT_ALIGN_LEFT);
+    lv_obj_align(page_count, LV_ALIGN_TOP_LEFT, M, BAR + 28);
+    page_of = text(scr, "Finding words" "\xE2\x80\xA6", &inter_13, TEXT_3, LV_TEXT_ALIGN_LEFT);
+    lv_obj_align(page_of, LV_ALIGN_TOP_LEFT, M, BAR + 64);
+
+    crab_x = W - M - crab_reading.header.w + 8;
+    crab_y = BAR;
+    st_y = crab_y + crab_reading.header.h + 8;
+    lv_obj_t *crab = lv_image_create(scr);
+    lv_image_set_src(crab, &crab_reading);
+    lv_obj_set_pos(crab, crab_x, crab_y);
+    for (int e = 0; e < 2; e++) {
+        lv_obj_t *p = lv_obj_create(crab);
+        lv_obj_remove_style_all(p);
+        lv_obj_set_size(p, 7, 7);
+        lv_obj_set_style_radius(p, LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_bg_color(p, TEXT, 0);
+        lv_obj_set_style_bg_opa(p, LV_OPA_COVER, 0);
+        crab_pupil[e] = p;
+        // eyelid, closed now and then
+        lv_obj_t *lid = lv_obj_create(crab);
+        lv_obj_remove_style_all(lid);
+        lv_obj_set_size(lid, 17, 17);
+        lv_obj_set_pos(lid, crab_eye[e][0] - 8, crab_eye[e][1] - 8);
+        lv_obj_set_style_radius(lid, LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_bg_color(lid, CRAB_SHELL, 0);
+        lv_obj_set_style_bg_opa(lid, LV_OPA_COVER, 0);
+        lv_obj_set_style_opa(lid, LV_OPA_TRANSP, 0);
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, lid);
+        lv_anim_set_exec_cb(&a, anim_opa);
+        lv_anim_set_values(&a, LV_OPA_TRANSP, LV_OPA_COVER);
+        lv_anim_set_duration(&a, 70);
+        lv_anim_set_playback_duration(&a, 70);
+        lv_anim_set_repeat_delay(&a, 2600);
+        lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+        lv_anim_start(&a);
+    }
+    loop_anim(crab, anim_y, crab_y, crab_y - 3, 600, 0);   // a gentle bob while it reads
+
+    // the strip the word reader gets
+    lv_obj_t *frame = lv_obj_create(scr);
+    lv_obj_remove_style_all(frame);
+    lv_obj_set_size(frame, CW, ST_H);
+    lv_obj_align(frame, LV_ALIGN_TOP_MID, 0, st_y);
+    lv_obj_set_style_radius(frame, 10, 0);
+    lv_obj_set_style_clip_corner(frame, true, 0);
+    lv_obj_set_style_bg_color(frame, SURFACE_2, 0);
+    lv_obj_set_style_bg_opa(frame, LV_OPA_COVER, 0);
+    lv_obj_remove_flag(frame, LV_OBJ_FLAG_SCROLLABLE);
+    page_strip_img = lv_image_create(frame);
+    lv_image_set_src(page_strip_img, page_strip_src());
+    lv_image_set_pivot(page_strip_img, 0, 0);
+    lv_image_set_scale(page_strip_img, (LV_SCALE_NONE * CW + WR_W - 1) / WR_W);
+    lv_obj_set_size(page_strip_img, CW, ST_H);
+    lv_image_set_inner_align(page_strip_img, LV_IMAGE_ALIGN_TOP_LEFT);
+    lv_obj_add_flag(page_strip_img, LV_OBJ_FLAG_HIDDEN);
+    // the scan: a white light with a fading trail, left to right, over and over
+    page_scan = lv_obj_create(frame);
+    lv_obj_remove_style_all(page_scan);
+    lv_obj_set_size(page_scan, SCAN_W, ST_H);
+    lv_obj_set_style_bg_color(page_scan, lv_color_white(), 0);
+    lv_obj_set_style_bg_grad_color(page_scan, lv_color_white(), 0);
+    lv_obj_set_style_bg_grad_dir(page_scan, LV_GRAD_DIR_HOR, 0);
+    lv_obj_set_style_bg_main_opa(page_scan, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_bg_grad_opa(page_scan, LV_OPA_60, 0);
+    lv_obj_set_style_bg_opa(page_scan, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_side(page_scan, LV_BORDER_SIDE_RIGHT, 0);
+    lv_obj_set_style_border_width(page_scan, 2, 0);
+    lv_obj_set_style_border_color(page_scan, lv_color_white(), 0);
+    page_scan_restart();
+
+    // the last words read, in a card like Check words
+    page_box = card(scr, CW, 38);
+    lv_obj_align(page_box, LV_ALIGN_TOP_MID, 0, st_y + ST_H + 14);
+    lv_obj_set_style_pad_all(page_box, 0, 0);
+    lv_obj_set_style_clip_corner(page_box, true, 0);
+    lv_obj_remove_flag(page_box, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(page_box, LV_OBJ_FLAG_HIDDEN);   // until the first word
+}
 
 // Every piece found, in reading order (the camera is only offered before the first word).
 static void page_make_slots() {
@@ -1310,8 +1489,9 @@ static void page_make_slots() {
     word_n = 0;
 }
 
-// One word per tick, so the screen keeps up (a word can take a second on the board).
-static void page_tick(lv_timer_t *) {
+// A word in two ticks, so the screen keeps up (a word can take a second on the
+// board): cut its strip and show it, then read it and add it to the list.
+static void page_tick(lv_timer_t *t) {
     if (read_i < 0) {
         if (!page_find_words()) {
             page_flow_wipe();
@@ -1320,16 +1500,28 @@ static void page_tick(lv_timer_t *) {
             return;
         }
         read_i = 0;
+        page_cut = false;
+        return;
+    }
+    if (read_i < ncands && !page_cut) {
+        page_strip(page_still, &page, cands[read_i].piece, page_strip_buf);
+        lv_obj_remove_flag(page_strip_img, LV_OBJ_FLAG_HIDDEN);
+        lv_image_set_src(page_strip_img, page_strip_src());
+        page_scan_restart();
+        lv_label_set_text_fmt(page_count, "%d", read_i + 1);
+        lv_label_set_text_fmt(page_of, "of %d", ncands);   // pieces found: strays and guessed rows too
+        page_cut = true;
+        lv_timer_set_period(t, LV_DEF_REFR_PERIOD + 5);   // let the strip show before the read holds the screen
         return;
     }
     if (read_i < ncands) {
-        page_strip(page_still, &page, cands[read_i].piece, page_strip_buf);
         WordResult r;
         cands[read_i].ok = word_reader_read(page_strip_buf, nullptr, &r);
         cands[read_i].word = int16_t(r.word);
+        page_list_add(read_i + 1, cands[read_i].ok, r.word);
         read_i++;
-        lv_bar_set_value(page_bar, read_i * 100 / ncands, LV_ANIM_OFF);
-        lv_label_set_text_fmt(page_lbl, "%d of %d", read_i, ncands);
+        page_cut = false;
+        lv_timer_set_period(t, LV_MIN(120, 2400 / ncands));   // a moment on the result, ~2.4 s at most in all
         return;
     }
     lv_timer_delete(page_timer);
@@ -1349,15 +1541,7 @@ static void page_reading_back_cb(lv_event_t *) {
 static void build_page_reading() {
     lv_obj_t *scr = screen();
     topbar(scr, "Reading words", page_reading_back_cb);
-    lv_obj_align(text(scr, "Reading" "\xE2\x80\xA6", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 40);
-    page_bar = lv_bar_create(scr);
-    lv_obj_set_size(page_bar, CW, 6);
-    lv_bar_set_range(page_bar, 0, 100);
-    lv_obj_set_style_bg_color(page_bar, SURFACE_2, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(page_bar, ACCENT, LV_PART_INDICATOR);
-    lv_obj_align(page_bar, LV_ALIGN_TOP_MID, 0, BAR + 96);
-    page_lbl = text(scr, "", &inter_13, TEXT_3);
-    lv_obj_align(page_lbl, LV_ALIGN_TOP_MID, 0, BAR + 112);
+    build_page_scene(scr);
     show(scr);
     if (page_timer) lv_timer_delete(page_timer);
     page_timer = lv_timer_create(page_tick, 10, nullptr);
@@ -1578,7 +1762,6 @@ static void build_page_review() {
 }
 
 // ---- one word: its picture, and what to do with it
-static lv_image_dsc_t page_strip_dsc;
 static uint8_t page_last_ok[256];   // bitmap: last words that fit the other words' checksum
 
 static bool page_last_allowed(int i) { return (page_last_ok[i >> 3] >> (i & 7)) & 1; }
@@ -1638,18 +1821,11 @@ static void build_page_word() {
     int y = BAR + 8;
     if (sl.piece >= 0) {   // the word's own picture, as cut from the photo
         page_strip(page_still, &page, sl.piece, page_strip_buf);
-        page_strip_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
-        page_strip_dsc.header.cf = LV_COLOR_FORMAT_L8;
-        page_strip_dsc.header.w = WR_W;
-        page_strip_dsc.header.h = WR_H;
-        page_strip_dsc.header.stride = WR_W;
-        page_strip_dsc.data_size = sizeof(page_strip_buf);
-        page_strip_dsc.data = page_strip_buf;
         lv_obj_t *frame = card(scr, CW, WR_H + 16);
         lv_obj_set_style_pad_all(frame, 8, 0);
         lv_obj_align(frame, LV_ALIGN_TOP_MID, 0, y);
         lv_obj_t *img = lv_image_create(frame);
-        lv_image_set_src(img, &page_strip_dsc);
+        lv_image_set_src(img, page_strip_src());
         lv_obj_center(img);
         y += WR_H + 28;
     } else {
