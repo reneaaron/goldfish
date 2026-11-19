@@ -24,11 +24,21 @@ const uint8_t *platform_camera_frame(int *width, int *height);
 const char *platform_camera_error();
 // Platform hook: scanning ended. Stop the camera and wipe its frame buffer.
 void platform_camera_stop();
-// Platform hooks: one still picture, as large as the platform can give, for
-// reading a whole handwritten page (page_reader.h). The simulator: the camera
-// image file, at most 1000 pixels on its longer side. The board: a copy of its
-// last full 240x320 frame (too small for a whole page; zoomed captures are to
-// come). Grayscale, *width x *height, kept until platform_camera_still_free(),
-// which wipes it. nullptr if there's no picture.
-const uint8_t *platform_camera_still(int *width, int *height);
+// Platform hooks for reading a whole handwritten page (page_reader.h), in two
+// pictures of the same view taken while the user holds still:
+// - platform_camera_still: what the preview showed (only that: the user framed
+//   the page by it), grayscale, *width x *height, enough to find the words.
+//   The simulator: the camera image file, at most 500 pixels on its longer
+//   side. The board: the middle 240x180 rows of its last frame. Kept until
+//   platform_camera_still_free(), which wipes it; once done with the picture
+//   the app may write over *room bytes from it (at least width x height:
+//   reading a page keeps its strips there).
+// - platform_camera_band: rows [y0, y0 + rows) of a fresh picture of the
+//   still's view CAM_ZOOM times as large (width * CAM_ZOOM wide), into buf: the board can't hold
+//   all of it, so the words' strips are cut band by band. Works after
+//   platform_camera_stop (it wakes the camera; stop it again after). False
+//   if no picture came.
+#define CAM_ZOOM 2
+uint8_t *platform_camera_still(int *width, int *height, size_t *room);
+bool platform_camera_band(int y0, int rows, uint8_t *buf);
 void platform_camera_still_free();

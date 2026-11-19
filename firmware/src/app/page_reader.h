@@ -39,5 +39,23 @@ struct Page {
 bool page_find(const uint8_t *gray, int w, int h, Page *page);
 // The strip of page->words[i], WR_H x WR_W (word_reader.h).
 void page_strip(const uint8_t *gray, const Page *page, int i, uint8_t *strip);
+// The same strip cut from a sharper picture of the same view, `zoom` times
+// page->w x page->h, of which only rows [y0, y0 + rows) are given (a band:
+// the board can't hold the whole picture), with the word moved by (dx, dy)
+// pixels of that picture. page_strip_rows says which rows the strip needs,
+// [*y0, *y1), with `margin` more on each side; rows it needs but the band
+// lacks are taken from the band's nearest edge. Returns how many columns of
+// the strip are the word's (the rest is plain paper).
+void page_strip_rows(const Page *page, int i, int zoom, int margin, int *y0, int *y1);
+int page_strip_band(const uint8_t *band, int y0, int rows, int zoom, int dx, int dy, const Page *page, int i,
+                    uint8_t *strip);
+// The sharper picture is a later frame: the hand moves, and the camera's
+// bigger output needn't line up exactly. Where word i moved to in it, as
+// (*dx, *dy) in its pixels: the band, shrunk by zoom, is slid against `ref`
+// (the picture page_find saw, or a copy of it at rw x rh) by up to PAGE_SHIFT
+// pixels each way around the word, and the best match wins.
+#define PAGE_SHIFT 6
+void page_band_shift(const uint8_t *ref, int rw, int rh, const uint8_t *band, int y0, int rows, int zoom,
+                     const Page *page, int i, int *dx, int *dy);
 // Corners of a word's box in image pixels (x0, y0 .. x3, y3), for drawing it.
 void page_corners(const Page *page, int i, float xy[8]);

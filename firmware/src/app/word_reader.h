@@ -29,7 +29,7 @@ struct WordResult {
     float margin;   // its score lead over the next best word
 };
 
-bool word_reader_init();    // allocates the network's buffers (~72 KB)
+bool word_reader_init();    // allocates the network's buffers (~90 KB)
 void word_reader_free();
 
 // allowed: which word indexes may be picked (nullptr = all). True when the

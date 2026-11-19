@@ -1,6 +1,7 @@
 #include "ui.h"
 #include <lvgl.h>
 #include <ctype.h>
+#include <math.h>
 #include <string.h>
 #include <strings.h>
 #include <stdio.h>
@@ -149,10 +150,11 @@ static UrDecoder ur_dec;
 static PsbtReview review;
 static int out_index;
 
-static void scan_stop() {
+// camera_off false: just the preview stops (reading a page takes more pictures)
+static void scan_stop(bool camera_off = true) {
     if (scan_timer) lv_timer_delete(scan_timer);
     scan_timer = nullptr;
-    platform_camera_stop();
+    if (camera_off) platform_camera_stop();
     qrscan_free();
     qr_w = qr_h = 0;
     memset(preview_buf, 0, sizeof(preview_buf));
@@ -356,6 +358,20 @@ static void page_read_cb(lv_event_t *);
 static void written_cb(lv_event_t *);
 static lv_obj_t *quiet_link(lv_obj_t *parent, const char *s, lv_event_cb_t cb, void *ud);
 
+// preview_buf on screen, under the top bar.
+static void preview_image(lv_obj_t *scr) {
+    preview_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
+    preview_dsc.header.cf = LV_COLOR_FORMAT_L8;
+    preview_dsc.header.w = PREV_W;
+    preview_dsc.header.h = PREV_H;
+    preview_dsc.header.stride = PREV_W;
+    preview_dsc.data_size = sizeof(preview_buf);
+    preview_dsc.data = preview_buf;
+    preview_img = lv_image_create(scr);
+    lv_image_set_src(preview_img, &preview_dsc);
+    lv_obj_set_pos(preview_img, 0, BAR);
+}
+
 static void build_scan(ScanMode mode) {
     scan_mode = mode;
     cam_err = false;
@@ -368,17 +384,7 @@ static void build_scan(ScanMode mode) {
     static const char *prompts[] = {"Hold it in the frame", "A transaction or an address",
                                     "Let's check it matches", "Fit all the words in view"};
     topbar(scr, titles[mode], scan_back_cb);
-
-    preview_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
-    preview_dsc.header.cf = LV_COLOR_FORMAT_L8;
-    preview_dsc.header.w = PREV_W;
-    preview_dsc.header.h = PREV_H;
-    preview_dsc.header.stride = PREV_W;
-    preview_dsc.data_size = sizeof(preview_buf);
-    preview_dsc.data = preview_buf;
-    preview_img = lv_image_create(scr);
-    lv_image_set_src(preview_img, &preview_dsc);
-    lv_obj_set_pos(preview_img, 0, BAR);
+    preview_image(scr);
     if (mode == SCAN_PAGE) corners(scr, W / 2, BAR + PREV_H / 2, W - 16, PREV_H - 16);   // the whole picture
     else corners(scr, W / 2, BAR + PREV_H / 2, 150, 150);
 
@@ -843,16 +849,30 @@ static char txt_words[4][12], txt_field[16], txt_sugg[2][12], txt_tail[40];
 
 // ---------------------------------------------------------------- written page
 // Scan words: one still of the written backup (platform_camera_still), its
-// words found by page_reader in reading order, each read by word_reader, then
-// one list of the words ("slots") to check against the backup. The still is
-// kept until the list is done, to show each word's own picture; it, the
-// strips and the words are wiped by page_flow_wipe().
-struct PageCand { int16_t word; bool ok; uint8_t piece; };
-struct Slot { int16_t word; int16_t piece; bool typed; };   // word -1: unknown; piece -1: no picture
+// words found by page_reader in reading order, each word's strip cut from a
+// sharper picture taken in bands of rows (platform_camera_band), then each
+// read by word_reader, then one list of the words ("slots") to check against
+// the backup. The strips are kept in the still's memory until the list is
+// done, to show each word's own picture; they and the words are wiped by
+// page_flow_wipe().
+struct PageCand { int16_t word; bool ok, cut; uint8_t piece; int16_t y0, y1; };
+// word -1: unknown; piece -1: no picture; guess: an unknown word's best reading,
+// not sure enough to fill in (often right in poor light), -1 if none
+struct Slot { int16_t word; int16_t piece; bool typed; int16_t guess = -1; };
 #define MAX_SLOTS 48
 static Page page;
-static const uint8_t *page_still;
+static uint8_t *page_still;   // the still, then the strips' store (page_room bytes)
 static int page_w, page_h;
+static size_t page_room;
+// A word's strip in the store: its first sw columns (the word), the rest paper of shade med.
+struct StoredStrip { uint32_t off; uint8_t sw, med; };   // sw 0: the store was full
+static StoredStrip stored[PAGE_MAX_WORDS];
+static size_t store_used;
+static uint8_t *band_buf;   // one band of the sharper picture, band_rows x page_w * CAM_ZOOM
+static int band_rows;
+enum PageStep { PAGE_FIND, PAGE_BANDS, PAGE_READ };
+static PageStep page_step;
+static const char *page_err;   // the sharp picture failed: why, shown on Words found
 static PageCand cands[PAGE_MAX_WORDS];
 static int ncands, read_i;
 static Slot slots[MAX_SLOTS];
@@ -886,14 +906,20 @@ static void page_flow_wipe() {
     if (page_timer) { lv_timer_delete(page_timer); page_timer = nullptr; }
     if (suggest_timer) { lv_timer_delete(suggest_timer); suggest_timer = nullptr; }
     page_suggest = page_suggest_slot = -1;
-    if (page_still) platform_camera_still_free();
+    if (band_buf) { secure_zero(band_buf, (size_t)band_rows * page_w * CAM_ZOOM); free(band_buf); }
+    band_buf = nullptr;
+    if (page_still) { platform_camera_stop(); platform_camera_still_free(); }
+    secure_zero(preview_buf, sizeof(preview_buf));   // Words found's copy of the photo
     page_still = nullptr;
+    secure_zero(stored, sizeof(stored));
+    store_used = 0;
     word_reader_free();
     secure_zero(&page, sizeof(page));
     secure_zero(cands, sizeof(cands));
     secure_zero(slots, sizeof(slots));
     secure_zero(page_strip_buf, sizeof(page_strip_buf));
     page_picking_extra = false;
+    page_err = nullptr;
     ncands = read_i = nslots = open_slot = 0;
     edit_slot = -1;
 }
@@ -1283,13 +1309,14 @@ static void build_enter_words() {
 // ---------------------------------------------------------------- written page screens
 bool ui_page_read() {
     int w, h;
-    const uint8_t *g = platform_camera_still(&w, &h);
+    uint8_t *g = platform_camera_still(&w, &h, &page_room);
     if (!g) { scan_status("No picture yet", "Hold still and try again", AMBER); return false; }
-    scan_stop();
+    scan_stop(false);   // the camera stays on for the sharper bands (ui_goto leaves it on too)
     page_still = g; page_w = w; page_h = h;
     ncands = 0;
-    read_i = -1;   // finding the words is the reading timer's first step, not this tap's:
-                   // slow work inside a tap leaves LVGL waiting for a release, and it ate the next tap
+    read_i = 0;
+    page_step = PAGE_FIND;   // finding the words is the reading timer's first step, not this tap's:
+                             // slow work inside a tap leaves LVGL waiting for a release, and it ate the next tap
     ui_goto(UI_PAGE_READING);
     return true;
 }
@@ -1305,9 +1332,64 @@ static bool page_find_words() {
         // (strays and a few unfound words either way)
         if (!word_n) new_words = found > 16 ? 24 : 12;
         for (int i = 0; i < page.n && ncands < PAGE_MAX_WORDS; i++)
-            if (!page.words[i].guessed || word_n + found < new_words) cands[ncands++] = {-1, false, uint8_t(i)};
+            if (!page.words[i].guessed || word_n + found < new_words) {
+                int y0, y1;
+                page_strip_rows(&page, i, CAM_ZOOM, PAGE_SHIFT * CAM_ZOOM, &y0, &y1);   // room to look for where it moved
+                cands[ncands++] = {-1, false, false, uint8_t(i), int16_t(y0), int16_t(y1)};
+            }
     }
-    return ncands && word_reader_init();
+    return ncands > 0;
+}
+
+// The band: as many rows as the tallest word needs, or more (fewer pictures),
+// as far as RAM allows; a word taller than that is cut from what the band has.
+static bool page_band_alloc() {
+    int zw = page_w * CAM_ZOOM, zh = page_h * CAM_ZOOM, need = 1;
+    for (int i = 0; i < ncands; i++) need = cands[i].y1 - cands[i].y0 > need ? cands[i].y1 - cands[i].y0 : need;
+    band_rows = 96 * 1024 / zw > need ? 96 * 1024 / zw : need;
+    if (band_rows > zh) band_rows = zh;
+    for (; band_rows >= 16 && !(band_buf = (uint8_t *)malloc((size_t)band_rows * zw)); band_rows /= 2) {}
+    return band_buf != nullptr;
+}
+
+// A strip, cut into page_strip_buf, into the store (the still's memory: the
+// still itself isn't needed once the words are found).
+static void page_store(int piece, int sw) {
+    size_t n = (size_t)WR_H * sw;
+    if (store_used + n > page_room) { stored[piece] = {0, 0, 0}; return; }
+    stored[piece] = {uint32_t(store_used), uint8_t(sw), page_strip_buf[WR_W - 1]};
+    for (int y = 0; y < WR_H; y++) memcpy(page_still + store_used + y * sw, page_strip_buf + y * WR_W, sw);
+    store_used += n;
+}
+
+static void page_restore(int piece) {
+    const StoredStrip &st = stored[piece];
+    for (int y = 0; y < WR_H; y++) {
+        memcpy(page_strip_buf + y * WR_W, page_still + st.off + y * st.sw, st.sw);
+        memset(page_strip_buf + y * WR_W + st.sw, st.sw ? st.med : 230, WR_W - st.sw);
+    }
+}
+
+// One band: from the highest word not cut yet down, every word that fits is
+// cut from it. False if the camera gave no picture.
+static bool page_band() {
+    int start = -1;
+    for (int i = 0; i < ncands; i++)
+        if (!cands[i].cut && (start < 0 || cands[i].y0 < start)) start = cands[i].y0;
+    int zh = page_h * CAM_ZOOM, b0 = start + band_rows > zh ? zh - band_rows : start;
+    if (!platform_camera_band(b0, band_rows, band_buf)) return false;
+    for (int i = 0; i < ncands; i++) {
+        PageCand &c = cands[i];
+        if (c.cut || !(c.y0 == start || (c.y0 >= b0 && c.y1 <= b0 + band_rows))) continue;
+        // where the word is in this later, sharper frame: matched against the
+        // photo as shown (preview_buf, a copy of the still: the still's memory
+        // is filling up with strips)
+        int dx, dy;
+        page_band_shift(preview_buf, PREV_W, PREV_H, band_buf, b0, band_rows, CAM_ZOOM, &page, c.piece, &dx, &dy);
+        page_store(c.piece, page_strip_band(band_buf, b0, band_rows, CAM_ZOOM, dx, dy, &page, c.piece, page_strip_buf));
+        c.cut = true;
+    }
+    return true;
 }
 
 static void page_read_cb(lv_event_t *) { ui_page_read(); }
@@ -1483,28 +1565,57 @@ static void build_page_scene(lv_obj_t *scr) {
 static void page_make_slots() {
     nslots = 0;
     for (int i = 0; i < ncands && nslots < MAX_SLOTS; i++)
-        slots[nslots++] = {int16_t(cands[i].ok ? cands[i].word : -1), int16_t(cands[i].piece), false};
+        slots[nslots++] = {int16_t(cands[i].ok ? cands[i].word : -1), int16_t(cands[i].piece), false,
+                           int16_t(cands[i].ok ? -1 : cands[i].word)};
     secure_zero(word_idx, sizeof(word_idx));
     secure_zero(cands, sizeof(cands));
     word_n = 0;
 }
 
-// A word in two ticks, so the screen keeps up (a word can take a second on the
-// board): cut its strip and show it, then read it and add it to the list.
+static void page_fail(const char *msg, const char *sub) {
+    page_flow_wipe();
+    ui_goto(UI_SCAN_PAGE);
+    scan_status(msg, sub, AMBER);
+}
+
+// One step per tick, so the screen keeps up: find the words, then one band
+// at a time (the user holds still until the camera is done), then, after
+// Words found, each word in two ticks: show its strip, then read it and add
+// it to the list (a word can take a second on the board).
 static void page_tick(lv_timer_t *t) {
-    if (read_i < 0) {
-        if (!page_find_words()) {
-            page_flow_wipe();
-            ui_goto(UI_SCAN_PAGE);
-            scan_status("No words found", "Fill the view with the page", AMBER);
+    if (page_step == PAGE_FIND) {
+        // Words found shows the photo as the preview did; kept in preview_buf
+        // (idle now), as the still's memory becomes the strips' store.
+        for (int y = 0; y < PREV_H; y++)
+            for (int x = 0; x < PREV_W; x++)
+                preview_buf[y * PREV_W + x] = page_still[(y * page_h / PREV_H) * page_w + x * page_w / PREV_W];
+        if (page_find_words()) page_step = PAGE_BANDS;   // the sharp picture right away, while the user holds still
+        else { platform_camera_stop(); ui_goto(UI_PAGE_FOUND); }   // nothing found: the photo, to see why
+        return;
+    }
+    if (page_step == PAGE_BANDS) {
+        lv_label_set_text(page_of, "Hold still");
+        if (!band_buf && !page_band_alloc()) { page_fail("Out of memory", "Restart the device"); return; }
+        if (!page_band()) {   // Words found says why, over the photo (Scan words has no room for it)
+            const char *err = platform_camera_error();
+            page_err = err ? err : "Hold still and try again";
+            platform_camera_stop();
+            ui_goto(UI_PAGE_FOUND);
             return;
         }
-        read_i = 0;
-        page_cut = false;
+        int cut = 0;
+        for (int i = 0; i < ncands; i++) cut += cands[i].cut;
+        if (cut < ncands) return;
+        platform_camera_stop();   // the still stays: it's the strips' store now
+        secure_zero(band_buf, (size_t)band_rows * page_w * CAM_ZOOM);
+        free(band_buf);
+        band_buf = nullptr;
+        page_step = PAGE_READ;   // once the user says so: the camera is done, they can move
+        ui_goto(UI_PAGE_FOUND);
         return;
     }
     if (read_i < ncands && !page_cut) {
-        page_strip(page_still, &page, cands[read_i].piece, page_strip_buf);
+        page_restore(cands[read_i].piece);
         lv_obj_remove_flag(page_strip_img, LV_OBJ_FLAG_HIDDEN);
         lv_image_set_src(page_strip_img, page_strip_src());
         page_scan_restart();
@@ -1532,16 +1643,72 @@ static void page_tick(lv_timer_t *t) {
     ui_goto(UI_PAGE_REVIEW);
 }
 
-// Back while reading: stop, and take another picture.
+// Back while reading, or Retake: stop, and take another picture.
 static void page_reading_back_cb(lv_event_t *) {
     page_flow_wipe();
     ui_goto(UI_SCAN_PAGE);
+}
+
+bool ui_page_found_read() {
+    if (ui_current() != UI_PAGE_FOUND || !ncands || page_err) return false;
+    if (!word_reader_init()) { page_fail("Out of memory", "Restart the device"); return false; }
+    page_cut = false;
+    ui_goto(UI_PAGE_READING);
+    return true;
+}
+static void page_found_read_cb(lv_event_t *) { ui_page_found_read(); }
+
+// The photo as the preview showed it, each word found boxed (amber: a gap
+// where a word should be), so a bad picture is retaken before the slow part.
+static void build_page_found() {
+    lv_obj_t *scr = screen();
+    topbar(scr, page_err ? "No picture" : ncands ? "Words found" : "No words found", page_reading_back_cb);
+    preview_image(scr);   // filled when the words were found
+    static lv_style_t box, gap;
+    static bool styled;
+    if (!styled) {   // shared styles: a page can have 160 boxes, each a bare object
+        lv_style_init(&box);
+        lv_style_set_border_width(&box, 1);
+        lv_style_set_border_color(&box, ACCENT);
+        lv_style_set_bg_opa(&box, LV_OPA_TRANSP);
+        lv_style_init(&gap);
+        lv_style_set_border_color(&gap, AMBER);
+        styled = true;
+    }
+    for (int i = 0; i < ncands; i++) {
+        float xy[8], x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;
+        page_corners(&page, cands[i].piece, xy);
+        for (int k = 0; k < 4; k++) {
+            x0 = fminf(x0, xy[2 * k]); x1 = fmaxf(x1, xy[2 * k]);
+            y0 = fminf(y0, xy[2 * k + 1]); y1 = fmaxf(y1, xy[2 * k + 1]);
+        }
+        int bx = int(x0 * PREV_W / page_w) - 1, by = int(y0 * PREV_H / page_h) - 1;
+        lv_obj_t *o = lv_obj_create(scr);
+        lv_obj_remove_style_all(o);
+        lv_obj_add_style(o, &box, 0);
+        if (page.words[cands[i].piece].guessed) lv_obj_add_style(o, &gap, 0);
+        lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_pos(o, bx, BAR + by);
+        lv_obj_set_size(o, int(x1 * PREV_W / page_w) + 2 - bx, int(y1 * PREV_H / page_h) + 2 - by);
+    }
+    lv_obj_t *msg = text(scr, "", &inter_13, ncands && !page_err ? TEXT_2 : AMBER, LV_TEXT_ALIGN_CENTER);
+    if (page_err) lv_label_set_text(msg, page_err);
+    else if (ncands) lv_label_set_text_fmt(msg, "%d found: one box per word?", ncands);
+    else lv_label_set_text(msg, "Fill the view, words level");
+    lv_obj_set_width(msg, CW);
+    lv_label_set_long_mode(msg, LV_LABEL_LONG_DOT);
+    lv_obj_align(msg, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + 6);
+    if (ncands && !page_err) bottom_pair(btn_ghost(scr, "Retake", page_reading_back_cb, nullptr, TEXT),
+                            btn_primary(scr, "Read", page_found_read_cb));
+    else place_bottom(btn_primary(scr, ICON_CAMERA "   Retake", page_reading_back_cb));
+    show(scr);
 }
 
 static void build_page_reading() {
     lv_obj_t *scr = screen();
     topbar(scr, "Reading words", page_reading_back_cb);
     build_page_scene(scr);
+    if (page_step != PAGE_FIND) lv_label_set_text(page_of, page_step == PAGE_BANDS ? "Hold still" : "");
     show(scr);
     if (page_timer) lv_timer_delete(page_timer);
     page_timer = lv_timer_create(page_tick, 10, nullptr);
@@ -1811,6 +1978,21 @@ void ui_page_use_suggestion() {
 }
 static void page_suggest_cb(lv_event_t *) { ui_page_use_suggestion(); }
 
+// An unread word's best guess, offered on its screen (the checksum's suggestion comes first).
+int ui_page_guess() {
+    if (ui_current() != UI_PAGE_WORD || page_suggest >= 0) return -1;
+    const Slot &sl = slots[open_slot];
+    return sl.word < 0 && sl.piece >= 0 ? sl.guess : -1;
+}
+void ui_page_use_guess() {
+    int g = ui_page_guess();
+    if (g < 0) return;
+    slots[open_slot].word = int16_t(g);
+    slots[open_slot].typed = true;   // the user's pick, like a typed word
+    ui_goto(UI_PAGE_REVIEW);
+}
+static void page_guess_cb(lv_event_t *) { ui_page_use_guess(); }
+
 static void build_page_word() {
     const Slot &sl = slots[open_slot];
     lv_obj_t *scr = screen();
@@ -1820,7 +2002,7 @@ static void build_page_word() {
 
     int y = BAR + 8;
     if (sl.piece >= 0) {   // the word's own picture, as cut from the photo
-        page_strip(page_still, &page, sl.piece, page_strip_buf);
+        page_restore(sl.piece);
         lv_obj_t *frame = card(scr, CW, WR_H + 16);
         lv_obj_set_style_pad_all(frame, 8, 0);
         lv_obj_align(frame, LV_ALIGN_TOP_MID, 0, y);
@@ -1838,10 +2020,12 @@ static void build_page_word() {
         page_suggest = -1;
         if (open_slot == new_words - 1 && !suggest_timer) suggest_timer = lv_timer_create(page_suggest_tick, 50, nullptr);
     }
-    if (page_suggest >= 0) {
-        lv_obj_align(text(scr, "This one fits the checksum:",
+    int guess = ui_page_guess();
+    if (page_suggest >= 0 || guess >= 0) {
+        lv_obj_align(text(scr, page_suggest >= 0 ? "This one fits the checksum:" : "Best guess, if it matches:",
                           &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, y + 44);
-        lv_obj_t *b = btn_ghost(scr, seed_word(page_suggest), page_suggest_cb, nullptr, ACCENT);
+        lv_obj_t *b = page_suggest >= 0 ? btn_ghost(scr, seed_word(page_suggest), page_suggest_cb, nullptr, ACCENT)
+                                        : btn_ghost(scr, seed_word(guess), page_guess_cb, nullptr, ACCENT);
         lv_obj_set_style_bg_color(b, ACCENT_DIM, 0);
         lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
         lv_obj_align(b, LV_ALIGN_TOP_MID, 0, y + 64);
@@ -2675,7 +2859,7 @@ static void build_multisig() {
 // Making or entering a seed: only while none is loaded.
 static bool seed_entry_screen(UiScreen s) {
     return s == UI_NEW_SEED || s == UI_ENTROPY_DICE || s == UI_ENTROPY_COINS || s == UI_ENTER_WORDS ||
-           s == UI_SCAN_PAGE || s == UI_PAGE_READING || s == UI_PAGE_REVIEW || s == UI_PAGE_WORD;
+           s == UI_SCAN_PAGE || s == UI_PAGE_FOUND || s == UI_PAGE_READING || s == UI_PAGE_REVIEW || s == UI_PAGE_WORD;
 }
 // The card flow: for a new seed, or the loaded one.
 static bool backup_screen(UiScreen s) {
@@ -2684,7 +2868,10 @@ static bool backup_screen(UiScreen s) {
 }
 
 void ui_goto(UiScreen s) {
-    if (s != UI_SCAN_SEED && s != UI_SCAN && s != UI_BACKUP_SCAN) scan_stop();
+    // (Words found shows preview_buf: the photo, kept there; scanning stopped before it)
+    // Reading words keeps the camera on: a camera just woken gave blank frames, and the
+    // sharp picture comes right after the still (the reading step stops it).
+    if (s != UI_SCAN_SEED && s != UI_SCAN && s != UI_BACKUP_SCAN && s != UI_PAGE_FOUND) scan_stop(s != UI_PAGE_READING);
     if (s != UI_PASSPHRASE) pass_wipe();
     if (s != UI_EXPORT_XPUB) key_details = false;
     // A scanned descriptor that wasn't confirmed on its screen is never used.
@@ -2733,6 +2920,7 @@ void ui_goto(UiScreen s) {
         case UI_CHILD_INDEX: build_child_index(); break;
         case UI_MULTISIG: build_multisig(); break;
         case UI_SCAN_PAGE: build_scan(SCAN_PAGE); break;
+        case UI_PAGE_FOUND: build_page_found(); break;
         case UI_PAGE_READING: build_page_reading(); break;
         case UI_PAGE_REVIEW: build_page_review(); break;
         case UI_PAGE_WORD: build_page_word(); break;

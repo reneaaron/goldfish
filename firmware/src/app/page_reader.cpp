@@ -10,6 +10,7 @@
 static const uint8_t *img;
 static int W, H, gw, gh;
 static uint8_t *bg;   // paper brightness per BLK x BLK block
+static int paper_ref;  // the picture's paper brightness: what "dark" and "much darker" are relative to
 
 static void paper_levels() {
     uint16_t hist[256];
@@ -39,11 +40,24 @@ static inline int paper_at(int x, int y) {
     return int(top * (1 - ay) + bot * ay);
 }
 
-// Ink: clearly darker than the paper around it (pencil included).
+// The paper's brightness over the whole picture: the 75th percentile of the
+// blocks' (most blocks are paper). The ink test is relative to it, so a dim
+// picture (a dark room, the board's camera) works like a bright one.
+static void paper_reference() {
+    uint16_t hist[256] = {};
+    for (int i = 0; i < gw * gh; i++) hist[bg[i]]++;
+    int k = gw * gh * 3 / 4, v = 0;
+    for (int seen = 0; v < 255 && (seen += hist[v]) <= k; v++) {}
+    paper_ref = v;
+}
+
+// Ink: clearly darker than the paper around it (pencil included), where
+// there is paper (not the desk around it). At ordinary light (paper about
+// 200) that's paper above 60 and ink 20 below it.
 static inline bool ink(int x, int y) {
     int p = paper_at(x, y);
-    int d = p / 5 > 20 ? p / 5 : 20;
-    return p > 60 && img[y * W + x] < p - d;
+    int d = p / 5 > paper_ref / 10 ? p / 5 : paper_ref / 10;
+    return p > paper_ref * 3 / 10 && img[y * W + x] < p - d;
 }
 
 // ---------------------------------------------------------------- tilt
@@ -101,12 +115,13 @@ static float find_tilt() {
 #define MAX_LETTERS 3000
 #define MAX_HS 1024
 struct Run { int16_t u0, u1, v; int parent; };
-struct Blob { int u0, v0, u1, v1, n; };
-// All on the heap for one page_find, sized to the image, wiped and freed after.
+struct Blob { int16_t u0, v0, u1, v1; int n; };
+// All on the heap for one page_find, sized to what the page has (the board
+// has about 120 KB to spare), wiped and freed after.
 static Run *runs;
 static Blob *blobs, *letters;
 static int *lpar;
-static int nruns, max_runs;
+static int nruns, max_runs, max_letters;
 
 static int find_run(int a) {
     while (runs[a].parent != a) a = runs[a].parent = runs[runs[a].parent].parent;
@@ -141,6 +156,7 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
     bg = (uint8_t *)malloc(gw * gh);
     if (!bg) return false;
     paper_levels();
+    paper_reference();
 
     float a = find_tilt(), c = cosf(a), s = sinf(a);
     page->cos_a = c; page->sin_a = s;
@@ -151,15 +167,9 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
     float umax = fmaxf(fmaxf(0, w * c), fmaxf(h * s, w * c + h * s));
     int nv = int(vmax - vmin) + 2, nu = int(umax - umin) + 2, stride = (nu + 7) / 8;
     uint8_t *map = (uint8_t *)calloc((size_t)stride * nv, 1);   // ink along the tilt, 1 bit per pixel
-    bool ok = false, overflow = false;
-    nruns = 0;
-    max_runs = nu * nv / 12 + 2000;   // far more runs than any page of words has
-    if (max_runs > 80000) max_runs = 80000;
-    runs = (Run *)malloc(sizeof(Run) * max_runs);
-    blobs = (Blob *)malloc(sizeof(Blob) * max_runs);
-    letters = (Blob *)malloc(sizeof(Blob) * MAX_LETTERS);
-    lpar = (int *)malloc(sizeof(int) * MAX_LETTERS);
-    if (!map || !runs || !blobs || !letters || !lpar) goto done;
+    bool ok = false;
+    nruns = max_runs = max_letters = 0;
+    if (!map) goto done;
 #define MAP_GET(u, v) ((map[(size_t)(v) * stride + ((u) >> 3)] >> ((u) & 7)) & 1)
 #define MAP_CLR(u, v) (map[(size_t)(v) * stride + ((u) >> 3)] &= uint8_t(~(1 << ((u) & 7))))
     for (int v = 0; v < nv; v++)
@@ -192,9 +202,17 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
                 v = e;
             }
     }
+    for (int v = 0; v < nv; v++)   // how many runs of ink there are, to allocate just those
+        for (int u = 0; u < nu; u++)
+            if (MAP_GET(u, v) && (u == 0 || !MAP_GET(u - 1, v))) max_runs++;
+    if (!max_runs) goto done;
+    runs = (Run *)malloc(sizeof(Run) * max_runs);
+    blobs = (Blob *)malloc(sizeof(Blob) * max_runs);
+    if (!runs || !blobs) goto done;
     {
         // Blobs of ink: runs along each map row, joined where they touch a
         // run on the row above (8-connected), with union-find.
+        bool overflow = false;
         nruns = 0;
         int prev0 = 0, prev1 = 0;   // runs of the previous row: [prev0, prev1)
         for (int v = 0; v < nv && !overflow; v++) {
@@ -235,14 +253,20 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
         qsort(hs, nh, sizeof(int), cmp_int);
         int lh = hs[nh / 2];
         // letters: not specks, not pictures
-        int nl = 0;
-        for (int i = 0; i < nruns && nl < MAX_LETTERS; i++) {
-            if (find_run(i) != i) continue;
+        auto is_letter = [&](int i) {
+            if (find_run(i) != i) return false;
             const Blob &b = blobs[i];
             int bh = b.v1 - b.v0 + 1, bw = b.u1 - b.u0 + 1;
-            if (bh < lh * 3 / 10 || b.n < 6 || bh > lh * 3 || bw > lh * 12) continue;
-            letters[nl++] = b;
-        }
+            return !(bh < lh * 3 / 10 || b.n < 6 || bh > lh * 3 || bw > lh * 12);
+        };
+        for (int i = 0; i < nruns && max_letters < MAX_LETTERS; i++) max_letters += is_letter(i);
+        if (!max_letters) goto done;
+        letters = (Blob *)malloc(sizeof(Blob) * max_letters);
+        lpar = (int *)malloc(sizeof(int) * max_letters);
+        if (!letters || !lpar) goto done;
+        int nl = 0;
+        for (int i = 0; i < nruns && nl < max_letters; i++)
+            if (is_letter(i)) letters[nl++] = blobs[i];
         // words: letters that overlap vertically and sit closer than ~a letter apart
         for (int i = 0; i < nl; i++) lpar[i] = i;
         for (int i = 0; i < nl; i++)
@@ -412,9 +436,9 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
     ok = true;
 
 done:
-    if (runs) { secure_zero(runs, sizeof(Run) * nruns); free(runs); }
-    if (blobs) { secure_zero(blobs, sizeof(Blob) * nruns); free(blobs); }
-    if (letters) { secure_zero(letters, sizeof(Blob) * MAX_LETTERS); free(letters); }
+    if (runs) { secure_zero(runs, sizeof(Run) * max_runs); free(runs); }
+    if (blobs) { secure_zero(blobs, sizeof(Blob) * max_runs); free(blobs); }
+    if (letters) { secure_zero(letters, sizeof(Blob) * max_letters); free(letters); }
     free(lpar);
     runs = nullptr; blobs = letters = nullptr; lpar = nullptr;
     if (map) { secure_zero(map, (size_t)stride * nv); free(map); }
@@ -423,21 +447,51 @@ done:
 }
 
 // ---------------------------------------------------------------- strips
-void page_strip(const uint8_t *gray, const Page *page, int i, uint8_t *strip) {
+// Where a word's strip comes from, in an image `zoom` times the size page_find saw.
+struct StripGeom { float u0, v0, sx, scale; int sw, k; };
+
+static StripGeom strip_geom(const Page *page, int i, int zoom) {
     const PageWord &pw = page->words[i];
-    float c = page->cos_a, s = page->sin_a;
-    float hgt = pw.v1 - pw.v0;
+    StripGeom g;
+    float hgt = (pw.v1 - pw.v0) * zoom;
     float sh = hgt / 0.65f;                       // strip height in image pixels
-    float v0 = (pw.v0 + pw.v1) / 2 - sh / 2;
-    float u0 = pw.u0 - 0.3f * hgt, uw = (pw.u1 - pw.u0) + 0.6f * hgt;
-    float scale = sh / WR_H;
-    int sw = int(uw / scale + 0.5f);
-    if (sw > WR_W) sw = WR_W;                     // squeeze a long row into the strip
-    if (sw < 8) sw = 8;
-    float sx = uw / sw;
-    int k = int(ceilf(scale > sx ? scale : sx));  // samples per output pixel and axis
-    if (k < 1) k = 1;
-    if (k > 6) k = 6;
+    g.v0 = (pw.v0 + pw.v1) * zoom / 2 - sh / 2;
+    g.u0 = pw.u0 * zoom - 0.3f * hgt;
+    float uw = (pw.u1 - pw.u0) * zoom + 0.6f * hgt;
+    g.scale = sh / WR_H;
+    g.sw = int(uw / g.scale + 0.5f);
+    if (g.sw > WR_W) g.sw = WR_W;                 // squeeze a long row into the strip
+    if (g.sw < 8) g.sw = 8;
+    g.sx = uw / g.sw;
+    g.k = int(ceilf(g.scale > g.sx ? g.scale : g.sx));   // samples per output pixel and axis
+    if (g.k < 1) g.k = 1;
+    if (g.k > 6) g.k = 6;
+    return g;
+}
+
+void page_strip_rows(const Page *page, int i, int zoom, int margin, int *y0, int *y1) {
+    StripGeom g = strip_geom(page, i, zoom);
+    float c = page->cos_a, s = page->sin_a, lo = 1e9f, hi = -1e9f;
+    for (int j = 0; j < 4; j++) {
+        float u = g.u0 + (j & 1 ? g.sw * g.sx : 0), v = g.v0 + (j & 2 ? WR_H * g.scale : 0);
+        float y = u * s + v * c;
+        lo = fminf(lo, y);
+        hi = fmaxf(hi, y);
+    }
+    lo -= margin;
+    hi += margin;
+    int h = page->h * zoom;
+    *y0 = int(floorf(lo)) < 0 ? 0 : int(floorf(lo)) > h ? h : int(floorf(lo));
+    *y1 = int(floorf(hi)) + 1 < *y0 ? *y0 : int(floorf(hi)) + 1 > h ? h : int(floorf(hi)) + 1;
+}
+
+int page_strip_band(const uint8_t *band, int y0, int rows, int zoom, int dx, int dy, const Page *page, int i,
+                    uint8_t *strip) {
+    StripGeom g = strip_geom(page, i, zoom);
+    float c = page->cos_a, s = page->sin_a;
+    int w = page->w * zoom, ylo = y0, yhi = y0 + rows - 1;
+    if (yhi > page->h * zoom - 1) yhi = page->h * zoom - 1;
+    const int k = g.k, sw = g.sw;
     static uint16_t hist[256];
     memset(hist, 0, sizeof(hist));
     for (int oy = 0; oy < WR_H; oy++)
@@ -445,15 +499,15 @@ void page_strip(const uint8_t *gray, const Page *page, int i, uint8_t *strip) {
             int sum = 0;
             for (int j = 0; j < k; j++)
                 for (int q = 0; q < k; q++) {
-                    float u = u0 + (ox + (q + 0.5f) / k) * sx, v = v0 + (oy + (j + 0.5f) / k) * scale;
-                    int x = int(u * c - v * s), y = int(u * s + v * c);
-                    x = x < 0 ? 0 : x >= page->w ? page->w - 1 : x;
-                    y = y < 0 ? 0 : y >= page->h ? page->h - 1 : y;
-                    sum += gray[y * page->w + x];
+                    float u = g.u0 + (ox + (q + 0.5f) / k) * g.sx, v = g.v0 + (oy + (j + 0.5f) / k) * g.scale;
+                    int x = int(u * c - v * s) + dx, y = int(u * s + v * c) + dy;
+                    x = x < 0 ? 0 : x >= w ? w - 1 : x;
+                    y = y < ylo ? ylo : y > yhi ? yhi : y;
+                    sum += band[(y - y0) * w + x];
                 }
-            uint8_t g = uint8_t(sum / (k * k));
-            strip[oy * WR_W + ox] = g;
-            hist[g]++;
+            uint8_t v = uint8_t(sum / (k * k));
+            strip[oy * WR_W + ox] = v;
+            hist[v]++;
         }
     // the rest of the strip: plain paper, the strip's median
     int n = WR_H * sw, seen = 0, med = 0;
@@ -461,6 +515,72 @@ void page_strip(const uint8_t *gray, const Page *page, int i, uint8_t *strip) {
     for (int oy = 0; oy < WR_H; oy++)
         for (int ox = sw; ox < WR_W; ox++) strip[oy * WR_W + ox] = uint8_t(med);
     secure_zero(hist, sizeof(hist));
+    return sw;
+}
+
+void page_strip(const uint8_t *gray, const Page *page, int i, uint8_t *strip) {
+    page_strip_band(gray, 0, page->h, 1, 0, 0, page, i, strip);
+}
+
+void page_band_shift(const uint8_t *ref, int rw, int rh, const uint8_t *band, int y0, int rows, int zoom,
+                     const Page *page, int i, int *dx, int *dy) {
+    *dx = *dy = 0;
+    // the word's box in page_find's pixels, a little wider
+    float xy[8], fx0 = 1e9f, fy0 = 1e9f, fx1 = -1e9f, fy1 = -1e9f;
+    page_corners(page, i, xy);
+    for (int k = 0; k < 4; k++) {
+        fx0 = fminf(fx0, xy[2 * k]); fx1 = fmaxf(fx1, xy[2 * k]);
+        fy0 = fminf(fy0, xy[2 * k + 1]); fy1 = fmaxf(fy1, xy[2 * k + 1]);
+    }
+    const int R = PAGE_SHIFT, pw = page->w, ph = page->h;
+    int x0 = int(fx0) - 2, x1 = int(fx1) + 3, by0 = int(fy0) - 2, by1 = int(fy1) + 3;
+    x0 = x0 < 0 ? 0 : x0; by0 = by0 < 0 ? 0 : by0;
+    x1 = x1 > pw ? pw : x1; by1 = by1 > ph ? ph : by1;
+    int bw = x1 - x0, bh = by1 - by0;
+    if (bw < 4 || bh < 4) return;
+    // the band around it, shrunk to page_find's size; -1 where the band has no rows
+    int sw = bw + 2 * R, sh = bh + 2 * R;
+    int16_t *small = (int16_t *)malloc(sizeof(int16_t) * sw * sh);
+    if (!small) return;
+    for (int y = 0; y < sh; y++)
+        for (int x = 0; x < sw; x++) {
+            int px = x0 - R + x, py = by0 - R + y, sum = 0;
+            bool in = px >= 0 && px < pw && py * zoom >= y0 && (py + 1) * zoom <= y0 + rows;
+            for (int j = 0; in && j < zoom; j++)
+                for (int q = 0; q < zoom; q++) sum += band[(py * zoom + j - y0) * pw * zoom + px * zoom + q];
+            small[y * sw + x] = in ? int16_t(sum / (zoom * zoom)) : -1;
+        }
+    // ref's mean over the box: brightness can differ between the two frames, so both sides lose their mean
+    long rsum = 0;
+    for (int y = by0; y < by1; y++)
+        for (int x = x0; x < x1; x++) rsum += ref[(y * rh / ph) * rw + x * rw / pw];
+    int rmean = int(rsum / (bw * bh));
+    float best = 1e30f;
+    for (int sy = -R; sy <= R; sy++)
+        for (int sx = -R; sx <= R; sx++) {
+            long bsum = 0;
+            int n = 0;
+            for (int y = 0; y < bh; y++)
+                for (int x = 0; x < bw; x++) {
+                    int v = small[(y + R + sy) * sw + x + R + sx];
+                    if (v >= 0) bsum += v, n++;
+                }
+            if (n < bw * bh / 2) continue;
+            int bmean = int(bsum / n);
+            long sad = 0;
+            for (int y = 0; y < bh; y++)
+                for (int x = 0; x < bw; x++) {
+                    int v = small[(y + R + sy) * sw + x + R + sx];
+                    if (v < 0) continue;
+                    int r = ref[((by0 + y) * rh / ph) * rw + (x0 + x) * rw / pw] - rmean;
+                    sad += abs(r - (v - bmean));
+                }
+            // per pixel, and a nudge toward no shift where a plain patch matches anywhere
+            float score = float(sad) / n + 0.02f * (sx * sx + sy * sy);
+            if (score < best) { best = score; *dx = sx * zoom; *dy = sy * zoom; }
+        }
+    secure_zero(small, sizeof(int16_t) * sw * sh);
+    free(small);
 }
 
 void page_corners(const Page *page, int i, float xy[8]) {
