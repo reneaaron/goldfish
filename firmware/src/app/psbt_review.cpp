@@ -35,7 +35,7 @@ const char *psbt_error_text(PsbtError e) {
         case PSBT_UNSUPPORTED: return "Only native SegWit wallets are supported for now, single-key or multisig.";
         case PSBT_MISSING_AMOUNTS: return "Your wallet left out the input amounts, so the fee can't be checked.";
         case PSBT_SUSPICIOUS: return "An address claims to be your change but isn't. The transaction may have been tampered with.";
-        case PSBT_NEEDS_DESCRIPTOR: return "This is a multisig transaction. Scan the wallet's descriptor first, then the transaction again.";
+        case PSBT_NEEDS_DESCRIPTOR: return "A multisig transaction needs its wallet's descriptor QR.";
         case PSBT_WRONG_WALLET: return "This transaction doesn't spend from the multisig wallet you loaded.";
     }
     return "";

@@ -19,25 +19,32 @@ PSBT review/signing (single-sig and multisig) work in the simulator; the board's
 Seeds come in as a SeedQR (Standard or Compact, 12 or 24 words), the
 format SeedSigner uses (the UI just calls it a seed QR), as typed BIP39
 words, or are made on the device. A BIP-39 passphrase can be added after loading.
-The seed lives in RAM only: "Wipe seed" or unplugging removes it.
+The seed lives in RAM only: Wipe or unplugging removes it.
 
 1. Home: Scan QR, Enter words, or New seed
-2. Seed loaded: shows the fingerprint to check against your wallet. "Add
-   passphrase" is an optional side step here
-3. Wallet: Sign transaction, Verify address, Connect wallet, Back up as QR, Child seed, Wipe now
-4. Connect wallet: shows the native segwit xpub as `[fingerprint/84h/0h/0h]zpub…`, the
-   same static format SeedSigner exports, readable by Sparrow. "Network" switches it
-   to testnet (`[fingerprint/84h/1h/0h]vpub…`), which also serves signet and
+2. Wallet: the home screen once a seed is loaded. It shows the fingerprint to
+   check against your wallet app (with a chip for a passphrase or a multisig
+   wallet), Scan QR for everyday use, and Wallet options for the rest:
+   Connect wallet and Back up as QR, then Passphrase, Child seed and Network,
+   then Wipe seed on its own; the list scrolls
+3. Scan QR: one scanner for a transaction to sign, an address to verify, or a
+   multisig descriptor; the device tells them apart by their format
+4. Connect wallet (the Watch-only wallet screen): shows the native segwit xpub as
+   `[fingerprint/84h/0h/0h]zpub…`, the same static format SeedSigner exports,
+   readable by Sparrow, with the start and end of the key under the QR. Tapping
+   the QR shows everything in it: fingerprint, path and the whole key in groups
+   of four. Network in Wallet options switches it to testnet
+   (`[fingerprint/84h/1h/0h]vpub…`, shown in amber), which also serves signet and
    Mutinynet. The choice is kept in RAM, so every boot starts on mainnet. Signing and
    Verify address don't use it: they read the network from the PSBT or the address.
-   "Single-sig" switches to this seed's key for a multisig wallet,
+   "For a multisig wallet" switches to this seed's key for a multisig wallet,
    `[fingerprint/48h/0h/0h/2h]Zpub…` (BIP-48, native segwit; `48h/1h/0h/2h` and
    `Vpub…` on testnet), to add as a cosigner in the wallet app. Also RAM only
-5. Verify address: scan a receive address (plain or `bitcoin:` URI) from your
+5. Verify address: Scan QR on a receive address (plain or `bitcoin:` URI) from your
    wallet app; the device checks the first 500 receive and 100 change
    addresses of this seed and says which one it is, or that it isn't yours;
    the amount a URI asks for (`amount=`) is shown too, or flagged if it isn't valid
-6. Sign transaction: scan a PSBT (animated UR `crypto-psbt`, or a single
+6. Sign transaction: Scan QR on a PSBT (animated UR `crypto-psbt`, or a single
    base64 frame), review the amount, fee and change, check each output's
    address, slide to sign, then show the signed PSBT as an animated UR
 
@@ -93,13 +100,13 @@ bands of rows (it can't hold a whole one), as few as fit in about
 was. On the board this is untested: the band capture, its timing and the
 reading speed are unmeasured.
 
-Add passphrase opens a keyboard for a BIP-39 passphrase (the "25th word"):
+Passphrase (in Wallet options) opens a keyboard for a BIP-39 passphrase (the "25th word"):
 letters, digits and all ASCII symbols, up to 64 characters, with a Show/Hide
 switch. OK derives the key again (a few seconds on the board, like loading) and
-returns to Seed loaded with the fingerprint of seed plus passphrase, to check
-against the wallet app before continuing. An empty passphrase removes it. The
-device keeps only the derived key, not the passphrase; both go with "Wipe
-seed" or unplugging. Signing, Verify address, Connect wallet and Child seed
+returns to Wallet with the fingerprint of seed plus passphrase, to check
+against the wallet app. An empty passphrase removes it. The
+device keeps only the derived key, not the passphrase; both go with Wipe
+or unplugging. Signing, Verify address, Connect wallet and Child seed
 then all use the passphrase wallet. Back up as QR still writes the seed alone:
 the passphrase is never part of a backup. Characters outside ASCII and a
 passphrase QR aren't supported.
@@ -163,7 +170,7 @@ can name any cosigner keys next to ours:
 
 - Connect wallet, set to Multisig, shows the key to add to the wallet in the
   wallet app. The device only needs the finished wallet's descriptor
-- Show the descriptor QR to the Sign transaction or Verify address scanner: as
+- Show the descriptor QR to Scan QR: as
   plain text, as a `crypto-output` UR (BCR-2020-010, sortedmulti with HD keys),
   or as text in a `bytes` UR. `/<0;1>/*`, `/{0,1}/*` and `/0/*` are all read as
   receive 0, change 1. A checksum, if there is one, must be right

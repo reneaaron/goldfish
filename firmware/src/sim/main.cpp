@@ -224,7 +224,7 @@ static void headless_display() {
     lv_display_set_flush_cb(shot_disp, [](lv_display_t *d, const lv_area_t *, uint8_t *) { lv_display_flush_ready(d); });
 }
 
-// Walk the flow: home, scan a 12-word Standard SeedQR, menu, xpub, wipe.
+// Walk the flow: home, scan a 12-word Standard SeedQR, wallet, options, xpub, wipe.
 static int run_shots(const char *dir) {
     headless_display();
 
@@ -236,15 +236,15 @@ static int run_shots(const char *dir) {
     pump(300); save(dir, "2_scan_waiting");
     setenv("SIM_CAMERA", "sim/samples/vector4_standard_12word.png", 1);
     for (int i = 0; i < 100 && ui_current() == UI_SCAN_SEED; i++) pump(50);
-    if (ui_current() != UI_SEED_LOADED) { fprintf(stderr, "SeedQR was not decoded\n"); return 1; }
+    if (ui_current() != UI_WALLET) { fprintf(stderr, "SeedQR was not decoded\n"); return 1; }
     pump(300); save(dir, "3_seed_loaded");
-    ui_goto(UI_SEED_MENU);    pump(300); save(dir, "4_seed_menu");
+    ui_goto(UI_WALLET_OPTIONS);    pump(300); save(dir, "4_seed_menu");
     ui_goto(UI_EXPORT_XPUB);  pump(300); save(dir, "5_export_xpub");
+    ui_key_details();         pump(300); save(dir, "5f_export_details");
     wallet_set_testnet(true);
     ui_goto(UI_NETWORK);      pump(300); save(dir, "5b_network");
     ui_goto(UI_EXPORT_XPUB);  pump(300); save(dir, "5c_export_vpub");
     wallet_set_testnet(false);
-    ui_goto(UI_KEY_TYPE);     pump(300); save(dir, "5d_key_type");
     wallet_set_export_multisig(true);
     ui_goto(UI_EXPORT_XPUB);  pump(300); save(dir, "5e_export_multisig");
     wallet_set_export_multisig(false);
@@ -255,10 +255,10 @@ static int run_shots(const char *dir) {
     ui_goto(UI_SCAN_SEED);
     setenv("SIM_CAMERA", "sim/samples/testseed_height_demise_standard_12word.png", 1);
     for (int i = 0; i < 100 && ui_current() == UI_SCAN_SEED; i++) pump(50);
-    if (ui_current() != UI_SEED_LOADED) { fprintf(stderr, "test seed was not decoded\n"); return 1; }
-    ui_goto(UI_SCAN_PSBT);
+    if (ui_current() != UI_WALLET) { fprintf(stderr, "test seed was not decoded\n"); return 1; }
+    ui_goto(UI_SCAN);
     setenv("SIM_CAMERA", "sim/samples/testpsbt_height_demise_base64.png", 1);
-    for (int i = 0; i < 100 && ui_current() == UI_SCAN_PSBT; i++) pump(50);
+    for (int i = 0; i < 100 && ui_current() == UI_SCAN; i++) pump(50);
     if (ui_current() != UI_PSBT_OVERVIEW) { save(dir, "debug_psbt_scan"); fprintf(stderr, "PSBT was not accepted (screen %d)\n", ui_current()); return 1; }
     pump(300); save(dir, "7_psbt_overview");
     ui_goto(UI_PSBT_OUTPUT); pump(300); save(dir, "8_psbt_output_1");
@@ -268,16 +268,16 @@ static int run_shots(const char *dir) {
     pump(400); save(dir, "11_psbt_signed");
 
     // Verify address: one of ours (testnet receive #7), then a foreign one.
-    ui_goto(UI_SEED_MENU); pump(300); save(dir, "12_wallet_menu");
+    ui_goto(UI_WALLET); pump(300); save(dir, "12_wallet_menu");
     char ours[96];
     address_at(true, 0, 7, ours, sizeof(ours));
     char uri[128];
     snprintf(uri, sizeof(uri), "bitcoin:%s?amount=0.001", ours);
-    ui_goto(UI_SCAN_ADDRESS);
+    ui_goto(UI_SCAN);
     cam_show_qr(uri);
     for (int i = 0; i < 200 && !(ui_current() == UI_VERIFY_RESULT && verify_done()); i++) pump(30);
     pump(300); save(dir, "13_verify_found");
-    ui_goto(UI_SCAN_ADDRESS);
+    ui_goto(UI_SCAN);
     cam_show_qr("tb1q6rz28mcfaxtmd6v789l9rrlrusdprr9pqcpvkl");   // "abandon" seed, not ours
     for (int i = 0; i < 400 && !(ui_current() == UI_VERIFY_RESULT && verify_done()); i++) pump(30);
     pump(300); save(dir, "14_verify_not_found");
@@ -347,8 +347,8 @@ static int run_shots(const char *dir) {
         if (!ui_enter_word(w)) { fprintf(stderr, "word %s refused\n", w); return 1; }
     pump(300); save(dir, "27_words_last");
     if (ui_enter_word("zoo")) { fprintf(stderr, "invalid last word accepted\n"); return 1; }
-    if (!ui_enter_word("unique") || ui_current() != UI_SEED_LOADED) { fprintf(stderr, "words did not load\n"); return 1; }
-    ui_goto(UI_SEED_MENU); pump(300); save(dir, "28_menu_backup");
+    if (!ui_enter_word("unique") || ui_current() != UI_WALLET) { fprintf(stderr, "words did not load\n"); return 1; }
+    ui_goto(UI_WALLET_OPTIONS); pump(300); save(dir, "28_menu_backup");
     ui_backup_loaded();
     if (ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "backup did not start\n"); return 1; }
     ui_goto(UI_BACKUP_QR);
@@ -362,10 +362,10 @@ static int run_shots(const char *dir) {
     ui_backup_next();
     if (!cam_show_matrix(ui_backup_qr())) { fprintf(stderr, "no backup QR on screen\n"); return 1; }
     for (int i = 0; i < 100 && ui_current() == UI_BACKUP_SCAN; i++) pump(50);
-    if (ui_current() != UI_SEED_LOADED || !wallet_has_seed()) { fprintf(stderr, "existing backup check failed\n"); return 1; }
+    if (ui_current() != UI_WALLET || !wallet_has_seed()) { fprintf(stderr, "existing backup check failed\n"); return 1; }
 
     // BIP-85 child seed of the loaded seed: words, QR card, card check.
-    ui_goto(UI_SEED_MENU);    pump(300); save(dir, "30_menu_child");
+    ui_goto(UI_WALLET_OPTIONS);    pump(300); save(dir, "30_menu_child");
     ui_goto(UI_CHILD_INDEX);
     // Keypad: the largest child number, a digit past it is ignored, Del back to 0.
     for (const char *d = "21474836479"; *d; d++) ui_child_digit(*d - '0');
@@ -395,11 +395,11 @@ static int run_shots(const char *dir) {
     ui_goto(UI_HOME);
     ui_seed_entry(UI_ENTER_WORDS, 12);
     for (int i = 0; i < 11; i++) ui_enter_word("abandon");
-    if (!ui_enter_word("about") || ui_current() != UI_SEED_LOADED) { fprintf(stderr, "abandon seed did not load\n"); return 1; }
+    if (!ui_enter_word("about") || ui_current() != UI_WALLET) { fprintf(stderr, "abandon seed did not load\n"); return 1; }
     pump(300); save(dir, "35_seed_loaded_link");
     ui_goto(UI_PASSPHRASE); pump(300); save(dir, "36_passphrase_empty");
     ui_passphrase_key("OK");          // empty and none set: nothing happens
-    if (ui_current() != UI_SEED_LOADED || wallet_has_passphrase()) { fprintf(stderr, "empty passphrase was applied\n"); return 1; }
+    if (ui_current() != UI_WALLET || wallet_has_passphrase()) { fprintf(stderr, "empty passphrase was applied\n"); return 1; }
     ui_goto(UI_PASSPHRASE);
     ui_passphrase_key("x");
     ui_passphrase_key("Del");
@@ -411,7 +411,7 @@ static int run_shots(const char *dir) {
     ui_passphrase_key("OK");
     char pfp[9];
     wallet_fingerprint_hex(pfp);
-    if (ui_current() != UI_SEED_LOADED || !wallet_has_passphrase() || strcmp(pfp, "b4e3f5ed")) {
+    if (ui_current() != UI_WALLET || !wallet_has_passphrase() || strcmp(pfp, "b4e3f5ed")) {
         fprintf(stderr, "passphrase fingerprint %s\n", pfp);
         return 1;
     }
@@ -434,40 +434,40 @@ static int run_shots(const char *dir) {
     char ms_words[128];
     snprintf(ms_words, sizeof(ms_words), "%s", MS_MNEMONIC);
     for (char *w = strtok(ms_words, " "); w; w = strtok(nullptr, " ")) ui_enter_word(w);
-    if (ui_current() != UI_SEED_LOADED) { fprintf(stderr, "multisig seed did not load\n"); return 1; }
+    if (ui_current() != UI_WALLET) { fprintf(stderr, "multisig seed did not load\n"); return 1; }
     static uint8_t ms_psbt[4096];
     size_t ms_psbt_len = 0;
     if (wally_base64_to_bytes(MS_PSBT, 0, ms_psbt, sizeof(ms_psbt), &ms_psbt_len) != WALLY_OK) return 1;
     // The transaction as an animated UR, part after part, until the scanner leaves.
     auto show_psbt = [&]() {
         static char part[600];
-        for (uint32_t seq = 1; seq < 200 && ui_current() == UI_SCAN_PSBT; seq++) {
+        for (uint32_t seq = 1; seq < 200 && ui_current() == UI_SCAN; seq++) {
             if (!ur_encode_part(ms_psbt, ms_psbt_len, 100, seq, part, sizeof(part))) break;
             cam_show_qr(part);
             pump(250);
         }
     };
-    ui_goto(UI_SCAN_PSBT);
+    ui_goto(UI_SCAN);
     show_psbt();
     if (ui_current() != UI_PSBT_ERROR) { fprintf(stderr, "multisig PSBT without descriptor: screen %d\n", ui_current()); return 1; }
     pump(300); save(dir, "43_multisig_needs_descriptor");
-    ui_goto(UI_SCAN_PSBT);
+    ui_goto(UI_SCAN);
     static char ur_upper[1024];   // upper case: a smaller, alphanumeric QR
     for (size_t i = 0; i <= strlen(MS_UR_OUTPUT); i++) ur_upper[i] = char(toupper((unsigned char)MS_UR_OUTPUT[i]));
     cam_show_qr(ur_upper);
-    for (int i = 0; i < 100 && ui_current() == UI_SCAN_PSBT; i++) pump(50);
+    for (int i = 0; i < 100 && ui_current() == UI_SCAN; i++) pump(50);
     if (ui_current() != UI_MULTISIG) { save(dir, "debug_descriptor_scan"); fprintf(stderr, "descriptor was not accepted (screen %d)\n", ui_current()); return 1; }
     pump(300); save(dir, "44_multisig_wallet");
     // Leaving without "Use wallet" drops it: the transaction is still refused.
-    ui_goto(UI_SCAN_PSBT);
+    ui_goto(UI_SCAN);
     show_psbt();
     if (ui_current() != UI_PSBT_ERROR) { fprintf(stderr, "unconfirmed descriptor was used\n"); return 1; }
-    ui_goto(UI_SCAN_PSBT);
+    ui_goto(UI_SCAN);
     cam_show_qr(MS_DESCRIPTOR);   // this time as plain text
-    for (int i = 0; i < 100 && ui_current() == UI_SCAN_PSBT; i++) pump(50);
+    for (int i = 0; i < 100 && ui_current() == UI_SCAN; i++) pump(50);
     if (ui_current() != UI_MULTISIG) { save(dir, "debug_descriptor_text"); fprintf(stderr, "text descriptor was not accepted (screen %d)\n", ui_current()); return 1; }
     ui_multisig_use();
-    if (ui_current() != UI_SCAN_PSBT) { fprintf(stderr, "Use wallet did not return to the scanner\n"); return 1; }
+    if (ui_current() != UI_SCAN) { fprintf(stderr, "Use wallet did not return to the scanner\n"); return 1; }
     show_psbt();
     if (ui_current() != UI_PSBT_OVERVIEW) { fprintf(stderr, "multisig PSBT was not accepted (screen %d)\n", ui_current()); return 1; }
     pump(300); save(dir, "45_multisig_overview");
@@ -477,8 +477,8 @@ static int run_shots(const char *dir) {
     ui_next_output();        pump(300); save(dir, "47_multisig_sign");
     if (!ui_swipe_sign()) { fprintf(stderr, "multisig signing failed\n"); return 1; }
     pump(400); save(dir, "48_multisig_signed");
-    ui_goto(UI_SEED_MENU);   pump(300); save(dir, "49_menu_multisig");
-    ui_goto(UI_SCAN_ADDRESS);
+    ui_goto(UI_WALLET);   pump(300); save(dir, "49_menu_multisig");
+    ui_goto(UI_SCAN);
     cam_show_qr(MS_ADDR_CHANGE_4);
     for (int i = 0; i < 400 && !(ui_current() == UI_VERIFY_RESULT && verify_done()); i++) pump(30);
     if (ui_current() != UI_VERIFY_RESULT) { fprintf(stderr, "multisig address was not accepted (screen %d)\n", ui_current()); return 1; }
@@ -560,7 +560,7 @@ static int run_shots(const char *dir) {
     pump(300); save(dir, "54b_page_suggestion");
     ui_page_use_suggestion();
     pump(300); save(dir, "55_page_ready");
-    if (!ui_page_confirm() || ui_current() != UI_SEED_LOADED || !wallet_has_seed()) {
+    if (!ui_page_confirm() || ui_current() != UI_WALLET || !wallet_has_seed()) {
         fprintf(stderr, "page seed did not load\n");
         return 1;
     }
