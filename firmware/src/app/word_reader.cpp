@@ -1,3 +1,6 @@
+// The board builds with -Os; this file is where reading a word spends its
+// time (about 28M multiply-adds), so it gets -O2.
+#pragma GCC optimize("O2")
 #include "word_reader.h"
 #include <math.h>
 #include <stdlib.h>
@@ -81,19 +84,31 @@ static void conv2d(const int16_t *in, int ci, int h, int w, const int8_t *wt, co
                 for (int dy = 0; dy < ph; dy++)
                     for (int dx = 0; dx < pw; dx++) {
                         int y = oy * ph + dy, x = ox * pw + dx;
-                        int64_t acc = bias[c];   // 64-bit: int8 x int16 x 576 terms can pass 2^31
+                        // 64-bit: int8 x int16 x 576 terms can pass 2^31. One input
+                        // channel's 9 terms can't, so they're summed in 32 bits first
+                        // (the board's slow part): same sums, same result.
+                        int64_t acc = bias[c];
+                        bool edge = y == 0 || y == h - 1 || x == 0 || x == w - 1;
                         for (int i = 0; i < ci; i++) {
                             const int16_t *src = in + i * h * w;
                             const int8_t *kk = k + i * 9;
-                            for (int ky = 0; ky < 3; ky++) {
-                                int sy = y + ky - 1;
-                                if (sy < 0 || sy >= h) continue;
-                                const int16_t *row = src + sy * w;
-                                for (int kx = 0; kx < 3; kx++) {
-                                    int sx = x + kx - 1;
-                                    if (sx >= 0 && sx < w) acc += row[sx] * kk[ky * 3 + kx];
+                            int32_t sum = 0;
+                            if (!edge) {
+                                const int16_t *r0 = src + (y - 1) * w + x - 1, *r1 = r0 + w, *r2 = r1 + w;
+                                sum = r0[0] * kk[0] + r0[1] * kk[1] + r0[2] * kk[2] + r1[0] * kk[3] + r1[1] * kk[4] +
+                                      r1[2] * kk[5] + r2[0] * kk[6] + r2[1] * kk[7] + r2[2] * kk[8];
+                            } else {
+                                for (int ky = 0; ky < 3; ky++) {
+                                    int sy = y + ky - 1;
+                                    if (sy < 0 || sy >= h) continue;
+                                    const int16_t *row = src + sy * w;
+                                    for (int kx = 0; kx < 3; kx++) {
+                                        int sx = x + kx - 1;
+                                        if (sx >= 0 && sx < w) sum += row[sx] * kk[ky * 3 + kx];
+                                    }
                                 }
                             }
+                            acc += sum;
                         }
                         int16_t v = requant(acc, mult[c], shift[c]);
                         if (v > best) best = v;
@@ -112,10 +127,12 @@ static void conv1d(const int16_t *in, int ci, const int8_t *wt, const int32_t *b
             for (int i = 0; i < ci; i++) {
                 const int8_t *kk = wt + (c * ci + i) * 3;
                 const int16_t *src = in + i * WR_T;
+                int32_t sum = 0;   // as in conv2d: 3 terms fit 32 bits
                 for (int k = 0; k < 3; k++) {
                     int s = t + k - 1;
-                    if (s >= 0 && s < WR_T) acc += src[s] * kk[k];
+                    if (s >= 0 && s < WR_T) sum += src[s] * kk[k];
                 }
+                acc += sum;
             }
             out[c * WR_T + t] = requant(acc, mult[c], shift[c]);
         }

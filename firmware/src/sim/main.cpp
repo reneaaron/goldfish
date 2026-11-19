@@ -131,12 +131,13 @@ void platform_camera_stop() {}
 // The board vanishes from the screen and comes back as a drive; here, just quit.
 void platform_reboot_to_bootloader() { fprintf(stderr, "[sim] reboot to bootloader\n"); exit(0); }
 
-// A still: the camera image file itself, box-filtered down to at most 1000
-// pixels on its longer side (more than the board will get, for now).
-static uint8_t *still;
+// A still: the camera image file, box-filtered down to at most 1000 pixels on
+// its longer side (the sharper picture platform_camera_band cuts from), and
+// that halved (CAM_ZOOM) for the still itself.
+static uint8_t *still, *zoomed;
 static int still_w, still_h;
 
-const uint8_t *platform_camera_still(int *width, int *height) {
+uint8_t *platform_camera_still(int *width, int *height, size_t *room) {
     platform_camera_still_free();
     if (cam_override) return nullptr;
     int w, h, n;
@@ -144,24 +145,43 @@ const uint8_t *platform_camera_still(int *width, int *height) {
     if (!img) return nullptr;
     int f = 1;
     while ((w + f - 1) / f > 1000 || (h + f - 1) / f > 1000) f++;
-    still_w = w / f; still_h = h / f;
+    still_w = w / f / CAM_ZOOM; still_h = h / f / CAM_ZOOM;
+    const int zw = still_w * CAM_ZOOM, zh = still_h * CAM_ZOOM;
+    zoomed = (uint8_t *)malloc((size_t)zw * zh);
     still = (uint8_t *)malloc((size_t)still_w * still_h);
-    for (int y = 0; still && y < still_h; y++)
-        for (int x = 0; x < still_w; x++) {
+    for (int y = 0; zoomed && y < zh; y++)
+        for (int x = 0; x < zw; x++) {
             int sum = 0;
             for (int j = 0; j < f; j++)
                 for (int i = 0; i < f; i++) sum += img[(y * f + j) * w + x * f + i];
-            still[y * still_w + x] = uint8_t(sum / (f * f));
+            zoomed[y * zw + x] = uint8_t(sum / (f * f));
+        }
+    for (int y = 0; zoomed && still && y < still_h; y++)
+        for (int x = 0; x < still_w; x++) {
+            int sum = 0;
+            for (int j = 0; j < CAM_ZOOM; j++)
+                for (int i = 0; i < CAM_ZOOM; i++) sum += zoomed[(y * CAM_ZOOM + j) * zw + x * CAM_ZOOM + i];
+            still[y * still_w + x] = uint8_t(sum / (CAM_ZOOM * CAM_ZOOM));
         }
     stbi_image_free(img);
+    if (!zoomed || !still) { platform_camera_still_free(); return nullptr; }
     *width = still_w;
     *height = still_h;
+    *room = (size_t)still_w * still_h;
     return still;
+}
+
+bool platform_camera_band(int y0, int rows, uint8_t *buf) {
+    const int zw = still_w * CAM_ZOOM, zh = still_h * CAM_ZOOM;
+    if (!zoomed || y0 < 0 || rows <= 0 || y0 + rows > zh) return false;
+    memcpy(buf, zoomed + (size_t)y0 * zw, (size_t)rows * zw);
+    return true;
 }
 
 void platform_camera_still_free() {
     if (still) { memset(still, 0, (size_t)still_w * still_h); free(still); }
-    still = nullptr;
+    if (zoomed) { memset(zoomed, 0, (size_t)still_w * still_h * CAM_ZOOM * CAM_ZOOM); free(zoomed); }
+    still = zoomed = nullptr;
 }
 
 // ------------------------------------------------------------ screenshots
@@ -479,6 +499,9 @@ static int run_shots(const char *dir) {
     ui_goto(UI_SCAN_PAGE);
     pump(300); save(dir, "51_scan_page");
     if (!ui_page_read()) { fprintf(stderr, "no page picture\n"); return 1; }
+    for (int i = 0; i < 400 && ui_current() == UI_PAGE_READING; i++) pump(20);
+    pump(300); save(dir, "51b_page_found");
+    if (!ui_page_found_read()) { fprintf(stderr, "no words found (screen %d)\n", ui_current()); return 1; }
     pump(40); save(dir, "52_page_reading");
     for (int i = 0; i < 400 && ui_current() == UI_PAGE_READING; i++) pump(20);
     if (ui_current() != UI_PAGE_REVIEW) { fprintf(stderr, "page not read (screen %d)\n", ui_current()); return 1; }

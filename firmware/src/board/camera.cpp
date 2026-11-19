@@ -92,13 +92,17 @@ static uint8_t frame[CAM_W * CAM_H];
 static PIO pio;
 static uint sm, prog_offset;
 static int dma_ch;
+static bool still_held;        // the app has `frame` as its still: stopping leaves it be
+static bool zoomed;            // the sensor outputs CAM_W * CAM_ZOOM x CAM_H * CAM_ZOOM
 static uint32_t armed_ms;
 static bool asleep;
 static char cam_err[40];   // shown on the scan screen, see platform_camera_error()
 
-// wait for the start of a frame, then push one byte per PCLK while HREF is high
-static uint16_t prog_instr[6];
-static const pio_program_t prog = {prog_instr, 6, -1};
+// Wait for the start of a frame, drop X + 1 bytes (none if X is 0: a band
+// starts that far into the frame), then push one byte per PCLK while HREF is
+// high. Dropping a byte takes as many cycles as pushing one.
+static uint16_t prog_instr[11];
+static const pio_program_t prog = {prog_instr, 11, -1};
 
 static bool camera_init() {
     // 37.5MHz XCLK at the 150MHz system clock, as in the Waveshare demo
@@ -127,13 +131,19 @@ static bool camera_init() {
         else wr(init_regs[i][0], init_regs[i][1]);
     }
 
+    // (jmp targets are relative to the program: adding it relocates them)
     prog_instr[0] = pio_encode_wait_gpio(false, PIN_CAM_VSYNC);
     prog_instr[1] = pio_encode_wait_gpio(true, PIN_CAM_VSYNC);
-    prog_instr[2] = pio_encode_wait_gpio(true, PIN_CAM_HREF);      // wrap target
-    prog_instr[3] = pio_encode_wait_gpio(true, PIN_CAM_PCLK);
-    prog_instr[4] = pio_encode_in(pio_pins, 8);
-    // one extra cycle so HREF has settled when the loop checks it again
+    prog_instr[2] = pio_encode_jmp_not_x(7);
+    prog_instr[3] = pio_encode_wait_gpio(true, PIN_CAM_HREF);      // drop
+    prog_instr[4] = pio_encode_wait_gpio(true, PIN_CAM_PCLK);
     prog_instr[5] = pio_encode_wait_gpio(false, PIN_CAM_PCLK) | pio_encode_delay(1);
+    prog_instr[6] = pio_encode_jmp_x_dec(3);
+    prog_instr[7] = pio_encode_wait_gpio(true, PIN_CAM_HREF);      // push: wrap target
+    prog_instr[8] = pio_encode_wait_gpio(true, PIN_CAM_PCLK);
+    prog_instr[9] = pio_encode_in(pio_pins, 8);
+    // one extra cycle so HREF has settled when the loop checks it again
+    prog_instr[10] = pio_encode_wait_gpio(false, PIN_CAM_PCLK) | pio_encode_delay(1);
     if (!pio_claim_free_sm_and_add_program(&prog, &pio, &sm, &prog_offset)) return false;
 
     for (int i = 0; i < 8; i++) pio_gpio_init(pio, PIN_CAM_D0 + i);
@@ -142,7 +152,7 @@ static bool camera_init() {
     pio_gpio_init(pio, PIN_CAM_PCLK);
 
     pio_sm_config c = pio_get_default_sm_config();
-    sm_config_set_wrap(&c, prog_offset + 2, prog_offset + 5);
+    sm_config_set_wrap(&c, prog_offset + 7, prog_offset + 10);
     sm_config_set_in_pins(&c, PIN_CAM_D0);
     sm_config_set_in_shift(&c, false, true, 8);   // autopush every byte
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
@@ -150,6 +160,12 @@ static bool camera_init() {
 
     dma_ch = dma_claim_unused_channel(true);
     return true;
+}
+
+// Output size, scaled by the ISP from the same window: the same view, more or fewer pixels.
+static void set_size(int w, int h) {
+    wr(0x3808, w >> 8); wr(0x3809, w & 0xff);
+    wr(0x380a, h >> 8); wr(0x380b, h & 0xff);
 }
 
 // Unflipped, the image comes out mirrored top to bottom.
@@ -169,12 +185,23 @@ static void set_focus(bool on) {
     wr(0x3603, on ? (CAM_FOCUS >> 4) & 0x3F : 0x80);
 }
 
-static void arm() {
+// Restart at the next frame, dropping its first `skip` bytes. The count goes
+// in through the TX FIFO, given back for a moment (the RX one has joined it).
+static void restart_sm(uint32_t skip) {
     pio_sm_set_enabled(pio, sm, false);
-    pio_sm_clear_fifos(pio, sm);
     pio_sm_restart(pio, sm);
+    hw_clear_bits(&pio->sm[sm].shiftctrl, PIO_SM0_SHIFTCTRL_FJOIN_RX_BITS);
+    pio_sm_clear_fifos(pio, sm);
+    pio_sm_put(pio, sm, skip ? skip - 1 : 0);
+    pio_sm_exec(pio, sm, pio_encode_pull(false, true));
+    pio_sm_exec(pio, sm, pio_encode_mov(pio_x, pio_osr));
+    hw_set_bits(&pio->sm[sm].shiftctrl, PIO_SM0_SHIFTCTRL_FJOIN_RX_BITS);
+    pio_sm_clear_fifos(pio, sm);
     pio_sm_exec(pio, sm, pio_encode_jmp(prog_offset));
+}
 
+static void arm() {
+    restart_sm(0);
     dma_channel_config dc = dma_channel_get_default_config(dma_ch);
     channel_config_set_read_increment(&dc, false);
     channel_config_set_write_increment(&dc, true);
@@ -194,6 +221,11 @@ const uint8_t *platform_camera_frame(int *width, int *height) {
     if (asleep) {
         wr(0x3008, 0x02);
         asleep = false;
+    }
+    if (zoomed) {   // back from reading a page; the first frame may be torn, the preview shrugs it off
+        set_size(CAM_W, CAM_H);
+        zoomed = false;
+        cam_err[0] = 0;   // a band's error was the reading screen's to show, not the preview's
     }
     if (state == CAM_BUSY) {
         if (dma_channel_is_busy(dma_ch)) {
@@ -219,13 +251,10 @@ const uint8_t *platform_camera_frame(int *width, int *height) {
 
 const char *platform_camera_error() { return cam_err[0] ? cam_err : nullptr; }
 
-// A still: a copy of the last full frame (all 240x320, not just the middle
-// rows the preview uses). Too small for a whole page; zoomed captures will
-// replace this.
-static uint8_t *still;
-
-const uint8_t *platform_camera_still(int *width, int *height) {
-    platform_camera_still_free();
+// A still: the rows of the last frame the preview showed, moved to the start
+// of the frame buffer, which is lent to the app: there's no RAM for a copy.
+// (The rows above and below were never on screen: other paper on the desk.)
+uint8_t *platform_camera_still(int *width, int *height, size_t *room) {
     if (state == CAM_BUSY) {   // the preview re-arms every other tick: wait for that frame
         uint32_t t0 = millis();
         while (dma_channel_is_busy(dma_ch) && millis() - t0 < 1000) {}
@@ -234,25 +263,113 @@ const uint8_t *platform_camera_still(int *width, int *height) {
         flip_rows();
     }
     if (state != CAM_READY) return nullptr;
-    still = (uint8_t *)malloc(sizeof(frame));
-    if (!still) return nullptr;
-    memcpy(still, frame, sizeof(frame));
+    still_held = true;
+    memmove(frame, frame + OUT_Y * CAM_W, OUT_H * CAM_W);
+    memset(frame + OUT_H * CAM_W, 0, sizeof(frame) - OUT_H * CAM_W);
     *width = CAM_W;
-    *height = CAM_H;
-    return still;
+    *height = OUT_H;
+    *room = sizeof(frame);
+    return frame;
 }
 
 void platform_camera_still_free() {
-    if (still) { memset(still, 0, sizeof(frame)); free(still); }
-    still = nullptr;
+    if (still_held) memset(frame, 0, sizeof(frame));
+    still_held = false;
+}
+
+// Waits for n frames to start (VSYNC rising), with a timeout.
+static bool wait_frames(int n) {
+    uint32_t t0 = millis();
+    for (int i = 0; i < n; i++) {
+        while (gpio_get(PIN_CAM_VSYNC)) if (millis() - t0 > 1500) return false;
+        while (!gpio_get(PIN_CAM_VSYNC)) if (millis() - t0 > 1500) return false;
+    }
+    return true;
+}
+
+bool platform_camera_band(int y0, int rows, uint8_t *buf) {
+    const int zw = CAM_W * CAM_ZOOM, zh = CAM_H * CAM_ZOOM;
+    if (state == CAM_OFF || state == CAM_FAILED || y0 < 0 || rows <= 0 || y0 + rows > OUT_H * CAM_ZOOM) return false;
+    y0 += OUT_Y * CAM_ZOOM;   // the still's rows are the preview's: the middle of the frame
+    if (state == CAM_BUSY) dma_channel_abort(dma_ch);
+    pio_sm_set_enabled(pio, sm, false);
+    state = CAM_IDLE;
+    bool settle = asleep || !zoomed;
+    if (asleep) {
+        wr(0x3008, 0x02);
+        asleep = false;
+        set_focus(true);
+    }
+    if (!zoomed) {
+        set_size(zw, zh);
+        zoomed = true;
+    }
+    // the frame under way when the size or power changed can be torn: skip it
+    if (settle && !wait_frames(2)) {
+        snprintf(cam_err, sizeof(cam_err), "No image within 1s");
+        return false;
+    }
+    // Rows come bottom up (see flip_rows): the band is the sensor's rows
+    // [zh - y0 - rows, zh - y0); the PIO program drops the rows before it.
+    uint32_t n = uint32_t(rows) * zw;
+    restart_sm(uint32_t(zh - y0 - rows) * zw);
+    dma_channel_config dc = dma_channel_get_default_config(dma_ch);
+    channel_config_set_read_increment(&dc, false);
+    channel_config_set_write_increment(&dc, true);
+    channel_config_set_transfer_data_size(&dc, DMA_SIZE_8);
+    channel_config_set_dreq(&dc, pio_get_dreq(pio, sm, false));
+    dma_channel_configure(dma_ch, &dc, buf, &pio->rxf[sm], n, true);
+    pio_sm_set_enabled(pio, sm, true);
+    uint32_t t0 = millis();
+    while (dma_channel_is_busy(dma_ch) && millis() - t0 < 1000) {}
+    bool ok = !dma_channel_is_busy(dma_ch);
+    dma_channel_abort(dma_ch);
+    pio_sm_set_enabled(pio, sm, false);
+    if (!ok) {
+        snprintf(cam_err, sizeof(cam_err), "No image within 1s");
+        memset(buf, 0, n);
+        return false;
+    }
+    // a band of one shade is no picture (it once came back all black)
+    uint8_t lo = 255, hi = 0;
+    for (uint32_t i = 0; i < n; i += 7) { lo = buf[i] < lo ? buf[i] : lo; hi = buf[i] > hi ? buf[i] : hi; }
+    if (hi - lo < 8) {
+        // How many bytes one whole frame really has, for the error line: the
+        // camera's rows can be fewer than asked for, or black past some row.
+        static uint8_t sink;
+        const uint32_t big = 0x0FFFFFFF;
+        restart_sm(0);
+        dma_channel_config dc = dma_channel_get_default_config(dma_ch);
+        channel_config_set_read_increment(&dc, false);
+        channel_config_set_write_increment(&dc, false);
+        channel_config_set_transfer_data_size(&dc, DMA_SIZE_8);
+        channel_config_set_dreq(&dc, pio_get_dreq(pio, sm, false));
+        dma_channel_configure(dma_ch, &dc, &sink, &pio->rxf[sm], big, true);
+        pio_sm_set_enabled(pio, sm, true);
+        wait_frames(2);
+        uint32_t got = big - (dma_channel_hw_addr(dma_ch)->transfer_count & 0x0FFFFFFF);
+        dma_channel_abort(dma_ch);
+        pio_sm_set_enabled(pio, sm, false);
+        snprintf(cam_err, sizeof(cam_err), "Blank %d-%d, frame %lu B", y0, y0 + rows, (unsigned long)got);
+        return false;
+    }
+    static uint8_t tmp[CAM_W * CAM_ZOOM];
+    for (int y = 0; y < rows / 2; y++) {
+        uint8_t *a = buf + y * zw, *b = buf + (rows - 1 - y) * zw;
+        memcpy(tmp, a, zw);
+        memcpy(a, b, zw);
+        memcpy(b, tmp, zw);
+    }
+    memset(tmp, 0, sizeof(tmp));
+    return true;
 }
 
 void platform_camera_stop() {
-    if (state != CAM_BUSY && state != CAM_READY) return;
+    if (state == CAM_OFF || state == CAM_FAILED || asleep) return;
     dma_channel_abort(dma_ch);
     pio_sm_set_enabled(pio, sm, false);
-    // the frame can be a picture of a seed QR
-    memset(frame, 0, sizeof(frame));
+    // the frame can be a picture of a seed QR (or the app's still: wiped when it's done)
+    if (!still_held) memset(frame, 0, sizeof(frame));
     set_focus(false);
     wr(0x3008, 0x42);   // software power down
     asleep = true;

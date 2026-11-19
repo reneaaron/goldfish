@@ -48,11 +48,18 @@ word, only words with a valid checksum. The seed loads right away.
 Experimental: the camera button next to the word field opens Scan words, for a
 handwritten backup on any paper (plain, ruled, a printed card; one or more
 columns; numbered or not). Fit the page in view and tap Read words: the device
-takes one picture, finds the words (`src/app/page_reader.cpp`: the paper's
+takes one picture and finds the words (`src/app/page_reader.cpp`: the paper's
 brightness, the photo's tilt, ruled and margin lines erased, blobs of ink
 grouped into words, a row number joined to its word, reading order by columns
-then rows) and reads each as a whole word (`src/app/word_reader.cpp`: a small
-int8 network, 138k weights, trained on synthetic strips by
+then rows), takes a second picture twice as sharp while you hold still (about
+a second) and cuts each word's strip from it, where the word really is in that
+later frame: around each word it is slid against the first picture, up to 6
+preview pixels each way, and the best match wins (a hand moves between
+frames, and the camera's two sizes needn't line up exactly). Words found then
+shows the first picture with each word boxed (amber: a gap where a word should
+be) and how many there are, so a blurry, dark or badly framed picture is
+retaken before the slow part; the camera is done by then. Read reads each strip
+as a whole word (`src/app/word_reader.cpp`: a small int8 network, 138k weights, trained on synthetic strips by
 `handwriting/train_words.py` and exported by `handwriting/export_words.py`;
 see `handwriting/README.md`,
 gives letter probabilities across the word; every BIP-39 word and its first 4
@@ -75,10 +82,14 @@ fit, read again from its picture among only those. Scan seed has a "Written
 words instead?" link for anyone who points the QR scanner at paper. On 384
 words in 18 phone and web photos (demo seeds) at 1000 pixels: 65% read, 2
 wrong, the rest left to fix; real text that isn't a seed word is sometimes read
-as one. The simulator reads the camera image file at up to 1000 pixels; on the
-board, a picture is one 240x320 frame for now, too small for a whole page, and
-the page finder's buffers don't fit its memory yet. Speed on the board is
-unmeasured.
+as one. The simulator finds the words on the camera image file at up to 500
+pixels and cuts them from it at up to 1000. The board finds them on what its
+preview shows (the middle 240x180 of each frame; the rows above and below were
+never on screen), then switches the camera to 480x640 and takes that view in
+bands of rows (it can't hold a whole one), as few as fit in about
+96 KB, keeping only each word's strip; the strips go where the first picture
+was. On the board this is untested: the band capture, its timing and the
+reading speed are unmeasured.
 
 Add passphrase opens a keyboard for a BIP-39 passphrase (the "25th word"):
 letters, digits and all ASCII symbols, up to 64 characters, with a Show/Hide
@@ -247,7 +258,11 @@ pio test -e test
 - Page reader: a synthetic photo (`sim/samples/handwritten_page.png`, made by
   `handwriting/make_page.py`) of 24 numbered words in two offset columns on ruled
   paper, tilted: every word offered is right and in reading order, at least 20
-  offered; a blank page has no words
+  offered; the same page at board size (found on a 200-pixel-wide picture, cut
+  from 100-row bands of one twice as large) still gives at least 20, where the
+  small picture's own strips give about half; with the sharp picture moved 8
+  pixels right and 6 up, the shift is found for every word and the reading
+  recovers (uncorrected, about a third is read); a blank page has no words
 
 ## Fuzzing
 

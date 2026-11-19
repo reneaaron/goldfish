@@ -17,7 +17,8 @@
 //        -> back to that scanner, which now takes the wallet's transactions / addresses
 //   Home -> Enter words (12, or 24 from the first word) -> one screen per word -> Seed loaded
 //        camera -> Scan words (a photo of the written backup, experimental) -> Read
-//        -> Reading words -> Check words (12 or 24, from how many were found): the
+//        -> (hold still: a second, sharper picture) -> Words found (the photo, each
+//        word boxed) -> Read (or Retake: back to Scan words) -> Reading words -> Check words (12 or 24, from how many were found): the
 //        words in order, "?" where unread; tap one -> its picture -> Change /
 //        Remove / Add a word before (keyboard, then back to the list) -> "Matches
 //        my backup" once there are 12/24 words with a valid checksum -> Seed loaded
@@ -63,6 +64,7 @@ enum UiScreen {
     UI_CHILD_INDEX,      // BIP-85 child seed: child number keypad, 12 words
     UI_MULTISIG,         // a scanned multisig descriptor, to check before it is used
     UI_SCAN_PAGE,        // photo of a handwritten backup, from Enter words
+    UI_PAGE_FOUND,       // the page's photo with the words found boxed: Read or Retake
     UI_PAGE_READING,     // progress while the page's words are read
     UI_PAGE_REVIEW,      // the words found, as one list to check against the backup
     UI_PAGE_WORD,        // one of them: its picture; change, remove, or add one before it
@@ -92,6 +94,7 @@ const uint8_t *ui_backup_qr();
 // "Continue" on the child number screen: derive the BIP-85 child, start its card flow.
 void ui_child_seed(uint32_t index);
 bool ui_page_read();           // "Read words" on Scan words: false if there's no picture
+bool ui_page_found_read();     // "Read" on Words found: false if nothing was found
 int ui_page_count();           // words on the Check words list
 int ui_page_slot(int i);       // its word i (BIP-39 index), -1 if unread
 void ui_page_open(int i);      // tap row i: its own screen
