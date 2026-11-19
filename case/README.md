@@ -64,10 +64,13 @@ OV5640 module, 21 mm type, from the module's outline drawing: base
 8.5 × 8.5 ±0.2, lens barrel Ø6 standing 1.19 above it, 5.03 tall overall,
 9 mm of free flex between the base and the contact strip.
 
-The module pushes lens-first into the frame on the case floor (`camw`), where
-four crush ribs (`rib`) grip the base. The barrel sits in a 6.8 mm hole
-(`lens`), 0.4 mm below the back surface. `camy` puts the frame 10 mm from the
-connector so the flex reaches with slack.
+The module is glued to the back of the board, on the TF card slot, so the
+board sets where it is, not the case. Measured on an assembled board: centred
+side to side (`camx`), its far edge 35.1 mm from the front of the USB-C
+socket (`camy`), and the front of the lens 15.05 mm behind the glass. That
+leaves the lens 1.35 mm above the case floor, looking through a 6.8 mm hole
+(`lens`) countersunk to 9.6 mm on the outside so the floor stays out of the
+picture.
 
 Not checked: that the module in the Waveshare -C bundle (flex marked
 `DC-5M21-5640`) matches this drawing.

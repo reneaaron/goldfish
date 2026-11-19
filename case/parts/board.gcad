@@ -38,10 +38,11 @@ rect 3 3 at=-keyx,-24.3+1.5
 buttons: extrude 2
 color #2a5db0
 body cam
-plane XY offset=-16.4
-rect 8.5 8.5 at=0.4,5.5
+let camx=0 camy=35.1-25.7-8.5/2 lensz=-15.05
+plane XY offset=lensz+1.19
+rect 8.5 8.5 at=camx,camy
 cbody: extrude 3.84
-plane XY offset=-16.4
-circle 6 at=0.4,5.5
+plane XY offset=lensz+1.19
+circle 6 at=camx,camy
 barrel: extrude -1.19
 color #444444
