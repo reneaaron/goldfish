@@ -267,14 +267,16 @@ lv_obj_t *list_row(lv_obj_t *parent, const char *icon, const char *title, const 
         lv_obj_center(il);
     }
 
-    lv_obj_t *t = text(b, title, &inter_17_semi, TEXT, LV_TEXT_ALIGN_LEFT);
-    if (sub) {
-        lv_obj_align(t, LV_ALIGN_TOP_LEFT, tx, 12);
-        lv_obj_t *s = text(b, sub, &inter_13, TEXT_3, LV_TEXT_ALIGN_LEFT);
-        lv_obj_align(s, LV_ALIGN_TOP_LEFT, tx, 34);
-    } else {
-        lv_obj_align(t, LV_ALIGN_LEFT_MID, tx, 0);
-    }
+    // Title and subline as one block, centred on the icon at any row height.
+    lv_obj_t *col = lv_obj_create(b);
+    plain(col);
+    lv_obj_set_size(col, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(col, 1, 0);
+    lv_obj_remove_flag(col, LV_OBJ_FLAG_CLICKABLE);
+    text(col, title, &inter_17_semi, TEXT, LV_TEXT_ALIGN_LEFT);
+    if (sub) text(col, sub, &inter_13, TEXT_3, LV_TEXT_ALIGN_LEFT);
+    lv_obj_align(col, LV_ALIGN_LEFT_MID, tx, 0);
     return b;
 }
 }  // namespace th

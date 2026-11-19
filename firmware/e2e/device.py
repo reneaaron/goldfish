@@ -141,6 +141,14 @@ class Device:
         y = (s.y1 + s.y2) // 2
         self.cmd("drag %d %d %d %d" % (s.x1 + 28, y, s.x2 - 2, y))
 
+    def scroll_down(self):
+        """Drag a finger up the screen, as when scrolling a list down."""
+        self.cmd("drag 120 280 120 80")
+
+    def scroll_up(self):
+        """Drag a finger down the screen, back to the top of a list."""
+        self.cmd("drag 120 80 120 280")
+
     def wait(self, ms):
         self.cmd("wait %d" % ms)
 

@@ -22,7 +22,6 @@ def stranger_address(index=0):
 def linked_wallet(dev, mnemonic=MNEMONIC):
     """Load the seed by typing it, then link a wallet app to the signer."""
     load_by_words(dev, mnemonic)
-    dev.tap("Continue")
     fingerprint, path, key = connect_wallet(dev)
     assert (fingerprint, path) == (Seed(mnemonic).fingerprint, "84h/1h/0h")
     return Wallet.singlesig(key)
@@ -63,7 +62,7 @@ def test_new_seed_to_signed_transaction(dev):
     # Spend: two coins in, a payment and change out.
     coins = [wallet.fund(7, 150_000), wallet.fund(2, 40_000, change=True)]
     psbt = wallet.create_psbt(coins, [(stranger_address(), 120_000)], fee=830, change_index=3)
-    dev.tap("Sign transaction")
+    dev.tap("Scan QR")
     dev.scan_animated(psbt_parts(psbt))
     assert dev.screen == "PSBT_OVERVIEW", dev.text()
     signed, seen = review_and_sign(dev)
@@ -78,7 +77,7 @@ def test_new_seed_to_signed_transaction(dev):
     wallet.combine(psbt, signed)
     assert wallet.signers(psbt) == {Seed(mnemonic).fingerprint}
     wallet.finalize(psbt)
-    assert dev.screen == "SEED_MENU"
+    assert dev.screen == "WALLET"
 
 
 @pytest.mark.parametrize("compact", [False, True], ids=["standard", "compact"])
@@ -86,7 +85,6 @@ def test_seedqr_loads_the_same_wallet(dev, compact):
     """A SeedQR, Standard or Compact, gives the wallet the typed words give."""
     load_by_qr(dev, MNEMONIC, compact)
     assert fingerprint_on_screen(dev) == Seed(MNEMONIC).fingerprint
-    dev.tap("Continue")
     _, _, key = connect_wallet(dev)
     assert key == Seed(MNEMONIC).key("84h/1h/0h")
 
@@ -95,7 +93,7 @@ def test_seedqr_card_is_copied_and_checked(dev):
     """Back up as QR: the SeedQR on the signer's screen, copied square by
     square onto a card, passes the card check. A wrong card doesn't."""
     load_by_words(dev, MNEMONIC)
-    dev.tap("Continue")
+    dev.tap("Wallet options")
     dev.tap("Back up as QR")
     dev.tap("I understand")
     card = dev.read_qr(raw=True)               # what ends up on the card
@@ -125,15 +123,14 @@ def test_addresses_of_other_wallets_are_refused(dev):
 
 def test_transaction_of_another_seed_is_refused(dev):
     load_by_words(dev, MNEMONIC)
-    dev.tap("Continue")
     theirs = Wallet.singlesig(STRANGER.key("84h/1h/0h"))
     psbt = theirs.create_psbt([theirs.fund(0, 50_000)], [(theirs.address(1), 20_000)], fee=300)
-    dev.tap("Sign transaction")
+    dev.tap("Scan QR")
     dev.scan_animated(psbt_parts(psbt))
     assert dev.screen == "PSBT_ERROR"
     assert "Can't sign this" in dev.text()
     dev.tap("Back to wallet")
-    assert dev.screen == "SEED_MENU"
+    assert dev.screen == "WALLET"
 
 
 def test_fake_change_blocks_signing(dev):
@@ -144,7 +141,7 @@ def test_fake_change_blocks_signing(dev):
     theirs = Wallet.singlesig(STRANGER.key("84h/1h/0h"))
     psbt.outputs[-1].script_pubkey = theirs.desc.derive(5, branch_index=1).script_pubkey()
     assert psbt.tx.vout[-1].script_pubkey.address(NET) == theirs.address(5, change=True)
-    dev.tap("Sign transaction")
+    dev.tap("Scan QR")
     dev.scan_animated(psbt_parts(psbt))
     assert dev.screen == "PSBT_ERROR", dev.text()
     assert "Don't sign this" in dev.text()
@@ -155,14 +152,14 @@ def test_psbt_joined_mid_animation(dev):
     from fountain-coded parts alone. Also a single base64 frame."""
     wallet = linked_wallet(dev)
     psbt = wallet.create_psbt([wallet.fund(1, 60_000)], [(stranger_address(), 25_000)], fee=400)
-    dev.tap("Sign transaction")
+    dev.tap("Scan QR")
     dev.scan_animated(psbt_parts(psbt, fragment_len=60, skip=40))
     assert dev.screen == "PSBT_OVERVIEW", dev.text()
     signed, _ = review_and_sign(dev)
     wallet.combine(psbt, signed)
     assert wallet.signers(psbt) == {Seed(MNEMONIC).fingerprint}
 
-    dev.tap("Sign transaction")
+    dev.tap("Scan QR")
     dev.scan(psbt.to_base64())
     assert dev.screen == "PSBT_OVERVIEW", dev.text()
 

@@ -29,7 +29,8 @@ static bool fresh_backup;                // Seed loaded screen follows a checked
 
 static void show(lv_obj_t *scr) { lv_screen_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_IN, 120, 0, true); }
 static void go_cb(lv_event_t *e) { ui_goto((UiScreen)(intptr_t)lv_event_get_user_data(e)); }
-static void to_menu_cb(lv_event_t *) { ui_goto(UI_SEED_MENU); }
+static void to_menu_cb(lv_event_t *) { ui_goto(UI_WALLET_OPTIONS); }
+static void to_wallet_cb(lv_event_t *) { ui_goto(UI_WALLET); }
 static void to_home_cb(lv_event_t *) { ui_goto(UI_HOME); }
 #define GO(s) ((void *)(intptr_t)(s))
 
@@ -139,7 +140,7 @@ static uint8_t preview_buf[PREV_W * PREV_H];
 static lv_image_dsc_t preview_dsc;
 static lv_obj_t *preview_img, *scan_msg, *scan_sub, *scan_bar;
 static lv_timer_t *scan_timer;
-enum ScanMode { SCAN_SEED, SCAN_PSBT, SCAN_ADDRESS, SCAN_CONFIRM, SCAN_PAGE };
+enum ScanMode { SCAN_SEED, SCAN_WALLET, SCAN_CONFIRM, SCAN_PAGE };
 static ScanMode scan_mode;
 static bool page_from_scan_seed;   // Scan words was opened from Scan seed: Back returns there
 static AddressCheck check;
@@ -191,7 +192,7 @@ static void handle_seed_payload(QrPayload &p) {
         lv_refr_now(nullptr);
         bool ok = wallet_load(e);
         seedqr_wipe(&e);
-        ui_goto(ok ? UI_SEED_LOADED : UI_HOME);
+        ui_goto(ok ? UI_WALLET : UI_HOME);
         return;
     }
     seedqr_wipe(&e);
@@ -200,15 +201,13 @@ static void handle_seed_payload(QrPayload &p) {
     else scan_status("No seed found", "This QR doesn't hold a seed", AMBER);
 }
 
-// A multisig descriptor shown to the Sign or Verify scanner. It is only used
-// once the user has checked it on the Multisig wallet screen (ms_confirmed).
-static UiScreen ms_return = UI_SCAN_PSBT;   // the scanner it came from
+// A multisig descriptor shown to the scanner. It is only used once the user
+// has checked it on the Multisig wallet screen (ms_confirmed).
 static bool ms_confirmed;
 
 static void descriptor_result(MsResult r) {
     if (r == MS_OK) {
         ms_confirmed = false;
-        ms_return = scan_mode == SCAN_ADDRESS ? UI_SCAN_ADDRESS : UI_SCAN_PSBT;
         scan_stop();
         ur_decoder_reset(&ur_dec);
         ui_goto(UI_MULTISIG);
@@ -229,20 +228,17 @@ static bool handle_descriptor_text(const QrPayload &p) {
     return true;
 }
 
-// A UR part: a transaction (Sign only) or a multisig descriptor.
+// A UR part: a transaction or a multisig descriptor.
 static void handle_ur(QrPayload &p) {
-    const bool sign = scan_mode == SCAN_PSBT;
     const uint8_t *payload; size_t plen;
     UrResult r = ur_decoder_add(&ur_dec, (const char *)p.data, p.len, &payload, &plen);
     if (r == UR_COMPLETE && ur_dec.type == UR_TYPE_PSBT) {
-        if (sign) psbt_complete(payload, plen);
-        else scan_status("That's a transaction", "Use Sign transaction instead", AMBER);
+        psbt_complete(payload, plen);
     } else if (r == UR_COMPLETE) {
         MsResult m = ur_dec.type == UR_TYPE_OUTPUT ? multisig_load_ur_output(payload, plen)
                                                    : multisig_load((const char *)payload, plen);
         if (m != MS_NOT_DESCRIPTOR) descriptor_result(m);
-        else if (sign) scan_status("Not a transaction", "Show a transaction QR", AMBER);
-        else scan_status("Not an address", "Show the receive address QR", AMBER);
+        else scan_status("Nothing to sign or verify", "Show a transaction or an address", AMBER);
     } else if (r == UR_PROGRESS) {
         char m[32];
         snprintf(m, sizeof(m), "%d%% received", ur_decoder_percent(&ur_dec));
@@ -250,12 +246,14 @@ static void handle_ur(QrPayload &p) {
         lv_obj_remove_flag(scan_bar, LV_OBJ_FLAG_HIDDEN);
         lv_bar_set_value(scan_bar, ur_decoder_percent(&ur_dec), LV_ANIM_ON);
     } else if (r == UR_WRONG_TYPE) {
-        if (sign) scan_status("Not a transaction", "Show a transaction QR", AMBER);
-        else scan_status("Not an address", "Show the receive address QR", AMBER);
+        scan_status("Nothing to sign or verify", "Show a transaction or an address", AMBER);
     }
 }
 
-static void handle_psbt_payload(QrPayload &p) {
+// The wallet's one scanner: a transaction to sign, an address to verify, or a
+// multisig descriptor. Each is told apart by its own format, so the order only
+// decides which message a QR that is none of them gets.
+static void handle_wallet_payload(QrPayload &p) {
     static uint8_t raw[UR_MAX_MESSAGE];
     if (starts_with_ci(p, "ur:")) { handle_ur(p); return; }
     if (starts_with_ci(p, "cHNidP")) {
@@ -278,14 +276,6 @@ static void handle_psbt_payload(QrPayload &p) {
     if (starts_with_ci(p, "B$")) { scan_status("BBQr not supported", "Export it as UR instead", AMBER); return; }
     if (handle_descriptor_text(p)) return;
 
-    SeedEntropy e;
-    bool seed = seedqr_decode(p.data, p.len, &e) == SEEDQR_OK;
-    seedqr_wipe(&e);
-    if (seed) scan_status("That's a seed", "A seed is already loaded", AMBER);
-    else scan_status("Not a transaction", "Show a transaction QR", AMBER);
-}
-
-static void handle_address_payload(QrPayload &p) {
     AddressParse r = address_parse(p.data, p.len, &check);
     if (r == ADDR_OK) {
         scan_stop();
@@ -294,14 +284,12 @@ static void handle_address_payload(QrPayload &p) {
     }
     if (r == ADDR_UNSUPPORTED) { scan_status("Not supported yet", "Only bc1q addresses for now", AMBER); return; }
     if (r == ADDR_NEEDS_DESCRIPTOR) { scan_status("Multisig address", "Scan the descriptor first", AMBER); return; }
-    if (looks_like_psbt(p)) { scan_status("That's a transaction", "Use Sign transaction instead", AMBER); return; }
-    if (starts_with_ci(p, "ur:")) { handle_ur(p); return; }
-    if (handle_descriptor_text(p)) return;
+
     SeedEntropy e;
     bool seed = seedqr_decode(p.data, p.len, &e) == SEEDQR_OK;
     seedqr_wipe(&e);
-    if (seed) scan_status("That's a seed", "Show a receive address", AMBER);
-    else scan_status("Not an address", "Show the receive address QR", AMBER);
+    if (seed) scan_status("That's a seed", "A seed is already loaded", AMBER);
+    else scan_status("Nothing to sign or verify", "Show a transaction or an address", AMBER);
 }
 
 static void handle_confirm_payload(QrPayload &p);
@@ -316,7 +304,7 @@ static void scan_tick(lv_timer_t *) {
         if (err && !cam_err) { scan_status("Camera error", err, RED); cam_err = true; }
         return;
     }
-    if (cam_err) { scan_status("Camera is back", "Point at the QR", TEXT); cam_err = false; }
+    if (cam_err) { scan_status("Camera is back", "Show the QR again", TEXT); cam_err = false; }
     if (w != qr_w || h != qr_h) {
         bool ok = scan_mode == SCAN_PAGE || qrscan_init(w, h);   // a page is read from a still, not here
         if (!ok) { scan_status("Camera error", "Restart the device", RED); return; }
@@ -331,9 +319,8 @@ static void scan_tick(lv_timer_t *) {
     static QrPayload p;   // static: 3KB is a lot of stack on the RP2350
     if (!qrscan_frame(frame, &p)) return;
     if (scan_mode == SCAN_SEED) handle_seed_payload(p);
-    else if (scan_mode == SCAN_PSBT) handle_psbt_payload(p);
-    else if (scan_mode == SCAN_CONFIRM) handle_confirm_payload(p);
-    else handle_address_payload(p);
+    else if (scan_mode == SCAN_WALLET) handle_wallet_payload(p);
+    else handle_confirm_payload(p);
     memset(&p, 0, sizeof(p));
 }
 
@@ -343,7 +330,7 @@ static void scan_back_cb(lv_event_t *) {
     ui_goto(scan_mode == SCAN_SEED      ? UI_HOME
             : scan_mode == SCAN_CONFIRM ? UI_BACKUP_BLOCK
             : scan_mode == SCAN_PAGE    ? (page_from_scan_seed ? UI_SCAN_SEED : UI_ENTER_WORDS)
-                                        : UI_SEED_MENU);
+                                        : UI_WALLET);
 }
 
 // Viewfinder corner brackets around the target area of the preview.
@@ -373,13 +360,14 @@ static void build_scan(ScanMode mode) {
     scan_mode = mode;
     cam_err = false;
     bool seed = mode == SCAN_SEED;
-    if (mode == SCAN_PSBT || mode == SCAN_ADDRESS) ur_decoder_reset(&ur_dec);
+    if (mode == SCAN_WALLET) ur_decoder_reset(&ur_dec);
     lv_obj_t *scr = screen();
-    static const char *titles[] = {"Scan seed", "Scan transaction", "Verify address", "Check card", "Scan words"};
-    static const char *prompts[] = {"Point at your seed QR", "Point at the transaction", "Point at the address QR",
-                                    "Point at your new card", "Fit all the words in view"};
-    static const char *hints[] = {"Hold it flat and well lit", "Animated QRs work too",
-                                  "A bc1q receive address", "The seed you just made", ""};
+    static const char *titles[] = {"Scan seed", "Scan QR", "Check card", "Scan words"};
+    // The title says what is scanned; one line says what to do. The second
+    // line stays empty until there is something to report.
+    static const char *prompts[] = {"Hold it in the frame", "A transaction or an address",
+                                    "Let's check it matches", "Fit all the words in view"};
+    static const char *hints[] = {"", "", "", ""};
     topbar(scr, titles[mode], scan_back_cb);
 
     preview_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
@@ -417,7 +405,7 @@ static void build_scan(ScanMode mode) {
     lv_obj_align(scan_bar, LV_ALIGN_BOTTOM_MID, 0, -14);
     lv_obj_add_flag(scan_bar, LV_OBJ_FLAG_HIDDEN);
     if (mode == SCAN_PAGE) place_bottom(btn_primary(scr, ICON_CAMERA "   Read words", page_read_cb));
-    if (mode == SCAN_SEED) lv_obj_align(quiet_link(scr, "Written words instead?", written_cb, nullptr), LV_ALIGN_BOTTOM_MID, 0, 0);
+    if (mode == SCAN_SEED) lv_obj_align(quiet_link(scr, "Have written words instead?", written_cb, nullptr), LV_ALIGN_BOTTOM_MID, 0, 0);
 
     show(scr);
     scan_timer = lv_timer_create(scan_tick, 100, nullptr);
@@ -440,39 +428,48 @@ static lv_obj_t *quiet_link(lv_obj_t *parent, const char *s, lv_event_cb_t cb, v
     return b;
 }
 
-static void build_seed_loaded() {
+// Home once a seed is loaded, with the same shape as Home before one: who it
+// is on top (the fingerprint to check against the wallet app), the everyday
+// action as the primary button at the bottom, everything else one step away.
+static void build_wallet() {
     lv_obj_t *scr = screen();
-    // The passphrase is an optional side step: a quiet link under Continue,
-    // with everything else moved up to make room. Not after a backup check.
-    bool pass = wallet_has_passphrase(), link = !fresh_backup;
-    const int y = link ? 14 : 28;
-    lv_obj_align(icon_badge(scr, ICON_CHECK, GREEN, GREEN_DIM, 52), LV_ALIGN_TOP_MID, 0, y);
-    lv_obj_align(text(scr, fresh_backup ? "Backup checked" : pass ? "Passphrase set" : "Seed loaded", &fraunces_24, TEXT),
-                 LV_ALIGN_TOP_MID, 0, y + 64);
-
-    // The fingerprint is what the user checks, so it gets the space.
-    lv_obj_align(caption(scr, "FINGERPRINT"), LV_ALIGN_TOP_MID, 0, y + 108);
+    bool pass = wallet_has_passphrase();
+    const MsInfo *ms = multisig_info();   // a multisig wallet is loaded for this seed
+    lv_obj_align(icon_badge(scr, ICON_KEY, ACCENT, ACCENT_DIM, 44), LV_ALIGN_TOP_MID, 0, 12);
+    lv_obj_align(caption(scr, "FINGERPRINT"), LV_ALIGN_TOP_MID, 0, 66);
     char fp[9], spaced[12];
     wallet_fingerprint_hex(fp);
     snprintf(spaced, sizeof(spaced), "%.4s %.4s", fp, fp + 4);
-    lv_obj_align(text(scr, spaced, &mono_26, TEXT), LV_ALIGN_TOP_MID, 0, y + 126);
-    // With a passphrase this isn't the seed's own fingerprint, so say so.
-    const char *note = fresh_backup ? (pass ? "Fingerprint with your passphrase. The card holds the seed only."
-                                            : "Write it on your card.")
-                                    : (pass ? "With your passphrase. Check it matches your wallet app."
-                                            : "Check it matches the fingerprint in your wallet app.");
-    lv_obj_align(para(scr, note, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, y + 166);
-    fresh_backup = false;
+    lv_obj_align(text(scr, spaced, &mono_26, TEXT), LV_ALIGN_TOP_MID, 0, 84);
 
-    lv_obj_t *go = btn_primary(scr, "Continue", go_cb, GO(UI_SEED_MENU));
-    if (link) {
-        lv_obj_align(go, LV_ALIGN_BOTTOM_MID, 0, -40);
-        lv_obj_align(quiet_link(scr, pass ? ICON_KEY "  Change passphrase" : ICON_KEY "  Add passphrase", go_cb,
-                                GO(UI_PASSPHRASE)),
-                     LV_ALIGN_BOTTOM_MID, 0, -4);
-    } else {
-        place_bottom(go);
+    // What the fingerprint stands for, when it isn't just the seed.
+    int y = 124;
+    if (pass || ms) {
+        lv_obj_t *row = lv_obj_create(scr);
+        lv_obj_remove_style_all(row);
+        lv_obj_set_size(row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_style_pad_column(row, 6, 0);
+        if (ms) {
+            char tag[16];
+            snprintf(tag, sizeof(tag), "%d OF %d", ms->m, ms->n);
+            chip(row, tag, ACCENT, ACCENT_DIM);
+        }
+        if (pass) chip(row, "PASSPHRASE", ACCENT, ACCENT_DIM);
+        lv_obj_align(row, LV_ALIGN_TOP_MID, 0, y);
+        y += 30;
     }
+    const char *note = fresh_backup ? (pass ? "Backup checked. The card holds the seed only, not the passphrase."
+                                            : "Backup checked. Write the fingerprint on your card.")
+                                    : "Check it matches the fingerprint in your wallet app.";
+    fresh_backup = false;
+    lv_obj_align(para(scr, note, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, y);
+
+    lv_obj_t *opts = btn_ghost(scr, ICON_WALLET "   Wallet options", go_cb, GO(UI_WALLET_OPTIONS), TEXT);
+    lv_obj_set_height(opts, 48);
+    lv_obj_set_style_bg_opa(opts, LV_OPA_COVER, 0);
+    lv_obj_align(opts, LV_ALIGN_BOTTOM_MID, 0, -M - 48 - 8);
+    lv_obj_align(btn_primary(scr, ICON_CAMERA "   Scan QR", go_cb, GO(UI_SCAN)), LV_ALIGN_BOTTOM_MID, 0, -M);
     show(scr);
 }
 
@@ -551,12 +548,12 @@ void ui_passphrase_key(const char *k) {
     if (ui_current() != UI_PASSPHRASE) return;
     size_t n = strlen(pass_buf);
     if (!strcmp(k, "OK")) {
-        if (!n && !wallet_has_passphrase()) { ui_goto(UI_SEED_LOADED); return; }   // nothing to change
+        if (!n && !wallet_has_passphrase()) { ui_goto(UI_WALLET); return; }   // nothing to change
         lv_label_set_text_static(pass_field, "Deriving key" "\xE2\x80\xA6");
         lv_label_set_text(pass_note, "This takes a few seconds");
         lv_obj_align(pass_note, LV_ALIGN_BOTTOM_LEFT, 0, 0);
         lv_refr_now(nullptr);
-        if (wallet_set_passphrase(pass_buf)) { ui_goto(UI_SEED_LOADED); return; }   // wipes pass_buf
+        if (wallet_set_passphrase(pass_buf)) { ui_goto(UI_WALLET); return; }   // wipes pass_buf
         pass_refresh();                        // the old key is still loaded: say so, keep the text
         lv_label_set_text(pass_note, "Couldn't apply it. Try again.");
         lv_obj_align(pass_note, LV_ALIGN_BOTTOM_LEFT, 0, 0);
@@ -582,11 +579,11 @@ static void pass_toggle_cb(lv_event_t *) {
     pass_hidden = !pass_hidden;
     pass_refresh();
 }
-static void to_seed_loaded_cb(lv_event_t *) { ui_goto(UI_SEED_LOADED); }
+
 
 static void build_passphrase() {
     lv_obj_t *scr = screen();
-    lv_obj_t *bar = topbar(scr, "Passphrase", to_seed_loaded_cb);
+    lv_obj_t *bar = topbar(scr, "Passphrase", to_menu_cb);
     pass_toggle = quiet_link(bar, "Hide", pass_toggle_cb, nullptr);
     lv_obj_align(pass_toggle, LV_ALIGN_RIGHT_MID, -4, 2);
 
@@ -612,122 +609,171 @@ static void build_passphrase() {
 
 static void backup_existing_cb(lv_event_t *);
 
-static void build_seed_menu() {
+// Groups by importance: what most people need once (Connect wallet, Back up),
+// then the advanced ones with grey icons, then Wipe on its own. Every row says
+// what it does. The list scrolls, so more options can join it.
+static void build_wallet_options() {
     lv_obj_t *scr = screen();
-    char fp[9];
-    wallet_fingerprint_hex(fp);
-    // Account header: key badge, then title and fingerprint left-aligned.
-    lv_obj_t *badge = lv_obj_create(scr);
-    lv_obj_remove_style_all(badge);
-    lv_obj_set_size(badge, 40, 40);
-    lv_obj_set_style_radius(badge, 12, 0);
-    lv_obj_set_style_bg_color(badge, ACCENT_DIM, 0);
-    lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, 0);
-    lv_obj_set_pos(badge, M, 16);
-    lv_obj_center(text(badge, ICON_KEY, &inter_17_semi, ACCENT));
-    lv_obj_t *title = text(scr, "Wallet", &inter_17_semi, TEXT, LV_TEXT_ALIGN_LEFT);
-    lv_obj_set_pos(title, M + 52, 15);
-    char spaced[12];
-    snprintf(spaced, sizeof(spaced), "%.4s %.4s", fp, fp + 4);
-    lv_obj_t *sub = text(scr, spaced, &mono_16, TEXT_2, LV_TEXT_ALIGN_LEFT);
-    lv_obj_set_pos(sub, M + 52, 36);
-    if (const MsInfo *ms = multisig_info()) {   // a multisig wallet is loaded for this seed
-        char tag[16];
-        snprintf(tag, sizeof(tag), "%d OF %d", ms->m, ms->n);
-        lv_obj_align(chip(scr, tag, ACCENT, ACCENT_DIM), LV_ALIGN_TOP_RIGHT, -M, 24);
-    }
+    topbar(scr, "Options", to_wallet_cb);
 
-    // Four rows: a little shorter than list_row's default so Wipe still fits.
-    const int RH = 50;
-    lv_obj_t *c = card(scr, CW, 4 * RH + 3);
-    lv_obj_set_style_pad_all(c, 0, 0);
-    lv_obj_set_style_clip_corner(c, true, 0);
-    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, 66);
-    struct { const char *icon, *title; UiScreen s; } rows[] = {
-        {ICON_SIGN, "Sign transaction", UI_SCAN_PSBT},
-        {ICON_CHECK_CIRCLE, "Verify address", UI_SCAN_ADDRESS},
-        {ICON_WALLET, "Connect wallet", UI_EXPORT_XPUB},
-        {ICON_QR, "Back up as QR", UI_BACKUP_WARNING},
+    lv_obj_t *list = lv_obj_create(scr);
+    lv_obj_remove_style_all(list);
+    lv_obj_set_size(list, W, H - BAR);
+    lv_obj_align(list, LV_ALIGN_TOP_MID, 0, BAR);
+    lv_obj_set_style_pad_hor(list, M, 0);
+    lv_obj_set_style_pad_top(list, 2, 0);
+    lv_obj_set_style_pad_bottom(list, M, 0);
+    lv_obj_set_style_pad_row(list, 12, 0);
+    lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_scroll_dir(list, LV_DIR_VER);
+    lv_obj_set_style_width(list, 3, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_color(list, TEXT_3, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(list, LV_OPA_COVER, LV_PART_SCROLLBAR);
+
+    // Same row shape everywhere, so titles and sublines line up.
+    const int RH = 58;
+    struct Row { const char *icon, *title, *sub; lv_event_cb_t cb; void *ud; };
+    const Row rows[] = {
+        {ICON_WALLET, "Connect wallet", "Set up watch-only", go_cb, GO(UI_EXPORT_XPUB)},
+        {ICON_QR, "Back up as QR", "Copy it onto a card", backup_existing_cb, nullptr},
+        {ICON_SHIELD, "Passphrase", wallet_has_passphrase() ? "On, tap to change" : "Optional extra word", go_cb,
+         GO(UI_PASSPHRASE)},
+        {ICON_KEY, "Child seed", "Derived from this one", child_start_cb, nullptr},
+        {ICON_COINS, "Network", wallet_testnet() ? "Testnet" : "Mainnet", go_cb, GO(UI_NETWORK)},
+        {ICON_TRASH, "Wipe seed", "Unplugging does it too", go_cb, GO(UI_WIPE_CONFIRM)},
     };
-    for (int i = 0; i < 4; i++) {
-        if (i) divider(c, i * (RH + 1) - 1);
-        lv_obj_t *r = list_row(c, rows[i].icon, rows[i].title, nullptr, i == 3 ? backup_existing_cb : go_cb, GO(rows[i].s));
-        lv_obj_set_height(r, RH);
-        lv_obj_align(r, LV_ALIGN_TOP_MID, 0, i * (RH + 1));
+    const int groups[] = {2, 3, 1};
+    int at = 0;
+    for (int g = 0; g < 3; g++) {
+        int n = groups[g];
+        lv_obj_t *c = card(list, CW, n * RH + n - 1);
+        lv_obj_set_style_pad_all(c, 0, 0);
+        lv_obj_set_style_clip_corner(c, true, 0);
+        for (int i = 0; i < n; i++, at++) {
+            if (i) divider(c, i * (RH + 1) - 1);
+            const Row &d = rows[at];
+            lv_obj_t *r = list_row(c, d.icon, d.title, d.sub, d.cb, d.ud);
+            lv_obj_set_height(r, RH);
+            lv_obj_align(r, LV_ALIGN_TOP_MID, 0, i * (RH + 1));
+            if (g) {   // past the first group: the icon in grey
+                lv_obj_t *ic = lv_obj_get_child(r, 0);
+                lv_obj_set_style_bg_color(ic, SURFACE_2, 0);
+                lv_obj_set_style_text_color(lv_obj_get_child(ic, 0), TEXT_2, 0);
+            }
+        }
     }
-
-    // Advanced and destructive actions stay quiet, side by side under the list.
-    lv_obj_align(quiet_link(scr, ICON_KEY "  Child seed", child_start_cb, nullptr), LV_ALIGN_BOTTOM_LEFT, M - 12, -6);
-    lv_obj_align(quiet_link(scr, ICON_TRASH "  Wipe now", go_cb, GO(UI_WIPE_CONFIRM)), LV_ALIGN_BOTTOM_RIGHT, -(M - 12), -6);
     show(scr);
+}
+
+static int address_chunks(lv_obj_t *parent, const char *a);
+
+// Connect wallet shows the QR, and under it what's in it: the start and end of
+// the key, to compare with what the wallet app imported. Tapping the card
+// swaps the QR for everything in it: fingerprint, path and the whole key.
+// Which key is a plain-words toggle; the network is in Wallet options.
+static bool key_details;   // the card shows the text instead of the QR
+
+void ui_key_details() {
+    if (ui_current() != UI_EXPORT_XPUB) return;
+    key_details = !key_details;
+    ui_goto(UI_EXPORT_XPUB);
+}
+static void key_details_cb(lv_event_t *) { ui_key_details(); }
+static void key_type_cb(lv_event_t *) {
+    wallet_set_export_multisig(!wallet_export_multisig());
+    ui_goto(UI_EXPORT_XPUB);
 }
 
 static void build_export_xpub() {
     lv_obj_t *scr = screen();
-    bool tn = wallet_testnet();
-    topbar(scr, "Connect wallet", to_menu_cb);
+    bool tn = wallet_testnet(), ms = wallet_export_multisig();
+    // In the details, Back returns to the QR.
+    topbar(scr, "Watch-only wallet", key_details ? key_details_cb : to_menu_cb);
 
+    // "[fingerprint/path]key": split into its parts for the screen.
     static char xpub[180];
     size_t n = wallet_export_xpub(xpub, sizeof(xpub));
-    lv_obj_t *qr;
-    qr_card(scr, BAR + 2, &qr);
-    lv_qrcode_update(qr, xpub, n);
+    const char *close = strchr(xpub, ']');
+    const char *key = close ? close + 1 : xpub;
+    char fp[9] = "", path[40] = "m";
+    if (close && close - xpub > 9) {
+        memcpy(fp, xpub + 1, 8);
+        size_t o = 1;
+        for (const char *c = xpub + 9; c < close && o + 2 < sizeof(path); c++) path[o++] = *c == 'h' ? '\'' : *c;
+        path[o] = 0;
+    }
 
-    bool ms = wallet_export_multisig();
-    static const char *const about[2][2] = {
-        {"zpub  \xC2\xB7  Native SegWit  \xC2\xB7  m/84'/0'/0'", "vpub  \xC2\xB7  Native SegWit  \xC2\xB7  m/84'/1'/0'"},
-        {"Zpub  \xC2\xB7  Multisig  \xC2\xB7  m/48'/0'/0'/2'", "Vpub  \xC2\xB7  Multisig  \xC2\xB7  m/48'/1'/0'/2'"},
-    };
-    lv_obj_align(text(scr, "Scan with your wallet app", &inter_15, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 2 + QR_CARD + 8);
-    lv_obj_align(text(scr, about[ms][tn], &inter_13, tn ? AMBER : TEXT_3), LV_ALIGN_TOP_MID, 0, BAR + 2 + QR_CARD + 30);
-    // Which key, and for which network: two quiet links, side by side like the wallet menu's.
-    lv_obj_align(quiet_link(scr, ms ? "Multisig  " ICON_RIGHT : "Single-sig  " ICON_RIGHT, go_cb, GO(UI_KEY_TYPE)),
-                 LV_ALIGN_BOTTOM_LEFT, M - 12, -6);
-    lv_obj_align(quiet_link(scr, tn ? "Testnet  " ICON_RIGHT : "Mainnet  " ICON_RIGHT, go_cb, GO(UI_NETWORK)),
-                 LV_ALIGN_BOTTOM_RIGHT, -(M - 12), -6);
+    if (key_details) {
+        lv_obj_t *c = card(scr, CW, LV_SIZE_CONTENT);
+        lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 2);
+        lv_obj_add_flag(c, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(c, key_details_cb, LV_EVENT_CLICKED, nullptr);
+        lv_obj_t *cap = caption(c, "FINGERPRINT  \xC2\xB7  PATH");
+        lv_obj_align(cap, LV_ALIGN_TOP_LEFT, 0, 0);
+        char line[64];
+        snprintf(line, sizeof(line), "%.4s %.4s  \xC2\xB7  %s", fp, fp + 4, path);
+        lv_obj_align(text(c, line, &inter_15, TEXT, LV_TEXT_ALIGN_LEFT), LV_ALIGN_TOP_LEFT, 0, 18);
+        lv_obj_t *box = lv_obj_create(c);   // address_chunks puts its caption room at the top
+        lv_obj_remove_style_all(box);
+        lv_obj_set_size(box, lv_pct(100), LV_SIZE_CONTENT);
+        lv_obj_align(box, LV_ALIGN_TOP_LEFT, 0, 46);
+        lv_obj_align(caption(box, "KEY"), LV_ALIGN_TOP_LEFT, 0, 0);
+        address_chunks(box, key);
+        show(scr);
+        return;
+    }
+
+    lv_obj_t *qr;
+    lv_obj_t *qc = qr_card(scr, BAR + 2, &qr);
+    lv_qrcode_update(qr, xpub, n);
+    lv_obj_add_flag(qc, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(qc, key_details_cb, LV_EVENT_CLICKED, nullptr);
+
+    // What the QR is, then the start and end of the key; tap for all of it.
+    // Testnet says so in amber, so it isn't mistaken for the real thing.
+    const char *title = ms ? (tn ? "Testnet multisig key" : "Your multisig key") : (tn ? "Your testnet key" : "Your public key");
+    lv_obj_align(text(scr, title, &inter_17_semi, tn ? AMBER : TEXT), LV_ALIGN_TOP_MID, 0, BAR + 2 + QR_CARD + 8);
+    char shortkey[24];
+    snprintf(shortkey, sizeof(shortkey), "%.8s\xE2\x80\xA6%s", key, key + strlen(key) - 4);
+    lv_obj_t *sk = text(scr, shortkey, &mono_16, TEXT_2);
+    lv_obj_align(sk, LV_ALIGN_TOP_MID, 0, BAR + 2 + QR_CARD + 32);
+    lv_obj_add_flag(sk, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_ext_click_area(sk, 8);
+    lv_obj_add_event_cb(sk, key_details_cb, LV_EVENT_CLICKED, nullptr);
+
+    // The other kind of key, in plain words.
+    lv_obj_align(quiet_link(scr, ms ? "For a single-key wallet  " ICON_RIGHT : "For a multisig wallet  " ICON_RIGHT,
+                            key_type_cb, nullptr),
+                 LV_ALIGN_BOTTOM_MID, 0, -6);
     show(scr);
 }
 
 // ---------------------------------------------------------------- network
-static void to_export_cb(lv_event_t *) { ui_goto(UI_EXPORT_XPUB); }
+// Which network Connect wallet's key is for, from Wallet options. Signing and
+// Verify address read the network from what they scan, not from this.
 static void network_cb(lv_event_t *e) {
     wallet_set_testnet(lv_event_get_user_data(e) != nullptr);
-    ui_goto(UI_EXPORT_XPUB);
+    ui_goto(UI_WALLET_OPTIONS);
 }
 
-// A two-row choice for Connect wallet, with the current one checked.
-static void build_export_choice(const char *title, const char *a, const char *b, bool b_on, lv_event_cb_t cb,
-                                const char *note) {
+static void build_network() {
     lv_obj_t *scr = screen();
-    topbar(scr, title, to_export_cb);
+    topbar(scr, "Network", to_menu_cb);
+    bool tn = wallet_testnet();
     lv_obj_t *c = card(scr, CW, 2 * 62 + 1);
     lv_obj_set_style_pad_all(c, 0, 0);
     lv_obj_set_style_clip_corner(c, true, 0);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 8);
-    lv_obj_t *r1 = list_row(c, nullptr, a, nullptr, cb, nullptr);
+    lv_obj_t *r1 = list_row(c, nullptr, "Mainnet", "Real bitcoin", network_cb, nullptr);
     lv_obj_align(r1, LV_ALIGN_TOP_MID, 0, 0);
     divider(c, 62);
-    lv_obj_t *r2 = list_row(c, nullptr, b, nullptr, cb, (void *)1);
+    lv_obj_t *r2 = list_row(c, nullptr, "Testnet", "Also signet and Mutinynet", network_cb, (void *)1);
     lv_obj_align(r2, LV_ALIGN_TOP_MID, 0, 63);
-    lv_obj_align(text(b_on ? r2 : r1, ICON_CHECK, &inter_17_semi, ACCENT), LV_ALIGN_RIGHT_MID, -16, 0);
-    lv_obj_align(para(scr, note, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, BAR + 8 + 125 + 16);
+    lv_obj_align(text(tn ? r2 : r1, ICON_CHECK, &inter_17_semi, ACCENT), LV_ALIGN_RIGHT_MID, -16, 0);
+    lv_obj_align(para(scr, "For the watch-only key. Signing reads the network from the transaction.",
+                      &inter_13, TEXT_3),
+                 LV_ALIGN_TOP_MID, 0, BAR + 8 + 125 + 16);
     show(scr);
-}
-
-static void build_network() {
-    build_export_choice("Network", "Mainnet", "Testnet", wallet_testnet(), network_cb,
-                        "Testnet also covers signet and Mutinynet.");
-}
-
-static void key_type_cb(lv_event_t *e) {
-    wallet_set_export_multisig(lv_event_get_user_data(e) != nullptr);
-    ui_goto(UI_EXPORT_XPUB);
-}
-
-static void build_key_type() {
-    build_export_choice("Wallet type", "Single-sig", "Multisig", wallet_export_multisig(), key_type_cb,
-                        "Multisig: this seed's key for a wallet with several signers. "
-                        "Afterwards, show the wallet's descriptor to this device.");
 }
 
 static void wipe_cb(lv_event_t *) {
@@ -743,9 +789,9 @@ static void build_wipe_confirm() {
     lv_obj_align(text(scr, "Wipe seed?", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, 126);
     char fp[9], msg[128];
     wallet_fingerprint_hex(fp);
-    snprintf(msg, sizeof(msg), "This removes %.4s %.4s from the device. Scan your seed QR to use it again.", fp, fp + 4);
+    snprintf(msg, sizeof(msg), "Removes %.4s %.4s until you load it again.", fp, fp + 4);
     lv_obj_align(para(scr, msg), LV_ALIGN_TOP_MID, 0, 162);
-    bottom_pair(btn_ghost(scr, "Cancel", go_cb, GO(UI_SEED_MENU), TEXT), btn_danger(scr, "Wipe", wipe_cb));
+    bottom_pair(btn_ghost(scr, "Cancel", go_cb, GO(UI_WALLET_OPTIONS), TEXT), btn_danger(scr, "Wipe", wipe_cb));
     show(scr);
 }
 
@@ -870,7 +916,7 @@ static void to_new_seed_cb(lv_event_t *) { ui_seed_entry(UI_NEW_SEED, 12); }
 static void restore_cb(lv_event_t *) { ui_seed_entry(UI_ENTER_WORDS, 12); }
 // "24 words" / "12 words" on the first word screen of Enter words.
 static void restore_length_cb(lv_event_t *) { ui_seed_entry(UI_ENTER_WORDS, new_words == 12 ? 24 : 12); }
-// Scan seed -> "Written words instead?": straight to Scan words (the word
+// Scan seed -> "Have written words instead?": straight to Scan words (the word
 // count comes from the words found on the page).
 static void written_cb(lv_event_t *) {
     new_seed_wipe();   // what ui_seed_entry does, without building the keyboard screen first
@@ -885,12 +931,12 @@ void ui_backup_loaded() {
     if (!wallet_entropy(&pending)) return;
     new_words = wallet_word_count();
     backup_existing = true;
-    backup_cancel = UI_SEED_MENU;
+    backup_cancel = UI_WALLET_OPTIONS;
     ui_goto(UI_BACKUP_WARNING);
 }
 static void backup_existing_cb(lv_event_t *) { ui_backup_loaded(); }
 // Leaving the card flow: back to the wallet, or for a new seed, to Seed ready.
-static void backup_exit_cb(lv_event_t *) { ui_goto(backup_existing ? UI_SEED_MENU : UI_SEED_READY); }
+static void backup_exit_cb(lv_event_t *) { ui_goto(backup_existing ? UI_WALLET_OPTIONS : UI_SEED_READY); }
 
 static void build_new_seed() {
     lv_obj_t *scr = screen();
@@ -1127,7 +1173,7 @@ static bool load_words() {
     }
     ok = ok && wallet_load(e);
     seedqr_wipe(&e);
-    ui_goto(ok ? UI_SEED_LOADED : UI_HOME);
+    ui_goto(ok ? UI_WALLET : UI_HOME);
     return ok;
 }
 
@@ -1966,11 +2012,10 @@ static void build_seed_ready() {
     lv_obj_align(caption(scr, "FINGERPRINT"), LV_ALIGN_TOP_MID, 0, 132);
     lv_obj_t *fp = text(scr, "\xE2\x80\xA6", &mono_26, TEXT);
     lv_obj_align(fp, LV_ALIGN_TOP_MID, 0, 150);
-    lv_obj_align(para(scr, child_seed ? "Write it and the child number on your backup. To use the child, wipe this "
-                                        "seed and load the child."
-                                      : "Write it on your backup. To use the seed, load it with Scan QR or Enter words.",
-                      &inter_13, TEXT_3),
-                 LV_ALIGN_TOP_MID, 0, 190);
+    char note[64];
+    if (child_seed) snprintf(note, sizeof(note), "Write it and #%s on your backup. Load the child like any seed.", child_num);
+    else snprintf(note, sizeof(note), "Write it on your backup.");
+    lv_obj_align(para(scr, note, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, 190);
     place_bottom(btn_primary(scr, "Done", to_home_cb));
     show(scr);
     ready_timer = lv_timer_create(ready_tick, 200, fp);   // after the fade-in
@@ -1987,7 +2032,7 @@ static void handle_confirm_payload(QrPayload &p) {
         scan_stop();
         new_seed_wipe();
         fresh_backup = true;
-        ui_goto(UI_SEED_LOADED);
+        ui_goto(UI_WALLET);
         return;
     }
     if (same) {
@@ -2040,10 +2085,14 @@ static void child_continue_cb(lv_event_t *) { ui_child_seed((uint32_t)strtoul(ch
 static void build_child_index() {
     lv_obj_t *scr = screen();
     topbar(scr, "Child seed", to_menu_cb);
-    if (child_failed) child_num_lbl = text(scr, "Couldn't make this child. Try again.", &inter_13, RED);
-    else child_num_lbl = text(scr, child_num, &mono_26, TEXT);
-    lv_obj_align(child_num_lbl, LV_ALIGN_TOP_MID, 0, child_failed ? BAR + 10 : BAR + 2);
-    const int GAP = 6, KW = (CW - 2 * GAP) / 3, KH = 36, Y0 = BAR + 40;
+    // What the number is, the number, then what it does (or why it failed).
+    lv_obj_align(caption(scr, "CHILD NUMBER"), LV_ALIGN_TOP_MID, 0, BAR - 2);
+    child_num_lbl = text(scr, child_num, &mono_26, TEXT);
+    lv_obj_align(child_num_lbl, LV_ALIGN_TOP_MID, 0, BAR + 14);
+    lv_obj_align(text(scr, child_failed ? "Couldn't make it. Try again." : "Each number, another seed",
+                      &inter_13, child_failed ? RED : TEXT_3),
+                 LV_ALIGN_TOP_MID, 0, BAR + 46);
+    const int GAP = 6, KW = (CW - 2 * GAP) / 3, KH = 30, Y0 = BAR + 68;
     for (int i = 0; i < 9; i++) {
         char d[2] = {char('1' + i), 0};
         digit_key(scr, M + (i % 3) * (KW + GAP), Y0 + (i / 3) * (KH + GAP), KW, KH, d, i + 1);
@@ -2072,19 +2121,19 @@ void ui_child_seed(uint32_t index) {
 // ---------------------------------------------------------------- transaction
 static void discard_psbt_cb(lv_event_t *) {
     psbt_clear();
-    ui_goto(UI_SEED_MENU);
+    ui_goto(UI_WALLET);
 }
 
 static void scan_descriptor_cb(lv_event_t *) {
     psbt_clear();
-    ui_goto(UI_SCAN_PSBT);
+    ui_goto(UI_SCAN);
 }
 
 static void build_psbt_error() {
     lv_obj_t *scr = screen();
     bool sus = review.error == PSBT_SUSPICIOUS, desc = review.error == PSBT_NEEDS_DESCRIPTOR;
     lv_obj_align(icon_badge(scr, ICON_WARNING, sus ? RED : AMBER, sus ? RED_DIM : AMBER_DIM, 64), LV_ALIGN_TOP_MID, 0, 44);
-    lv_obj_align(text(scr, sus ? "Don't sign this" : desc ? "Multisig wallet" : "Can't sign this", &fraunces_24, TEXT),
+    lv_obj_align(text(scr, sus ? "Don't sign this" : desc ? "Scan the wallet" : "Can't sign this", &fraunces_24, TEXT),
                  LV_ALIGN_TOP_MID, 0, 126);
     lv_obj_align(para(scr, psbt_error_text(review.error)), LV_ALIGN_TOP_MID, 0, 162);
     // The Sign scanner takes the descriptor too.
@@ -2287,7 +2336,7 @@ static void anim_tick(lv_timer_t *) {
     if (n) lv_qrcode_update(anim_qr, part, n);
     size_t count = ur_part_count(signed_len, FRAGMENT_LEN);
     if (count > 1)
-        lv_label_set_text_fmt(anim_lbl, "Scan this with your wallet  \xC2\xB7  %u/%u", unsigned((anim_seq - 1) % count + 1),
+        lv_label_set_text_fmt(anim_lbl, "Scan with your wallet  \xC2\xB7  %u/%u", unsigned((anim_seq - 1) % count + 1),
                               unsigned(count));
 }
 
@@ -2296,16 +2345,17 @@ static void signed_done_cb(lv_event_t *) {
     anim_timer = nullptr;
     memset(signed_buf, 0, sizeof(signed_buf));
     signed_len = 0;
-    ui_goto(UI_SEED_MENU);
+    ui_goto(UI_WALLET);
 }
 
 static void build_psbt_signed() {
     lv_obj_t *scr = screen();
     topbar(scr, "Signed", nullptr, ICON_CHECK, GREEN, GREEN_DIM);
     qr_card(scr, BAR + 2, &anim_qr);
-    anim_lbl = text(scr, "Scan this with your wallet", &inter_13, TEXT_2);
-    lv_obj_align(anim_lbl, LV_ALIGN_TOP_MID, 0, BAR + 2 + QR_CARD + 8);
-    place_bottom(btn_primary(scr, "Done", signed_done_cb));
+    // What to do, and which frame of an animated QR is showing.
+    anim_lbl = text(scr, "Scan with your wallet", &inter_15, TEXT);
+    lv_obj_align(anim_lbl, LV_ALIGN_TOP_MID, 0, BAR + 2 + QR_CARD + 10);
+    place_bottom(btn_primary(scr, "Back to wallet", signed_done_cb));
     show(scr);
     anim_seq = 0;
     anim_tick(nullptr);
@@ -2391,7 +2441,7 @@ static void build_verify() {
         lv_obj_align(para(scr, m, &inter_13, TEXT_2), LV_ALIGN_TOP_MID, 0, y + 34);
         address_card(scroll_area(scr, y + 80), 0);
     }
-    bottom_pair(btn_ghost(scr, "Scan", go_cb, GO(UI_SCAN_ADDRESS), TEXT), btn_primary(scr, "Done", to_menu_cb));
+    bottom_pair(btn_ghost(scr, "Scan", go_cb, GO(UI_SCAN), TEXT), btn_primary(scr, "Done", to_wallet_cb));
     show(scr);
 }
 
@@ -2402,10 +2452,10 @@ static void build_verify() {
 void ui_multisig_use() {
     if (ui_current() != UI_MULTISIG) return;
     ms_confirmed = true;
-    ui_goto(ms_return);
+    ui_goto(UI_SCAN);
 }
 static void ms_use_cb(lv_event_t *) { ui_multisig_use(); }
-static void ms_cancel_cb(lv_event_t *) { ui_goto(ms_return); }   // leaving unconfirmed drops it
+static void ms_cancel_cb(lv_event_t *) { ui_goto(UI_SCAN); }   // leaving unconfirmed drops it
 
 static void build_multisig() {
     const MsInfo *ms = multisig_info();
@@ -2454,11 +2504,12 @@ static bool backup_screen(UiScreen s) {
 }
 
 void ui_goto(UiScreen s) {
-    if (s != UI_SCAN_SEED && s != UI_SCAN_PSBT && s != UI_SCAN_ADDRESS && s != UI_BACKUP_SCAN) scan_stop();
+    if (s != UI_SCAN_SEED && s != UI_SCAN && s != UI_BACKUP_SCAN) scan_stop();
     if (s != UI_PASSPHRASE) pass_wipe();
+    if (s != UI_EXPORT_XPUB) key_details = false;
     // A scanned descriptor that wasn't confirmed on its screen is never used.
     if (s != UI_MULTISIG && !ms_confirmed) multisig_clear();
-    if (s == UI_MULTISIG && !multisig_loaded()) s = UI_SEED_MENU;
+    if (s == UI_MULTISIG && !multisig_loaded()) s = UI_WALLET;
     // The new seed lives only inside its own flow: leaving it wipes everything.
     if (!seed_entry_screen(s) && !backup_screen(s)) new_seed_wipe();
     bool needs_pending = backup_screen(s) && s != UI_BACKUP_BLOCK && s != UI_BACKUP_SCAN;
@@ -2470,20 +2521,18 @@ void ui_goto(UiScreen s) {
     if (ready_timer) { lv_timer_delete(ready_timer); ready_timer = nullptr; }
     bool no_seed_yet = s == UI_HOME || s == UI_UPDATE || s == UI_SCAN_SEED || seed_entry_screen(s);
     if (!no_seed_yet && !backup_screen(s) && !wallet_has_seed()) s = UI_HOME;
-    if (no_seed_yet && wallet_has_seed()) { new_seed_wipe(); s = UI_SEED_MENU; }
+    if (no_seed_yet && wallet_has_seed()) { new_seed_wipe(); s = UI_WALLET; }
     current = s;
     switch (s) {
         case UI_HOME: build_home(); break;
         case UI_SCAN_SEED: build_scan(SCAN_SEED); break;
-        case UI_SEED_LOADED: build_seed_loaded(); break;
+        case UI_WALLET: build_wallet(); break;
         case UI_PASSPHRASE: build_passphrase(); break;
-        case UI_SEED_MENU: build_seed_menu(); break;
-        case UI_SCAN_PSBT: build_scan(SCAN_PSBT); break;
-        case UI_SCAN_ADDRESS: build_scan(SCAN_ADDRESS); break;
+        case UI_WALLET_OPTIONS: build_wallet_options(); break;
+        case UI_SCAN: build_scan(SCAN_WALLET); break;
         case UI_VERIFY_RESULT: build_verify(); break;
         case UI_EXPORT_XPUB: build_export_xpub(); break;
         case UI_NETWORK: build_network(); break;
-        case UI_KEY_TYPE: build_key_type(); break;
         case UI_WIPE_CONFIRM: build_wipe_confirm(); break;
         case UI_PSBT_ERROR: build_psbt_error(); break;
         case UI_PSBT_OVERVIEW: build_psbt_overview(); break;

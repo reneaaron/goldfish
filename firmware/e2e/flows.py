@@ -26,29 +26,42 @@ def load_by_words(dev, mnemonic):
     if len(mnemonic.split()) == 24:
         dev.tap("24 words")
     type_words(dev, mnemonic)
-    assert dev.screen == "SEED_LOADED", dev.text()
+    assert dev.screen == "WALLET", dev.text()
 
 
 def load_by_qr(dev, mnemonic, compact=False):
     dev.tap("Scan QR")
     dev.scan(seedqr(mnemonic, compact))
-    assert dev.screen == "SEED_LOADED", dev.text()
+    assert dev.screen == "WALLET", dev.text()
+
+
+def set_network(dev, network):
+    """On Wallet options: pick "Mainnet" or "Testnet" for the watch-only key."""
+    dev.scroll_down()
+    if network not in dev.texts():   # the Network row's subline names the current one
+        dev.tap("Network")
+        dev.tap(network)             # back on Wallet options, at the top
+    else:
+        dev.scroll_up()
+
+
+def set_key_type(dev, multisig):
+    """On Watch-only wallet: the toggle names the other kind of key."""
+    other = "For a single-key wallet  {RIGHT}" if multisig else "For a multisig wallet  {RIGHT}"
+    if other not in dev.texts():
+        dev.tap("For a multisig wallet  {RIGHT}" if multisig else "For a single-key wallet  {RIGHT}")
 
 
 def connect_wallet(dev, multisig=False):
-    """Wallet menu -> Connect wallet on testnet, for a single-sig or a
-    multisig wallet. Returns the key the wallet app reads from the signer's
-    screen, and leaves the signer on its menu."""
+    """Wallet -> Wallet options -> Connect wallet on testnet, for a single-sig
+    or a multisig wallet. Returns the key the wallet app reads from the
+    signer's screen, and leaves the signer on Wallet."""
+    dev.tap("Wallet options")
+    set_network(dev, "Testnet")
     dev.tap("Connect wallet")
-    if "Testnet  {RIGHT}" not in dev.texts():
-        dev.tap("Mainnet  {RIGHT}")
-        dev.tap("Testnet")
-    showing = "Multisig" if "Multisig  {RIGHT}" in dev.texts() else "Single-sig"
-    wanted = "Multisig" if multisig else "Single-sig"
-    if showing != wanted:
-        dev.tap(showing + "  {RIGHT}")
-        dev.tap(wanted)
+    set_key_type(dev, multisig)
     export = dev.read_qr()
+    dev.back()
     dev.back()
     return parse_key_export(export)
 
@@ -66,9 +79,9 @@ def address_on_screen(dev):
 
 
 def verify_address(dev, shown):
-    """Wallet menu -> Verify address with the QR `shown` by the wallet app.
+    """Wallet -> Scan QR with the address QR `shown` by the wallet app.
     Returns the result screen's text."""
-    dev.tap("Verify address")
+    dev.tap("Scan QR")
     dev.scan(shown)
     assert dev.screen == "VERIFY_RESULT", dev.text()
     dev.wait_for(lambda: "Done" in dev.texts(), what="the address search")
@@ -97,5 +110,5 @@ def review_and_sign(dev):
         return frame
 
     signed = read_psbt(next_frame)
-    dev.tap("Done")
+    dev.tap("Back to wallet")
     return signed, seen

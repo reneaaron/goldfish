@@ -4,50 +4,49 @@
 // nothing in src/app may touch hardware directly.
 //
 // Flow (SeedQR only, one seed in RAM):
-//   Home -> Scan SeedQR -> Seed loaded (fingerprint) -> Seed menu
-//   Seed loaded -> Add passphrase (optional, BIP-39) -> keyboard -> Seed loaded
-//        with the passphrase's fingerprint
-//   Seed menu -> Sign transaction | Verify address | Connect wallet | Back up as QR | Wipe
-//   Connect wallet -> Network (Mainnet / Testnet), RAM only
-//   Connect wallet -> Wallet type (Single-sig / Multisig key), RAM only
-//   Scan transaction -> Review -> each output -> Swipe to sign -> Signed QR
-//   Verify address -> scan address QR -> searching -> verified / not from this seed
-//   Multisig: show the wallet's descriptor QR to the Sign or Verify scanner
+//   Home -> Scan SeedQR -> Wallet: the fingerprint, Scan QR, Wallet options
+//   Wallet -> Scan QR: one scanner for a transaction or an address
+//        transaction -> Review -> each output -> Swipe to sign -> Signed QR -> Wallet
+//        address -> searching -> verified / not from this seed
+//   Wallet -> Wallet options -> Connect wallet | Back up as QR | Passphrase | Child seed | Wipe
+//   Passphrase (optional, BIP-39) -> keyboard -> Wallet with the passphrase's fingerprint
+//   Connect wallet: the key's QR; tap it for fingerprint, path and the whole
+//        key; "For a multisig wallet" switches to the BIP-48 key, RAM only
+//   Wallet options -> Network (Mainnet / Testnet) for that key, RAM only
+//   Multisig: show the wallet's descriptor QR to the scanner
 //        -> Multisig wallet (M of N, key fingerprints, first address) -> Use wallet
-//        -> back to that scanner, which now takes the wallet's transactions / addresses
-//   Home -> Enter words (12, or 24 from the first word) -> one screen per word -> Seed loaded
+//        -> back to the scanner, which now takes the wallet's transactions / addresses
+//   Home -> Enter words (12, or 24 from the first word) -> one screen per word -> Wallet
 //        camera -> Scan words (a photo of the written backup, experimental) -> Read
 //        -> Reading words -> Check words (12 or 24, from how many were found): the
 //        words in order, "?" where unread; tap one -> its picture -> Change /
 //        Remove / Add a word before (keyboard, then back to the list) -> "Matches
-//        my backup" once there are 12/24 words with a valid checksum -> Seed loaded
-//   Scan seed -> "Written words instead?" -> Scan words
+//        my backup" once there are 12/24 words with a valid checksum -> Wallet
+//   Scan seed -> "Have written words instead?" -> Scan words
 //   Home -> New seed (12 words) -> dice rolls | coin flips | draw words + coins for the last
 //        -> offline warning -> write down the words -> QR card? (whole SeedQR,
 //        each block, optional card check) -> Seed ready (not loaded) -> Home
-//   Seed menu -> Back up as QR -> the same card flow, scan optional
+//   Wallet options -> Back up as QR -> the same card flow, scan optional
 //   Home -> tap the version -> Update firmware? -> Restart: the board's ROM
 //        bootloader, a USB drive for firmware.uf2 (only with no seed loaded)
-//   Seed menu -> Child seed (BIP-85): child number -> the New seed
+//   Wallet options -> Child seed (BIP-85): child number -> the New seed
 //        card flow from the warning on (words, QR card?, Seed ready)
 
 enum UiScreen {
     UI_HOME,
     UI_SCAN_SEED,
-    UI_SEED_LOADED,
-    UI_PASSPHRASE,       // BIP-39 passphrase keyboard, from Seed loaded
-    UI_SEED_MENU,
-    UI_SCAN_PSBT,
+    UI_WALLET,           // home once a seed is loaded: fingerprint, Scan QR, Wallet options
+    UI_PASSPHRASE,       // BIP-39 passphrase keyboard, from Wallet options
+    UI_WALLET_OPTIONS,
+    UI_SCAN,             // a transaction to sign or an address to verify (or a descriptor)
     UI_EXPORT_XPUB,
-    UI_NETWORK,          // network for Connect wallet
-    UI_KEY_TYPE,         // single-sig or multisig key for Connect wallet
+    UI_NETWORK,          // network for Connect wallet's key, from Wallet options
     UI_WIPE_CONFIRM,
     UI_PSBT_ERROR,
     UI_PSBT_OVERVIEW,
     UI_PSBT_OUTPUT,      // one screen per output, see ui_output_index()
     UI_PSBT_SIGN,
     UI_PSBT_SIGNED,
-    UI_SCAN_ADDRESS,
     UI_VERIFY_RESULT,    // shows progress while searching, then the result
     UI_NEW_SEED,         // how to make a 12-word seed
     UI_ENTROPY_DICE,
@@ -80,6 +79,7 @@ void ui_next_output();         // "Next" on an output screen
 bool ui_swipe_sign();          // completes the swipe; false if signing failed
 bool verify_done();            // the address check has a result
 void ui_multisig_use();        // "Use wallet" on the Multisig wallet screen
+void ui_key_details();         // tap the Connect wallet card: QR <-> its text
 // Start UI_ENTROPY_DICE, _COINS or UI_ENTER_WORDS; draw: the words are a new seed (last word from coins).
 void ui_seed_entry(UiScreen method, int words, bool draw = false);
 void ui_backup_loaded();       // "Back up as QR" in the seed menu
@@ -105,5 +105,5 @@ void ui_page_use_suggestion(); // tap it
 void ui_child_digit(int k);           // a keypad digit 0-9, or -1 for Del
 const char *ui_child_number();        // the child number as typed
 // A key of the passphrase keyboard, by its label: one character, or "space",
-// "Del", "abc", "ABC", "123", "#+=", "OK" (derive the key, back to Seed loaded).
+// "Del", "abc", "ABC", "123", "#+=", "OK" (derive the key, back to Wallet).
 void ui_passphrase_key(const char *key);
