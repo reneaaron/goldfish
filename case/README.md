@@ -1,12 +1,14 @@
 # Case
 
 One-piece printed case for the Waveshare RP2350-Touch-LCD-2, modelled in
-[gcad](https://github.com/v0l/gcad). Outside: 40.9 × 62.6 × 18.9 mm.
+[gcad](https://github.com/v0l/gcad). Outside: 37.1 × 58.8 × 16.9 mm, 18 mm with the glass on.
 
 ![Case](renders/case.png)
 
-No screws or other parts: two flexing tabs on each long wall catch the glass
-edge, and the board rests on four posts behind it.
+No screws or other parts. The cover glass sits on top of the case, flush with
+its outline; the LCD and PCB behind it drop into a pocket in the rim. The
+board's four M2 standoffs press into sockets in the posts, where crush ribs
+(`rw`) grip them.
 
 ## Files
 
@@ -23,15 +25,23 @@ gcad export parts/case.gcad exports/case.stl
 
 ## Printing
 
-Flat on its back, no supports. PLA works; the clip tabs flex about 1%.
+Flat on its back, no supports. PLA works. The long walls beside the LCD/PCB pocket are only 0.75 mm thick.
+How hard the standoffs grip depends on the print; tune `rw` after a test fit.
 
 ## Where the dimensions come from
 
 From Waveshare's [outline drawing](https://www.waveshare.com/img/devkit/RP2350-Touch-LCD-2/RP2350-Touch-LCD-2-details-size.jpg):
-glass 37.1 × 58.8 R2.6, PCB 35 × 48.2, M2 standoffs on 29 × 42.2, 7.2 from
+glass 37.1 × 58.8 R2.6 × 1.1, PCB 35 × 48.2, M2 standoffs on 29 × 42.2, 7.2 from
 glass front to PCB back, 9.7 to the standoff ends, buttons 18.9 apart.
 
 Measured off the photos in that drawing, good to about 0.3 mm:
+
+- The LCD body behind the glass is about as long as the PCB (48 mm). Its
+  width isn't given; the model assumes 35, the PCB's.
+- The standoffs are round, 3.36 mm across (measured with calipers, `sock`).
+- The standoffs end 8.9 mm behind the glass (measured; the drawing gives 8.6).
+  Only the glass on the rim sets the height: the posts stop `lift` short of
+  the PCB and the sockets run `deep` past the standoff ends.
 
 - Header pins end 8.64 mm behind the PCB (standard 2.54 mm header). The case
   leaves 9.2 (`hdr`).
@@ -49,7 +59,7 @@ OV5640 module, 21 mm type, from the module's outline drawing: base
 
 The module pushes lens-first into the frame on the case floor (`camw`), where
 four crush ribs (`rib`) grip the base. The barrel sits in a 6.8 mm hole
-(`lens`), 0.4 mm below the back surface. `camy` puts the frame 6 mm from the
+(`lens`), 0.4 mm below the back surface. `camy` puts the frame 10 mm from the
 connector so the flex reaches with slack.
 
 Not checked: that the module in the Waveshare -C bundle (flex marked
