@@ -8,7 +8,7 @@ All seeds here are public test seeds. Never real funds.
 import pytest
 from embit.networks import NETWORKS
 
-from flows import address_on_screen, connect_wallet, load_by_words, review_and_sign, verify_address
+from flows import set_key_type, set_network, address_on_screen, connect_wallet, load_by_words, review_and_sign, verify_address
 from hostwallet import Seed, Wallet, psbt_parts, ur_parts, ur_single
 
 MNEMONIC = "crew marble private differ race truly blush basket crater affair prepare unique"
@@ -29,7 +29,6 @@ def two_of_three(signer_key=None):
 
 def loaded(dev):
     load_by_words(dev, MNEMONIC)
-    dev.tap("Continue")
 
 
 def scan_descriptor(dev, shown, wallet):
@@ -59,9 +58,9 @@ def test_linked_key_to_broadcastable_transaction(dev):
     # A multisig transaction is refused until the signer knows the wallet.
     coins = [wallet.fund(0, 500_000), wallet.fund(1, 250_000)]
     psbt = wallet.create_psbt(coins, [(STRANGER, 600_000)], fee=1_200, change_index=0)
-    dev.tap("Sign transaction")
+    dev.tap("Scan QR")
     dev.scan_animated(psbt_parts(psbt))
-    assert dev.screen == "PSBT_ERROR" and "Scan the wallet's descriptor first" in dev.text()
+    assert dev.screen == "PSBT_ERROR" and "needs its wallet's descriptor" in dev.text()
 
     # The descriptor: checked on screen, and dropped if the user backs out.
     dev.tap("Scan it")
@@ -73,7 +72,7 @@ def test_linked_key_to_broadcastable_transaction(dev):
     dev.tap("Scan it")
     scan_descriptor(dev, wallet.descriptor(), wallet)
     dev.tap("Use wallet")
-    assert dev.screen == "SCAN_PSBT"
+    assert dev.screen == "SCAN"
 
     # Now the same transaction is reviewed against the wallet, and signed.
     dev.scan_animated(psbt_parts(psbt))
@@ -103,17 +102,25 @@ def test_linked_key_to_broadcastable_transaction(dev):
 
 def test_connect_wallet_shows_either_key(dev):
     """Single-sig and multisig keys, on both networks, as embit derives them
-    from the same words; switching back and forth doesn't mix them up."""
+    from the same words; switching back and forth doesn't mix them up. The
+    short key under the QR and the details behind it match the QR."""
     loaded(dev)
-    dev.tap("Connect wallet")
+    dev.tap("Wallet options")
     seen = {}
     for kind, network in (("Single-sig", "Mainnet"), ("Multisig", "Mainnet"), ("Multisig", "Testnet"), ("Single-sig", "Testnet")):
-        for now, other in ((kind, "Multisig" if kind == "Single-sig" else "Single-sig"),
-                           (network, "Testnet" if network == "Mainnet" else "Mainnet")):
-            if other + "  {RIGHT}" in dev.texts():
-                dev.tap(other + "  {RIGHT}")
-                dev.tap(now)
-        seen[kind, network] = dev.read_qr()
+        set_network(dev, network)
+        dev.tap("Connect wallet")
+        set_key_type(dev, kind == "Multisig")
+        shown = dev.read_qr()
+        seen[kind, network] = shown
+        key = shown.split("]")[1]
+        assert "%s\u2026%s" % (key[:8], key[-4:]) in dev.texts()
+        dev.tap("%s\u2026%s" % (key[:8], key[-4:]))   # the details: fingerprint, path, all of the key
+        text = dev.text()
+        assert "%s %s" % (SIGNER.fingerprint[:4], SIGNER.fingerprint[4:]) in text
+        assert "".join(t for t in dev.texts() if len(t) <= 4 and t.isalnum()).endswith(key[-20:])
+        dev.back()   # to the QR
+        dev.back()   # to Wallet options
     for (kind, network), shown in seen.items():
         net = NETWORKS["main" if network == "Mainnet" else "test"]
         path = ("84h/%s/0h" if kind == "Single-sig" else "48h/%s/0h/2h") % ("0h" if network == "Mainnet" else "1h")
@@ -135,13 +142,12 @@ SPELLINGS = {
 
 
 @pytest.mark.parametrize("spelling", SPELLINGS)
-@pytest.mark.parametrize("scanner", ["Sign transaction", "Verify address"])
-def test_descriptor_spellings(dev, spelling, scanner):
+def test_descriptor_spellings(dev, spelling):
     """Every way a wallet app writes the descriptor QR gives the same wallet,
-    at either scanner, with the signer's key at the usual BIP-48 path."""
+    with the signer's key at the usual BIP-48 path."""
     wallet = two_of_three()
     loaded(dev)
-    dev.tap(scanner)
+    dev.tap("Scan QR")
     scan_descriptor(dev, SPELLINGS[spelling](wallet), wallet)
     dev.tap("Use wallet")
     dev.back()
@@ -157,7 +163,7 @@ def test_three_of_five_after_a_cosigner(dev):
     COSIGNERS[3].sign(psbt)
 
     loaded(dev)
-    dev.tap("Sign transaction")
+    dev.tap("Scan QR")
     scan_descriptor(dev, ur_parts(*wallet.descriptor_ur(), fragment_len=100), wallet)
     dev.tap("Use wallet")
     dev.scan_animated(psbt_parts(psbt, skip=7))
@@ -176,21 +182,21 @@ def test_three_of_five_after_a_cosigner(dev):
 
 def test_wallets_we_are_not_in_are_refused(dev):
     loaded(dev)
-    dev.tap("Sign transaction")
+    dev.tap("Scan QR")
     # Three other people's keys.
     dev.scan(Wallet.multisig(2, [c.key(BIP48) for c in COSIGNERS[:3]]).descriptor())
-    assert dev.screen == "SCAN_PSBT" and "Wrong descriptor" in dev.text()
+    assert dev.screen == "SCAN" and "Wrong descriptor" in dev.text()
     # Our fingerprint on somebody else's key: the fingerprint proves nothing.
     forged = COSIGNERS[2].key(BIP48).replace(COSIGNERS[2].fingerprint, SIGNER.fingerprint)
     dev.scan(Wallet.multisig(2, [forged] + [c.key(BIP48) for c in COSIGNERS[:2]]).descriptor())
-    assert dev.screen == "SCAN_PSBT" and "Wrong descriptor" in dev.text()
+    assert dev.screen == "SCAN" and "Wrong descriptor" in dev.text()
     # Not sortedmulti.
     dev.scan(two_of_three().descriptor().split("#")[0].replace("sortedmulti", "multi"))
-    assert dev.screen == "SCAN_PSBT" and "Not supported yet" in dev.text()
+    assert dev.screen == "SCAN" and "Not supported yet" in dev.text()
     # A typo: the checksum catches it.
     good = two_of_three().descriptor()
     dev.scan(good.replace("sortedmulti(2", "sortedmulti(1"))
-    assert dev.screen == "SCAN_PSBT" and "Damaged descriptor" in dev.text()
+    assert dev.screen == "SCAN" and "Damaged descriptor" in dev.text()
 
 
 def test_change_to_another_multisig_blocks_signing(dev):
@@ -203,7 +209,7 @@ def test_change_to_another_multisig_blocks_signing(dev):
     psbt.outputs[-1] = theirs.outputs[-1]   # script, witness script and key paths, all consistent
 
     loaded(dev)
-    dev.tap("Sign transaction")
+    dev.tap("Scan QR")
     dev.scan(wallet.descriptor())
     dev.tap("Use wallet")
     dev.scan_animated(psbt_parts(psbt))
@@ -216,18 +222,20 @@ def test_descriptor_goes_with_the_seed(dev):
     wallet = two_of_three()
     psbt = wallet.create_psbt([wallet.fund(0, 300_000)], [(STRANGER, 10_000)], fee=500)
     loaded(dev)
-    dev.tap("Sign transaction")
+    dev.tap("Scan QR")
     dev.scan(wallet.descriptor())
     dev.tap("Use wallet")
     dev.scan_animated(psbt_parts(psbt))
     assert dev.screen == "PSBT_OVERVIEW"
     dev.back()
-    dev.tap("Wipe now")
+    dev.tap("Wallet options")
+    dev.scroll_down()
+    dev.tap("Wipe seed")
     dev.tap("Wipe")
     assert dev.screen == "HOME"
 
     loaded(dev)
     assert "2 OF 3" not in dev.text()
-    dev.tap("Sign transaction")
+    dev.tap("Scan QR")
     dev.scan_animated(psbt_parts(psbt))
-    assert dev.screen == "PSBT_ERROR" and "Scan the wallet's descriptor first" in dev.text()
+    assert dev.screen == "PSBT_ERROR" and "needs its wallet's descriptor" in dev.text()

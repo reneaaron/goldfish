@@ -37,16 +37,18 @@ been tested on real hardware or against Sparrow.
    optionally walks you through a paper QR card, square by square. Any
    loaded seed can be backed up as a QR card the same way. Blank cards
    for 12-word seeds to print are in [`cards/`](cards).
-2. Connect wallet: show the xpub as a QR so Sparrow (or another wallet app)
-   can track your balance and build transactions.
-3. Sign transaction: scan the transaction QR from your wallet, check the
+2. Connect wallet (in Wallet options): show the public key as a QR, so
+   Sparrow (or another wallet app) can set up a watch-only wallet that tracks
+   your balance and builds transactions.
+3. Sign transaction: Scan QR on the transaction from your wallet, check the
    amount, fee, change and every address, slide to sign, and scan the signed
    QR back into your wallet to broadcast it.
-4. Verify address: scan a receive address to confirm it belongs to your seed.
+4. Verify address: Scan QR on a receive address to confirm it belongs to your
+   seed. Signing and verifying share the one scanner.
 5. Child seed: derive a BIP-85 child seed and back it up as words and a QR
    card, like a new seed.
-6. Multisig: scan your wallet's descriptor QR in Sign transaction or Verify
-   address, check it on the device, then sign that wallet's transactions as
+6. Multisig: show your wallet's descriptor QR to Scan QR, check it on the
+   device, then sign that wallet's transactions as
    one of its cosigners (native segwit `wsh(sortedmulti)`).
 
 ## Quick start
