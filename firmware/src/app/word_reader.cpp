@@ -17,20 +17,31 @@ static_assert(WM_H == WR_H && WM_W == WR_W && WM_T == WR_T && WM_C == WR_C, "wor
 #define BUF_A (WM_B2_CO * 8 * 48)
 #define BUF_B (WM_B1_CO * 16 * 96)
 static int16_t *buf_a, *buf_b;
+// conv2d's sums, one per position of one output channel: 64-bit totals, and
+// 32-bit ones for a group of input channels (see conv2d)
+#define ACC_N (16 * 96)   // positions of the biggest layer with more than one input channel (b2)
+static int64_t *acc;
+static int32_t *acc32;
 
 bool word_reader_init() {
-    if (buf_a && buf_b) return true;
+    if (buf_a && buf_b && acc && acc32) return true;
     word_reader_free();
     buf_a = (int16_t *)malloc(sizeof(int16_t) * BUF_A);
     buf_b = (int16_t *)malloc(sizeof(int16_t) * BUF_B);
-    if (!buf_a || !buf_b) { word_reader_free(); return false; }
+    acc = (int64_t *)malloc(sizeof(int64_t) * ACC_N);
+    acc32 = (int32_t *)malloc(sizeof(int32_t) * ACC_N);
+    if (!buf_a || !buf_b || !acc || !acc32) { word_reader_free(); return false; }
     return true;
 }
 
 void word_reader_free() {
     if (buf_a) { secure_zero(buf_a, sizeof(int16_t) * BUF_A); free(buf_a); }
     if (buf_b) { secure_zero(buf_b, sizeof(int16_t) * BUF_B); free(buf_b); }
+    if (acc) { secure_zero(acc, sizeof(int64_t) * ACC_N); free(acc); }
+    if (acc32) { secure_zero(acc32, sizeof(int32_t) * ACC_N); free(acc32); }
     buf_a = buf_b = nullptr;
+    acc = nullptr;
+    acc32 = nullptr;
 }
 
 // ---------------------------------------------------------------- input
@@ -73,44 +84,96 @@ static inline int16_t requant(int64_t acc, int32_t mult, int shift) {
 
 // 3x3 convolution (zero padding) + ReLU, then max over ph x pw blocks
 // (rows/columns that don't fill a block are dropped, as in PyTorch).
+//
+// Speed (on the board a word spent ~2.2 s here, now ~0.85 s): one output
+// channel at a time, and within it one input channel at a time, its 9 weights
+// held in registers (packed in pairs for SMLAD) while every position is swept.
+// Sums are 32-bit per group of input channels and 64-bit across groups
+// (int8 x int16 x 576 terms can pass 2^31). The top and bottom rows read a row
+// of zeros instead of a slow bounds-checked path. Integer sums don't depend on
+// the order: the same result as the plain loops, bit for bit.
+
+// Two int16 x int16 products and a sum in one instruction (SMLAD) where the
+// CPU has it, as on the board's Cortex-M33; the same arithmetic in C elsewhere,
+// so the tests run the code the board runs. The pair is two neighbouring
+// int16 (low half first) and two weights packed the same way.
+#if defined(__ARM_FEATURE_DSP)
+#include <arm_acle.h>
+static inline int32_t smlad(uint32_t pair, uint32_t kk, int32_t acc) { return __smlad(pair, kk, acc); }
+#else
+static inline int32_t smlad(uint32_t pair, uint32_t kk, int32_t acc) {
+    return acc + int16_t(pair & 0xffff) * int16_t(kk & 0xffff) + int16_t(pair >> 16) * int16_t(kk >> 16);
+}
+#endif
+static inline uint32_t pair_at(const int16_t *p) {   // p[0], p[1]: an unaligned 32-bit load on the board
+    uint32_t v;
+    memcpy(&v, p, 4);
+    return v;
+}
+static inline uint32_t pack(int8_t lo, int8_t hi) { return uint16_t(int16_t(lo)) | uint32_t(uint16_t(int16_t(hi))) << 16; }
+
+// The 9 terms at (y, x), zero padding where the kernel leaves the picture.
+static inline int32_t taps_edge(const int16_t *src, int h, int w, int y, int x, const int8_t *k) {
+    int32_t sum = 0;
+    for (int ky = 0; ky < 3; ky++) {
+        int sy = y + ky - 1;
+        if (sy < 0 || sy >= h) continue;
+        for (int kx = 0; kx < 3; kx++) {
+            int sx = x + kx - 1;
+            if (sx >= 0 && sx < w) sum += src[sy * w + sx] * k[ky * 3 + kx];
+        }
+    }
+    return sum;
+}
+
+// The 9 terms at (x, the row r1 of three), away from the edges: per row one
+// SMLAD for the first two weights and one multiply for the third.
+static inline int32_t taps_inner(const int16_t *r0, const int16_t *r1, const int16_t *r2, int x, uint32_t k01,
+                                 int32_t k2, uint32_t k34, int32_t k5, uint32_t k67, int32_t k8) {
+    int32_t s = r0[x + 1] * k2 + r1[x + 1] * k5 + r2[x + 1] * k8;
+    s = smlad(pair_at(r0 + x - 1), k01, s);
+    s = smlad(pair_at(r1 + x - 1), k34, s);
+    return smlad(pair_at(r2 + x - 1), k67, s);
+}
+
+// The row above the top one and below the bottom one: zero padding, so the
+// top and bottom rows take the fast path too (half of b4's 4 rows are edges).
+static const int16_t zero_row[WR_W] = {};
+
+// Adds one input channel's 3x3 terms to sums[y * w + x], every position.
+template <typename T>
+static void add_channel(const int16_t *src, int h, int w, const int8_t *k, T *sums) {
+    const uint32_t k01 = pack(k[0], k[1]), k34 = pack(k[3], k[4]), k67 = pack(k[6], k[7]);
+    const int32_t k2 = k[2], k5 = k[5], k8 = k[8];
+    for (int y = 0; y < h; y++) {
+        T *a = sums + y * w;
+        const int16_t *r1 = src + y * w, *r0 = y > 0 ? r1 - w : zero_row, *r2 = y < h - 1 ? r1 + w : zero_row;
+        a[0] += taps_edge(src, h, w, y, 0, k);
+        for (int x = 1; x < w - 1; x++) a[x] += taps_inner(r0, r1, r2, x, k01, k2, k34, k5, k67, k8);
+        a[w - 1] += taps_edge(src, h, w, y, w - 1, k);
+    }
+}
+
 static void conv2d(const int16_t *in, int ci, int h, int w, const int8_t *wt, const int32_t *bias, const int32_t *mult,
                    const int8_t *shift, int co, int ph, int pw, int16_t *out) {
     int oh = h / ph, ow = w / pw;
+    // One input channel adds at most 9 x 32767 x 128 (under 2^26) to a
+    // position: 32 of them stay under 2^31, so they're summed in 32 bits and
+    // only each group's sum goes into the 64-bit total.
+    const int GROUP = 32;
     for (int c = 0; c < co; c++) {
-        const int8_t *k = wt + c * ci * 9;
+        for (int p = 0; p < h * w; p++) acc[p] = bias[c];
+        for (int g = 0; g < ci; g += GROUP) {
+            memset(acc32, 0, sizeof(int32_t) * h * w);
+            for (int i = g; i < ci && i < g + GROUP; i++) add_channel(in + i * h * w, h, w, wt + (c * ci + i) * 9, acc32);
+            for (int p = 0; p < h * w; p++) acc[p] += acc32[p];
+        }
         for (int oy = 0; oy < oh; oy++)
             for (int ox = 0; ox < ow; ox++) {
                 int16_t best = 0;
                 for (int dy = 0; dy < ph; dy++)
                     for (int dx = 0; dx < pw; dx++) {
-                        int y = oy * ph + dy, x = ox * pw + dx;
-                        // 64-bit: int8 x int16 x 576 terms can pass 2^31. One input
-                        // channel's 9 terms can't, so they're summed in 32 bits first
-                        // (the board's slow part): same sums, same result.
-                        int64_t acc = bias[c];
-                        bool edge = y == 0 || y == h - 1 || x == 0 || x == w - 1;
-                        for (int i = 0; i < ci; i++) {
-                            const int16_t *src = in + i * h * w;
-                            const int8_t *kk = k + i * 9;
-                            int32_t sum = 0;
-                            if (!edge) {
-                                const int16_t *r0 = src + (y - 1) * w + x - 1, *r1 = r0 + w, *r2 = r1 + w;
-                                sum = r0[0] * kk[0] + r0[1] * kk[1] + r0[2] * kk[2] + r1[0] * kk[3] + r1[1] * kk[4] +
-                                      r1[2] * kk[5] + r2[0] * kk[6] + r2[1] * kk[7] + r2[2] * kk[8];
-                            } else {
-                                for (int ky = 0; ky < 3; ky++) {
-                                    int sy = y + ky - 1;
-                                    if (sy < 0 || sy >= h) continue;
-                                    const int16_t *row = src + sy * w;
-                                    for (int kx = 0; kx < 3; kx++) {
-                                        int sx = x + kx - 1;
-                                        if (sx >= 0 && sx < w) sum += row[sx] * kk[ky * 3 + kx];
-                                    }
-                                }
-                            }
-                            acc += sum;
-                        }
-                        int16_t v = requant(acc, mult[c], shift[c]);
+                        int16_t v = requant(acc[(oy * ph + dy) * w + ox * pw + dx], mult[c], shift[c]);
                         if (v > best) best = v;
                     }
                 out[(c * oh + oy) * ow + ox] = best;
@@ -118,29 +181,61 @@ static void conv2d(const int16_t *in, int ci, int h, int w, const int8_t *wt, co
     }
 }
 
-// Convolution over the WR_T steps, kernel 3, zero padding, + ReLU.
+// The first layer: one input channel, so a position's 9 terms are its whole
+// sum (no 64-bit total needed), one row of it at a time.
+static void conv2d_first(const int16_t *in, int h, int w, const int8_t *wt, const int32_t *bias, const int32_t *mult,
+                         const int8_t *shift, int co, int16_t *out) {
+    static int32_t rows[2][WR_W];   // the two rows of a 2x2 block
+    int oh = h / 2, ow = w / 2;
+    for (int c = 0; c < co; c++) {
+        const int8_t *k = wt + c * 9;
+        for (int oy = 0; oy < oh; oy++) {
+            for (int dy = 0; dy < 2; dy++) {
+                int y = oy * 2 + dy;
+                const uint32_t k01 = pack(k[0], k[1]), k34 = pack(k[3], k[4]), k67 = pack(k[6], k[7]);
+                const int32_t k2 = k[2], k5 = k[5], k8 = k[8];
+                int32_t *a = rows[dy];
+                const int16_t *r1 = in + y * w, *r0 = y > 0 ? r1 - w : zero_row, *r2 = y < h - 1 ? r1 + w : zero_row;
+                a[0] = taps_edge(in, h, w, y, 0, k);
+                for (int x = 1; x < w - 1; x++) a[x] = taps_inner(r0, r1, r2, x, k01, k2, k34, k5, k67, k8);
+                a[w - 1] = taps_edge(in, h, w, y, w - 1, k);
+            }
+            for (int ox = 0; ox < ow; ox++) {
+                int16_t best = 0;
+                for (int dy = 0; dy < 2; dy++)
+                    for (int dx = 0; dx < 2; dx++) {
+                        int16_t v = requant(int64_t(bias[c]) + rows[dy][ox * 2 + dx], mult[c], shift[c]);
+                        if (v > best) best = v;
+                    }
+                out[(c * oh + oy) * ow + ox] = best;
+            }
+        }
+    }
+    secure_zero(rows, sizeof(rows));
+}
+
+// Convolution over the WR_T steps, kernel 3, zero padding, + ReLU; ordered
+// like conv2d (an input channel's 3 weights held while every step is swept).
 static void conv1d(const int16_t *in, int ci, const int8_t *wt, const int32_t *bias, const int32_t *mult,
                    const int8_t *shift, int co, int16_t *out) {
-    for (int c = 0; c < co; c++)
-        for (int t = 0; t < WR_T; t++) {
-            int64_t acc = bias[c];
-            for (int i = 0; i < ci; i++) {
-                const int8_t *kk = wt + (c * ci + i) * 3;
-                const int16_t *src = in + i * WR_T;
-                int32_t sum = 0;   // as in conv2d: 3 terms fit 32 bits
-                for (int k = 0; k < 3; k++) {
-                    int s = t + k - 1;
-                    if (s >= 0 && s < WR_T) sum += src[s] * kk[k];
-                }
-                acc += sum;
-            }
-            out[c * WR_T + t] = requant(acc, mult[c], shift[c]);
+    for (int c = 0; c < co; c++) {
+        int64_t *a = acc;
+        for (int t = 0; t < WR_T; t++) a[t] = bias[c];
+        for (int i = 0; i < ci; i++) {
+            const int8_t *kk = wt + (c * ci + i) * 3;
+            const int32_t k0 = kk[0], k1 = kk[1], k2 = kk[2];
+            const int16_t *src = in + i * WR_T;
+            a[0] += int32_t(src[0] * k1 + src[1] * k2);
+            for (int t = 1; t < WR_T - 1; t++) a[t] += int32_t(src[t - 1] * k0 + src[t] * k1 + src[t + 1] * k2);
+            a[WR_T - 1] += int32_t(src[WR_T - 2] * k0 + src[WR_T - 1] * k1);
         }
+        for (int t = 0; t < WR_T; t++) out[c * WR_T + t] = requant(a[t], mult[c], shift[c]);
+    }
 }
 
 void word_reader_logp(const uint8_t *strip, float *logp, int16_t *t2) {
     word_reader_normalise(strip, buf_a);
-    conv2d(buf_a, 1, 32, 192, wm_b1_w, wm_b1_b, wm_b1_m, wm_b1_s, WM_B1_CO, 2, 2, buf_b);
+    conv2d_first(buf_a, 32, 192, wm_b1_w, wm_b1_b, wm_b1_m, wm_b1_s, WM_B1_CO, buf_b);
     conv2d(buf_b, WM_B2_CI, 16, 96, wm_b2_w, wm_b2_b, wm_b2_m, wm_b2_s, WM_B2_CO, 2, 2, buf_a);
     conv2d(buf_a, WM_B3_CI, 8, 48, wm_b3_w, wm_b3_b, wm_b3_m, wm_b3_s, WM_B3_CO, 2, 1, buf_b);
     conv2d(buf_b, WM_B4_CI, 4, 48, wm_b4_w, wm_b4_b, wm_b4_m, wm_b4_s, WM_B4_CO, 4, 1, buf_a);   // max over height
@@ -162,6 +257,8 @@ void word_reader_logp(const uint8_t *strip, float *logp, int16_t *t2) {
     }
     secure_zero(buf_a, sizeof(int16_t) * BUF_A);
     secure_zero(buf_b, sizeof(int16_t) * BUF_B);
+    secure_zero(acc, sizeof(int64_t) * ACC_N);
+    secure_zero(acc32, sizeof(int32_t) * ACC_N);
 }
 
 // ---------------------------------------------------------------- words
