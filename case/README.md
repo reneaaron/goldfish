@@ -49,7 +49,7 @@ OV5640 module, 21 mm type, from the module's outline drawing: base
 
 The module pushes lens-first into the frame on the case floor (`camw`), where
 four crush ribs (`rib`) grip the base. The barrel sits in a 6.8 mm hole
-(`lens`), 0.4 mm below the back surface. `camy` puts the frame 6 mm from the
+(`lens`), 0.4 mm below the back surface. `camy` puts the frame 10 mm from the
 connector so the flex reaches with slack.
 
 Not checked: that the module in the Waveshare -C bundle (flex marked

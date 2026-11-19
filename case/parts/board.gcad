@@ -32,9 +32,9 @@ bores: hole 2 bx,by+oy -bx,by+oy bx,-by+oy -bx,-by+oy depth=so-dep+pcb
 color #2a5db0
 body cam
 plane XY offset=-16.4
-rect 8.5 8.5 at=0.4,1.8
+rect 8.5 8.5 at=0.4,5.5
 cbody: extrude 3.84
 plane XY offset=-16.4
-circle 6 at=0.4,1.8
+circle 6 at=0.4,5.5
 barrel: extrude -1.19
 color #444444
