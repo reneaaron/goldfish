@@ -479,8 +479,10 @@ static int run_shots(const char *dir) {
     ui_goto(UI_SCAN_PAGE);
     pump(300); save(dir, "51_scan_page");
     if (!ui_page_read()) { fprintf(stderr, "no page picture\n"); return 1; }
-    pump(40); save(dir, "52_page_reading");
-    for (int i = 0; i < 400 && ui_current() == UI_PAGE_READING; i++) pump(20);
+    for (int i = 0; i < 400 && ui_current() == UI_PAGE_READING; i++) {
+        pump(20);
+        if (i == 40) save(dir, "52_page_reading");   // a few words in
+    }
     if (ui_current() != UI_PAGE_REVIEW) { fprintf(stderr, "page not read (screen %d)\n", ui_current()); return 1; }
     pump(300); save(dir, "53_page_list");
     fprintf(stderr, "page list:");
