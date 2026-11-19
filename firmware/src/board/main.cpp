@@ -5,6 +5,8 @@
 #include "touch.h"
 #include "../app/ui.h"
 
+void platform_reboot_to_bootloader() { rp2040.rebootToBootloader(); }
+
 void setup() {
     lv_init();
     lv_tick_set_cb([]() -> uint32_t { return millis(); });

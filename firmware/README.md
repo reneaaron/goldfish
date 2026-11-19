@@ -326,8 +326,12 @@ the 520KB RAM limit and secure boot only show up on the real board.
 
 ## Flash
 
-1. Hold BOOT on the board (bottom edge, right of USB-C seen from the back) and
-   plug in USB-C. A drive called `RP2350` appears.
+1. Start the bootloader. A board already running this firmware: on Home, tap
+   the version in the top right corner, then Restart (`UI_UPDATE`; Home only
+   shows with no seed loaded). The first time, or when the firmware doesn't
+   start: take the board out of the case, hold BOOT (bottom edge, right of
+   USB-C seen from the back) and plug in USB-C. Either way a drive called
+   `RP2350` appears.
 2. Copy `firmware.uf2` onto it. The board reboots into the firmware.
 
 [`flasher/index.html`](../flasher/index.html) does step 2 from Chrome or Edge
@@ -346,8 +350,8 @@ there is no signature check.
 
 The firmware is built without a USB stack, so the running device doesn't show
 up on a computer: there is no serial log and `pio run -t upload` can't reset
-it. Flashing always goes through BOOT, which starts the chip's built-in
-bootloader. That bootloader is in ROM and stays reachable over USB whatever
+it. Flashing always goes through the chip's built-in bootloader, started by
+BOOT or by Restart on the Update firmware screen. That bootloader is in ROM and stays reachable over USB whatever
 the firmware does, so power the device from a charger or power bank, not a
 computer, when a seed is loaded.
 

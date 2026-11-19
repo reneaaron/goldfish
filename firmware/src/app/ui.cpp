@@ -114,7 +114,12 @@ static void build_home() {
     lv_obj_align(text(scr, "Hermitkey", &fraunces_32, TEXT), LV_ALIGN_TOP_MID, 0, 76);
     lv_obj_align(para(scr, "Your seed stays in memory only, until you unplug."), LV_ALIGN_TOP_MID, 0, 116);
     // Which build this is, to compare with the one the flasher offers.
-    lv_obj_align(text(scr, FW_VERSION, &inter_13, TEXT_3), LV_ALIGN_TOP_RIGHT, -8, 6);
+    // Tapping it opens Update firmware: the case has no BOOT button.
+    lv_obj_t *ver = text(scr, FW_VERSION, &inter_13, TEXT_3);
+    lv_obj_align(ver, LV_ALIGN_TOP_RIGHT, -8, 6);
+    lv_obj_add_flag(ver, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_ext_click_area(ver, 12);
+    lv_obj_add_event_cb(ver, go_cb, LV_EVENT_CLICKED, GO(UI_UPDATE));
     // Loading a seed you have: scan it or type it, grouped at the bottom.
     lv_obj_t *words = btn_ghost(scr, ICON_KEYBOARD "   Enter words", restore_cb, nullptr, TEXT);
     lv_obj_set_height(words, 48);
@@ -741,6 +746,20 @@ static void build_wipe_confirm() {
     snprintf(msg, sizeof(msg), "This removes %.4s %.4s from the device. Scan your seed QR to use it again.", fp, fp + 4);
     lv_obj_align(para(scr, msg), LV_ALIGN_TOP_MID, 0, 162);
     bottom_pair(btn_ghost(scr, "Cancel", go_cb, GO(UI_SEED_MENU), TEXT), btn_danger(scr, "Wipe", wipe_cb));
+    show(scr);
+}
+
+// ---------------------------------------------------------------- update
+// The ROM bootloader instead of a BOOT button. Only reached from Home, so no
+// seed is in RAM; restarting clears RAM anyway.
+static void reboot_cb(lv_event_t *) { platform_reboot_to_bootloader(); }
+
+static void build_update() {
+    lv_obj_t *scr = screen();
+    lv_obj_align(text(scr, "Update firmware?", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, 60);
+    lv_obj_align(para(scr, "The device restarts as a USB drive. Copy the new firmware.uf2 onto it, or use the flasher page. Unplug to cancel."),
+                 LV_ALIGN_TOP_MID, 0, 100);
+    bottom_pair(btn_ghost(scr, "Cancel", go_cb, GO(UI_HOME), TEXT), btn_primary(scr, "Restart", reboot_cb));
     show(scr);
 }
 
@@ -2449,7 +2468,7 @@ void ui_goto(UiScreen s) {
     if (s != UI_PAGE_READING && page_timer) { lv_timer_delete(page_timer); page_timer = nullptr; }
     if (s != UI_PSBT_SIGNED && anim_timer) { lv_timer_delete(anim_timer); anim_timer = nullptr; }
     if (ready_timer) { lv_timer_delete(ready_timer); ready_timer = nullptr; }
-    bool no_seed_yet = s == UI_HOME || s == UI_SCAN_SEED || seed_entry_screen(s);
+    bool no_seed_yet = s == UI_HOME || s == UI_UPDATE || s == UI_SCAN_SEED || seed_entry_screen(s);
     if (!no_seed_yet && !backup_screen(s) && !wallet_has_seed()) s = UI_HOME;
     if (no_seed_yet && wallet_has_seed()) { new_seed_wipe(); s = UI_SEED_MENU; }
     current = s;
@@ -2488,6 +2507,7 @@ void ui_goto(UiScreen s) {
         case UI_PAGE_READING: build_page_reading(); break;
         case UI_PAGE_REVIEW: build_page_review(); break;
         case UI_PAGE_WORD: build_page_word(); break;
+        case UI_UPDATE: build_update(); break;
     }
 }
 
