@@ -1,7 +1,8 @@
 let gw=37.1 gh=58.8 gr=2.6 clr=0.3 t=1.6 dep=7.2 hdr=9.2 up=0.9 play=0.15
 let ow=gw+2*clr+2*t oh=gh+2*clr+2*t orr=gr+clr+t zb=-(dep+hdr+t) ht=dep+hdr+t+up
-let bx=14.5 by=21.1 oy=-0.3 so=9.7 camx=0.4 camy=5.5 lens=6.8 camw=9 rib=0.25 keyx=9.45
+let bx=14.5 by=21.1 oy=-0.3 so=9.7 camx=0.4 camy=5.5 lens=6.8 camw=9 rib=0.25
 let wi=ow/2-t lw=0.9 tab=20 slot=0.8 sd=12
+let usbw=13.2 usbz=-(dep+1.63) usbb=usbz-3.6 usbt=-(dep-1.9) pd=3.7 ptop=-(dep-1.45) pw=usbw+0.8
 plane XY offset=zb
 rect ow oh r=orr
 case: extrude ht
@@ -23,11 +24,12 @@ ribs: extrude 2
 plane case.start
 lens: hole lens camx,-camy
 plane XZ offset=oh/2
-rect 14 8 at=0,-(dep+1.6) r=3.5
+rect usbw usbt-usbb at=0,(usbt+usbb)/2 r=2.5
 usb: cut 2*t
-circle 2.6 at=keyx,-(dep+1)
-circle 2.6 at=-keyx,-(dep+1)
-keys: cut 2*t
+plane XZ offset=oh/2-t
+poly -pw/2,zb+t pw/2,zb+t pw/2,ptop usbw/2,ptop usbw/2,usbb -usbw/2,usbb -usbw/2,ptop -pw/2,ptop
+port: extrude -pd
+chamfer 0.5 usb.side&<Y
 plane XZ offset=-tab/2
 poly wi,play wi-lw,play wi-lw,play+0.25 wi-0.15,up-0.05 wi+0.4,up-0.05 wi+0.4,play
 poly -wi,play -wi-0.4,play -wi-0.4,up-0.05 -wi+0.15,up-0.05 -wi+lw,play+0.25 -wi+lw,play
