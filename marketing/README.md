@@ -21,6 +21,10 @@ ONLY=1,3 SAMPLES=64 PCT=50 blender -b -P marketing/renders/render.py    # quick 
 | `out/04_edge.png` | USB-C tunnel |
 | `out/05_wallet_topdown.png` | Wallet menu |
 | `out/06_lineup.png` | Four devices: start, new seed, wallet menu, connect wallet |
+| `out/07_hero_home.png` | Start screen, whole device (README hero) |
+| `out/08_slide_to_sign.png` | Confirm and slide to sign |
+| `out/09_new_seed_dice.png` | New seed from dice rolls |
+| `out/14_sign_flow.png` | Three devices: ready to sign, slide to sign, signed QR |
 
 ### Lifestyle scenes
 
@@ -45,8 +49,10 @@ scannable QR of SeedSigner's public 12-word test vector, the same seed the
 screens show (fingerprint `0948 d268`). Shared device code lives in
 `renders/device.py`.
 
-Colours are plausible PLA colours, not tested prints. Screens show testnet
-example data from SeedSigner's public test vectors.
+Colours are plausible PLA colours, not tested prints. Screens show example
+data from SeedSigner's public test vectors; the transaction is SeedSigner's
+test transaction redone on mainnet (`firmware/sim/make_mainnet_psbt.py`), with a
+made-up coin.
 
 ## Copy guidelines
 
