@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Try Hermitkey in your browser</title>
+<style>
+  /* Colours are the firmware's own tokens (firmware/src/app/theme.cpp), as on the flasher page. */
+  :root {
+    --bg: #F3EFE6; --surface: #FFFDF8; --surface-2: #E6E0D3; --border: #D9D2C3;
+    --text: #1B1917; --text-2: #5C5650; --text-3: #7A7369;
+    --accent: #C2410C; --amber: #A16207; --amber-dim: #F5E6C4;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 56px 20px 72px; background: var(--bg); color: var(--text);
+    font: 16px/1.5 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 860px; margin: 0 auto; }
+  h1 { font: 600 40px/1.1 var(--serif); letter-spacing: -0.01em; margin: 0 0 12px; }
+  h2 { font-size: 18px; font-weight: 600; line-height: 1.3; margin: 0 0 8px; }
+  p { margin: 0 0 12px; color: var(--text-2); max-width: 60ch; }
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+  .note {
+    display: flex; gap: 10px; align-items: flex-start; border-radius: 10px;
+    padding: 12px 14px; margin: 20px 0 0; max-width: 64ch;
+    background: var(--amber-dim); color: var(--amber);
+  }
+  .note svg { width: 20px; height: 20px; flex: none; margin-top: 2px; }
+  .note p { color: inherit; margin: 0; }
+
+  .sim { display: grid; grid-template-columns: auto 1fr; gap: 48px; align-items: start; margin: 40px 0 0; }
+
+  /* The device: a dark bezel around the 240x320 screen, shown at 2x where it fits. */
+  .device {
+    background: #1B1917; border-radius: 28px; padding: 22px 18px 30px; width: fit-content;
+    box-shadow: 0 18px 40px -18px rgba(27, 25, 23, .45);
+  }
+  canvas {
+    display: block; width: 360px; height: 480px; border-radius: 4px; background: #000;
+    touch-action: none; cursor: pointer;
+  }
+  .device figcaption { color: #7A7369; font-size: 13px; text-align: center; margin-top: 12px; }
+  .device .restart {
+    display: none; margin-top: 10px; width: 100%; height: 40px; border: 0; border-radius: 10px;
+    background: var(--surface-2); color: var(--text); font: inherit; font-weight: 600; cursor: pointer;
+  }
+
+  .camera h2 { margin-top: 0; }
+  .shots { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .shot {
+    display: flex; flex-direction: column; gap: 8px; width: 100%; height: 100%; padding: 10px;
+    background: var(--surface); border: 2px solid var(--border); border-radius: 12px;
+    font: inherit; font-size: 14px; color: var(--text); text-align: left; cursor: pointer;
+  }
+  .shot img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #fff; border-radius: 6px; }
+  .shot small { color: var(--text-3); font-size: 13px; }
+  .shot[aria-pressed="true"] { border-color: var(--accent); }
+  .shot .icon {
+    width: 100%; aspect-ratio: 4 / 3; display: grid; place-items: center; border-radius: 6px;
+    background: var(--surface-2); color: var(--text-2);
+  }
+  .shot .icon svg { width: 32px; height: 32px; }
+  .shot input { display: none; }
+  #cam-error { color: var(--accent); font-size: 14px; margin-top: 10px; min-height: 1.5em; }
+
+  .try { margin: 48px 0 0; }
+  .try ol { margin: 0; padding-left: 22px; color: var(--text-2); max-width: 64ch; }
+  .try li { margin-bottom: 8px; }
+  .try b { color: var(--text); font-weight: 600; }
+
+  @media (max-width: 720px) {
+    body { padding: 32px 16px 56px; }
+    h1 { font-size: 32px; }
+    .sim { grid-template-columns: 1fr; gap: 32px; }
+    .device { margin: 0 auto; padding: 16px 12px 22px; border-radius: 22px; }
+    canvas { width: min(240px * 1.5, calc(100vw - 56px)); height: auto; aspect-ratio: 3 / 4; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Try Hermitkey in your browser</h1>
+  <p>This is the device's own firmware, built for the browser instead of the board: the same
+    screens, the same signing code. Tap the screen to use it. Instead of a camera, pick what
+    it should see from the pictures on the right, use your webcam, or open a picture.</p>
+
+  <div class="note" role="note">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l10 18H2L12 3z"/><path d="M12 10v5m0 3v.01"/></svg>
+    <p><b>Demo only.</b> A browser tab is not a stateless device. Use the test seed here;
+      never type or scan a seed that holds real funds.</p>
+  </div>
+
+  <div class="sim">
+    <figure class="device">
+      <canvas id="screen" width="240" height="320" aria-label="Device screen"></canvas>
+      <figcaption id="status">Loading…</figcaption>
+      <button class="restart" id="restart" type="button">Start again</button>
+    </figure>
+
+    <section class="camera" aria-labelledby="cam-title">
+      <h2 id="cam-title">What the camera sees</h2>
+      <p>Used whenever a scan screen is open.</p>
+      <ul class="shots">
+        <li><button class="shot" type="button" aria-pressed="false" data-src="samples/testseed_height_demise_standard_12word.png">
+          <img src="samples/testseed_height_demise_standard_12word.png" alt="">
+          Test seed <small>12-word SeedQR</small></button></li>
+        <li><button class="shot" type="button" aria-pressed="false" data-src="samples/mainpsbt_height_demise_base64.png">
+          <img src="samples/mainpsbt_height_demise_base64.png" alt="">
+          Transaction to sign <small>For the test seed, a made-up coin</small></button></li>
+        <li><button class="shot" type="button" aria-pressed="false" data-src="samples/testpsbt_height_demise_base64.png">
+          <img src="samples/testpsbt_height_demise_base64.png" alt="">
+          Same, on testnet <small>For the test seed</small></button></li>
+        <li><button class="shot" type="button" aria-pressed="false" data-src="samples/handwritten_page.png">
+          <img src="samples/handwritten_page.png" alt="">
+          Handwritten backup <small>24 made-up words, for Scan words</small></button></li>
+        <li><button class="shot" type="button" aria-pressed="false" id="webcam">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+          Webcam <small>Show it a QR, e.g. from Sparrow</small></button></li>
+        <li><label class="shot" id="file-label" aria-pressed="false">
+          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v4h16v-4M12 4v12m0-12l-4.5 4.5M12 4l4.5 4.5"/></svg></span>
+          Open a picture <small>Stays in this tab</small>
+          <input type="file" id="file" accept="image/*"></label></li>
+      </ul>
+      <div id="cam-error" role="status"></div>
+    </section>
+  </div>
+
+  <section class="try">
+    <h2>Things to try</h2>
+    <ol>
+      <li>Tap <b>Scan QR</b> and pick <b>Test seed</b>. The device shows the seed's fingerprint.</li>
+      <li>Tap <b>Scan QR</b> again and pick <b>Transaction to sign</b>. Check the amounts and
+        addresses, swipe to sign, and the device shows the signed transaction as a QR.</li>
+      <li>Under <b>Wallet options</b>, show the xpub for a watch-only wallet.</li>
+      <li>Wipe it, then <b>Create new seed</b> from dice rolls or coin flips, or <b>Enter words</b> and
+        scan the <b>Handwritten backup</b>.</li>
+    </ol>
+    <p>Nothing leaves this page: it makes no requests after loading, and the seed is gone when
+      you close the tab. The <a href="https://github.com/reneaaron/stateless-signer">firmware's source</a>
+      says what the device does.</p>
+  </section>
+</main>
+
+<script src="signer.js"></script>
+<script>
+(() => {
+  const canvas = document.getElementById('screen');
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(240, 320);
+  const status = document.getElementById('status');
+  const camError = document.getElementById('cam-error');
+  const shots = [...document.querySelectorAll('.shot')];
+  let M;
+
+  // ---- screen: RGB565 framebuffer -> canvas
+  function onFlush() {
+    const fb = new Uint16Array(M.HEAPU16.buffer, M._web_framebuffer(), 240 * 320);
+    const px = img.data;
+    for (let i = 0, j = 0; i < fb.length; i++, j += 4) {
+      const c = fb[i];
+      px[j] = ((c >> 11) << 3) | (c >> 13);
+      px[j + 1] = (((c >> 5) & 0x3f) << 2) | ((c >> 9) & 3);
+      px[j + 2] = ((c & 0x1f) << 3) | ((c >> 2) & 7);
+      px[j + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  // ---- touch: pointer on the canvas, in screen pixels
+  function touch(e, down) {
+    if (!M._web_touch) return;
+    const r = canvas.getBoundingClientRect();
+    const x = Math.max(0, Math.min(239, Math.round((e.clientX - r.left) * 240 / r.width)));
+    const y = Math.max(0, Math.min(319, Math.round((e.clientY - r.top) * 320 / r.height)));
+    M._web_touch(x, y, down ? 1 : 0);
+  }
+  let pressed = false;
+  canvas.addEventListener('pointerdown', e => { pressed = true; canvas.setPointerCapture(e.pointerId); touch(e, true); });
+  canvas.addEventListener('pointermove', e => { if (pressed) touch(e, true); });
+  canvas.addEventListener('pointerup', e => { pressed = false; touch(e, false); });
+  canvas.addEventListener('pointercancel', e => { pressed = false; touch(e, false); });
+
+  // ---- camera: one grayscale picture at a time, at most 2000 px on its longer side
+  const grab = document.createElement('canvas');
+  const gctx = grab.getContext('2d', { willReadFrequently: true });
+  function feed(source, w, h) {
+    const s = Math.min(1, 2000 / Math.max(w, h));
+    w = Math.round(w * s); h = Math.round(h * s);
+    grab.width = w; grab.height = h;
+    gctx.fillStyle = '#fff';
+    gctx.fillRect(0, 0, w, h);
+    gctx.drawImage(source, 0, 0, w, h);
+    const rgba = gctx.getImageData(0, 0, w, h).data;
+    const p = M._web_camera_buffer(w, h);
+    if (!p) return;
+    const gray = new Uint8Array(M.HEAPU8.buffer, p, w * h);
+    for (let i = 0, j = 0; i < gray.length; i++, j += 4)
+      gray[i] = (rgba[j] * 77 + rgba[j + 1] * 150 + rgba[j + 2] * 29) >> 8;
+    M._web_camera_set(w, h);
+  }
+
+  function select(el) {
+    for (const s of shots) s.setAttribute('aria-pressed', String(s === el));
+    camError.textContent = '';
+  }
+
+  // Webcam frames go in only while the device is looking (a scan screen is open).
+  let video, wantedAt = 0;
+  function stopWebcam() {
+    if (!video) return;
+    video.srcObject.getTracks().forEach(t => t.stop());
+    video = null;
+  }
+  function pump() {
+    if (!video) return;
+    if (performance.now() - wantedAt < 500 && video.readyState >= 2)
+      feed(video, video.videoWidth, video.videoHeight);
+    setTimeout(pump, 100);
+  }
+
+  async function showImage(url, el) {
+    stopWebcam();
+    select(el);
+    const im = new Image();
+    im.src = url;
+    try { await im.decode(); } catch { camError.textContent = 'Could not open that picture.'; return; }
+    feed(im, im.naturalWidth, im.naturalHeight);
+  }
+
+  for (const b of shots) if (b.dataset.src) b.addEventListener('click', () => showImage(b.dataset.src, b));
+
+  const file = document.getElementById('file');
+  file.addEventListener('change', () => {
+    if (!file.files[0]) return;
+    const url = URL.createObjectURL(file.files[0]);
+    showImage(url, document.getElementById('file-label')).finally(() => URL.revokeObjectURL(url));
+    file.value = '';
+  });
+
+  document.getElementById('webcam').addEventListener('click', async e => {
+    const el = e.currentTarget;
+    if (video) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(
+        { video: { facingMode: 'environment', width: { ideal: 1280 } }, audio: false });
+      M._web_camera_clear();
+      select(el);
+      video = document.createElement('video');
+      video.muted = true; video.playsInline = true;
+      video.srcObject = stream;
+      await video.play();
+      pump();
+    } catch {
+      camError.textContent = 'No webcam, or the browser did not allow it.';
+    }
+  });
+
+  // ---- start
+  const restart = document.getElementById('restart');
+  restart.addEventListener('click', () => location.reload());
+  // The options object is the module itself: set M now, main() draws before the promise resolves.
+  M = {
+    onFlush,
+    onCameraWanted: () => { wantedAt = performance.now(); },
+    // The device is done looking: take the picture away, as you would a card.
+    onCameraStop: () => {
+      if (video) return;
+      select(null);
+      M._web_camera_clear();
+    },
+    onReboot: () => {
+      status.textContent = 'The device would now restart as a USB drive, to take new firmware.';
+      restart.style.display = 'block';
+    },
+  };
+  Signer(M).then(() => {
+    status.textContent = 'Tap the screen';
+  }).catch(() => { status.textContent = 'This browser could not start the simulator.'; });
+})();
+</script>
+</body>
+</html>

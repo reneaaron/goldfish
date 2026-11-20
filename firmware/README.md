@@ -347,11 +347,30 @@ SIM_SHOTS=docs/screens .pio/build/sim/program
 The simulator doesn't model the hardware: SPI timing, the PIO camera,
 the 520KB RAM limit and secure boot only show up on the real board.
 
+## Browser simulator
+
+The same `src/app`, compiled to WebAssembly with Emscripten, with `src/web`
+in place of `src/sim`: the screen is a `<canvas>`, the pointer is the touch
+screen, and the camera sees a picture the page hands it (one of a few
+`sim/samples`, the webcam, or a picture the user opens). The page is
+[`try/index.html`](../try/index.html). Needs `emcc` (emsdk 4.0.10).
+
+```bash
+pio pkg install -e sim          # once: LVGL and libwally
+make -C web -j                  # -> .pio/build/web
+python3 -m http.server -d .pio/build/web
+```
+
+The `Website` workflow (`pages.yml`) builds it from `main` and publishes it at `/try/`.
+It's a demo: a browser tab isn't stateless, and the page says not to use a real
+seed there.
+
 ## Layout
 
 - `src/app`: UI, SeedQR, wallet and QR scanning, shared by both targets
 - `src/board`: display (SPI), touch (I2C), camera (OV5640, PIO) and `setup()`/`loop()`
 - `src/sim`: X11 window, mouse input and the image-file camera
+- `src/web`: canvas, pointer and page-fed camera for the browser simulator (`web/Makefile`)
 - `test`: unit tests (native)
 
 ## Flash
