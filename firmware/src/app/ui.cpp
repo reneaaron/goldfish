@@ -139,7 +139,7 @@ static void build_home() {
 #define PREV_H 180
 static uint8_t preview_buf[PREV_W * PREV_H];
 static lv_image_dsc_t preview_dsc;
-static lv_obj_t *preview_img, *scan_msg, *scan_sub, *scan_bar;
+static lv_obj_t *preview_img, *scan_msg, *scan_sub, *scan_bar, *page_read_btn;
 static lv_timer_t *scan_timer;
 enum ScanMode { SCAN_SEED, SCAN_WALLET, SCAN_CONFIRM, SCAN_PAGE };
 static ScanMode scan_mode;
@@ -326,7 +326,16 @@ static void scan_tick(lv_timer_t *) {
     memset(&p, 0, sizeof(p));
 }
 
+static void page_flow_wipe();
+static void page_tick(lv_timer_t *t);
+static lv_timer_t *page_timer;
+
 static void scan_back_cb(lv_event_t *) {
+    if (scan_mode == SCAN_PAGE && page_timer) {   // finding the words: cancel, the live camera again
+        page_flow_wipe();
+        ui_goto(UI_SCAN_PAGE);
+        return;
+    }
     scan_stop();
     ur_decoder_reset(&ur_dec);
     ui_goto(scan_mode == SCAN_SEED      ? UI_HOME
@@ -409,7 +418,7 @@ static void build_scan(ScanMode mode) {
     lv_obj_set_style_bg_color(scan_bar, ACCENT, LV_PART_INDICATOR);
     lv_obj_align(scan_bar, LV_ALIGN_BOTTOM_MID, 0, -14);
     lv_obj_add_flag(scan_bar, LV_OBJ_FLAG_HIDDEN);
-    if (mode == SCAN_PAGE) place_bottom(btn_primary(scr, ICON_CAMERA "   Read words", page_read_cb));
+    if (mode == SCAN_PAGE) place_bottom(page_read_btn = btn_primary(scr, ICON_CAMERA "   Read words", page_read_cb));
     if (mode == SCAN_SEED) lv_obj_align(quiet_link(scr, "Have written words instead?", written_cb, nullptr), LV_ALIGN_BOTTOM_MID, 0, 0);
 
     show(scr);
@@ -877,6 +886,10 @@ static PageCand cands[PAGE_MAX_WORDS];
 static int ncands, read_i;
 static Slot slots[MAX_SLOTS];
 static int nslots, open_slot;
+// Check words' scroll, kept while a word is fixed: back on the list where it was left.
+static lv_obj_t *page_review_list;
+static int32_t page_review_y;
+
 static int edit_slot = -1;   // the keyboard is filling (or inserting at) this slot
 static bool edit_insert;
 // "Remove extra word": the list waits for a tap on the word to drop (only the
@@ -885,7 +898,6 @@ static bool page_picking_extra;
 // The last word's checksum-fitting suggestion, and the slot it was worked out for (-1: none).
 static int page_suggest = -1, page_suggest_slot = -1;
 static lv_timer_t *suggest_timer;
-static lv_timer_t *page_timer;
 static uint8_t page_strip_buf[WR_H * WR_W];
 static lv_image_dsc_t page_strip_dsc;
 
@@ -1311,13 +1323,18 @@ bool ui_page_read() {
     int w, h;
     uint8_t *g = platform_camera_still(&w, &h, &page_room);
     if (!g) { scan_status("No picture yet", "Hold still and try again", AMBER); return false; }
-    scan_stop(false);   // the camera stays on for the sharper bands (ui_goto leaves it on too)
+    // The camera stays on for the sharper bands, and this screen stays up with the
+    // preview frozen until Words found: about a second, the user holding still.
+    if (scan_timer) { lv_timer_delete(scan_timer); scan_timer = nullptr; }
     page_still = g; page_w = w; page_h = h;
     ncands = 0;
     read_i = 0;
-    page_step = PAGE_FIND;   // finding the words is the reading timer's first step, not this tap's:
+    lv_obj_add_flag(page_read_btn, LV_OBJ_FLAG_HIDDEN);
+    scan_status("Hold still", "Taking the picture" "\xE2\x80\xA6", TEXT);
+    page_step = PAGE_FIND;   // finding the words is the timer's first step, not this tap's:
                              // slow work inside a tap leaves LVGL waiting for a release, and it ate the next tap
-    ui_goto(UI_PAGE_READING);
+    if (page_timer) lv_timer_delete(page_timer);
+    page_timer = lv_timer_create(page_tick, 10, nullptr);
     return true;
 }
 
@@ -1395,55 +1412,16 @@ static bool page_band() {
 static void page_read_cb(lv_event_t *) { ui_page_read(); }
 
 
-// ---- the reading scene: a scan sweeps the strip the word reader gets, the
-// crab's eyes following it, and the words read line up below as they come.
+// ---- the reading scene: the strip the word reader gets, the crab looking at
+// it, and the words read line up below as they come. No animation: a read
+// holds the screen for about a second on the board, so it couldn't run.
 constexpr int ST_H = (WR_H * CW + WR_W - 1) / WR_W;      // the strip, scaled to fill a CW-wide pill
-constexpr int SCAN_W = 40;                               // the scan's fading trail
 constexpr int LIST_ROWS = 3;                             // the last words read, as rows
 static int crab_x, crab_y, st_y;                         // st_y: under the crab
-static lv_obj_t *crab_pupil[2], *page_scan, *page_strip_img, *page_count, *page_of;
+static lv_obj_t *page_strip_img, *page_count, *page_of;
 static bool page_cut;   // the current word's strip is cut and shown, not read yet
-// eye centres and shell colour in crab_reading (see marketing/mascot/hermitkey-reading.svg)
+// eye centres in crab_reading (see marketing/mascot/hermitkey-reading.svg)
 static const int crab_eye[2][2] = {{47, 11}, {67, 9}};
-#define CRAB_SHELL lv_color_hex(0xD9772E)
-
-static void anim_y(void *o, int32_t v) { lv_obj_set_y((lv_obj_t *)o, v); }
-static void anim_opa(void *o, int32_t v) { lv_obj_set_style_opa((lv_obj_t *)o, v, 0); }
-
-// The scan's leading edge at x (from the strip's left), and the crab's eyes on it.
-static void scan_at(void *, int32_t x) {
-    lv_obj_set_x(page_scan, x - SCAN_W);
-    x += M;
-    int ly = st_y + ST_H / 2;
-    for (int e = 0; e < 2; e++) {
-        int dx = x - (crab_x + crab_eye[e][0]), dy = ly - (crab_y + crab_eye[e][1]);
-        int d = abs(dx) > abs(dy) ? abs(dx) : abs(dy);
-        if (d < 1) d = 1;
-        lv_obj_set_pos(crab_pupil[e], crab_eye[e][0] - 3 + dx * 3 / d, crab_eye[e][1] - 3 + dy * 3 / d);
-    }
-}
-
-// back: also run a0 <- a1, else jump back to a0
-static void loop_anim(lv_obj_t *o, lv_anim_exec_xcb_t cb, int32_t a0, int32_t a1, uint32_t ms, uint32_t pause,
-                      bool back = true) {
-    lv_anim_t a;
-    lv_anim_init(&a);
-    lv_anim_set_var(&a, o);
-    lv_anim_set_exec_cb(&a, cb);
-    lv_anim_set_values(&a, a0, a1);
-    lv_anim_set_duration(&a, ms);
-    if (back) lv_anim_set_playback_duration(&a, ms);
-    lv_anim_set_repeat_delay(&a, pause);
-    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-    lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
-    lv_anim_start(&a);
-}
-
-// The scan, from the left again: each new strip gets a sweep of its own.
-static void page_scan_restart() {
-    lv_anim_delete(page_scan, scan_at);
-    loop_anim(page_scan, scan_at, 0, CW + SCAN_W, 900, 150, false);
-}
 
 // One word read, added to the list as a row like those on Check words
 // (page_row and page_row_draw_cb): number, word (or "?"), and a check or a
@@ -1481,7 +1459,7 @@ static void build_page_scene(lv_obj_t *scr) {
     lv_obj_align(caption(scr, "READING"), LV_ALIGN_TOP_LEFT, M, BAR + 10);
     page_count = text(scr, "", &fraunces_32, TEXT, LV_TEXT_ALIGN_LEFT);
     lv_obj_align(page_count, LV_ALIGN_TOP_LEFT, M, BAR + 28);
-    page_of = text(scr, "Finding words" "\xE2\x80\xA6", &inter_13, TEXT_3, LV_TEXT_ALIGN_LEFT);
+    page_of = text(scr, "", &inter_13, TEXT_3, LV_TEXT_ALIGN_LEFT);
     lv_obj_align(page_of, LV_ALIGN_TOP_LEFT, M, BAR + 64);
 
     crab_x = W - M - crab_reading.header.w + 8;
@@ -1490,35 +1468,18 @@ static void build_page_scene(lv_obj_t *scr) {
     lv_obj_t *crab = lv_image_create(scr);
     lv_image_set_src(crab, &crab_reading);
     lv_obj_set_pos(crab, crab_x, crab_y);
-    for (int e = 0; e < 2; e++) {
+    for (int e = 0; e < 2; e++) {   // pupils on the middle of the strip
+        int dx = M + CW / 2 - (crab_x + crab_eye[e][0]), dy = st_y + ST_H / 2 - (crab_y + crab_eye[e][1]);
+        int d = abs(dx) > abs(dy) ? abs(dx) : abs(dy);
+        if (d < 1) d = 1;
         lv_obj_t *p = lv_obj_create(crab);
         lv_obj_remove_style_all(p);
         lv_obj_set_size(p, 7, 7);
+        lv_obj_set_pos(p, crab_eye[e][0] - 3 + dx * 3 / d, crab_eye[e][1] - 3 + dy * 3 / d);
         lv_obj_set_style_radius(p, LV_RADIUS_CIRCLE, 0);
         lv_obj_set_style_bg_color(p, TEXT, 0);
         lv_obj_set_style_bg_opa(p, LV_OPA_COVER, 0);
-        crab_pupil[e] = p;
-        // eyelid, closed now and then
-        lv_obj_t *lid = lv_obj_create(crab);
-        lv_obj_remove_style_all(lid);
-        lv_obj_set_size(lid, 17, 17);
-        lv_obj_set_pos(lid, crab_eye[e][0] - 8, crab_eye[e][1] - 8);
-        lv_obj_set_style_radius(lid, LV_RADIUS_CIRCLE, 0);
-        lv_obj_set_style_bg_color(lid, CRAB_SHELL, 0);
-        lv_obj_set_style_bg_opa(lid, LV_OPA_COVER, 0);
-        lv_obj_set_style_opa(lid, LV_OPA_TRANSP, 0);
-        lv_anim_t a;
-        lv_anim_init(&a);
-        lv_anim_set_var(&a, lid);
-        lv_anim_set_exec_cb(&a, anim_opa);
-        lv_anim_set_values(&a, LV_OPA_TRANSP, LV_OPA_COVER);
-        lv_anim_set_duration(&a, 70);
-        lv_anim_set_playback_duration(&a, 70);
-        lv_anim_set_repeat_delay(&a, 2600);
-        lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-        lv_anim_start(&a);
     }
-    loop_anim(crab, anim_y, crab_y, crab_y - 3, 600, 0);   // a gentle bob while it reads
 
     // the strip the word reader gets
     lv_obj_t *frame = lv_obj_create(scr);
@@ -1537,20 +1498,6 @@ static void build_page_scene(lv_obj_t *scr) {
     lv_obj_set_size(page_strip_img, CW, ST_H);
     lv_image_set_inner_align(page_strip_img, LV_IMAGE_ALIGN_TOP_LEFT);
     lv_obj_add_flag(page_strip_img, LV_OBJ_FLAG_HIDDEN);
-    // the scan: a white light with a fading trail, left to right, over and over
-    page_scan = lv_obj_create(frame);
-    lv_obj_remove_style_all(page_scan);
-    lv_obj_set_size(page_scan, SCAN_W, ST_H);
-    lv_obj_set_style_bg_color(page_scan, lv_color_white(), 0);
-    lv_obj_set_style_bg_grad_color(page_scan, lv_color_white(), 0);
-    lv_obj_set_style_bg_grad_dir(page_scan, LV_GRAD_DIR_HOR, 0);
-    lv_obj_set_style_bg_main_opa(page_scan, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_bg_grad_opa(page_scan, LV_OPA_60, 0);
-    lv_obj_set_style_bg_opa(page_scan, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_side(page_scan, LV_BORDER_SIDE_RIGHT, 0);
-    lv_obj_set_style_border_width(page_scan, 2, 0);
-    lv_obj_set_style_border_color(page_scan, lv_color_white(), 0);
-    page_scan_restart();
 
     // the last words read, in a card like Check words
     page_box = card(scr, CW, 38);
@@ -1564,6 +1511,7 @@ static void build_page_scene(lv_obj_t *scr) {
 // Every piece found, in reading order (the camera is only offered before the first word).
 static void page_make_slots() {
     nslots = 0;
+    page_review_y = 0;
     for (int i = 0; i < ncands && nslots < MAX_SLOTS; i++)
         slots[nslots++] = {int16_t(cands[i].ok ? cands[i].word : -1), int16_t(cands[i].piece), false,
                            int16_t(cands[i].ok ? -1 : cands[i].word)};
@@ -1589,12 +1537,12 @@ static void page_tick(lv_timer_t *t) {
         for (int y = 0; y < PREV_H; y++)
             for (int x = 0; x < PREV_W; x++)
                 preview_buf[y * PREV_W + x] = page_still[(y * page_h / PREV_H) * page_w + x * page_w / PREV_W];
+        lv_obj_invalidate(preview_img);   // the still, frozen on Scan words
         if (page_find_words()) page_step = PAGE_BANDS;   // the sharp picture right away, while the user holds still
         else { platform_camera_stop(); ui_goto(UI_PAGE_FOUND); }   // nothing found: the photo, to see why
         return;
     }
     if (page_step == PAGE_BANDS) {
-        lv_label_set_text(page_of, "Hold still");
         if (!band_buf && !page_band_alloc()) { page_fail("Out of memory", "Restart the device"); return; }
         if (!page_band()) {   // Words found says why, over the photo (Scan words has no room for it)
             const char *err = platform_camera_error();
@@ -1618,7 +1566,6 @@ static void page_tick(lv_timer_t *t) {
         page_restore(cands[read_i].piece);
         lv_obj_remove_flag(page_strip_img, LV_OBJ_FLAG_HIDDEN);
         lv_image_set_src(page_strip_img, page_strip_src());
-        page_scan_restart();
         lv_label_set_text_fmt(page_count, "%d", read_i + 1);
         lv_label_set_text_fmt(page_of, "of %d", ncands);   // pieces found: strays and guessed rows too
         page_cut = true;
@@ -1708,7 +1655,6 @@ static void build_page_reading() {
     lv_obj_t *scr = screen();
     topbar(scr, "Reading words", page_reading_back_cb);
     build_page_scene(scr);
-    if (page_step != PAGE_FIND) lv_label_set_text(page_of, page_step == PAGE_BANDS ? "Hold still" : "");
     show(scr);
     if (page_timer) lv_timer_delete(page_timer);
     page_timer = lv_timer_create(page_tick, 10, nullptr);
@@ -1891,7 +1837,7 @@ static void build_page_review() {
         act = page_pick_extra_cb;
     } else if (!ready) {
         snprintf(status, sizeof(status), "A word may be misread");
-        snprintf(action, sizeof(action), "Checksum doesn't match");
+        snprintf(action, sizeof(action), "Invalid checksum");
     } else {
         // all in and the checksum fits: say so, and whether the photo read them all
         bool typed = false;
@@ -1905,7 +1851,7 @@ static void build_page_review() {
     lv_obj_align(text(scr, status, &inter_13, sc), LV_ALIGN_TOP_MID, 0, BAR + 2);
 
     // the words in a card, like the menus: rows with a rule between them
-    lv_obj_t *list = scroll_area(scr, BAR + 24);
+    lv_obj_t *list = page_review_list = scroll_area(scr, BAR + 24);
     int rows = nslots + (nslots < new_words);
     lv_obj_t *box = card(list, CW, rows * 36 + 2);
     lv_obj_set_style_pad_all(box, 0, 0);
@@ -1918,6 +1864,8 @@ static void build_page_review() {
                  (void *)(intptr_t)i, true);
     }
     if (nslots < new_words) page_row(box, y, "+ add a word", TEXT_3, false, page_add_cb, nullptr, false);
+    lv_obj_update_layout(list);
+    lv_obj_scroll_to_y(list, page_review_y, LV_ANIM_OFF);   // bounded: a shorter list stops at its end
 
     lv_obj_t *btn = page_picking_extra ? btn_ghost(scr, action, act, nullptr, TEXT) : btn_primary(scr, action, act ? act : page_list_cb);
     place_bottom(btn);
@@ -2868,6 +2816,7 @@ static bool backup_screen(UiScreen s) {
 }
 
 void ui_goto(UiScreen s) {
+    if (ui_current() == UI_PAGE_REVIEW) page_review_y = lv_obj_get_scroll_y(page_review_list);
     // (Words found shows preview_buf: the photo, kept there; scanning stopped before it)
     // Reading words keeps the camera on: a camera just woken gave blank frames, and the
     // sharp picture comes right after the still (the reading step stops it).
