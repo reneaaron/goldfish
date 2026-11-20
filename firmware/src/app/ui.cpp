@@ -66,13 +66,20 @@ static lv_obj_t *scroll_area(lv_obj_t *scr, int y) {
     return a;
 }
 
-// White rounded card holding a QR code (the white is the quiet zone).
+// Grey rounded card holding a QR code (the grey is the quiet zone). Not white:
+// the backlight is always full, and a white card on the dark screen
+// overexposes a webcam (Sparrow) until the modules bleed together.
 constexpr int QR_CARD = 168;
+static const lv_color_t QR_LIGHT = lv_color_hex(0xA0A0A0);
+// Backlight while a QR is on screen: at full a webcam overexposes the panel.
+constexpr int QR_BACKLIGHT = 30;
+static bool qr_shown;   // the screen being built has a QR card: ui_goto dims for it
 static lv_obj_t *qr_card(lv_obj_t *parent, int y, lv_obj_t **qr_out) {
+    qr_shown = true;
     lv_obj_t *c = lv_obj_create(parent);
     lv_obj_remove_style_all(c);
     lv_obj_set_size(c, QR_CARD, QR_CARD);
-    lv_obj_set_style_bg_color(c, lv_color_white(), 0);
+    lv_obj_set_style_bg_color(c, QR_LIGHT, 0);
     lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(c, 16, 0);
     lv_obj_set_style_border_color(c, BORDER, 0);
@@ -81,7 +88,7 @@ static lv_obj_t *qr_card(lv_obj_t *parent, int y, lv_obj_t **qr_out) {
     lv_obj_t *qr = lv_qrcode_create(c);
     lv_qrcode_set_size(qr, QR_CARD - 20);
     lv_qrcode_set_dark_color(qr, lv_color_black());
-    lv_qrcode_set_light_color(qr, lv_color_white());
+    lv_qrcode_set_light_color(qr, QR_LIGHT);
     lv_obj_center(qr);
     *qr_out = qr;
     return c;
@@ -2877,6 +2884,7 @@ void ui_goto(UiScreen s) {
     if (!no_seed_yet && !backup_screen(s) && !wallet_has_seed()) s = UI_HOME;
     if (no_seed_yet && wallet_has_seed()) { new_seed_wipe(); s = UI_WALLET; }
     current = s;
+    qr_shown = false;
     switch (s) {
         case UI_HOME: build_home(); break;
         case UI_SCAN_SEED: build_scan(SCAN_SEED); break;
@@ -2913,6 +2921,7 @@ void ui_goto(UiScreen s) {
         case UI_PAGE_WORD: build_page_word(); break;
         case UI_UPDATE: build_update(); break;
     }
+    platform_backlight(qr_shown ? QR_BACKLIGHT : 100);
 }
 
 UiScreen ui_current() { return current; }

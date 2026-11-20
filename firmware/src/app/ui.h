@@ -73,6 +73,8 @@ enum UiScreen {
 void ui_build();               // shows the home screen
 // Restarts into the RP2350's USB bootloader; never returns. One per target.
 void platform_reboot_to_bootloader();
+// Backlight in percent (100 = full). One per target.
+void platform_backlight(int percent);
 void ui_goto(UiScreen s);
 UiScreen ui_current();
 

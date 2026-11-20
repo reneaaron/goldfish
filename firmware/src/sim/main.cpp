@@ -129,6 +129,7 @@ const char *platform_camera_error() { return nullptr; }
 void platform_camera_stop() {}
 
 // The board vanishes from the screen and comes back as a drive; here, just quit.
+void platform_backlight(int) {}   // the window has no backlight
 void platform_reboot_to_bootloader() { fprintf(stderr, "[sim] reboot to bootloader\n"); exit(0); }
 
 // A still: the camera image file, box-filtered down to at most 1000 pixels on
