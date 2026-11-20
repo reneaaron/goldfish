@@ -36,6 +36,7 @@ struct UrDecoder {
     Mixed mixed[64];
     uint8_t mixed_data[64][256];
     size_t mixed_n;
+    int percent;                                // shown progress, never goes back
 };
 
 void ur_decoder_reset(UrDecoder *d);
@@ -44,7 +45,8 @@ void ur_decoder_reset(UrDecoder *d);
 // for crypto-psbt and bytes, at the whole CBOR message for crypto-output.
 UrResult ur_decoder_add(UrDecoder *d, const char *text, size_t len,
                         const uint8_t **payload, size_t *payload_len);
-// 0..100 for a progress indicator
+// 0..99 while parts are missing: pure fragments, plus half a fragment for each
+// mixed part still waiting (most of them resolve into one). Never goes down.
 int ur_decoder_percent(const UrDecoder *d);
 
 // Encode `data` as crypto-psbt part number `seq` (1-based, cycles through the
