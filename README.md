@@ -70,5 +70,5 @@ simulator's test images, and [`case/README.md`](case/README.md) for printing.
 
 ## Roadmap
 
-Tracked as [issues](https://github.com/reneaaron/stateless-signer/issues):
+Tracked as [issues](https://github.com/reneaaron/goldfish/issues):
 address explorer and more.
