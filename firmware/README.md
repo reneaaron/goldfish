@@ -19,7 +19,7 @@ PSBT review/signing (single-sig and multisig) work in the simulator; the board's
 Seeds come in as a SeedQR (Standard or Compact, 12 or 24 words), the
 format SeedSigner uses (the UI just calls it a seed QR), as typed BIP39
 words, or are made on the device. A BIP-39 passphrase can be added after loading.
-The seed lives in RAM only: Wipe or unplugging removes it.
+The seed lives in RAM only: Forget seed or unplugging removes it.
 
 1. Home: Scan QR, Enter words, or New seed
 2. Wallet: the home screen once a seed is loaded, shaped like Home: the logo,
@@ -28,7 +28,7 @@ The seed lives in RAM only: Wipe or unplugging removes it.
    fingerprint on every screen that shows one. Scan QR for everyday use, and
    Wallet options for the rest:
    Connect wallet and Back up as QR, then Passphrase, Child seed and Network,
-   then Wipe seed on its own; the list scrolls
+   then Forget seed on its own; the list scrolls
 3. Scan QR: one scanner for a transaction to sign, an address to verify, or a
    multisig descriptor; the device tells them apart by their format
 4. Connect wallet (the Watch-only wallet screen): shows the native segwit xpub as
@@ -107,7 +107,7 @@ letters, digits and all ASCII symbols, up to 64 characters, with a Show/Hide
 switch. OK derives the key again (a few seconds on the board, like loading) and
 returns to Wallet with the fingerprint of seed plus passphrase, to check
 against the wallet app. An empty passphrase removes it. The
-device keeps only the derived key, not the passphrase; both go with Wipe
+device keeps only the derived key, not the passphrase; both go with Forget seed
 or unplugging. Signing, Verify address, Connect wallet and Child seed
 then all use the passphrase wallet. Back up as QR still writes the seed alone:
 the passphrase is never part of a backup. Characters outside ASCII and a
@@ -202,7 +202,7 @@ file formats.
 - libwally-core for BIP39/BIP32/PSBT, pinned by commit in `platformio.ini` and
   built without Elements from its single-file amalgamation (`lib/wally`)
 - quirc for QR decoding (vendored in `lib/quirc`)
-- Inter, Fraunces and JetBrains Mono, converted for LVGL (`src/app/fonts`, SIL OFL)
+- Inter, Rethink Sans and JetBrains Mono, converted for LVGL (`src/app/fonts`, SIL OFL)
 
 ## Build
 
@@ -333,7 +333,8 @@ cp sim/samples/vector4_standard_12word.png sim/camera.png
 `sim/samples` holds SeedSigner's public test SeedQRs, a photo of a stamped
 plate, and `testseed_height_demise_*` / `testpsbt_height_demise_base64.png`, a
 matching seed and testnet PSBT from SeedSigner's tests for trying the signing
-flow.
+flow. `mainpsbt_height_demise_base64.png` is the same transaction on mainnet
+(made up by `sim/make_mainnet_psbt.py`); the screenshots use it.
 
 Screenshots of the whole flow, no window:
 

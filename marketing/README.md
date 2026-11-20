@@ -1,5 +1,20 @@
 # Marketing
 
+## Brand
+
+**Goldfish**, tagline **Sign and forget.** The mark is a fish built from QR
+modules on a 9 × 5 grid, with a QR finder pattern for an eye. The SVGs in
+`mascot/` are the source of truth; don't redraw it:
+
+- `goldfish-mark.svg`: orange fish, ink eye, for light grounds (the device
+  logo is rasterized from it with `firmware/src/app/images/svg2c.py`)
+- `goldfish-icon.svg` / `goldfish-icon-dark.svg`: app tiles on orange and on ink
+
+Colours: fish orange `#FF7A2F` (the mark only), orange text `#C2501A`, ink
+`#14222B`, grey text `#5A6B75`, paper `#EDF2F4`, border `#D9E2E6`, white.
+The eye must contrast with both the body and the ground. Type: Rethink Sans
+for headings, Inter for device text, JetBrains Mono for numbers.
+
 ## Product renders
 
 `renders/render.py` renders the device in Blender from the real printed case
@@ -21,6 +36,10 @@ ONLY=1,3 SAMPLES=64 PCT=50 blender -b -P marketing/renders/render.py    # quick 
 | `out/04_edge.png` | USB-C tunnel |
 | `out/05_wallet_topdown.png` | Wallet menu |
 | `out/06_lineup.png` | Four devices: start, new seed, wallet menu, connect wallet |
+| `out/07_hero_home.png` | Start screen, whole device (README hero) |
+| `out/08_slide_to_sign.png` | Confirm and slide to sign |
+| `out/09_new_seed_dice.png` | New seed from dice rolls |
+| `out/14_sign_flow.png` | Three devices: ready to sign, slide to sign, signed QR |
 
 ### Lifestyle scenes
 
@@ -45,8 +64,10 @@ scannable QR of SeedSigner's public 12-word test vector, the same seed the
 screens show (fingerprint `0948 d268`). Shared device code lives in
 `renders/device.py`.
 
-Colours are plausible PLA colours, not tested prints. Screens show testnet
-example data from SeedSigner's public test vectors.
+Colours are plausible PLA colours, not tested prints. Screens show example
+data from SeedSigner's public test vectors; the transaction is SeedSigner's
+test transaction redone on mainnet (`firmware/sim/make_mainnet_psbt.py`), with a
+made-up coin.
 
 ## Copy guidelines
 

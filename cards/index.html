@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Backup cards</title>
+<title>Goldfish backup cards</title>
 <!-- Blank backup cards to print and fill in by hand while the signer shows the
      seed. The QR grid matches the device's "Part n of m" screens: columns A..,
      rows 1.., heavier lines on the part edges (5+5+5+6). 12-word seeds only
@@ -12,13 +12,13 @@
      so it can be saved and printed offline. -->
 <style>
   :root {
-    --ink: #1c2234; --grey: #7a766e; --line: #d2cdc4;
+    --ink: #14222B; --grey: #7a766e; --line: #d2cdc4;
     --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    --bg: #f4f2ed; --panel: #fff; --text: #1c2234; --text-2: #5d6070; --accent: #e8792b;
+    --bg: #EDF2F4; --panel: #fff; --text: #14222B; --text-2: #5A6B75; --accent: #C2501A;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) { --bg: #14161d; --panel: #1d2029; --text: #e9e7e2; --text-2: #9a9caa; }
+    :root:not([data-theme="light"]) { --bg: #0E181F; --panel: #14222B; --text: #EDF2F4; --text-2: #9AAAB3; }
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--sans); }
@@ -130,7 +130,7 @@
 
 <div class="controls">
   <h1>Backup cards</h1>
-  <p>Blank cards for a 12-word seed, to print and fill in by hand while the signer shows it. Print them blank:
+  <p>Blank cards for a 12-word seed, to print and fill in by hand while Goldfish shows it. Print them blank:
      never type words or fill in a QR on a computer.</p>
 
   <div class="row"><span>Layout</span>
@@ -152,7 +152,7 @@
   </div>
   <button type="button" onclick="window.print()">Print</button>
   <p class="hint">Print at 100% (no “fit to page”). Fill each square fully with a dark pen; leave the white border
-     around the grid empty. Then choose “Check card” on the signer and scan it.</p>
+     around the grid empty. Then choose “Check card” on Goldfish and scan it.</p>
 </div>
 
 <div class="sheets" id="sheets"></div>

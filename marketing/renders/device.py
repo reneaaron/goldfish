@@ -3,7 +3,7 @@ firmware screen on its display, render settings and a camera helper.
 
 Originally part of render.py; imported by render.py and scenes.py.
 
-Product renders of the stateless signer.
+Product renders of Goldfish, the stateless signer.
 
 Uses the real printed case (case/exports/case.stl) and the firmware's actual
 screens (firmware/docs/screens/*.png, rendered by the simulator), so the

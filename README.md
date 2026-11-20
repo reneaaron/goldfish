@@ -1,22 +1,26 @@
-# Stateless Signer
+# Goldfish
 
-A Bitcoin signer you build from an off-the-shelf board and a printed case.
-Load your seed from a QR code, review and sign transactions, unplug to wipe.
-Nothing is ever saved on the device, and the board has no Wi-Fi or Bluetooth
-hardware: transactions go in and out through the camera and the screen.
+**Sign and forget.** A Bitcoin signer you build from an off-the-shelf board and a printed case.
+Load your seed from a QR code, review and sign transactions, unplug and it forgets.
+Nothing is ever saved on the device, the board has no Wi-Fi or Bluetooth
+hardware, and the firmware has no USB stack, so the USB cable only powers it:
+transactions go in and out through the camera and the screen.
 
-![Stateless Signer](marketing/renders/out/01_hero_review.png)
+![Goldfish start screen: Scan QR or enter words](marketing/renders/out/07_hero_home.png)
 
 <p>
-  <img src="marketing/renders/out/06_lineup.png" width="32%" alt="Four signers: start screen, new seed, wallet menu, connect wallet">
+  <img src="marketing/renders/out/08_slide_to_sign.png" width="32%" alt="Confirm a transaction's amount and fee, then slide to sign">
+  <img src="marketing/renders/out/09_new_seed_dice.png" width="32%" alt="Make a new seed from dice rolls">
   <img src="marketing/renders/out/13_backup_copy.png" width="32%" alt="Copying the seed onto a paper SeedQR card, part by part">
-  <img src="marketing/renders/out/03_colorways.png" width="32%" alt="Three colours: seed loaded, slide to sign, signed QR">
 </p>
 
-Status: early, not for real funds. The firmware runs in a desktop simulator
-with seed loading (QR or words), new seeds from dice, coins or drawn words, QR backups, transaction review
-and signing, address verification, wallet pairing and BIP-85 child seeds; the board's camera driver is written but nothing has
-been tested on real hardware or against Sparrow.
+Status: early, not for real funds. The firmware runs on the Waveshare board
+(screen, touch and camera) and in a desktop simulator. It loads seeds from a
+QR, typed words or a photo of a handwritten backup, makes new seeds from dice,
+coins or drawn words, backs them up as QR cards, and reviews and signs
+single-sig and multisig transactions. Signing has only been tested against a
+stand-in wallet in the end-to-end tests, not against Sparrow or another wallet
+app, and the code hasn't been reviewed or audited.
 
 ## Repository
 
@@ -67,4 +71,4 @@ simulator's test images, and [`case/README.md`](case/README.md) for printing.
 ## Roadmap
 
 Tracked as [issues](https://github.com/reneaaron/stateless-signer/issues):
-BIP-39 passphrase, address explorer and more.
+address explorer and more.

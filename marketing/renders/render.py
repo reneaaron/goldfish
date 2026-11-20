@@ -1,4 +1,4 @@
-"""Product renders of the stateless signer (studio shots).
+"""Product renders of Goldfish, the stateless signer (studio shots).
 
 Uses the real printed case (case/exports/case.stl) and the firmware's actual
 screens (firmware/docs/screens/*.png), so the pictures show what the device
@@ -75,4 +75,22 @@ if want("6"):   # lineup: start, new seed, wallet menu, connect wallet
     device("dev_j", SIGNAL, "4_seed_menu", (2.6, -0.2, UP), (0, 0, math.radians(-1)))
     device("dev_k", GRAPHITE, "5_export_xpub", (7.8, 0.2, UP), (0, 0, math.radians(-4)))
     shoot("06_lineup.png", (0, -20, 40), (0, 0.6, 0.8), (0, 0, 1.7), lens=78)
+    clear_devices()
+if want("7"):   # hero: start screen, whole device in view
+    device("dev_l", GRAPHITE, "1_home", (0, 0, UP), (0, 0, math.radians(18)))
+    shoot("07_hero_home.png", (7, -15, 17), (0.3, -0.6, 0.9), (0, 0.4, 1.7), lens=70)
+    clear_devices()
+if want("8"):   # slide to sign, close
+    device("dev_m", SIGNAL, "10_psbt_sign", (0, 0, UP), (0, 0, math.radians(-14)))
+    shoot("08_slide_to_sign.png", (-6, -14, 18), (0.4, -0.4, 0.9), (0, 0.4, 1.7), lens=75)
+    clear_devices()
+if want("9"):   # new seed from dice rolls, close
+    device("dev_n", BONE, "16_dice", (0, 0, UP), (0, 0, math.radians(14)))
+    shoot("09_new_seed_dice.png", (6, -14, 18), (-0.2, -0.4, 0.9), (0, 0.4, 1.7), lens=75)
+    clear_devices()
+if want("10"):  # the signing flow, three devices filling the frame
+    device("dev_o", GRAPHITE, "3_seed_loaded", (-4.6, 0.4, UP), (0, 0, math.radians(5)))
+    device("dev_p", SIGNAL, "10_psbt_sign", (0, 0.1, UP), (0, 0, 0))
+    device("dev_q", BONE, "11_psbt_signed", (4.6, 0.4, UP), (0, 0, math.radians(-5)))
+    shoot("14_sign_flow.png", (0, -14, 28), (0, -0.2, 0.8), (0, 0, 1.7), lens=66)
     clear_devices()
