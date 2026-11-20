@@ -250,14 +250,15 @@ static int run_shots(const char *dir) {
     wallet_set_export_multisig(false);
     ui_goto(UI_WIPE_CONFIRM); pump(300); save(dir, "6_wipe_confirm");
 
-    // Transaction: SeedSigner's single-sig testnet vector and its seed.
+    // Transaction: SeedSigner's single-sig vector and its seed, on mainnet
+    // (sim/make_mainnet_psbt.py) so the screens carry no TESTNET label.
     wallet_wipe();
     ui_goto(UI_SCAN_SEED);
     setenv("SIM_CAMERA", "sim/samples/testseed_height_demise_standard_12word.png", 1);
     for (int i = 0; i < 100 && ui_current() == UI_SCAN_SEED; i++) pump(50);
     if (ui_current() != UI_WALLET) { fprintf(stderr, "test seed was not decoded\n"); return 1; }
     ui_goto(UI_SCAN);
-    setenv("SIM_CAMERA", "sim/samples/testpsbt_height_demise_base64.png", 1);
+    setenv("SIM_CAMERA", "sim/samples/mainpsbt_height_demise_base64.png", 1);
     for (int i = 0; i < 100 && ui_current() == UI_SCAN; i++) pump(50);
     if (ui_current() != UI_PSBT_OVERVIEW) { save(dir, "debug_psbt_scan"); fprintf(stderr, "PSBT was not accepted (screen %d)\n", ui_current()); return 1; }
     pump(300); save(dir, "7_psbt_overview");
@@ -267,10 +268,10 @@ static int run_shots(const char *dir) {
     if (!ui_swipe_sign()) { fprintf(stderr, "signing failed\n"); return 1; }
     pump(400); save(dir, "11_psbt_signed");
 
-    // Verify address: one of ours (testnet receive #7), then a foreign one.
+    // Verify address: one of ours (receive #7), then a foreign one.
     ui_goto(UI_WALLET); pump(300); save(dir, "12_wallet_menu");
     char ours[96];
-    address_at(true, 0, 7, ours, sizeof(ours));
+    address_at(false, 0, 7, ours, sizeof(ours));
     char uri[128];
     snprintf(uri, sizeof(uri), "bitcoin:%s?amount=0.001", ours);
     ui_goto(UI_SCAN);
@@ -278,7 +279,7 @@ static int run_shots(const char *dir) {
     for (int i = 0; i < 200 && !(ui_current() == UI_VERIFY_RESULT && verify_done()); i++) pump(30);
     pump(300); save(dir, "13_verify_found");
     ui_goto(UI_SCAN);
-    cam_show_qr("tb1q6rz28mcfaxtmd6v789l9rrlrusdprr9pqcpvkl");   // "abandon" seed, not ours
+    cam_show_qr("bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");   // "abandon" seed, not ours
     for (int i = 0; i < 400 && !(ui_current() == UI_VERIFY_RESULT && verify_done()); i++) pump(30);
     pump(300); save(dir, "14_verify_not_found");
 

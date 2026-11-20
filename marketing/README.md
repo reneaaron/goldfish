@@ -49,8 +49,10 @@ scannable QR of SeedSigner's public 12-word test vector, the same seed the
 screens show (fingerprint `0948 d268`). Shared device code lives in
 `renders/device.py`.
 
-Colours are plausible PLA colours, not tested prints. Screens show testnet
-example data from SeedSigner's public test vectors.
+Colours are plausible PLA colours, not tested prints. Screens show example
+data from SeedSigner's public test vectors; the transaction is SeedSigner's
+test transaction redone on mainnet (`firmware/sim/make_mainnet_psbt.py`), with a
+made-up coin.
 
 ## Copy guidelines
 

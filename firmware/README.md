@@ -333,7 +333,8 @@ cp sim/samples/vector4_standard_12word.png sim/camera.png
 `sim/samples` holds SeedSigner's public test SeedQRs, a photo of a stamped
 plate, and `testseed_height_demise_*` / `testpsbt_height_demise_base64.png`, a
 matching seed and testnet PSBT from SeedSigner's tests for trying the signing
-flow.
+flow. `mainpsbt_height_demise_base64.png` is the same transaction on mainnet
+(made up by `sim/make_mainnet_psbt.py`); the screenshots use it.
 
 Screenshots of the whole flow, no window:
 
