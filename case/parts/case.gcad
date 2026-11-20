@@ -1,6 +1,6 @@
 let gw=37.1 gh=58.8 gr=2.6 glass=1.1 clr=0.3 t=1.6 dep=7.2 pcb=1.6 hdr=9.2
 let ow=gw oh=gh orr=gr top=-glass zb=-(dep+hdr+t) ht=top-zb
-let bx=14.5 by=21.1 oy=-0.3 so=glass+8.9 lift=0.4 deep=0.5 sock=3.36 sr=sock/2 rw=0.45 camx=0 camy=35.1-25.7-8.5/2 lens=6.8
+let bx=14.5 by=21.1 oy=-0.3 so=glass+8.9 lift=0.4 deep=0.5 sock=3.36 sr=sock/2 rw=0.45 camx=0 camy=35.1-25.7-8.5/2-1 lens=6.8
 let usbw=13.6 usbz=-(dep+1.63) usbb=usbz-4.1 usbt=-(dep-2.9) pd=oh/2-t-25.7 ptop=-(dep-1.45) pw=usbw+0.8
 plane XY offset=zb
 rect ow oh r=orr
