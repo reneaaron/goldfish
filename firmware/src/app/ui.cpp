@@ -429,7 +429,8 @@ static void build_scan(ScanMode mode) {
     if (mode == SCAN_SEED) lv_obj_align(quiet_link(scr, "Have written words instead?", written_cb, nullptr), LV_ALIGN_BOTTOM_MID, 0, 0);
 
     show(scr);
-    scan_timer = lv_timer_create(scan_tick, 100, nullptr);
+    // often: the camera has the next frame under way, the tick only collects it
+    scan_timer = lv_timer_create(scan_tick, 30, nullptr);
 }
 
 // ---------------------------------------------------------------- seed screens
