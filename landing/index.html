@@ -8,7 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='30' fill='%23FF7A2F'/%3E%3Cg transform='translate(19 39.5)'%3E%3Crect x='20' y='0' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='30' y='0' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='0' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='0' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='10' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='10' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='60' y='10' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='80' y='10' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='0' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='60' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='70' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='30' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='30' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='60' y='30' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='80' y='30' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='20' y='40' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='30' y='40' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='40' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='40' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='10' y='10' width='29' height='29' rx='3' fill='%2314222B'/%3E%3Crect x='15' y='15' width='19' height='19' rx='1.5' fill='%23FFFFFF'/%3E%3Crect x='20' y='20' width='9' height='9' rx='1' fill='%2314222B'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Rethink+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Rethink+Sans:wght@400;500;600;700&family=Caveat:wght@700&display=swap" rel="stylesheet">
 <style>
   /* Goldfish brand: white ground, ink text, paper surfaces, one fish orange (the mark).
      Rethink Sans throughout. Screens are the real ones from firmware/docs/screens,
@@ -46,24 +46,43 @@
   nav a.link svg { width: 20px; height: 20px; display: block; }
 
   /* ---- a device: printed case, black glass, the firmware's screen */
+  /* The case has its glass on top, edge to edge: from the front you see black glass,
+     and the printed case only as its side below it, with the USB-C port. */
   .device {
     --w: 240px;
-    width: calc(var(--w) * 1.23);   /* --w is the screen's width: 240px shows the 240x320 screenshot pixel for pixel */
-    padding: calc(var(--w) * .1) calc(var(--w) * .075) calc(var(--w) * .16);
-    border-radius: calc(var(--w) * .13); background: var(--case); position: relative; flex: none;
-    box-shadow: inset 0 calc(var(--w) * -.02) 0 rgba(0, 0, 0, .18);
+    width: calc(var(--w) * 1.14);   /* --w is the screen's width: 240px shows the 240x320 screenshot pixel for pixel */
+    padding-bottom: calc(var(--w) * .05);
+    position: relative; flex: none;
+    filter: drop-shadow(0 calc(var(--w) * .08) calc(var(--w) * .07) rgba(20, 34, 43, .25));
   }
-  .device .glass { background: #0c0c0c; border-radius: calc(var(--w) * .06); padding: calc(var(--w) * .04); }
-  .device img { width: 100%; aspect-ratio: 3 / 4; border-radius: calc(var(--w) * .02); background: var(--paper); }
-  .device::after {               /* USB-C socket on the bottom edge */
-    content: ""; position: absolute; left: 50%; bottom: calc(var(--w) * .045); translate: -50% 0;
-    width: calc(var(--w) * .2); height: calc(var(--w) * .05); border-radius: 99px; background: rgba(0, 0, 0, .55);
+  .device .glass {
+    position: relative; z-index: 1; background: #0B0E10;
+    border-radius: calc(var(--w) * .09); padding: calc(var(--w) * .1) calc(var(--w) * .07) calc(var(--w) * .16);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08);
   }
+  .device img { width: 100%; aspect-ratio: 3 / 4; border-radius: calc(var(--w) * .02); background: var(--paper); display: block; }
+  .device::before {              /* the case under the glass: the same rounded shape, shifted down */
+    content: ""; position: absolute; inset: calc(var(--w) * .05) 0 0 0;
+    border-radius: calc(var(--w) * .09); background: var(--case);
+    box-shadow: inset 0 calc(var(--w) * -.008) 0 rgba(0, 0, 0, .12);
+  }
+  .device::after {               /* USB-C socket in the case's side */
+    content: ""; position: absolute; left: 50%; bottom: calc(var(--w) * .014); translate: -50% 0;
+    width: calc(var(--w) * .17); height: calc(var(--w) * .032); border-radius: 99px; background: rgba(0, 0, 0, .5);
+  }
+
+  /* hero: the device with hand-drawn notes around it */
+  .hero-fig { position: relative; width: 760px; max-width: 100%; margin: 0 auto 44px; }
+  .hero-fig > .device { margin: 0 auto; }
+  .hero-fig .notes { position: absolute; left: 50%; top: 0; translate: -50% 0; width: 760px; height: 440px; pointer-events: none; overflow: visible; }
+  .notes path { fill: none; stroke: var(--accent); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .notes text { font: 700 23px Caveat, "Segoe Print", "Comic Sans MS", cursive; fill: var(--accent); }
+  .notes-list { display: none; }
 
   /* ---- hero */
   .hero { text-align: center; padding: 24px 0 96px; }
-  .hero > .device { --w: 240px; margin: 0 auto 44px; }
-  .hero > .device img { animation: boot .9s ease-out .15s both; }   /* plugged in: the screen comes on, once */
+  .hero-fig { padding-bottom: 46px; }
+  .hero-fig .device img { animation: boot .9s ease-out .15s both; }   /* plugged in: the screen comes on, once */
   @keyframes boot { from { opacity: 0; } }
   h1 { font-size: clamp(42px, 7.6vw, 72px); letter-spacing: -0.02em; line-height: 1.02; max-width: 12ch; margin: 0 auto; }
   .hero .sub { color: var(--muted); font-size: clamp(17px, 2.2vw, 20px); margin: 20px auto 0; max-width: 34ch; }
@@ -107,10 +126,14 @@
   .steps button[aria-current=step] strong { color: var(--text); }
   .steps button[aria-current=step] span { display: block; color: var(--muted); margin-top: 2px; }
   .stage { display: flex; flex-direction: column; align-items: center; width: 330px; }
-  .stage .device { --w: 240px; cursor: pointer; border: 0; font: inherit; display: block; }
+  .stage .device { --w: 240px; cursor: pointer; border: 0; font: inherit; display: block; background: none; padding-left: 0; padding-right: 0; padding-top: 0; }
   .stage .device img { transition: opacity .25s; }
   .stage.off .device img { opacity: 0; }
-  .cable { width: 46px; height: 120px; transition: translate .5s cubic-bezier(.3, 0, .2, 1), opacity .5s; }
+  /* plugged in, the plug's tip sits in the socket (so the socket itself is hidden);
+     unplugged, the cable drops away and the empty socket shows */
+  .cable { width: 46px; height: 120px; margin-top: -12px; position: relative; z-index: 2; transition: translate .5s cubic-bezier(.3, 0, .2, 1), opacity .5s; }
+  .stage .device::after { opacity: 0; transition: opacity .3s; }
+  .stage.off .device::after { opacity: 1; }
   .stage.off .cable { translate: 0 46px; opacity: .45; }
   .hint { color: var(--faint); font-size: 14px; margin-top: 4px; min-height: 1.5em; }
 
@@ -122,10 +145,13 @@
   /* ---- text beside a picture */
   .split { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
   .trio { display: flex; justify-content: center; align-items: flex-end; gap: 12px; }
-  .trio .device { --w: 120px; }
-  .trio .device:nth-child(1) { --case: var(--graphite); rotate: -5deg; }
-  .trio .device:nth-child(2) { translate: 0 -18px; }
-  .trio .device:nth-child(3) { --case: var(--white); rotate: 5deg; }
+  /* Screens at 2/3 size and never rotated: a rotation resamples every pixel and blurs the
+     small UI text. The three overlap a little so they still fit half the page. */
+  .trio .device { --w: 160px; }
+  .trio .device + .device { margin-left: -44px; }
+  .trio .device:nth-child(1) { --case: var(--graphite); }
+  .trio .device:nth-child(2) { translate: 0 -24px; z-index: 1; }
+  .trio .device:nth-child(3) { --case: var(--white); }
   .photo { border-radius: 20px; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
   .ways { list-style: none; padding: 0; margin: 24px 0 0; display: grid; gap: 14px; }
   .ways li { display: grid; grid-template-columns: 10px 1fr; gap: 14px; align-items: baseline; color: var(--muted); }
@@ -151,18 +177,22 @@
   footer a:hover { color: var(--text); }
 
   @media (max-width: 820px) {
+    .hero-fig .notes { display: none; }
+    .notes-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; margin: 16px 0 0; padding: 0; list-style: none;
+      font: 700 21px Caveat, "Segoe Print", cursive; color: var(--accent); }
     .hero { padding: 32px 0 72px; }
     section { padding: 64px 0; }
     .demo, .split { grid-template-columns: 1fr; gap: 40px; }
     .stage { margin: 0 auto; order: -1; }   /* device above the steps, so a tap on a step shows */
     .facts, .also, .build { grid-template-columns: 1fr; gap: 28px; }
     .build { gap: 12px; }
-    .trio .device { --w: 80px; }
+    .trio .device { --w: 112px; }
+    .trio .device + .device { margin-left: -30px; }
     nav a.link.wide { display: none; }
   }
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
-    .hero > .device img { animation: none; }
+    .hero-fig .device img { animation: none; }
     .cable, .stage .device img, .cta { transition: none; }
   }
 </style>
@@ -210,7 +240,24 @@
 
 <main>
   <div class="wrap hero">
-    <div class="device"><div class="glass"><img src="img/screens/1_home.png" alt="The home screen: goldfish, Sign and forget, with Enter words and Scan QR"></div></div>
+    <figure class="hero-fig">
+      <div class="device"><div class="glass"><img src="img/screens/1_home.png" alt="The home screen: goldfish, Sign and forget, with Enter words and Scan QR"></div></div>
+      <svg class="notes" viewBox="0 0 760 440" aria-hidden="true">
+        <defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto"><path d="M1 1 L8.5 5 L1 9"/></marker></defs>
+        <text x="44" y="78">2″ touch screen</text>
+        <path d="M120 92 C 150 120, 205 112, 252 130" marker-end="url(#ah)"/>
+        <text x="20" y="262">no Wi-Fi, no Bluetooth</text>
+        <path d="M150 274 C 185 290, 212 262, 236 240" marker-end="url(#ah)"/>
+        <text x="560" y="88">camera on the back</text>
+        <path d="M612 100 C 602 140, 570 156, 526 160" marker-end="url(#ah)"/>
+        <text x="550" y="254">your seed lives in</text>
+        <text x="550" y="278">memory only</text>
+        <path d="M562 292 C 548 318, 530 312, 506 300" marker-end="url(#ah)"/>
+        <text x="440" y="432">power via USB</text>
+        <path d="M436 424 C 412 422, 398 414, 392 400" marker-end="url(#ah)"/>
+      </svg>
+      <figcaption><ul class="notes-list"><li>2″ touch screen</li><li>no Wi-Fi, no Bluetooth</li><li>camera on the back</li><li>your seed lives in memory only</li><li>power via USB</li></ul></figcaption>
+    </figure>
     <h1>Sign and forget.</h1>
     <p class="sub">Goldfish is a Bitcoin signer that forgets. Scan your seed, sign, unplug. Nothing is saved, so there is nothing left to find.</p>
     <a class="cta" href="#build">
@@ -244,9 +291,9 @@
             <div class="glass"><img id="shot" src="img/screens/2_scan_waiting.png" alt="The device's screen at this step"></div>
           </button>
           <svg class="cable" viewBox="0 0 46 120" aria-hidden="true">
-            <rect x="12" y="0" width="22" height="10" rx="3" fill="#8a8a86"/>
-            <rect x="7" y="8" width="32" height="34" rx="7" fill="#3a3a38"/>
-            <path d="M23 42v78" stroke="#3a3a38" stroke-width="9" stroke-linecap="round"/>
+            <rect x="11" y="0" width="24" height="10" rx="2.5" fill="#9AA3A8"/>
+            <rect x="6" y="8" width="34" height="34" rx="8" fill="#2B3338"/>
+            <path d="M23 42v78" stroke="#2B3338" stroke-width="9" stroke-linecap="round"/>
           </svg>
           <p class="hint" id="hint">Tap the device for the next step</p>
         </div>
@@ -265,8 +312,8 @@
         </div>
         <div>
           <svg viewBox="0 0 44 44" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 18a23 23 0 0 1 32 0M12 25a14.5 14.5 0 0 1 20 0" stroke="#FF7A2F" stroke-width="4"/><circle cx="22" cy="33" r="3.5" fill="#FF7A2F"/><path d="M7 39L37 6" stroke="#14222B" stroke-width="4"/></svg>
-          <h3>No Wi-Fi, no Bluetooth</h3>
-          <p>The board has no radio hardware at all. Power it from a charger or a power bank.</p>
+          <h3>No radio, no USB data</h3>
+          <p>The board has no Wi-Fi or Bluetooth hardware, and the firmware has no USB stack: the cable only powers it. Use a charger or a power bank. (Update firmware is the one exception: you choose it, and the board restarts as a USB drive.)</p>
         </div>
         <div>
           <svg viewBox="0 0 44 44" aria-hidden="true"><g fill="#FF7A2F"><rect x="5" y="5" width="14" height="14" rx="3"/><rect x="25" y="5" width="14" height="14" rx="3"/><rect x="5" y="25" width="14" height="14" rx="3"/><rect x="25" y="25" width="6" height="6" rx="1.5"/><rect x="33" y="33" width="6" height="6" rx="1.5"/></g><g fill="#14222B"><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><rect x="29.5" y="9.5" width="5" height="5" rx="1"/><rect x="9.5" y="29.5" width="5" height="5" rx="1"/></g></svg>
