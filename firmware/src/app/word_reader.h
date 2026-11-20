@@ -29,16 +29,22 @@ struct WordResult {
     float margin;   // its score lead over the next best word
 };
 
-bool word_reader_init();    // allocates the network's buffers (~90 KB)
+bool word_reader_init();    // allocates the network's buffers (~82 KB)
 void word_reader_free();
 
 // allowed: which word indexes may be picked (nullptr = all). True when the
 // best word leads by WR_MIN_MARGIN; out is filled either way.
 bool word_reader_read(const uint8_t *strip, bool (*allowed)(int), WordResult *out);
 
+// Platform hook: fn(a) and fn(b) at the same time, back when both are done.
+// The board runs fn(a) on its second core; elsewhere (a weak default here)
+// one after the other.
+void platform_parallel(void (*fn)(void *), void *a, void *b);
+
 // Exposed for tests.
 void word_reader_normalise(const uint8_t *strip, int16_t *in);   // WR_H * WR_W
 // Log-probabilities, WR_T x WR_C; t2: the last hidden layer (96 x WR_T), or nullptr.
 void word_reader_logp(const uint8_t *strip, float *logp, int16_t *t2);
-// Best-path word scores from log-probabilities.
+// Best-path word scores from log-probabilities (after word_reader_init: it
+// works in the network's buffers).
 void word_reader_decode(const float *logp, bool (*allowed)(int), WordResult *out);
