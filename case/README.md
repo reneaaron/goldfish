@@ -45,7 +45,9 @@ Measured off the photos in that drawing, good to about 0.3 mm:
 
 - Header pins end 8.64 mm behind the PCB (standard 2.54 mm header). The case
   leaves 9.2 (`hdr`).
-- The PCB sits 0.3 mm toward the USB end of the glass (`oy`).
+- The PCB sits 0.2 mm away from the USB end of the glass (`oy`). The photos
+  suggested 0.3 toward it; a print with that hung the glass 0.5 mm past the
+  case at the USB end.
 - The USB-C socket ends about 3.7 mm inside the outer wall, so the plug's
   shell has to pass through the wall. A block behind the end wall turns the
   opening into a 13.6 × 8.6 mm tunnel up to the socket (`usbw`, `usbb`,
