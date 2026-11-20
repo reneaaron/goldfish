@@ -70,4 +70,4 @@ simulator's test images, and [`case/README.md`](case/README.md) for printing.
 ## Roadmap
 
 Tracked as [issues](https://github.com/reneaaron/stateless-signer/issues):
-BIP-39 passphrase, address explorer and more.
+address explorer and more.
