@@ -7,6 +7,8 @@
 #include <string.h>
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
+#include "hardware/irq.h"
+#include "hardware/sync.h"
 #include "hardware/pio.h"
 #include "hardware/pio_instructions.h"
 #include "hardware/pwm.h"
@@ -94,19 +96,23 @@ static bool rd(uint16_t reg, uint8_t *out) {
 }
 
 static enum { CAM_OFF, CAM_FAILED, CAM_IDLE, CAM_BUSY } state = CAM_OFF;
-// Only the preview's rows are captured, into two slots: the camera fills one
-// while the app decodes the other (the frame it was given last), so the next
-// picture is under way at once. Animated QRs change every 200ms.
+// Only the preview's rows are captured, into two slots. When one is full the
+// DMA interrupt starts the next frame into the other, so the camera takes
+// every frame however slow the loop is (animated QRs change every 200ms).
+// The app copies a frame as soon as it has it (preview, quirc), and the slot
+// it was given is written again no sooner than the rows above the preview's
+// of a later frame.
 #define SLOT (CAM_W * OUT_H)
 static uint8_t frame[2 * SLOT];
-static int filling;            // the slot the DMA writes while CAM_BUSY
-static int shown = -1;         // the slot last given to the app
+static volatile int filling;     // the slot the DMA writes while CAM_BUSY
+static volatile int ready = -1;  // a whole frame the app hasn't had yet
+static int shown = -1;           // the slot last given to the app
 static PIO pio;
 static uint sm, prog_offset;
 static int dma_ch;
 static bool still_held;        // the app has `frame` as its still: stopping leaves it be
 static bool zoomed;            // the sensor outputs CAM_W * CAM_ZOOM x CAM_H * CAM_ZOOM
-static uint32_t armed_ms;
+static volatile uint32_t armed_ms;
 static bool asleep;
 static char cam_err[40];   // shown on the scan screen, see platform_camera_error()
 
@@ -115,6 +121,8 @@ static char cam_err[40];   // shown on the scan screen, see platform_camera_erro
 // high. Dropping a byte takes as many cycles as pushing one.
 static uint16_t prog_instr[11];
 static const pio_program_t prog = {prog_instr, 11, -1};
+
+static void dma_irq();
 
 static bool camera_init() {
     // 37.5MHz XCLK at the 150MHz system clock, as in the Waveshare demo
@@ -171,6 +179,8 @@ static bool camera_init() {
     pio_sm_init(pio, sm, prog_offset, &c);
 
     dma_ch = dma_claim_unused_channel(true);
+    irq_add_shared_handler(DMA_IRQ_0, dma_irq, PICO_SHARED_IRQ_HANDLER_DEFAULT_ORDER_PRIORITY);
+    irq_set_enabled(DMA_IRQ_0, true);
     return true;
 }
 
@@ -229,6 +239,30 @@ static void arm(int slot) {
     state = CAM_BUSY;
 }
 
+// A frame is complete: it's the app's next, and the next frame goes into the other slot.
+static void dma_irq() {
+    if (!dma_channel_get_irq0_status(dma_ch)) return;   // the IRQ is shared
+    dma_channel_acknowledge_irq0(dma_ch);
+    ready = filling;
+    arm(1 - filling);
+}
+
+static void start_capture(int slot) {
+    ready = -1;
+    dma_channel_acknowledge_irq0(dma_ch);
+    dma_channel_set_irq0_enabled(dma_ch, true);
+    arm(slot);
+}
+
+// Also before a band or a still: those use the channel without the interrupt.
+static void stop_capture() {
+    dma_channel_set_irq0_enabled(dma_ch, false);
+    dma_channel_abort(dma_ch);
+    dma_channel_acknowledge_irq0(dma_ch);
+    pio_sm_set_enabled(pio, sm, false);
+    state = CAM_IDLE;
+}
+
 const uint8_t *platform_camera_frame(int *width, int *height) {
     if (state == CAM_OFF) state = camera_init() ? CAM_IDLE : CAM_FAILED;
     if (state == CAM_FAILED) return nullptr;
@@ -243,25 +277,26 @@ const uint8_t *platform_camera_frame(int *width, int *height) {
         cam_err[0] = 0;   // a band's error was the reading screen's to show, not the preview's
     }
     if (state == CAM_BUSY) {
-        if (dma_channel_is_busy(dma_ch)) {
-            if (millis() - armed_ms < 1000) return nullptr;
-            // no VSYNC/PCLK, or fewer bytes than expected
-            snprintf(cam_err, sizeof(cam_err), "No image within 1s");
-            dma_channel_abort(dma_ch);
-            pio_sm_set_enabled(pio, sm, false);
-            state = CAM_IDLE;
-        } else {
-            shown = filling;
-            flip_rows(frame + shown * SLOT);
-            arm(1 - shown);   // the next picture, while the app reads this one
+        uint32_t s = save_and_disable_interrupts();
+        int r = ready;
+        ready = -1;
+        uint32_t armed = armed_ms;
+        restore_interrupts(s);
+        if (r >= 0) {   // the DMA is on the other slot now
+            shown = r;
+            flip_rows(frame + r * SLOT);
             cam_err[0] = 0;
             *width = CAM_W;
             *height = OUT_H;
-            return frame + shown * SLOT;
+            return frame + r * SLOT;
         }
+        if (millis() - armed < 1000) return nullptr;
+        // no VSYNC/PCLK, or fewer bytes than expected
+        snprintf(cam_err, sizeof(cam_err), "No image within 1s");
+        stop_capture();
     }
     set_focus(true);
-    arm(shown == 0 ? 1 : 0);
+    start_capture(shown == 0 ? 1 : 0);
     return nullptr;
 }
 
@@ -271,14 +306,16 @@ const char *platform_camera_error() { return cam_err[0] ? cam_err : nullptr; }
 // buffer, which is lent to the app: there's no RAM for a copy. The capture
 // under way into the other slot is dropped.
 uint8_t *platform_camera_still(int *width, int *height, size_t *room) {
+    int slot = shown;
     if (state == CAM_BUSY) {
-        dma_channel_abort(dma_ch);
-        pio_sm_set_enabled(pio, sm, false);
-        state = CAM_IDLE;
+        stop_capture();
+        // a newer whole frame than the preview's: the DMA was on the other slot
+        if (ready >= 0) { slot = ready; flip_rows(frame + slot * SLOT); }
     }
-    if (shown < 0) return nullptr;
+    ready = -1;
+    if (slot < 0) return nullptr;
     still_held = true;
-    memmove(frame, frame + shown * SLOT, SLOT);
+    memmove(frame, frame + slot * SLOT, SLOT);
     memset(frame + SLOT, 0, sizeof(frame) - SLOT);
     shown = -1;
     *width = CAM_W;
@@ -306,9 +343,7 @@ bool platform_camera_band(int y0, int rows, uint8_t *buf) {
     const int zw = CAM_W * CAM_ZOOM, zh = CAM_H * CAM_ZOOM;
     if (state == CAM_OFF || state == CAM_FAILED || y0 < 0 || rows <= 0 || y0 + rows > OUT_H * CAM_ZOOM) return false;
     y0 += OUT_Y * CAM_ZOOM;   // the still's rows are the preview's: the middle of the frame
-    if (state == CAM_BUSY) dma_channel_abort(dma_ch);
-    pio_sm_set_enabled(pio, sm, false);
-    state = CAM_IDLE;
+    stop_capture();
     bool settle = asleep || !zoomed;
     if (asleep) {
         wr(0x3008, 0x02);
@@ -370,8 +405,8 @@ bool platform_camera_band(int y0, int rows, uint8_t *buf) {
 
 void platform_camera_stop() {
     if (state == CAM_OFF || state == CAM_FAILED || asleep) return;
-    dma_channel_abort(dma_ch);
-    pio_sm_set_enabled(pio, sm, false);
+    stop_capture();
+    ready = -1;
     // the frame can be a picture of a seed QR (or the app's still: wiped when it's done)
     if (!still_held) memset(frame, 0, sizeof(frame));
     shown = -1;
