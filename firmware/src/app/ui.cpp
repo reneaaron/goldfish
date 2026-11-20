@@ -111,10 +111,11 @@ static void kb_style(lv_obj_t *kb) {
 static void build_home() {
     lv_obj_t *scr = screen();
     lv_obj_t *logo = lv_image_create(scr);
-    lv_image_set_src(logo, &hermitkey_56);
-    lv_obj_align(logo, LV_ALIGN_TOP_MID, 0, 12);
-    lv_obj_align(text(scr, "Hermitkey", &fraunces_32, TEXT), LV_ALIGN_TOP_MID, 0, 76);
-    lv_obj_align(para(scr, "Your seed stays in memory only, until you unplug."), LV_ALIGN_TOP_MID, 0, 116);
+    lv_image_set_src(logo, &goldfish_logo);
+    // Logo, name and tagline (about 116px tall) centred in the 176px above Enter words.
+    lv_obj_align(logo, LV_ALIGN_TOP_MID, 0, 30);
+    lv_obj_align(text(scr, "goldfish", &rethink_32, TEXT), LV_ALIGN_TOP_MID, 0, 88);
+    lv_obj_align(para(scr, "Sign and forget."), LV_ALIGN_TOP_MID, 0, 128);
     // Which build this is, to compare with the one the flasher offers.
     // Tapping it opens Update firmware: the case has no BOOT button.
     lv_obj_t *ver = text(scr, FW_VERSION, &inter_13, TEXT_3);
@@ -458,10 +459,10 @@ static void build_wallet() {
     int y = (pass || ms) && note ? -44 : 0;
     if (!y) {
         lv_obj_t *logo = lv_image_create(scr);
-        lv_image_set_src(logo, &hermitkey_56);
-        lv_obj_align(logo, LV_ALIGN_TOP_MID, 0, 12);
+        lv_image_set_src(logo, &goldfish_logo);
+        lv_obj_align(logo, LV_ALIGN_TOP_MID, 0, 18);
     }
-    lv_obj_align(text(scr, "Ready to sign", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, y + 80);
+    lv_obj_align(text(scr, "Ready to sign", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, y + 80);
     char fp[9], spaced[12];
     wallet_fingerprint_hex(fp);
     snprintf(spaced, sizeof(spaced), "%.4s %.4s", fp, fp + 4);
@@ -634,7 +635,7 @@ static void build_passphrase() {
 static void backup_existing_cb(lv_event_t *);
 
 // Groups by importance: what most people need once (Connect wallet, Back up),
-// then the advanced ones with grey icons, then Wipe on its own. Every row says
+// then the advanced ones with grey icons, then Forget seed on its own. Every row says
 // what it does. The list scrolls, so more options can join it.
 static void build_wallet_options() {
     lv_obj_t *scr = screen();
@@ -664,7 +665,7 @@ static void build_wallet_options() {
          GO(UI_PASSPHRASE)},
         {ICON_KEY, "Child seed", "Derived from this one", child_start_cb, nullptr},
         {ICON_COINS, "Network", wallet_testnet() ? "Testnet" : "Mainnet", go_cb, GO(UI_NETWORK)},
-        {ICON_TRASH, "Wipe seed", "Unplugging does it too", go_cb, GO(UI_WIPE_CONFIRM)},
+        {ICON_TRASH, "Forget seed", "Unplugging does it too", go_cb, GO(UI_WIPE_CONFIRM)},
     };
     const int groups[] = {2, 3, 1};
     int at = 0;
@@ -811,12 +812,12 @@ static void wipe_cb(lv_event_t *) {
 static void build_wipe_confirm() {
     lv_obj_t *scr = screen();
     lv_obj_align(icon_badge(scr, ICON_TRASH, RED, RED_DIM, 64), LV_ALIGN_TOP_MID, 0, 44);
-    lv_obj_align(text(scr, "Wipe seed?", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, 126);
+    lv_obj_align(text(scr, "Forget seed?", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 126);
     char fp[9], msg[128];
     wallet_fingerprint_hex(fp);
     snprintf(msg, sizeof(msg), "Removes " ICON_FINGERPRINT " %.4s %.4s until you load it again.", fp, fp + 4);
     lv_obj_align(para(scr, msg), LV_ALIGN_TOP_MID, 0, 162);
-    bottom_pair(btn_ghost(scr, "Cancel", go_cb, GO(UI_WALLET_OPTIONS), TEXT), btn_danger(scr, "Wipe", wipe_cb));
+    bottom_pair(btn_ghost(scr, "Cancel", go_cb, GO(UI_WALLET_OPTIONS), TEXT), btn_danger(scr, "Forget", wipe_cb));
     show(scr);
 }
 
@@ -827,7 +828,7 @@ static void reboot_cb(lv_event_t *) { platform_reboot_to_bootloader(); }
 
 static void build_update() {
     lv_obj_t *scr = screen();
-    lv_obj_align(text(scr, "Update firmware?", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, 60);
+    lv_obj_align(text(scr, "Update firmware?", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 60);
     lv_obj_align(para(scr, "It restarts as a USB drive for firmware.uf2 or the flasher page. Unplug to cancel."),
                  LV_ALIGN_TOP_MID, 0, 100);
     bottom_pair(btn_ghost(scr, "Cancel", go_cb, GO(UI_HOME), TEXT), btn_primary(scr, "Restart", reboot_cb));
@@ -1120,7 +1121,7 @@ static void build_entropy(bool dice) {
     lv_obj_t *scr = screen();
     topbar(scr, final_flips ? "Last word" : dice ? "Dice rolls" : "Coin flips",
            final_flips ? final_flips_back_cb : to_new_seed_cb);
-    ent_count = text(scr, "", &fraunces_24, TEXT);
+    ent_count = text(scr, "", &rethink_24, TEXT);
     lv_obj_align(ent_count, LV_ALIGN_TOP_MID, 0, BAR + 2);
     ent_bar = lv_bar_create(scr);
     lv_obj_set_size(ent_bar, CW, 4);
@@ -1471,16 +1472,14 @@ static bool page_band() {
 static void page_read_cb(lv_event_t *) { ui_page_read(); }
 
 
-// ---- the reading scene: the strip the word reader gets, the crab looking at
+// ---- the reading scene: the strip the word reader gets, the fish above
 // it, and the words read line up below as they come. No animation: a read
 // holds the screen for about a second on the board, so it couldn't run.
 constexpr int ST_H = (WR_H * CW + WR_W - 1) / WR_W;      // the strip, scaled to fill a CW-wide pill
 constexpr int LIST_ROWS = 3;                             // the last words read, as rows
-static int crab_x, crab_y, st_y;                         // st_y: under the crab
+static int st_y;                                         // st_y: under the fish
 static lv_obj_t *page_strip_img, *page_count, *page_of;
 static bool page_cut;   // the current word's strip is cut and shown, not read yet
-// eye centres in crab_reading (see marketing/mascot/hermitkey-reading.svg)
-static const int crab_eye[2][2] = {{47, 11}, {67, 9}};
 
 // One word read, added to the list as a row like those on Check words
 // (page_row and page_row_draw_cb): number, word (or "?"), and a check or a
@@ -1514,31 +1513,19 @@ static void page_list_add(int n, bool ok, int word) {
 }
 
 static void build_page_scene(lv_obj_t *scr) {
-    // where it is: "Word 7 of 24", left of the crab
+    // where it is: "Word 7 of 24", left of the fish
     lv_obj_align(caption(scr, "READING"), LV_ALIGN_TOP_LEFT, M, BAR + 10);
-    page_count = text(scr, "", &fraunces_32, TEXT, LV_TEXT_ALIGN_LEFT);
+    page_count = text(scr, "", &rethink_32, TEXT, LV_TEXT_ALIGN_LEFT);
     lv_obj_align(page_count, LV_ALIGN_TOP_LEFT, M, BAR + 28);
     page_of = text(scr, "", &inter_13, TEXT_3, LV_TEXT_ALIGN_LEFT);
     lv_obj_align(page_of, LV_ALIGN_TOP_LEFT, M, BAR + 64);
 
-    crab_x = W - M - crab_reading.header.w + 8;
-    crab_y = BAR;
-    st_y = crab_y + crab_reading.header.h + 8;
-    lv_obj_t *crab = lv_image_create(scr);
-    lv_image_set_src(crab, &crab_reading);
-    lv_obj_set_pos(crab, crab_x, crab_y);
-    for (int e = 0; e < 2; e++) {   // pupils on the middle of the strip
-        int dx = M + CW / 2 - (crab_x + crab_eye[e][0]), dy = st_y + ST_H / 2 - (crab_y + crab_eye[e][1]);
-        int d = abs(dx) > abs(dy) ? abs(dx) : abs(dy);
-        if (d < 1) d = 1;
-        lv_obj_t *p = lv_obj_create(crab);
-        lv_obj_remove_style_all(p);
-        lv_obj_set_size(p, 7, 7);
-        lv_obj_set_pos(p, crab_eye[e][0] - 3 + dx * 3 / d, crab_eye[e][1] - 3 + dy * 3 / d);
-        lv_obj_set_style_radius(p, LV_RADIUS_CIRCLE, 0);
-        lv_obj_set_style_bg_color(p, TEXT, 0);
-        lv_obj_set_style_bg_opa(p, LV_OPA_COVER, 0);
-    }
+    // The fish sits right of the count, centred in a 79px band so the strip
+    // below starts where it always has.
+    lv_obj_t *fish = lv_image_create(scr);
+    lv_image_set_src(fish, &goldfish_reading);
+    lv_obj_set_pos(fish, W - M - goldfish_reading.header.w, BAR + (79 - goldfish_reading.header.h) / 2);
+    st_y = BAR + 79 + 8;
 
     // the strip the word reader gets
     lv_obj_t *frame = lv_obj_create(scr);
@@ -2047,7 +2034,7 @@ static void backup_cancel_cb(lv_event_t *) {
 static void build_backup_warning() {
     lv_obj_t *scr = screen();
     lv_obj_align(icon_badge(scr, ICON_WARNING, AMBER, AMBER_DIM, 64), LV_ALIGN_TOP_MID, 0, 36);
-    lv_obj_align(text(scr, "Keep it offline", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, 118);
+    lv_obj_align(text(scr, "Keep it offline", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 118);
     lv_obj_align(para(scr, backup_existing ? "Your seed QR is your private key. Never photograph it or scan it with a phone."
                                            : "Your words are your private key. Never photograph them or type them into a phone."),
                  LV_ALIGN_TOP_MID, 0, 154);
@@ -2170,7 +2157,7 @@ static void build_backup_qr() {
     lv_obj_t *scr = screen();
     if (!backup_make_qr()) {
         lv_obj_align(icon_badge(scr, ICON_WARNING, RED, RED_DIM, 64), LV_ALIGN_TOP_MID, 0, 44);
-        lv_obj_align(text(scr, "No QR code", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, 126);
+        lv_obj_align(text(scr, "No QR code", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 126);
         lv_obj_align(para(scr, backup_existing ? "The QR code couldn't be made. Nothing was backed up."
                                                : "The QR code couldn't be made. Your written words are the backup."),
                      LV_ALIGN_TOP_MID, 0, 162);
@@ -2326,7 +2313,7 @@ static void build_backup_choice() {
     lv_obj_t *scr = screen();
     topbar(scr, "QR code", to_last_words_cb);
     lv_obj_align(icon_badge(scr, ICON_QR, ACCENT, ACCENT_DIM, 64), LV_ALIGN_TOP_MID, 0, BAR + 8);
-    lv_obj_align(text(scr, "Back up as QR?", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 86);
+    lv_obj_align(text(scr, "Back up as QR?", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 86);
     lv_obj_align(para(scr, "Copy it square by square, then load the seed by scanning instead of typing.", &inter_13,
                       TEXT_2),
                  LV_ALIGN_TOP_MID, 0, BAR + 122);
@@ -2354,7 +2341,7 @@ static void build_seed_ready() {
     char title[32];
     if (child_seed) snprintf(title, sizeof(title), "Child #%s %s", child_num, card_checked ? "checked" : "ready");
     else snprintf(title, sizeof(title), card_checked ? "Card checked" : "Seed ready");
-    lv_obj_align(text(scr, title, &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, 92);
+    lv_obj_align(text(scr, title, &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 92);
     lv_obj_t *fp;
     lv_obj_align(fingerprint_pill(scr, "\xE2\x80\xA6", &fp), LV_ALIGN_TOP_MID, 0, 136);
     char note[64];
@@ -2483,7 +2470,7 @@ static void build_psbt_error() {
     lv_obj_t *scr = screen();
     bool sus = review.error == PSBT_SUSPICIOUS, desc = review.error == PSBT_NEEDS_DESCRIPTOR;
     lv_obj_align(icon_badge(scr, ICON_WARNING, sus ? RED : AMBER, sus ? RED_DIM : AMBER_DIM, 64), LV_ALIGN_TOP_MID, 0, 44);
-    lv_obj_align(text(scr, sus ? "Don't sign this" : desc ? "Scan the wallet" : "Can't sign this", &fraunces_24, TEXT),
+    lv_obj_align(text(scr, sus ? "Don't sign this" : desc ? "Scan the wallet" : "Can't sign this", &rethink_24, TEXT),
                  LV_ALIGN_TOP_MID, 0, 126);
     lv_obj_align(para(scr, psbt_error_text(review.error)), LV_ALIGN_TOP_MID, 0, 162);
     // The Sign scanner takes the descriptor too.
@@ -2752,7 +2739,7 @@ static void build_verify() {
     lv_obj_t *scr = screen();
     if (check.status == VERIFY_SEARCHING) {
         topbar(scr, "Verify address");
-        lv_obj_align(text(scr, "Checking" "\xE2\x80\xA6", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 12);
+        lv_obj_align(text(scr, "Checking" "\xE2\x80\xA6", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 12);
         int h = address_card(scr, BAR + 52);
         verify_bar = lv_bar_create(scr);
         lv_obj_set_size(verify_bar, CW, 6);
@@ -2777,7 +2764,7 @@ static void build_verify() {
                      LV_ALIGN_TOP_MID, 0, 14);
         y = 62;
     }
-    lv_obj_align(text(scr, ok ? "Address verified" : "Not from this seed", &fraunces_24, ok ? TEXT : RED),
+    lv_obj_align(text(scr, ok ? "Address verified" : "Not from this seed", &rethink_24, ok ? TEXT : RED),
                  LV_ALIGN_TOP_MID, 0, y);
     if (ok) {
         char tag[40];

@@ -1,5 +1,20 @@
 # Marketing
 
+## Brand
+
+**Goldfish**, tagline **Sign and forget.** The mark is a fish built from QR
+modules on a 9 × 5 grid, with a QR finder pattern for an eye. The SVGs in
+`mascot/` are the source of truth; don't redraw it:
+
+- `goldfish-mark.svg`: orange fish, ink eye, for light grounds (the device
+  logo is rasterized from it with `firmware/src/app/images/svg2c.py`)
+- `goldfish-icon.svg` / `goldfish-icon-dark.svg`: app tiles on orange and on ink
+
+Colours: fish orange `#FF7A2F` (the mark only), orange text `#C2501A`, ink
+`#14222B`, grey text `#5A6B75`, paper `#EDF2F4`, border `#D9E2E6`, white.
+The eye must contrast with both the body and the ground. Type: Rethink Sans
+for headings, Inter for device text, JetBrains Mono for numbers.
+
 ## Product renders
 
 `renders/render.py` renders the device in Blender from the real printed case

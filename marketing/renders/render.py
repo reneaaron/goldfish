@@ -1,4 +1,4 @@
-"""Product renders of the stateless signer (studio shots).
+"""Product renders of Goldfish, the stateless signer (studio shots).
 
 Uses the real printed case (case/exports/case.stl) and the firmware's actual
 screens (firmware/docs/screens/*.png), so the pictures show what the device

@@ -1,11 +1,12 @@
-# Stateless Signer
+# Goldfish
 
-A Bitcoin signer you build from an off-the-shelf board and a printed case.
-Load your seed from a QR code, review and sign transactions, unplug to wipe.
-Nothing is ever saved on the device, and the board has no Wi-Fi or Bluetooth
-hardware: transactions go in and out through the camera and the screen.
+**Sign and forget.** A Bitcoin signer you build from an off-the-shelf board and a printed case.
+Load your seed from a QR code, review and sign transactions, unplug and it forgets.
+Nothing is ever saved on the device, the board has no Wi-Fi or Bluetooth
+hardware, and the firmware has no USB stack, so the USB cable only powers it:
+transactions go in and out through the camera and the screen.
 
-![Stateless Signer start screen: Scan QR or enter words](marketing/renders/out/07_hero_home.png)
+![Goldfish start screen: Scan QR or enter words](marketing/renders/out/07_hero_home.png)
 
 <p>
   <img src="marketing/renders/out/08_slide_to_sign.png" width="32%" alt="Confirm a transaction's amount and fee, then slide to sign">
