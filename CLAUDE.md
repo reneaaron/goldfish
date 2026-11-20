@@ -4,12 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A stateless, camera-based Bitcoin signer for the Waveshare RP2350-Touch-LCD-2 (240×320 touch screen, OV5640 camera, no radio). The seed lives in RAM only; all I/O is QR codes through the camera and the screen. Status: works in the desktop simulator, untested on real hardware, not for real funds.
+Goldfish ("Sign and forget."): a stateless, camera-based Bitcoin signer for the Waveshare RP2350-Touch-LCD-2 (240×320 touch screen, OV5640 camera, no radio). The seed lives in RAM only; all I/O is QR codes through the camera and the screen. Status: works in the desktop simulator, untested on real hardware, not for real funds.
 
 - `firmware/`: PlatformIO project (the only code that builds and has tests)
 - `case/`: printed case in gcad (`.gcad` parts, `.gasm` assembly)
 - `hardware/`: parts list, board notes
-- `flasher/`: one static page that copies `firmware.uf2` onto the board's BOOT drive; `.github/workflows/flasher.yml` publishes it with the firmware on GitHub Pages when a `v*` tag is pushed
+- `flasher/`: one static page that copies `firmware.uf2` onto the board's BOOT drive
+- `landing/`: the project website's landing page; `.github/workflows/pages.yml` publishes it on GitHub Pages (landing at `/`, flasher with the latest tagged firmware at `/flasher/`, cards at `/cards/`) on pushes to `main` that touch the site and on `v*` tags
 - `cards/`: one self-contained page (no external requests) that prints blank cards for 12-word seeds only: the 21×21 SeedQR grid (full page or wallet cards) and word cards; the grid's labels and part lines must match the device's `build_backup_block` in `ui.cpp`
 - `marketing/`: Blender render scripts that consume `case/exports/case.stl` and `firmware/docs/screens/*.png`
 

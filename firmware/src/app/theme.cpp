@@ -5,17 +5,18 @@
 #include <string.h>
 
 namespace th {
-// "Paper": warm off-white like the paper SeedQR card, ink-black primary
-// buttons, burnt orange only for marks (icons, totals, the slide knob).
-const lv_color_t BG = LV_COLOR_MAKE(0xF3, 0xEF, 0xE6);
-const lv_color_t SURFACE = LV_COLOR_MAKE(0xFF, 0xFD, 0xF8);
-const lv_color_t SURFACE_2 = LV_COLOR_MAKE(0xE6, 0xE0, 0xD3);
-const lv_color_t BORDER = LV_COLOR_MAKE(0xD9, 0xD2, 0xC3);
-const lv_color_t TEXT = LV_COLOR_MAKE(0x1B, 0x19, 0x17);
-const lv_color_t TEXT_2 = LV_COLOR_MAKE(0x5C, 0x56, 0x50);
-const lv_color_t TEXT_3 = LV_COLOR_MAKE(0x7A, 0x73, 0x69);
-const lv_color_t ACCENT = LV_COLOR_MAKE(0xC2, 0x41, 0x0C);
-const lv_color_t ACCENT_DIM = LV_COLOR_MAKE(0xF6, 0xE3, 0xCF);
+// Goldfish: a cool near-white ground with white cards, deep ink for text and
+// primary buttons, orange only for marks (icons, totals, the slide knob). The
+// fish itself (goldfish_logo) is the one bright orange on screen.
+const lv_color_t BG = LV_COLOR_MAKE(0xF4, 0xF7, 0xF8);
+const lv_color_t SURFACE = LV_COLOR_MAKE(0xFF, 0xFF, 0xFF);
+const lv_color_t SURFACE_2 = LV_COLOR_MAKE(0xE6, 0xED, 0xF0);
+const lv_color_t BORDER = LV_COLOR_MAKE(0xD9, 0xE2, 0xE6);
+const lv_color_t TEXT = LV_COLOR_MAKE(0x14, 0x22, 0x2B);
+const lv_color_t TEXT_2 = LV_COLOR_MAKE(0x5A, 0x6B, 0x75);
+const lv_color_t TEXT_3 = LV_COLOR_MAKE(0x71, 0x80, 0x89);
+const lv_color_t ACCENT = LV_COLOR_MAKE(0xC2, 0x50, 0x1A);
+const lv_color_t ACCENT_DIM = LV_COLOR_MAKE(0xFF, 0xE6, 0xD6);
 const lv_color_t GREEN = LV_COLOR_MAKE(0x15, 0x80, 0x3D);
 const lv_color_t GREEN_DIM = LV_COLOR_MAKE(0xDC, 0xEF, 0xE2);
 const lv_color_t RED = LV_COLOR_MAKE(0xC6, 0x28, 0x28);

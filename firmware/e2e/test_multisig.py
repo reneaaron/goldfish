@@ -218,7 +218,7 @@ def test_change_to_another_multisig_blocks_signing(dev):
 
 
 def test_descriptor_goes_with_the_seed(dev):
-    """Stateless: after Wipe the wallet is unknown again, also to the same seed."""
+    """Stateless: after Forget seed the wallet is unknown again, also to the same seed."""
     wallet = two_of_three()
     psbt = wallet.create_psbt([wallet.fund(0, 300_000)], [(STRANGER, 10_000)], fee=500)
     loaded(dev)
@@ -230,8 +230,8 @@ def test_descriptor_goes_with_the_seed(dev):
     dev.back()
     dev.tap("Wallet options")
     dev.scroll_down()
-    dev.tap("Wipe seed")
-    dev.tap("Wipe")
+    dev.tap("Forget seed")
+    dev.tap("Forget")
     assert dev.screen == "HOME"
 
     loaded(dev)

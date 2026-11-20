@@ -1,0 +1,76 @@
+name: Website
+
+# Publishes the project website on GitHub Pages:
+#   /          landing/ (the Goldfish landing page, with its screens and renders)
+#   /flasher/  flasher/index.html plus firmware.uf2 and firmware.json
+#   /cards/    cards/index.html (blank backup cards to print)
+# The flasher always offers the latest release tag (v0.1.0); until the first
+# tag exists it offers the commit being deployed. Needs, once, in the repo settings:
+# - Pages > Source: GitHub Actions
+# - Environments > github-pages > deployment branches and tags: allow tags v*
+#   (by default only the main branch may deploy)
+
+on:
+  push:
+    tags: ['v*']
+    branches: [main]
+    paths: ['landing/**', 'flasher/**', 'cards/**', 'firmware/docs/screens/**', 'marketing/renders/out/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # tags, to find the latest release
+      - name: Check out the firmware to offer
+        run: |
+          tag=$(git tag --list 'v*' --sort=-v:refname | head -1)
+          echo "Firmware from ${tag:-this commit}" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$tag" ]; then git checkout -q "$tag" -- firmware; fi
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-board-${{ hashFiles('firmware/platformio.ini') }}
+      - run: uv tool install platformio==6.1.19
+      - run: pio run
+        working-directory: firmware
+      - name: Assemble site
+        run: |
+          mkdir -p site/flasher site/cards
+          # landing/img/{screens,renders} are symlinks into the repo: copy what they point to
+          cp -rL landing/. site/
+          cp flasher/index.html site/flasher/
+          cp cards/index.html site/cards/
+          cp firmware/.pio/build/rp2350_touch_lcd_2/firmware.uf2 site/flasher/
+          # The version the firmware shows on its home screen (firmware/version.py).
+          version=$(sed -n 's/#define FW_VERSION "\(.*\)"/\1/p' firmware/include/version.h)
+          echo "{\"version\":\"$version\",\"commit\":\"${{ github.sha }}\"}" > site/flasher/firmware.json
+          echo "Firmware $version" >> "$GITHUB_STEP_SUMMARY"
+          # The page shows this same hash, computed in the browser.
+          (cd site/flasher && sha256sum firmware.uf2) | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
