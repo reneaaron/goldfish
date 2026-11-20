@@ -129,6 +129,14 @@ static void build_home() {
     lv_obj_add_flag(ver, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_ext_click_area(ver, 12);
     lv_obj_add_event_cb(ver, go_cb, LV_EVENT_CLICKED, GO(UI_UPDATE));
+    // The board has no Wi-Fi or Bluetooth hardware, and this firmware has no USB stack
+    // (USB is power only): say so where a phone shows its radios.
+    lv_obj_t *radios = text(scr, ICON_WIFI_OFF "  " ICON_BT_OFF, &inter_13, TEXT_3);
+    lv_obj_align(radios, LV_ALIGN_TOP_LEFT, 8, 6);
+    lv_obj_t *usb = lv_image_create(scr);
+    lv_image_set_src(usb, &usb_off_13);
+    lv_obj_update_layout(radios);
+    lv_obj_align_to(usb, radios, LV_ALIGN_OUT_RIGHT_MID, 7, 0);
     // Loading a seed you have: scan it or type it, grouped at the bottom.
     lv_obj_t *words = btn_ghost(scr, ICON_KEYBOARD "   Enter words", restore_cb, nullptr, TEXT);
     lv_obj_set_height(words, 48);

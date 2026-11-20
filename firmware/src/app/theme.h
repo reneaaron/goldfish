@@ -16,6 +16,7 @@ LV_FONT_DECLARE(icons_34);
 LV_FONT_DECLARE(icons_40);
 LV_IMAGE_DECLARE(goldfish_logo);     // home and wallet logo, from marketing/mascot/goldfish-mark.svg (images/svg2c.py)
 LV_IMAGE_DECLARE(goldfish_reading);  // the same fish, larger, on "Reading words"
+LV_IMAGE_DECLARE(usb_off_13);        // Home: USB is power only, from images/usb-off.svg
 
 // Lucide icons (lucide.dev), available in inter_13/15/17 and icons_34
 #define ICON_CHECK        "\xEE\x81\xB0"   // check
@@ -39,6 +40,8 @@ LV_IMAGE_DECLARE(goldfish_reading);  // the same fish, larger, on "Reading words
 #define ICON_FINGERPRINT  "\xEE\x8B\x8B"   // fingerprint
 #define ICON_USERS        "\xEE\x86\xA4"   // users
 #define ICON_SIGNER       "\xEE\x87\xBF"   // shield-check, icons_34 only: the home badge
+#define ICON_WIFI_OFF     "\xEE\x86\xAF"   // wifi-off, inter_13 only: Home, no radio
+#define ICON_BT_OFF       "\xEE\x86\xB9"   // bluetooth-off, inter_13 only: Home, no radio
 
 // icons_40 only: dice faces and the two sides of a coin
 #define ICON_DICE_1       "\xEE\x8A\x87"   // dice-1
