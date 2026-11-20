@@ -15,7 +15,8 @@ transactions go in and out through the camera and the screen.
 </p>
 
 Status: early, not for real funds. The firmware runs on the Waveshare board
-(screen, touch and camera) and in a desktop simulator. It loads seeds from a
+(screen, touch and camera), in a desktop simulator, and in the browser
+([`try/`](try), WebAssembly). It loads seeds from a
 QR, typed words or a photo of a handwritten backup, makes new seeds from dice,
 coins or drawn words, backs them up as QR cards, and reviews and signs
 single-sig and multisig transactions. Signing has only been tested against a
@@ -29,6 +30,7 @@ app, and the code hasn't been reviewed or audited.
 | [`firmware/`](firmware) | PlatformIO firmware (RP2350, LVGL, libwally-core), desktop simulator, tests |
 | [`case/`](case) | Printed case in gcad: glass on top, press-fit, no screws, STL and STEP exports |
 | [`hardware/`](hardware) | Parts list and board notes |
+| [`try/`](try) | Try the firmware in a browser: the page around its WebAssembly build |
 | [`cards/`](cards) | Blank SeedQR and word cards for 12-word seeds, to print (open `index.html`, works offline) |
 | [`marketing/`](marketing) | Product renders made from the real case and firmware screens |
 

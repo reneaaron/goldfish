@@ -6,7 +6,9 @@ the training strips (EMNIST capitals, handwriting fonts), but a fixed seed.
 Run from firmware/handwriting:
   uv run --with-requirements requirements.txt python make_page.py --emnist <byclass npz> --fonts <dir> \
       --out ../sim/samples/handwritten_page.png
-Prints the 24 words.
+Prints the 24 words. The browser simulator's page (try/) uses --seed 5 --pad 80, which
+the firmware reads 24 of 24:
+  ... make_page.py --emnist ... --fonts ... --seed 5 --pad 80 --out ../sim/samples/handwritten_page_demo.png
 """
 import argparse
 import glob
@@ -25,6 +27,7 @@ def main():
     ap.add_argument("--fonts", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--seed", type=int, default=11)
+    ap.add_argument("--pad", type=int, default=0, help="table around the photo, in pixels")
     args = ap.parse_args()
     rng = np.random.default_rng(args.seed)
     d = np.load(args.emnist)
@@ -60,7 +63,8 @@ def main():
     im = Image.fromarray((np.clip(paper, 0, 1) * 255).astype(np.uint8))
     im = im.rotate(4, Image.BILINEAR, fillcolor=60)         # a tilted photo on a dark table
     im = im.filter(ImageFilter.GaussianBlur(0.8))
-    a = np.asarray(im, np.float32) + rng.normal(0, 3, (H, W))
+    a = np.pad(np.asarray(im, np.float32), args.pad, constant_values=60)   # more table in view
+    a = a + rng.normal(0, 3, a.shape)
     Image.fromarray(np.clip(a, 0, 255).astype(np.uint8)).save(args.out)
     print(" ".join(words))
 
