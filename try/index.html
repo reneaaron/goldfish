@@ -3,147 +3,244 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Try Hermitkey in your browser</title>
+<title>Try Goldfish in your browser</title>
+<meta name="description" content="The Goldfish firmware, running in your browser. Scan a test seed, sign a test transaction, read a handwritten backup. No hardware needed.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='30' fill='%23FF7A2F'/%3E%3Cg transform='translate(19 39.5)'%3E%3Crect x='20' y='0' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='30' y='0' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='0' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='0' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='10' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='10' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='60' y='10' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='80' y='10' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='0' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='60' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='70' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='30' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='30' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='60' y='30' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='80' y='30' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='20' y='40' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='30' y='40' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='40' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='40' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='10' y='10' width='29' height='29' rx='3' fill='%2314222B'/%3E%3Crect x='15' y='15' width='19' height='19' rx='1.5' fill='%23FFFFFF'/%3E%3Crect x='20' y='20' width='9' height='9' rx='1' fill='%2314222B'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rethink+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  /* Colours are the firmware's own tokens (firmware/src/app/theme.cpp), as on the flasher page. */
+  /* The landing page's brand (landing/index.html): white ground, ink text, paper
+     surfaces, one fish orange, Rethink Sans, and its CSS device with the canvas as screen. */
   :root {
-    --bg: #F3EFE6; --surface: #FFFDF8; --surface-2: #E6E0D3; --border: #D9D2C3;
-    --text: #1B1917; --text-2: #5C5650; --text-3: #7A7369;
-    --accent: #C2410C; --amber: #A16207; --amber-dim: #F5E6C4;
-    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --bg: #FFFFFF; --raised: #EDF2F4; --line: #D9E2E6;
+    --text: #14222B; --muted: #5A6B75; --faint: #75858E;
+    --accent: #C2501A; --amber: #A16207; --amber-dim: #F5E6C4;
+    --case: #F2A25C; --paper: #EDF2F4;
+    --sans: "Rethink Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; padding: 56px 20px 72px; background: var(--bg); color: var(--text);
-    font: 16px/1.5 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 17px/1.55 var(--sans); -webkit-font-smoothing: antialiased;
   }
-  main { max-width: 860px; margin: 0 auto; }
-  h1 { font: 600 40px/1.1 var(--serif); letter-spacing: -0.01em; margin: 0 0 12px; }
-  h2 { font-size: 18px; font-weight: 600; line-height: 1.3; margin: 0 0 8px; }
-  p { margin: 0 0 12px; color: var(--text-2); max-width: 60ch; }
-  a { color: var(--accent); }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+  a { color: inherit; }
+  img { display: block; max-width: 100%; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+  h1, h2, h3, p { margin: 0; }
+  h1, h2, .brand { font-weight: 700; }
+  h1 { font-size: clamp(36px, 5.6vw, 52px); letter-spacing: -0.02em; line-height: 1.05; }
+  h2 { font-size: 22px; letter-spacing: -0.01em; line-height: 1.2; }
+  .lede { color: var(--muted); max-width: 58ch; margin-top: 14px; }
 
+  /* ---- nav */
+  nav { display: flex; align-items: center; gap: 4px; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-size: 22px; letter-spacing: -0.01em; text-decoration: none; margin-right: auto; }
+  .brand svg { width: 40px; height: 23px; }
+  nav a.link { color: var(--muted); font-size: 15px; font-weight: 500; text-decoration: none; padding: 8px 12px; border-radius: 8px; }
+  nav a.link:hover { color: var(--text); background: var(--raised); }
+  nav a.link svg { width: 20px; height: 20px; display: block; }
+
+  .intro { padding: 32px 0 0; }
   .note {
-    display: flex; gap: 10px; align-items: flex-start; border-radius: 10px;
-    padding: 12px 14px; margin: 20px 0 0; max-width: 64ch;
-    background: var(--amber-dim); color: var(--amber);
+    display: inline-flex; gap: 10px; align-items: baseline; margin-top: 24px; padding: 10px 16px;
+    border: 1px solid var(--line); border-radius: 12px; color: var(--muted); font-size: 15px; max-width: 64ch;
   }
-  .note svg { width: 20px; height: 20px; flex: none; margin-top: 2px; }
-  .note p { color: inherit; margin: 0; }
+  .note b {                    /* the firmware's TESTNET tag, as on the landing page */
+    background: var(--amber-dim); color: var(--amber); font-size: 12px; font-weight: 600; letter-spacing: .08em;
+    text-transform: uppercase; padding: 2px 8px; border-radius: 6px; white-space: nowrap;
+  }
 
-  .sim { display: grid; grid-template-columns: auto 1fr; gap: 48px; align-items: start; margin: 40px 0 0; }
-
-  /* The device: a dark bezel around the 240x320 screen, shown at 2x where it fits. */
+  /* ---- the device: printed case, black glass, the firmware's screen as a canvas */
+  .sim { display: grid; grid-template-columns: auto 1fr; gap: 64px; align-items: start; padding: 48px 0 0; }
+  .stage { display: flex; flex-direction: column; align-items: center; }
   .device {
-    background: #1B1917; border-radius: 28px; padding: 22px 18px 30px; width: fit-content;
-    box-shadow: 0 18px 40px -18px rgba(27, 25, 23, .45);
+    --w: 360px;                    /* the screen's width: 1.5x the 240x320 panel */
+    width: calc(var(--w) * 1.14); padding-bottom: calc(var(--w) * .05);
+    position: relative; flex: none;
+    filter: drop-shadow(0 calc(var(--w) * .08) calc(var(--w) * .07) rgba(20, 34, 43, .25));
+  }
+  .device .glass {
+    position: relative; z-index: 1; background: #0B0E10;
+    border-radius: calc(var(--w) * .09); padding: calc(var(--w) * .1) calc(var(--w) * .07) calc(var(--w) * .16);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08);
+  }
+  .device::before {
+    content: ""; position: absolute; inset: calc(var(--w) * .05) 0 0 0;
+    border-radius: calc(var(--w) * .09); background: var(--case);
+    box-shadow: inset 0 calc(var(--w) * -.008) 0 rgba(0, 0, 0, .12);
   }
   canvas {
-    display: block; width: 360px; height: 480px; border-radius: 4px; background: #000;
-    touch-action: none; cursor: pointer;
+    display: block; width: 100%; aspect-ratio: 3 / 4; border-radius: calc(var(--w) * .02);
+    background: var(--paper); touch-action: none; cursor: pointer;
   }
-  .device figcaption { color: #7A7369; font-size: 13px; text-align: center; margin-top: 12px; }
-  .device .restart {
-    display: none; margin-top: 10px; width: 100%; height: 40px; border: 0; border-radius: 10px;
-    background: var(--surface-2); color: var(--text); font: inherit; font-weight: 600; cursor: pointer;
+  .hint { color: var(--faint); font-size: 14px; margin-top: 16px; min-height: 1.5em; text-align: center; max-width: 36ch; }
+  .restart {
+    display: none; margin-top: 12px; height: 44px; padding: 0 20px; border: 0; border-radius: 12px;
+    background: var(--text); color: var(--bg); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer;
   }
 
-  .camera h2 { margin-top: 0; }
-  .shots { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  /* ---- what the camera sees */
+  .camera p { color: var(--muted); font-size: 15px; margin-top: 4px; }
+  .shots { list-style: none; margin: 18px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
   .shot {
-    display: flex; flex-direction: column; gap: 8px; width: 100%; height: 100%; padding: 10px;
-    background: var(--surface); border: 2px solid var(--border); border-radius: 12px;
-    font: inherit; font-size: 14px; color: var(--text); text-align: left; cursor: pointer;
+    display: flex; flex-direction: column; gap: 2px; width: 100%; height: 100%; padding: 10px 10px 12px;
+    background: var(--raised); border: 1px solid transparent; border-radius: 16px;
+    font: inherit; font-size: 15px; font-weight: 600; color: var(--text); text-align: left; cursor: pointer;
+    transition: border-color .15s;
   }
-  .shot img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #fff; border-radius: 6px; }
-  .shot small { color: var(--text-3); font-size: 13px; }
-  .shot[aria-pressed="true"] { border-color: var(--accent); }
-  .shot .icon {
-    width: 100%; aspect-ratio: 4 / 3; display: grid; place-items: center; border-radius: 6px;
-    background: var(--surface-2); color: var(--text-2);
+  .shot:hover { border-color: var(--line); }
+  .shot[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .shot img, .shot .icon {
+    width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #fff; border-radius: 10px; margin-bottom: 8px;
   }
-  .shot .icon svg { width: 32px; height: 32px; }
+  .shot .icon { display: grid; place-items: center; color: var(--muted); }
+  .shot .icon svg { width: 30px; height: 30px; }
+  .shot small { color: var(--muted); font-size: 13px; font-weight: 400; line-height: 1.4; }
   .shot input { display: none; }
   #cam-error { color: var(--accent); font-size: 14px; margin-top: 10px; min-height: 1.5em; }
 
-  .try { margin: 48px 0 0; }
-  .try ol { margin: 0; padding-left: 22px; color: var(--text-2); max-width: 64ch; }
-  .try li { margin-bottom: 8px; }
+  /* ---- things to try */
+  .try { margin: 40px 0 0; }
+  .try ol { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 12px; counter-reset: step; }
+  .try li { display: grid; grid-template-columns: 28px 1fr; gap: 14px; align-items: baseline; color: var(--muted); font-size: 16px; }
+  .try li::before {
+    counter-increment: step; content: counter(step); width: 28px; height: 28px; border-radius: 50%;
+    display: grid; place-items: center; font-size: 14px; font-weight: 600; background: var(--raised); color: var(--muted);
+  }
   .try b { color: var(--text); font-weight: 600; }
 
+  footer { border-top: 1px solid var(--line); margin-top: 88px; padding: 32px 0 48px; color: var(--faint); font-size: 14px; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+  footer a:hover { color: var(--text); }
+
+  @media (max-width: 1000px) {
+    .sim { gap: 40px; }
+    .device { --w: 270px; }
+    .shots { grid-template-columns: repeat(2, 1fr); }
+  }
+  /* Phones: the screen first, then small tiles right under it, so both fit while scanning. */
   @media (max-width: 720px) {
-    body { padding: 32px 16px 56px; }
-    h1 { font-size: 32px; }
-    .sim { grid-template-columns: 1fr; gap: 32px; }
-    .device { margin: 0 auto; padding: 16px 12px 22px; border-radius: 22px; }
-    canvas { width: min(240px * 1.5, calc(100vw - 56px)); height: auto; aspect-ratio: 3 / 4; }
+    .sim { grid-template-columns: 1fr; gap: 28px; padding-top: 32px; }
+    .device { --w: min(300px, calc(100vw - 96px)); }
+    .shots { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .shot { padding: 6px 6px 8px; font-size: 13px; border-radius: 12px; }
+    .shot img, .shot .icon { border-radius: 8px; margin-bottom: 4px; }
+    .shot small { display: none; }
+    nav a.link.wide { display: none; }
   }
 </style>
 </head>
 <body>
-<main>
-  <h1>Try Hermitkey in your browser</h1>
-  <p>This is the device's own firmware, built for the browser instead of the board: the same
-    screens, the same signing code. Tap the screen to use it. Instead of a camera, pick what
-    it should see from the pictures on the right, use your webcam, or open a picture.</p>
 
-  <div class="note" role="note">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l10 18H2L12 3z"/><path d="M12 10v5m0 3v.01"/></svg>
-    <p><b>Demo only.</b> A browser tab is not a stateless device. Use the test seed here;
-      never type or scan a seed that holds real funds.</p>
+<header class="wrap">
+  <nav>
+    <a class="brand" href="../">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 94 54" aria-hidden="true">
+        <rect x="20" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="30" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="10" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="10" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="60" y="10" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="80" y="10" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="0" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="60" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="70" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="30" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="30" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="60" y="30" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="80" y="30" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="20" y="40" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="30" y="40" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="40" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="40" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="10" y="10" width="29" height="29" rx="3" fill="#14222B"/>
+        <rect x="15" y="15" width="19" height="19" rx="1.5" fill="#FFFFFF"/>
+        <rect x="20" y="20" width="9" height="9" rx="1" fill="#14222B"/>
+      </svg>
+      goldfish
+    </a>
+    <a class="link wide" href="../#how">How it works</a>
+    <a class="link wide" href="../#build">Build one</a>
+    <a class="link" href="https://github.com/reneaaron/goldfish" aria-label="GitHub">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49l-.01-1.9c-2.78.62-3.37-1.21-3.37-1.21-.46-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.9 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05A9.36 9.36 0 0 1 12 6.96c.85 0 1.71.12 2.51.34 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9l-.01 2.82c0 .27.18.59.69.49A10.03 10.03 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/></svg>
+    </a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <div class="intro">
+    <h1>Try Goldfish in your browser</h1>
+    <p class="lede">This is the device's own firmware, built for the browser instead of the
+      board: the same screens and the same signing code. Tap the screen to use it. In place
+      of the camera, pick what it sees: a test picture, your webcam, or a picture of your own.</p>
+    <p class="note"><b>Demo only</b><span>A browser tab is not a device that forgets. Use the
+      test seed here; never type or scan a seed that holds real funds.</span></p>
   </div>
 
   <div class="sim">
-    <figure class="device">
-      <canvas id="screen" width="240" height="320" aria-label="Device screen"></canvas>
-      <figcaption id="status">Loading…</figcaption>
-      <button class="restart" id="restart" type="button">Start again</button>
-    </figure>
+    <div class="stage">
+      <div class="device"><div class="glass">
+        <canvas id="screen" width="240" height="320" aria-label="The device's screen"></canvas>
+      </div></div>
+      <p class="hint" id="status">Loading the firmware…</p>
+      <button class="restart" id="restart" type="button">Plug it back in</button>
+    </div>
 
-    <section class="camera" aria-labelledby="cam-title">
-      <h2 id="cam-title">What the camera sees</h2>
-      <p>Used whenever a scan screen is open.</p>
-      <ul class="shots">
-        <li><button class="shot" type="button" aria-pressed="false" data-src="samples/testseed_height_demise_standard_12word.png">
-          <img src="samples/testseed_height_demise_standard_12word.png" alt="">
-          Test seed <small>12-word SeedQR</small></button></li>
-        <li><button class="shot" type="button" aria-pressed="false" data-src="samples/mainpsbt_height_demise_base64.png">
-          <img src="samples/mainpsbt_height_demise_base64.png" alt="">
-          Transaction to sign <small>For the test seed, a made-up coin</small></button></li>
-        <li><button class="shot" type="button" aria-pressed="false" data-src="samples/testpsbt_height_demise_base64.png">
-          <img src="samples/testpsbt_height_demise_base64.png" alt="">
-          Same, on testnet <small>For the test seed</small></button></li>
-        <li><button class="shot" type="button" aria-pressed="false" data-src="samples/handwritten_page.png">
-          <img src="samples/handwritten_page.png" alt="">
-          Handwritten backup <small>24 made-up words, for Scan words</small></button></li>
-        <li><button class="shot" type="button" aria-pressed="false" id="webcam">
-          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
-          Webcam <small>Show it a QR, e.g. from Sparrow</small></button></li>
-        <li><label class="shot" id="file-label" aria-pressed="false">
-          <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v4h16v-4M12 4v12m0-12l-4.5 4.5M12 4l4.5 4.5"/></svg></span>
-          Open a picture <small>Stays in this tab</small>
-          <input type="file" id="file" accept="image/*"></label></li>
-      </ul>
-      <div id="cam-error" role="status"></div>
-    </section>
+    <div>
+      <section class="camera" aria-labelledby="cam-title">
+        <h2 id="cam-title">What the camera sees</h2>
+        <p>Used whenever a scan screen is open.</p>
+        <ul class="shots">
+          <li><button class="shot" type="button" aria-pressed="false" data-src="samples/testseed_height_demise_standard_12word.png">
+            <img src="samples/testseed_height_demise_standard_12word.png" alt="">
+            Test seed <small>12-word SeedQR</small></button></li>
+          <li><button class="shot" type="button" aria-pressed="false" data-src="samples/mainpsbt_height_demise_base64.png">
+            <img src="samples/mainpsbt_height_demise_base64.png" alt="">
+            Transaction <small>For the test seed, spends a made-up coin</small></button></li>
+          <li><button class="shot" type="button" aria-pressed="false" data-src="samples/testpsbt_height_demise_base64.png">
+            <img src="samples/testpsbt_height_demise_base64.png" alt="">
+            Same, on testnet <small>For the test seed</small></button></li>
+          <li><button class="shot" type="button" aria-pressed="false" data-src="samples/handwritten_page.png">
+            <img src="img/handwritten_page_thumb.jpg" alt="">
+            Handwritten backup <small>24 made-up words, for Scan words</small></button></li>
+          <li><button class="shot" type="button" aria-pressed="false" id="webcam">
+            <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+            Webcam <small>Show it a QR from your wallet app</small></button></li>
+          <li><label class="shot" id="file-label" aria-pressed="false">
+            <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v4h16v-4M12 4v12m0-12l-4.5 4.5M12 4l4.5 4.5"/></svg></span>
+            Open a picture <small>It stays in this tab</small>
+            <input type="file" id="file" accept="image/*"></label></li>
+        </ul>
+        <div id="cam-error" role="status"></div>
+      </section>
+
+      <section class="try" aria-labelledby="try-title">
+        <h2 id="try-title">Things to try</h2>
+        <ol>
+          <li><span>Tap <b>Scan QR</b> and pick <b>Test seed</b>. The device shows the seed's fingerprint.</span></li>
+          <li><span>Tap <b>Scan QR</b> again and pick <b>Transaction</b>. Check the amounts and
+            addresses, slide to sign, and the signed transaction comes out as a QR.</span></li>
+          <li><span>Under <b>Wallet options</b>, show the xpub for a watch-only wallet.</span></li>
+          <li><span>Start over and <b>Create new seed</b> from dice or coin flips, or <b>Enter words</b>
+            and scan the <b>Handwritten backup</b> with the camera button.</span></li>
+        </ol>
+      </section>
+    </div>
   </div>
-
-  <section class="try">
-    <h2>Things to try</h2>
-    <ol>
-      <li>Tap <b>Scan QR</b> and pick <b>Test seed</b>. The device shows the seed's fingerprint.</li>
-      <li>Tap <b>Scan QR</b> again and pick <b>Transaction to sign</b>. Check the amounts and
-        addresses, swipe to sign, and the device shows the signed transaction as a QR.</li>
-      <li>Under <b>Wallet options</b>, show the xpub for a watch-only wallet.</li>
-      <li>Wipe it, then <b>Create new seed</b> from dice rolls or coin flips, or <b>Enter words</b> and
-        scan the <b>Handwritten backup</b>.</li>
-    </ol>
-    <p>Nothing leaves this page: it makes no requests after loading, and the seed is gone when
-      you close the tab. The <a href="https://github.com/reneaaron/stateless-signer">firmware's source</a>
-      says what the device does.</p>
-  </section>
 </main>
+
+<footer>
+  <div class="wrap">
+    <span>Nothing you do here leaves this tab. Close it and the seed is gone.</span>
+    <span><a href="../">Goldfish</a> · <a href="https://github.com/reneaaron/goldfish">GitHub</a></span>
+  </div>
+</footer>
 
 <script src="signer.js"></script>
 <script>
@@ -278,8 +375,8 @@
     },
   };
   Signer(M).then(() => {
-    status.textContent = 'Tap the screen';
-  }).catch(() => { status.textContent = 'This browser could not start the simulator.'; });
+    status.textContent = 'Tap the screen to use it';
+  }).catch(() => { status.textContent = 'This browser could not start the firmware.'; });
 })();
 </script>
 </body>

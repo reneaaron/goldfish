@@ -136,6 +136,8 @@
   .stage.off .device::after { opacity: 1; }
   .stage.off .cable { translate: 0 46px; opacity: .45; }
   .hint { color: var(--faint); font-size: 14px; margin-top: 4px; min-height: 1.5em; }
+  .tryit { color: var(--muted); margin-top: 40px; }
+  .tryit a { color: var(--accent); font-weight: 600; text-underline-offset: 3px; }
 
   /* ---- three facts */
   .facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; margin-top: 48px; }
@@ -266,6 +268,7 @@
     </a>
     <div class="more">
       <a href="#how">How it works</a>
+      <a href="try/">Try it in your browser</a>
       <a href="flasher/">Flash the firmware</a>
       <a href="https://github.com/reneaaron/goldfish">Source on GitHub</a>
     </div>
@@ -298,6 +301,7 @@
           <p class="hint" id="hint">Tap the device for the next step</p>
         </div>
       </div>
+      <p class="tryit">Those were screenshots. <a href="try/">Run the real firmware in your browser →</a></p>
     </div>
   </section>
 

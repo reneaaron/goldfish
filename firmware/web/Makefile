@@ -1,4 +1,5 @@
-# Browser simulator: src/app + src/web compiled to WebAssembly with Emscripten.
+# Browser simulator: src/app + src/web compiled to WebAssembly with Emscripten,
+# with the page around it (try/).
 #
 #   pio pkg install -e sim          # once: fetches LVGL and libwally into .pio/libdeps/sim
 #   make -C web -j                  # -> .pio/build/web/{index.html,signer.js,signer.wasm,samples/}
@@ -34,12 +35,16 @@ LDFLAGS := $(OPT) -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=16MB -sSTACK_SIZE=1MB
            -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU16 -sFILESYSTEM=0
 
 .PHONY: all clean
-all: $(OUT)/signer.js $(OUT)/index.html samples
+all: $(OUT)/signer.js $(OUT)/index.html $(OUT)/img/handwritten_page_thumb.jpg samples
 
 $(OUT)/signer.js: $(OBJS)
 	$(CXX) $(LDFLAGS) $^ -o $@
 
 $(OUT)/index.html: $(FW)/../try/index.html
+	@mkdir -p $(@D)
+	cp $< $@
+
+$(OUT)/img/%: $(FW)/../try/img/%
 	@mkdir -p $(@D)
 	cp $< $@
 
