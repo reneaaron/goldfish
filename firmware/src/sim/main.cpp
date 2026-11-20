@@ -499,7 +499,7 @@ static int run_shots(const char *dir) {
     ui_goto(UI_SCAN_PAGE);
     pump(300); save(dir, "51_scan_page");
     if (!ui_page_read()) { fprintf(stderr, "no page picture\n"); return 1; }
-    for (int i = 0; i < 400 && ui_current() == UI_PAGE_READING; i++) pump(20);
+    for (int i = 0; i < 400 && ui_current() == UI_SCAN_PAGE; i++) pump(20);   // hold still: the words, then the sharp picture
     pump(300); save(dir, "51b_page_found");
     if (!ui_page_found_read()) { fprintf(stderr, "no words found (screen %d)\n", ui_current()); return 1; }
     for (int i = 0; i < 400 && ui_current() == UI_PAGE_READING; i++) {
