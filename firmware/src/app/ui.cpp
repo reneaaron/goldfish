@@ -112,9 +112,10 @@ static void build_home() {
     lv_obj_t *scr = screen();
     lv_obj_t *logo = lv_image_create(scr);
     lv_image_set_src(logo, &goldfish_logo);
-    lv_obj_align(logo, LV_ALIGN_TOP_MID, 0, 18);
-    lv_obj_align(text(scr, "goldfish", &rethink_32, TEXT), LV_ALIGN_TOP_MID, 0, 76);
-    lv_obj_align(para(scr, "Sign and forget."), LV_ALIGN_TOP_MID, 0, 116);
+    // Logo, name and tagline (about 116px tall) centred in the 176px above Enter words.
+    lv_obj_align(logo, LV_ALIGN_TOP_MID, 0, 30);
+    lv_obj_align(text(scr, "goldfish", &rethink_32, TEXT), LV_ALIGN_TOP_MID, 0, 88);
+    lv_obj_align(para(scr, "Sign and forget."), LV_ALIGN_TOP_MID, 0, 128);
     // Which build this is, to compare with the one the flasher offers.
     // Tapping it opens Update firmware: the case has no BOOT button.
     lv_obj_t *ver = text(scr, FW_VERSION, &inter_13, TEXT_3);
