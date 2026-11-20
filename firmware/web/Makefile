@@ -20,7 +20,7 @@ CXX     := em++
 OPT     := -O2
 DEFS    := -DLV_CONF_INCLUDE_SIMPLE -DWALLY_ABI_NO_ELEMENTS
 INCS    := -I$(FW)/include -I$(LVGL) -I$(WALLY)/include -I$(FW)/lib/quirc/src
-CFLAGS  := $(OPT) $(DEFS) $(INCS)
+CFLAGS  := $(OPT) $(DEFS) $(INCS) -MMD -MP   # -MMD: a header change rebuilds what includes it
 
 APP_SRC   := $(wildcard $(FW)/src/app/*.cpp $(FW)/src/app/fonts/*.c $(FW)/src/app/images/*.c) $(FW)/src/web/main.cpp
 LVGL_SRC  := $(shell find $(LVGL)/src -name '*.c')
@@ -81,6 +81,8 @@ $(OBJ)/lib/wally/%.c.o: $(FW)/lib/wally/%.c
 $(OBJ)/deps/%.c.o: $(DEPS)/%.c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+-include $(OBJS:.o=.d)
 
 clean:
 	rm -rf $(OUT)

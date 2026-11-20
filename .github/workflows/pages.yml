@@ -16,7 +16,7 @@ on:
   push:
     tags: ['v*']
     branches: [main]
-    paths: ['landing/**', 'flasher/**', 'cards/**', 'try/**', 'firmware/src/**', 'firmware/web/**', 'firmware/include/**', 'firmware/lib/**', 'firmware/sim/samples/**', 'firmware/docs/screens/**', 'marketing/renders/out/**', '.github/workflows/pages.yml']
+    paths: ['landing/**', 'flasher/**', 'cards/**', 'try/**', 'firmware/src/**', 'firmware/web/**', 'firmware/platformio.ini', 'firmware/include/**', 'firmware/lib/**', 'firmware/sim/samples/**', 'firmware/docs/screens/**', 'marketing/renders/out/**', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 concurrency:

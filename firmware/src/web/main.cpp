@@ -140,7 +140,10 @@ EMSCRIPTEN_KEEPALIVE void web_touch(int x, int y, int down) {
         touches[(touch_head + touch_count - 1) % 64] = t;
         return;
     }
-    if (touch_count == 64) return;
+    if (touch_count == 64) {   // full: keep the newest state, so a release is never lost
+        touches[(touch_head + 63) % 64] = t;
+        return;
+    }
     touches[(touch_head + touch_count++) % 64] = t;
 }
 }
