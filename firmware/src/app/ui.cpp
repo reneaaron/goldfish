@@ -1330,6 +1330,43 @@ static void build_enter_words() {
 
 
 // ---------------------------------------------------------------- written page screens
+// A box over word candidate i on the photo under the top bar (amber: a gap
+// where a word should be). Shared styles: a page can have 160 boxes, each a bare object.
+static lv_style_t box_style, gap_style;
+static lv_obj_t *word_box(lv_obj_t *scr, int i) {
+    static bool styled;
+    if (!styled) {
+        lv_style_init(&box_style);
+        lv_style_set_border_width(&box_style, 1);
+        lv_style_set_border_color(&box_style, ACCENT);
+        lv_style_set_bg_opa(&box_style, LV_OPA_TRANSP);
+        lv_style_init(&gap_style);
+        lv_style_set_border_color(&gap_style, AMBER);
+        styled = true;
+    }
+    float xy[8], x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;
+    page_corners(&page, cands[i].piece, xy);
+    for (int k = 0; k < 4; k++) {
+        x0 = fminf(x0, xy[2 * k]); x1 = fmaxf(x1, xy[2 * k]);
+        y0 = fminf(y0, xy[2 * k + 1]); y1 = fmaxf(y1, xy[2 * k + 1]);
+    }
+    int bx = int(x0 * PREV_W / page_w) - 1, by = int(y0 * PREV_H / page_h) - 1;
+    lv_obj_t *o = lv_obj_create(scr);
+    lv_obj_remove_style_all(o);
+    lv_obj_add_style(o, &box_style, 0);
+    if (page.words[cands[i].piece].guessed) lv_obj_add_style(o, &gap_style, 0);
+    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_pos(o, bx, BAR + by);
+    lv_obj_set_size(o, int(x1 * PREV_W / page_w) + 2 - bx, int(y1 * PREV_H / page_h) + 2 - by);
+    return o;
+}
+
+// Taking the picture on Scan words: the frozen photo dimmed under an accent
+// frame, so it reads as taken, not hung; then each word found boxed, grey
+// until its sharper strip is cut, accent once it is (a gap stays amber): the
+// only motion while the camera holds the screen.
+static lv_obj_t *page_boxes[PAGE_MAX_WORDS];
+
 bool ui_page_read() {
     int w, h;
     uint8_t *g = platform_camera_still(&w, &h, &page_room);
@@ -1341,7 +1378,17 @@ bool ui_page_read() {
     ncands = 0;
     read_i = 0;
     lv_obj_add_flag(page_read_btn, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_t *taken = lv_obj_create(lv_obj_get_screen(preview_img));   // Scan words, even mid fade-in
+    lv_obj_remove_style_all(taken);
+    lv_obj_remove_flag(taken, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_pos(taken, 0, BAR);
+    lv_obj_set_size(taken, PREV_W, PREV_H);
+    lv_obj_set_style_bg_color(taken, BG, 0);
+    lv_obj_set_style_bg_opa(taken, LV_OPA_40, 0);
+    lv_obj_set_style_border_color(taken, ACCENT, 0);
+    lv_obj_set_style_border_width(taken, 2, 0);
     scan_status("Hold still", "Taking the picture" "\xE2\x80\xA6", TEXT);
+    lv_refr_now(nullptr);   // before the first slow step, or the tap seems to do nothing
     page_step = PAGE_FIND;   // finding the words is the timer's first step, not this tap's:
                              // slow work inside a tap leaves LVGL waiting for a release, and it ate the next tap
     if (page_timer) lv_timer_delete(page_timer);
@@ -1416,6 +1463,7 @@ static bool page_band() {
         page_band_shift(preview_buf, PREV_W, PREV_H, band_buf, b0, band_rows, CAM_ZOOM, &page, c.piece, &dx, &dy);
         page_store(c.piece, page_strip_band(band_buf, b0, band_rows, CAM_ZOOM, dx, dy, &page, c.piece, page_strip_buf));
         c.cut = true;
+        if (!page.words[c.piece].guessed) lv_obj_set_style_border_color(page_boxes[i], ACCENT, 0);
     }
     return true;
 }
@@ -1549,8 +1597,14 @@ static void page_tick(lv_timer_t *t) {
             for (int x = 0; x < PREV_W; x++)
                 preview_buf[y * PREV_W + x] = page_still[(y * page_h / PREV_H) * page_w + x * page_w / PREV_W];
         lv_obj_invalidate(preview_img);   // the still, frozen on Scan words
-        if (page_find_words()) page_step = PAGE_BANDS;   // the sharp picture right away, while the user holds still
-        else { platform_camera_stop(); ui_goto(UI_PAGE_FOUND); }   // nothing found: the photo, to see why
+        if (page_find_words()) {
+            page_step = PAGE_BANDS;   // the sharp picture right away, while the user holds still
+            for (int i = 0; i < ncands; i++) {
+                page_boxes[i] = word_box(lv_obj_get_screen(preview_img), i);
+                if (!page.words[cands[i].piece].guessed) lv_obj_set_style_border_color(page_boxes[i], TEXT_3, 0);
+            }
+            lv_refr_now(nullptr);   // each band holds the screen: show the boxes first
+        } else { platform_camera_stop(); ui_goto(UI_PAGE_FOUND); }   // nothing found: the photo, to see why
         return;
     }
     if (page_step == PAGE_BANDS) {
@@ -1564,7 +1618,7 @@ static void page_tick(lv_timer_t *t) {
         }
         int cut = 0;
         for (int i = 0; i < ncands; i++) cut += cands[i].cut;
-        if (cut < ncands) return;
+        if (cut < ncands) { lv_refr_now(nullptr); return; }
         platform_camera_stop();   // the still stays: it's the strips' store now
         secure_zero(band_buf, (size_t)band_rows * page_w * CAM_ZOOM);
         free(band_buf);
@@ -1622,33 +1676,7 @@ static void build_page_found() {
     lv_obj_t *scr = screen();
     topbar(scr, page_err ? "No picture" : ncands ? "Words found" : "No words found", page_reading_back_cb);
     preview_image(scr);   // filled when the words were found
-    static lv_style_t box, gap;
-    static bool styled;
-    if (!styled) {   // shared styles: a page can have 160 boxes, each a bare object
-        lv_style_init(&box);
-        lv_style_set_border_width(&box, 1);
-        lv_style_set_border_color(&box, ACCENT);
-        lv_style_set_bg_opa(&box, LV_OPA_TRANSP);
-        lv_style_init(&gap);
-        lv_style_set_border_color(&gap, AMBER);
-        styled = true;
-    }
-    for (int i = 0; i < ncands; i++) {
-        float xy[8], x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;
-        page_corners(&page, cands[i].piece, xy);
-        for (int k = 0; k < 4; k++) {
-            x0 = fminf(x0, xy[2 * k]); x1 = fmaxf(x1, xy[2 * k]);
-            y0 = fminf(y0, xy[2 * k + 1]); y1 = fmaxf(y1, xy[2 * k + 1]);
-        }
-        int bx = int(x0 * PREV_W / page_w) - 1, by = int(y0 * PREV_H / page_h) - 1;
-        lv_obj_t *o = lv_obj_create(scr);
-        lv_obj_remove_style_all(o);
-        lv_obj_add_style(o, &box, 0);
-        if (page.words[cands[i].piece].guessed) lv_obj_add_style(o, &gap, 0);
-        lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_pos(o, bx, BAR + by);
-        lv_obj_set_size(o, int(x1 * PREV_W / page_w) + 2 - bx, int(y1 * PREV_H / page_h) + 2 - by);
-    }
+    for (int i = 0; i < ncands; i++) word_box(scr, i);
     lv_obj_t *msg = text(scr, "", &inter_13, ncands && !page_err ? TEXT_2 : AMBER, LV_TEXT_ALIGN_CENTER);
     if (page_err) lv_label_set_text(msg, page_err);
     else if (ncands) lv_label_set_text_fmt(msg, "%d found: one box per word?", ncands);
