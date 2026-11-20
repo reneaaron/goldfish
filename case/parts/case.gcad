@@ -1,6 +1,6 @@
 let gw=37.1 gh=58.8 gr=2.6 glass=1.1 clr=0.3 t=1.6 dep=7.2 pcb=1.6 hdr=9.2
 let ow=gw oh=gh orr=gr top=-glass zb=-(dep+hdr+t) ht=top-zb
-let bx=14.5 by=21.1 oy=-0.3 so=glass+8.9 lift=0.4 deep=0.5 sock=3.36 sr=sock/2 rw=0.45 camx=0 camy=35.1-25.7-8.5/2-1 lens=6.8
+let bx=14.5 by=21.1 oy=-0.3 so=glass+8.9 lift=0.4 deep=0.5 sock=3.36 sr=sock/2 rw=0.45 camx=0 camy=4.5 lens=6.8 camw=9 rib=0.25
 let usbw=13.6 usbz=-(dep+1.63) usbb=usbz-4.1 usbt=-(dep-2.9) pd=oh/2-t-25.7 ptop=-(dep-1.45) pw=usbw+0.8
 plane XY offset=zb
 rect ow oh r=orr
@@ -28,6 +28,16 @@ rect rw 0.6 at=-bx-sr-rw/2,-by+oy
 rect 0.6 rw at=-bx,-by+oy+sr+rw/2
 rect 0.6 rw at=-bx,-by+oy-sr-rw/2
 sockets: extrude so+deep-dep-lift
+plane XY offset=zb+t
+rect camw+2 camw+2 at=camx,camy r=1
+rect camw camw at=camx,camy r=0.3
+camframe: extrude 2
+plane XY offset=zb+t
+rect 0.6 rib+0.2 at=camx,camy+camw/2-0.05
+rect 0.6 rib+0.2 at=camx,camy-camw/2+0.05
+rect rib+0.2 0.6 at=camx+camw/2-0.05,camy
+rect rib+0.2 0.6 at=camx-camw/2+0.05,camy
+ribs: extrude 2
 plane case.start
 lens: hole lens camx,-camy csink=lens+2*t-0.4,90
 plane XY offset=top

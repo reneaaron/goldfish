@@ -67,12 +67,12 @@ OV5640 module, 21 mm type, from the module's outline drawing: base
 The module is glued to the back of the board, on the TF card slot, so the
 board sets where it is, not the case. Measured on an assembled board: centred
 side to side (`camx`), its far edge 35.1 mm from the front of the USB-C
-socket, and the front of the lens 15.05 mm behind the glass. A test print
-showed the lens 1 mm further toward the USB end than that measurement, so
-`camy` takes 1 mm off it. That
-leaves the lens 1.35 mm above the case floor, looking through a 6.8 mm hole
+socket, and the front of the lens 15.05 mm behind the glass. Along the
+length, a print with the camera 5.5 mm from the centre showed the lens 1 mm
+toward the USB end, so `camy` is 4.5. That leaves the lens 1.35 mm above the case floor, looking through a 6.8 mm hole
 (`lens`) countersunk to 9.6 mm on the outside so the floor stays out of the
-picture.
+picture. A square frame on the floor (`camw`, with crush ribs `rib`)
+still surrounds the lens.
 
 Not checked: that the module in the Waveshare -C bundle (flex marked
 `DC-5M21-5640`) matches this drawing.

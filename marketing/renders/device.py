@@ -27,7 +27,7 @@ os.makedirs(OUT, exist_ok=True)
 ZB, ZT = -1.80, 0.0                # case bottom / top of the glass (cm)
 GW, GH, GR, GT, GE = 3.71, 5.88, 0.26, 0.11, 0.10  # cover glass on the case rim, top edge radius
 SW, SH, SCY = 3.10, 4.12, 0.139    # active display (240x320), centre y
-CAMY, LENSZ = 0.415, -1.505        # lens centre y, front of the lens
+CAMY, LENSZ = 0.45, -1.505         # lens centre y, front of the lens
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
