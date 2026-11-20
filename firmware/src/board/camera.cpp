@@ -58,7 +58,10 @@ static const uint16_t init_regs[][2] = {
     {0x3800, 0x01}, {0x3801, 0x60}, {0x3802, 0x00}, {0x3803, 0x1a},
     {0x3804, 0x07}, {0x3805, 0x00}, {0x3806, 0x07}, {0x3807, 0x9a},
     {0x3808, CAM_W >> 8}, {0x3809, CAM_W & 0xff}, {0x380a, CAM_H >> 8}, {0x380b, CAM_H & 0xff},
-    {0x380c, 0x0a}, {0x380d, 0x20}, {0x380e, 0x07}, {0x380f, 0x98},
+    // HTS 1896, VTS 984: the 1920 rows, skipped 2:1, are 960 lines. Linux's
+    // ov5640.c subsampled DVP modes and OmniVision's app note use the same.
+    // Waveshare had the full-size 2592x1944: 122ms frames, 8fps; this is 45ms, 22fps.
+    {0x380c, 0x07}, {0x380d, 0x68}, {0x380e, 0x03}, {0x380f, 0xd8},
     {0x3810, 0x00}, {0x3811, 0x10}, {0x3812, 0x00}, {0x3813, 0x0e}, {DELAY, 50},
     // Binning
     {0x3820, 0x01}, {0x3821, 0x00},  // no sensor flip: 0x07 gave black frames, flip_rows() does it instead
@@ -67,12 +70,15 @@ static const uint16_t init_regs[][2] = {
     // PLL for the 37.5MHz XCLK: about 20MHz PCLK
     {0x3039, 0x00}, {0x3034, 0x1a}, {0x3035, 0x11}, {0x3036, 0x0b}, {0x3037, 0x01}, {0x3108, 0x16},
     {0x3824, 0x04}, {0x460c, 0x22}, {0x3103, 0x13}, {DELAY, 50},
+    // Banding filter for this line time (SCLK 41.25MHz / HTS 1896 = 46us), as
+    // ov5640_set_bandingfilter: 50Hz step 217 lines (10ms), 60Hz 180, and
+    // (VTS - 4) / step of them at most. Waveshare's 295/246 were for other clocks.
+    {0x3a08, 0x00}, {0x3a09, 0xd9}, {0x3a0a, 0x00}, {0x3a0b, 0xb4}, {0x3a0e, 0x04}, {0x3a0d, 0x05},
     // Short shutter for animated QRs (Sparrow shows a new one every 200ms):
-    // auto exposure may use at most one 50Hz band step, 295 lines (0x3a08/09)
-    // or 10ms, not the 984 lines (33ms) above, and makes up the rest with gain
-    // (up to 15.5x, 0x3a18/19). Not shorter: paper in room light needs the
-    // light, and below one band step mains flicker stripes the picture.
-    {0x3a02, 0x01}, {0x3a03, 0x27}, {0x3a14, 0x01}, {0x3a15, 0x27},
+    // auto exposure may use at most one 50Hz step, 10ms, and makes up the
+    // rest with gain (up to 15.5x, 0x3a18/19). Not shorter: paper in room
+    // light needs the light, and below one step mains flicker stripes it.
+    {0x3a02, 0x00}, {0x3a03, 0xd9}, {0x3a14, 0x00}, {0x3a15, 0xd9},
     // Output format Y8: one byte per pixel (Waveshare uses RGB565: 0x501f=0x01, 0x4300=0x61)
     {0x501f, 0x00}, {0x4300, 0x10}, {DELAY, 50},
 };
