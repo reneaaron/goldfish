@@ -21,6 +21,10 @@ ONLY=1,3 SAMPLES=64 PCT=50 blender -b -P marketing/renders/render.py    # quick 
 | `out/04_edge.png` | USB-C tunnel |
 | `out/05_wallet_topdown.png` | Wallet menu |
 | `out/06_lineup.png` | Four devices: start, new seed, wallet menu, connect wallet |
+| `out/07_hero_home.png` | Start screen, whole device (README hero) |
+| `out/08_slide_to_sign.png` | Confirm and slide to sign |
+| `out/09_new_seed_dice.png` | New seed from dice rolls |
+| `out/14_sign_flow.png` | Three devices: ready to sign, slide to sign, signed QR |
 
 ### Lifestyle scenes
 
