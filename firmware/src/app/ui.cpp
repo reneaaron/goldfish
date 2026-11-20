@@ -67,8 +67,7 @@ static lv_obj_t *scroll_area(lv_obj_t *scr, int y) {
 }
 
 // Grey rounded card holding a QR code (the grey is the quiet zone). Not white:
-// the backlight is always full, and a white card on the dark screen
-// overexposes a webcam (Sparrow) until the modules bleed together.
+// a white card overexposes a webcam (Sparrow) until the modules bleed together.
 constexpr int QR_CARD = 168;
 static const lv_color_t QR_LIGHT = lv_color_hex(0xA0A0A0);
 // Backlight while a QR is on screen: at full a webcam overexposes the panel.
