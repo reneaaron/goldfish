@@ -442,42 +442,52 @@ static lv_obj_t *quiet_link(lv_obj_t *parent, const char *s, lv_event_cb_t cb, v
     return b;
 }
 
-// Home once a seed is loaded, with the same shape as Home before one: who it
-// is on top (the fingerprint to check against the wallet app), the everyday
-// action as the primary button at the bottom, everything else one step away.
+// Home once a seed is loaded, with the same shape as Home before one: the
+// logo and a title on top, the fingerprint to check against the wallet app,
+// the everyday action as the primary button at the bottom, everything else
+// one step away.
 static void build_wallet() {
     lv_obj_t *scr = screen();
     bool pass = wallet_has_passphrase();
     const MsInfo *ms = multisig_info();   // a multisig wallet is loaded for this seed
-    lv_obj_align(icon_badge(scr, ICON_KEY, ACCENT, ACCENT_DIM, 44), LV_ALIGN_TOP_MID, 0, 12);
-    lv_obj_align(caption(scr, "FINGERPRINT"), LV_ALIGN_TOP_MID, 0, 66);
+    const char *note = fresh_backup ? (pass ? "Backup checked. The card has no passphrase."
+                                            : "Backup checked. Write the fingerprint on your card.")
+                                    : nullptr;
+    fresh_backup = false;
+    // Chips and a backup note together don't fit under the logo: drop it.
+    int y = (pass || ms) && note ? -44 : 0;
+    if (!y) {
+        lv_obj_t *logo = lv_image_create(scr);
+        lv_image_set_src(logo, &hermitkey_56);
+        lv_obj_align(logo, LV_ALIGN_TOP_MID, 0, 12);
+    }
+    lv_obj_align(text(scr, "Ready to sign", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, y + 80);
     char fp[9], spaced[12];
     wallet_fingerprint_hex(fp);
     snprintf(spaced, sizeof(spaced), "%.4s %.4s", fp, fp + 4);
-    lv_obj_align(text(scr, spaced, &mono_26, TEXT), LV_ALIGN_TOP_MID, 0, 84);
+    lv_obj_align(fingerprint_pill(scr, spaced), LV_ALIGN_TOP_MID, 0, y + 118);
 
-    // What the fingerprint stands for, when it isn't just the seed.
-    int y = 124;
+    // What the fingerprint stands for, when it isn't just the seed; otherwise
+    // what happens to it.
+    y += 160;
     if (pass || ms) {
         lv_obj_t *row = lv_obj_create(scr);
         lv_obj_remove_style_all(row);
         lv_obj_set_size(row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
         lv_obj_set_style_pad_column(row, 6, 0);
+        if (pass) chip(row, ICON_SHIELD " PASSPHRASE", ACCENT, ACCENT_DIM);
         if (ms) {
-            char tag[16];
-            snprintf(tag, sizeof(tag), "%d OF %d", ms->m, ms->n);
+            char tag[24];
+            snprintf(tag, sizeof(tag), ICON_USERS " %d OF %d", ms->m, ms->n);
             chip(row, tag, ACCENT, ACCENT_DIM);
         }
-        if (pass) chip(row, "PASSPHRASE", ACCENT, ACCENT_DIM);
-        lv_obj_align(row, LV_ALIGN_TOP_MID, 0, y);
-        y += 30;
+        lv_obj_align(row, LV_ALIGN_TOP_MID, 0, y - 4);
+        y += 28;
+    } else if (!note) {
+        note = "Forgotten when you unplug.";
     }
-    const char *note = fresh_backup ? (pass ? "Backup checked. The card has no passphrase."
-                                            : "Backup checked. Write the fingerprint on your card.")
-                                    : "Check it matches the fingerprint in your wallet app.";
-    fresh_backup = false;
-    lv_obj_align(para(scr, note, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, y);
+    if (note) lv_obj_align(para(scr, note, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, y);
 
     lv_obj_t *opts = btn_ghost(scr, ICON_WALLET "   Wallet options", go_cb, GO(UI_WALLET_OPTIONS), TEXT);
     lv_obj_set_height(opts, 48);
@@ -722,11 +732,12 @@ static void build_export_xpub() {
         lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 2);
         lv_obj_add_flag(c, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(c, key_details_cb, LV_EVENT_CLICKED, nullptr);
-        lv_obj_t *cap = caption(c, "FINGERPRINT  \xC2\xB7  PATH");
-        lv_obj_align(cap, LV_ALIGN_TOP_LEFT, 0, 0);
-        char line[64];
-        snprintf(line, sizeof(line), "%.4s %.4s  \xC2\xB7  %s", fp, fp + 4, path);
-        lv_obj_align(text(c, line, &inter_15, TEXT, LV_TEXT_ALIGN_LEFT), LV_ALIGN_TOP_LEFT, 0, 18);
+        // The fingerprint (its icon says what it is), then the path under it:
+        // side by side they don't fit a multisig path.
+        char line[24];
+        snprintf(line, sizeof(line), ICON_FINGERPRINT " %.4s %.4s", fp, fp + 4);
+        lv_obj_align(text(c, line, &inter_15, TEXT, LV_TEXT_ALIGN_LEFT), LV_ALIGN_TOP_LEFT, 0, 0);
+        lv_obj_align(text(c, path, &inter_15, TEXT_2, LV_TEXT_ALIGN_LEFT), LV_ALIGN_TOP_LEFT, 0, 20);
         lv_obj_t *box = lv_obj_create(c);   // address_chunks puts its caption room at the top
         lv_obj_remove_style_all(box);
         lv_obj_set_size(box, lv_pct(100), LV_SIZE_CONTENT);
@@ -803,7 +814,7 @@ static void build_wipe_confirm() {
     lv_obj_align(text(scr, "Wipe seed?", &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, 126);
     char fp[9], msg[128];
     wallet_fingerprint_hex(fp);
-    snprintf(msg, sizeof(msg), "Removes %.4s %.4s until you load it again.", fp, fp + 4);
+    snprintf(msg, sizeof(msg), "Removes " ICON_FINGERPRINT " %.4s %.4s until you load it again.", fp, fp + 4);
     lv_obj_align(para(scr, msg), LV_ALIGN_TOP_MID, 0, 162);
     bottom_pair(btn_ghost(scr, "Cancel", go_cb, GO(UI_WALLET_OPTIONS), TEXT), btn_danger(scr, "Wipe", wipe_cb));
     show(scr);
@@ -2316,13 +2327,12 @@ static void build_seed_ready() {
     if (child_seed) snprintf(title, sizeof(title), "Child #%s %s", child_num, card_checked ? "checked" : "ready");
     else snprintf(title, sizeof(title), card_checked ? "Card checked" : "Seed ready");
     lv_obj_align(text(scr, title, &fraunces_24, TEXT), LV_ALIGN_TOP_MID, 0, 92);
-    lv_obj_align(caption(scr, "FINGERPRINT"), LV_ALIGN_TOP_MID, 0, 132);
-    lv_obj_t *fp = text(scr, "\xE2\x80\xA6", &mono_26, TEXT);
-    lv_obj_align(fp, LV_ALIGN_TOP_MID, 0, 150);
+    lv_obj_t *fp;
+    lv_obj_align(fingerprint_pill(scr, "\xE2\x80\xA6", &fp), LV_ALIGN_TOP_MID, 0, 136);
     char note[64];
     if (child_seed) snprintf(note, sizeof(note), "Write it and #%s on your backup. Load the child like any seed.", child_num);
     else snprintf(note, sizeof(note), "Write it on your backup.");
-    lv_obj_align(para(scr, note, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, 190);
+    lv_obj_align(para(scr, note, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, 180);
     place_bottom(btn_primary(scr, "Done", to_home_cb));
     show(scr);
     ready_timer = lv_timer_create(ready_tick, 200, fp);   // after the fade-in
@@ -2778,12 +2788,12 @@ static void build_multisig() {
     lv_obj_align(text(scr, "Check it against your wallet app", &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, BAR + 2);
 
     lv_obj_t *area = scroll_area(scr, BAR + 28);
-    static char keys[MS_MAX_KEYS][12], fps[MS_MAX_KEYS][12];
+    static char keys[MS_MAX_KEYS][20], fps[MS_MAX_KEYS][12];
     KvRow rows[MS_MAX_KEYS];
     for (int i = 0; i < ms->n; i++) {
         const uint8_t *f = ms->fingerprint[i];
-        if (i == ms->ours) snprintf(keys[i], sizeof(keys[i]), "This seed");
-        else snprintf(keys[i], sizeof(keys[i]), "Key %d", i + 1);
+        if (i == ms->ours) snprintf(keys[i], sizeof(keys[i]), ICON_FINGERPRINT "  This seed");
+        else snprintf(keys[i], sizeof(keys[i]), ICON_FINGERPRINT "  Key %d", i + 1);
         snprintf(fps[i], sizeof(fps[i]), "%02x%02x %02x%02x", f[0], f[1], f[2], f[3]);
         rows[i] = {keys[i], fps[i], i == ms->ours ? GREEN : TEXT, i > 0};
     }

@@ -22,9 +22,11 @@ words, or are made on the device. A BIP-39 passphrase can be added after loading
 The seed lives in RAM only: Wipe or unplugging removes it.
 
 1. Home: Scan QR, Enter words, or New seed
-2. Wallet: the home screen once a seed is loaded. It shows the fingerprint to
-   check against your wallet app (with a chip for a passphrase or a multisig
-   wallet), Scan QR for everyday use, and Wallet options for the rest:
+2. Wallet: the home screen once a seed is loaded, shaped like Home: the logo,
+   "Ready to sign", and the fingerprint to check against your wallet app (with
+   a chip for a passphrase or a multisig wallet). A fingerprint icon marks the
+   fingerprint on every screen that shows one. Scan QR for everyday use, and
+   Wallet options for the rest:
    Connect wallet and Back up as QR, then Passphrase, Child seed and Network,
    then Wipe seed on its own; the list scrolls
 3. Scan QR: one scanner for a transaction to sign, an address to verify, or a

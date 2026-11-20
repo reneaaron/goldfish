@@ -36,6 +36,8 @@ LV_IMAGE_DECLARE(crab_reading);  // "Reading words" mascot, from marketing/masco
 #define ICON_KEYBOARD     "\xEE\x8A\x84"   // keyboard
 #define ICON_DICE         "\xEE\x8B\x85"   // dices
 #define ICON_COINS        "\xEE\x82\x9B"   // coins
+#define ICON_FINGERPRINT  "\xEE\x8B\x8B"   // fingerprint
+#define ICON_USERS        "\xEE\x86\xA4"   // users
 #define ICON_SIGNER       "\xEE\x87\xBF"   // shield-check, icons_34 only: the home badge
 
 // icons_40 only: dice faces and the two sides of a coin
@@ -71,6 +73,8 @@ lv_obj_t *btn_ghost(lv_obj_t *parent, const char *s, lv_event_cb_t cb, void *ud 
                     lv_color_t c = TEXT_2);
 lv_obj_t *card(lv_obj_t *parent, int w, int h);
 lv_obj_t *chip(lv_obj_t *parent, const char *s, lv_color_t fg, lv_color_t bg);
+// A fingerprint ("0948 d268") with its icon, in a pill. *label: the text, to fill in later.
+lv_obj_t *fingerprint_pill(lv_obj_t *parent, const char *spaced, lv_obj_t **label = nullptr);
 lv_obj_t *icon_badge(lv_obj_t *parent, const char *icon, lv_color_t fg, lv_color_t bg, int size = 64);
 // "key ........ value" inside a CW-wide card, at row y (relative to the card's
 // content box). A long value shrinks (vf, then inter_15, inter_13) and, if it
