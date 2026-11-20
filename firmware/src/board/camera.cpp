@@ -66,10 +66,11 @@ static const uint16_t init_regs[][2] = {
     {0x3039, 0x00}, {0x3034, 0x1a}, {0x3035, 0x11}, {0x3036, 0x0b}, {0x3037, 0x01}, {0x3108, 0x16},
     {0x3824, 0x04}, {0x460c, 0x22}, {0x3103, 0x13}, {DELAY, 50},
     // Short shutter for animated QRs (Sparrow shows a new one every 200ms):
-    // auto exposure may use at most 96 lines, about 3ms (a 50Hz band step,
-    // 0x3a08/09 = 295 lines, is 10ms), not the 984 lines (33ms) above, and
-    // makes up the rest with gain (up to 15.5x, 0x3a18/19). A screen is bright.
-    {0x3a02, 0x00}, {0x3a03, 0x60}, {0x3a14, 0x00}, {0x3a15, 0x60},
+    // auto exposure may use at most one 50Hz band step, 295 lines (0x3a08/09)
+    // or 10ms, not the 984 lines (33ms) above, and makes up the rest with gain
+    // (up to 15.5x, 0x3a18/19). Not shorter: paper in room light needs the
+    // light, and below one band step mains flicker stripes the picture.
+    {0x3a02, 0x01}, {0x3a03, 0x27}, {0x3a14, 0x01}, {0x3a15, 0x27},
     // Output format Y8: one byte per pixel (Waveshare uses RGB565: 0x501f=0x01, 0x4300=0x61)
     {0x501f, 0x00}, {0x4300, 0x10}, {DELAY, 50},
 };
@@ -247,6 +248,7 @@ const uint8_t *platform_camera_frame(int *width, int *height) {
             // no VSYNC/PCLK, or fewer bytes than expected
             snprintf(cam_err, sizeof(cam_err), "No image within 1s");
             dma_channel_abort(dma_ch);
+            pio_sm_set_enabled(pio, sm, false);
             state = CAM_IDLE;
         } else {
             shown = filling;
