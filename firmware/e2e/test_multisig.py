@@ -65,7 +65,7 @@ def test_linked_key_to_broadcastable_transaction(dev):
     # The descriptor: checked on screen, and dropped if the user backs out.
     dev.tap("Scan it")
     scan_descriptor(dev, wallet.descriptor(), wallet)
-    assert "This seed\n%s %s" % (fingerprint[:4], fingerprint[4:]) in dev.text()
+    assert "{FINGERPRINT}  This seed\n%s %s" % (fingerprint[:4], fingerprint[4:]) in dev.text()
     dev.tap("Cancel")
     dev.scan_animated(psbt_parts(psbt))
     assert dev.screen == "PSBT_ERROR", "an unconfirmed descriptor was used"
