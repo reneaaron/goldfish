@@ -8,7 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='30' fill='%23FF7A2F'/%3E%3Cg transform='translate(19 39.5)'%3E%3Crect x='20' y='0' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='30' y='0' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='0' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='0' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='10' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='10' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='60' y='10' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='80' y='10' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='0' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='60' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='70' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='30' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='30' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='60' y='30' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='80' y='30' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='20' y='40' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='30' y='40' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='40' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='40' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='10' y='10' width='29' height='29' rx='3' fill='%2314222B'/%3E%3Crect x='15' y='15' width='19' height='19' rx='1.5' fill='%23FFFFFF'/%3E%3Crect x='20' y='20' width='9' height='9' rx='1' fill='%2314222B'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Rethink+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Rethink+Sans:wght@400;500;600;700&family=Caveat:wght@700&display=swap" rel="stylesheet">
 <style>
   /* The landing page's brand (landing/index.html): white ground, ink text, paper
      surfaces, one fish orange, Rethink Sans, and its CSS device with the canvas as screen. */
@@ -42,9 +42,10 @@
   nav a.link:hover { color: var(--text); background: var(--raised); }
   nav a.link svg { width: 20px; height: 20px; display: block; }
 
-  .intro { padding: 32px 0 0; }
+  .intro { padding: 32px 0 0; text-align: center; }
+  .intro .lede { margin-left: auto; margin-right: auto; }
   .note {
-    display: inline-flex; gap: 10px; align-items: baseline; margin-top: 24px; padding: 10px 16px;
+    display: inline-flex; gap: 10px; align-items: baseline; margin-top: 24px; padding: 10px 16px; text-align: left;
     border: 1px solid var(--line); border-radius: 12px; color: var(--muted); font-size: 15px; max-width: 64ch;
   }
   .note b {                    /* the firmware's TESTNET tag, as on the landing page */
@@ -53,8 +54,13 @@
   }
 
   /* ---- the device: printed case, black glass, the firmware's screen as a canvas */
-  .sim { display: grid; grid-template-columns: auto 1fr; gap: 64px; align-items: start; padding: 48px 0 0; }
-  .stage { display: flex; flex-direction: column; align-items: center; }
+  /* things to try | the device | what the camera sees */
+  .sim { display: grid; grid-template-columns: 1fr auto 1fr; gap: 56px; align-items: center; padding: 56px 0 0; }
+  .stage { display: flex; flex-direction: column; align-items: center; position: relative; }
+  /* a hand-drawn note pointing at the screen, like the landing page's hero */
+  .tryme { position: absolute; left: -128px; top: 8px; width: 140px; height: 96px; pointer-events: none; overflow: visible; }
+  .tryme path { fill: none; stroke: var(--accent); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .tryme text { font: 700 26px Caveat, "Segoe Print", "Comic Sans MS", cursive; fill: var(--accent); }
   .device {
     --w: 360px;                    /* the screen's width: 1.5x the 240x320 panel */
     width: calc(var(--w) * 1.14); padding-bottom: calc(var(--w) * .05);
@@ -74,6 +80,7 @@
   canvas {
     display: block; width: 100%; aspect-ratio: 3 / 4; border-radius: calc(var(--w) * .02);
     background: var(--paper); touch-action: none; cursor: pointer;
+    image-rendering: pixelated;    /* sharp panel pixels; fit() keeps the scale whole */
   }
   .hint { color: var(--faint); font-size: 14px; margin-top: 16px; min-height: 1.5em; text-align: center; max-width: 36ch; }
   .restart {
@@ -81,33 +88,27 @@
     background: var(--text); color: var(--bg); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer;
   }
 
-  /* ---- what the camera sees */
+  /* ---- what the camera sees: the three pictures, stacked */
+  .camera h2, .try h2 { font-size: 18px; }
   .camera p { color: var(--muted); font-size: 15px; margin-top: 4px; }
-  .shots { list-style: none; margin: 18px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .shots { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 10px; }
   .shot {
-    display: flex; flex-direction: column; gap: 2px; width: 100%; height: 100%; padding: 10px 10px 12px;
-    background: var(--raised); border: 1px solid transparent; border-radius: 16px;
+    display: grid; grid-template-columns: 76px 1fr; column-gap: 14px; align-items: center;
+    width: 100%; padding: 8px; background: var(--raised); border: 1px solid transparent; border-radius: 14px;
     font: inherit; font-size: 15px; font-weight: 600; color: var(--text); text-align: left; cursor: pointer;
     transition: border-color .15s;
   }
   .shot:hover { border-color: var(--line); }
   .shot[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-  .shot img, .shot .icon {
-    width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #fff; border-radius: 10px; margin-bottom: 8px;
-  }
-  .shot .icon { display: grid; place-items: center; color: var(--muted); }
-  .shot .icon svg { width: 30px; height: 30px; }
-  .shot small { color: var(--muted); font-size: 13px; font-weight: 400; line-height: 1.4; }
-  .shot input { display: none; }
-  #cam-error { color: var(--accent); font-size: 14px; margin-top: 10px; min-height: 1.5em; }
+  .shot img { grid-row: span 2; width: 76px; aspect-ratio: 1; object-fit: contain; background: #fff; border-radius: 10px; }
+  .shot small { color: var(--muted); font-size: 13px; font-weight: 400; line-height: 1.35; }
 
   /* ---- things to try */
-  .try { margin: 40px 0 0; }
-  .try ol { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 12px; counter-reset: step; }
-  .try li { display: grid; grid-template-columns: 28px 1fr; gap: 14px; align-items: baseline; color: var(--muted); font-size: 16px; }
+  .try ol { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 14px; counter-reset: step; }
+  .try li { display: grid; grid-template-columns: 26px 1fr; gap: 12px; align-items: baseline; color: var(--muted); font-size: 15px; }
   .try li::before {
-    counter-increment: step; content: counter(step); width: 28px; height: 28px; border-radius: 50%;
-    display: grid; place-items: center; font-size: 14px; font-weight: 600; background: var(--raised); color: var(--muted);
+    counter-increment: step; content: counter(step); width: 26px; height: 26px; border-radius: 50%;
+    display: grid; place-items: center; font-size: 13px; font-weight: 600; background: var(--raised); color: var(--muted);
   }
   .try b { color: var(--text); font-weight: 600; }
 
@@ -115,18 +116,27 @@
   footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
   footer a:hover { color: var(--text); }
 
-  @media (max-width: 1000px) {
-    .sim { gap: 40px; }
-    .device { --w: 270px; }
-    .shots { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 1080px) {
+    .sim { gap: 32px; }
+    .device { --w: 300px; }
+    .tryme { display: none; }
   }
-  /* Phones: the screen first, then small tiles right under it, so both fit while scanning. */
-  @media (max-width: 720px) {
+  /* Narrower: the device on top, the pictures and the steps side by side under it */
+  @media (max-width: 900px) {
+    .sim { grid-template-columns: 1fr 1fr; gap: 40px 32px; }
+    .stage { grid-column: 1 / -1; order: -1; }
+    .tryme { display: block; left: auto; right: calc(50% + var(--w) * .6); }
+  }
+  /* Phones: the screen, then the three pictures in a row right under it, then the steps */
+  @media (max-width: 640px) {
     .sim { grid-template-columns: 1fr; gap: 28px; padding-top: 32px; }
     .device { --w: min(300px, calc(100vw - 96px)); }
+    .tryme { display: none; }
+    .camera { order: -1; }
+    .stage { order: -2; }
     .shots { grid-template-columns: repeat(3, 1fr); gap: 8px; }
-    .shot { padding: 6px 6px 8px; font-size: 13px; border-radius: 12px; }
-    .shot img, .shot .icon { border-radius: 8px; margin-bottom: 4px; }
+    .shot { grid-template-columns: 1fr; row-gap: 4px; font-size: 13px; padding: 6px 6px 8px; border-radius: 12px; }
+    .shot img { width: 100%; aspect-ratio: 4 / 3; grid-row: auto; border-radius: 8px; }
     .shot small { display: none; }
     nav a.link.wide { display: none; }
   }
@@ -178,13 +188,30 @@
     <h1>Try Goldfish in your browser</h1>
     <p class="lede">This is the device's own firmware, built for the browser instead of the
       board: the same screens and the same signing code. Tap the screen to use it. In place
-      of the camera, pick what it sees: a test picture, your webcam, or a picture of your own.</p>
+      of the camera, pick one of the pictures it should see.</p>
     <p class="note"><b>Demo only</b><span>A browser tab is not a device that forgets. Use the
       test seed here; never type or scan a seed that holds real funds.</span></p>
   </div>
 
   <div class="sim">
+    <section class="try" aria-labelledby="try-title">
+      <h2 id="try-title">Things to try</h2>
+      <ol>
+        <li><span>Tap <b>Scan QR</b> and pick <b>Test seed</b>. The device shows the seed's fingerprint.</span></li>
+        <li><span>Tap <b>Scan QR</b> again and pick <b>Transaction</b>. Check the amounts and
+          addresses, slide to sign, and the signed transaction comes out as a QR.</span></li>
+        <li><span>Under <b>Wallet options</b>, show the xpub for a watch-only wallet.</span></li>
+        <li><span>Start over: tap <b>Enter words</b>, choose 24 words, tap the camera
+          button and pick <b>Handwritten backup</b>.</span></li>
+      </ol>
+    </section>
+
     <div class="stage">
+      <svg class="tryme" viewBox="0 0 140 96" aria-hidden="true">
+        <text x="4" y="30">try me!</text>
+        <path d="M30 42 C 44 74, 84 86, 126 78"/>
+        <path d="M114 70 L127 78 L115 88"/>
+      </svg>
       <div class="device"><div class="glass">
         <canvas id="screen" width="240" height="320" aria-label="The device's screen"></canvas>
       </div></div>
@@ -192,46 +219,21 @@
       <button class="restart" id="restart" type="button">Plug it back in</button>
     </div>
 
-    <div>
-      <section class="camera" aria-labelledby="cam-title">
-        <h2 id="cam-title">What the camera sees</h2>
-        <p>Used whenever a scan screen is open.</p>
-        <ul class="shots">
-          <li><button class="shot" type="button" aria-pressed="false" data-src="samples/testseed_height_demise_standard_12word.png">
-            <img src="samples/testseed_height_demise_standard_12word.png" alt="">
-            Test seed <small>12-word SeedQR</small></button></li>
-          <li><button class="shot" type="button" aria-pressed="false" data-src="samples/mainpsbt_height_demise_base64.png">
-            <img src="samples/mainpsbt_height_demise_base64.png" alt="">
-            Transaction <small>For the test seed, spends a made-up coin</small></button></li>
-          <li><button class="shot" type="button" aria-pressed="false" data-src="samples/testpsbt_height_demise_base64.png">
-            <img src="samples/testpsbt_height_demise_base64.png" alt="">
-            Same, on testnet <small>For the test seed</small></button></li>
-          <li><button class="shot" type="button" aria-pressed="false" data-src="samples/handwritten_page.png">
-            <img src="img/handwritten_page_thumb.jpg" alt="">
-            Handwritten backup <small>24 made-up words, for Scan words</small></button></li>
-          <li><button class="shot" type="button" aria-pressed="false" id="webcam">
-            <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
-            Webcam <small>Show it a QR from your wallet app</small></button></li>
-          <li><label class="shot" id="file-label" aria-pressed="false">
-            <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v4h16v-4M12 4v12m0-12l-4.5 4.5M12 4l4.5 4.5"/></svg></span>
-            Open a picture <small>It stays in this tab</small>
-            <input type="file" id="file" accept="image/*"></label></li>
-        </ul>
-        <div id="cam-error" role="status"></div>
-      </section>
-
-      <section class="try" aria-labelledby="try-title">
-        <h2 id="try-title">Things to try</h2>
-        <ol>
-          <li><span>Tap <b>Scan QR</b> and pick <b>Test seed</b>. The device shows the seed's fingerprint.</span></li>
-          <li><span>Tap <b>Scan QR</b> again and pick <b>Transaction</b>. Check the amounts and
-            addresses, slide to sign, and the signed transaction comes out as a QR.</span></li>
-          <li><span>Under <b>Wallet options</b>, show the xpub for a watch-only wallet.</span></li>
-          <li><span>Start over and <b>Create new seed</b> from dice or coin flips, or <b>Enter words</b>
-            and scan the <b>Handwritten backup</b> with the camera button.</span></li>
-        </ol>
-      </section>
-    </div>
+    <section class="camera" aria-labelledby="cam-title">
+      <h2 id="cam-title">What the camera sees</h2>
+      <p>Pick one while a scan screen is open.</p>
+      <ul class="shots">
+        <li><button class="shot" type="button" aria-pressed="false" data-src="samples/testseed_height_demise_standard_12word.png">
+          <img src="samples/testseed_height_demise_standard_12word.png" alt="">
+          Test seed <small>12-word SeedQR</small></button></li>
+        <li><button class="shot" type="button" aria-pressed="false" data-src="samples/mainpsbt_height_demise_base64.png">
+          <img src="samples/mainpsbt_height_demise_base64.png" alt="">
+          Transaction <small>For the test seed, spends a made-up coin</small></button></li>
+        <li><button class="shot" type="button" aria-pressed="false" data-src="samples/handwritten_page_demo.png">
+          <img src="img/handwritten_page_thumb.jpg" alt="">
+          Handwritten backup <small>24 made-up words</small></button></li>
+      </ul>
+    </section>
   </div>
 </main>
 
@@ -249,7 +251,6 @@
   const ctx = canvas.getContext('2d');
   const img = ctx.createImageData(240, 320);
   const status = document.getElementById('status');
-  const camError = document.getElementById('cam-error');
   const shots = [...document.querySelectorAll('.shot')];
   let M;
 
@@ -266,6 +267,19 @@
     }
     ctx.putImageData(img, 0, 0);
   }
+
+  // ---- size: a whole number of device pixels per panel pixel, so nothing is
+  // smoothed. Nearest to the size the CSS asks for, unless that's much bigger.
+  const device = document.querySelector('.device');
+  function fit() {
+    device.style.removeProperty('--w');
+    const want = canvas.getBoundingClientRect().width, dpr = devicePixelRatio || 1;
+    let k = Math.max(1, Math.round(want * dpr / 240));
+    if (k > 1 && 240 * k / dpr > want * 1.2) k--;
+    device.style.setProperty('--w', 240 * k / dpr + 'px');
+  }
+  fit();
+  addEventListener('resize', fit);   // also fires on browser zoom (devicePixelRatio changes)
 
   // ---- touch: pointer on the canvas, in screen pixels
   function touch(e, down) {
@@ -302,59 +316,17 @@
 
   function select(el) {
     for (const s of shots) s.setAttribute('aria-pressed', String(s === el));
-    camError.textContent = '';
-  }
-
-  // Webcam frames go in only while the device is looking (a scan screen is open).
-  let video, wantedAt = 0;
-  function stopWebcam() {
-    if (!video) return;
-    video.srcObject.getTracks().forEach(t => t.stop());
-    video = null;
-  }
-  function pump() {
-    if (!video) return;
-    if (performance.now() - wantedAt < 500 && video.readyState >= 2)
-      feed(video, video.videoWidth, video.videoHeight);
-    setTimeout(pump, 100);
   }
 
   async function showImage(url, el) {
-    stopWebcam();
     select(el);
     const im = new Image();
     im.src = url;
-    try { await im.decode(); } catch { camError.textContent = 'Could not open that picture.'; return; }
+    try { await im.decode(); } catch { return; }
     feed(im, im.naturalWidth, im.naturalHeight);
   }
 
   for (const b of shots) if (b.dataset.src) b.addEventListener('click', () => showImage(b.dataset.src, b));
-
-  const file = document.getElementById('file');
-  file.addEventListener('change', () => {
-    if (!file.files[0]) return;
-    const url = URL.createObjectURL(file.files[0]);
-    showImage(url, document.getElementById('file-label')).finally(() => URL.revokeObjectURL(url));
-    file.value = '';
-  });
-
-  document.getElementById('webcam').addEventListener('click', async e => {
-    const el = e.currentTarget;
-    if (video) return;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia(
-        { video: { facingMode: 'environment', width: { ideal: 1280 } }, audio: false });
-      M._web_camera_clear();
-      select(el);
-      video = document.createElement('video');
-      video.muted = true; video.playsInline = true;
-      video.srcObject = stream;
-      await video.play();
-      pump();
-    } catch {
-      camError.textContent = 'No webcam, or the browser did not allow it.';
-    }
-  });
 
   // ---- start
   const restart = document.getElementById('restart');
@@ -362,10 +334,8 @@
   // The options object is the module itself: set M now, main() draws before the promise resolves.
   M = {
     onFlush,
-    onCameraWanted: () => { wantedAt = performance.now(); },
     // The device is done looking: take the picture away, as you would a card.
     onCameraStop: () => {
-      if (video) return;
       select(null);
       M._web_camera_clear();
     },

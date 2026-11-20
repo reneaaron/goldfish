@@ -48,8 +48,8 @@ $(OUT)/img/%: $(FW)/../try/img/%
 	@mkdir -p $(@D)
 	cp $< $@
 
-SAMPLES := testseed_height_demise_standard_12word.png testpsbt_height_demise_base64.png \
-           mainpsbt_height_demise_base64.png handwritten_page.png
+SAMPLES := testseed_height_demise_standard_12word.png mainpsbt_height_demise_base64.png \
+           handwritten_page_demo.png
 samples: $(addprefix $(OUT)/samples/,$(SAMPLES))
 $(OUT)/samples/%: $(FW)/sim/samples/%
 	@mkdir -p $(@D)

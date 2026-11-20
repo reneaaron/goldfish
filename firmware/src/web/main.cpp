@@ -1,8 +1,8 @@
 // Browser simulator: the app compiled to WebAssembly (web/Makefile), drawn on
 // a <canvas> by try/index.html. Pointer = touch.
 //
-// Camera: the page hands over one grayscale picture at a time (a sample image,
-// or the latest webcam frame) through web_camera_buffer / web_camera_set.
+// Camera: the page hands over one grayscale picture at a time (the sample the
+// user picked) through web_camera_buffer / web_camera_set.
 // From it, exactly like the desktop simulator's image file: the live frame is
 // that picture fitted into 320x240, the still is it box-filtered down.
 #include <lvgl.h>
@@ -49,7 +49,6 @@ EMSCRIPTEN_KEEPALIVE void web_camera_clear() {
 }   // extern "C"
 
 const uint8_t *platform_camera_frame(int *width, int *height) {
-    EM_ASM({ if (Module.onCameraWanted) Module.onCameraWanted(); });
     if (!src_ok) return nullptr;
     if (frame_stale) {
         memset(cam_frame, 128, sizeof(cam_frame));
@@ -65,7 +64,7 @@ const uint8_t *platform_camera_frame(int *width, int *height) {
     return cam_frame;
 }
 
-const char *platform_camera_error() { return src_ok ? nullptr : "Pick a picture or the webcam"; }
+const char *platform_camera_error() { return src_ok ? nullptr : "Pick a picture beside the device"; }
 
 void platform_camera_stop() { EM_ASM({ if (Module.onCameraStop) Module.onCameraStop(); }); }
 

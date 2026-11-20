@@ -352,7 +352,8 @@ the 520KB RAM limit and secure boot only show up on the real board.
 The same `src/app`, compiled to WebAssembly with Emscripten, with `src/web`
 in place of `src/sim`: the screen is a `<canvas>`, the pointer is the touch
 screen, and the camera sees a picture the page hands it (one of a few
-`sim/samples`, the webcam, or a picture the user opens). The page is
+`sim/samples`: the test seed, a transaction for it, and a handwritten page,
+`handwritten_page_demo.png`, that the firmware reads 24 of 24). The page is
 [`try/index.html`](../try/index.html). Needs `emcc` (emsdk 4.0.10).
 
 ```bash
