@@ -146,6 +146,23 @@ lv_obj_t *chip(lv_obj_t *parent, const char *s, lv_color_t fg, lv_color_t bg) {
     return c;
 }
 
+lv_obj_t *fingerprint_pill(lv_obj_t *parent, const char *spaced, lv_obj_t **label) {
+    lv_obj_t *c = lv_obj_create(parent);
+    plain(c);
+    lv_obj_set_size(c, LV_SIZE_CONTENT, 30);
+    lv_obj_set_style_bg_color(c, SURFACE_2, 0);
+    lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(c, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_pad_hor(c, 12, 0);
+    lv_obj_set_flex_flow(c, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(c, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(c, 7, 0);
+    text(c, ICON_FINGERPRINT, &inter_15, ACCENT);
+    lv_obj_t *l = text(c, spaced, &mono_16, TEXT);
+    if (label) *label = l;
+    return c;
+}
+
 lv_obj_t *icon_badge(lv_obj_t *parent, const char *icon, lv_color_t fg, lv_color_t bg, int size) {
     lv_obj_t *c = lv_obj_create(parent);
     plain(c);
