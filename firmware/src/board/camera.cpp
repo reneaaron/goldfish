@@ -65,6 +65,11 @@ static const uint16_t init_regs[][2] = {
     // PLL for the 37.5MHz XCLK: about 20MHz PCLK
     {0x3039, 0x00}, {0x3034, 0x1a}, {0x3035, 0x11}, {0x3036, 0x0b}, {0x3037, 0x01}, {0x3108, 0x16},
     {0x3824, 0x04}, {0x460c, 0x22}, {0x3103, 0x13}, {DELAY, 50},
+    // Short shutter for animated QRs (Sparrow shows a new one every 200ms):
+    // auto exposure may use at most 96 lines, about 3ms (a 50Hz band step,
+    // 0x3a08/09 = 295 lines, is 10ms), not the 984 lines (33ms) above, and
+    // makes up the rest with gain (up to 15.5x, 0x3a18/19). A screen is bright.
+    {0x3a02, 0x00}, {0x3a03, 0x60}, {0x3a14, 0x00}, {0x3a15, 0x60},
     // Output format Y8: one byte per pixel (Waveshare uses RGB565: 0x501f=0x01, 0x4300=0x61)
     {0x501f, 0x00}, {0x4300, 0x10}, {DELAY, 50},
 };
@@ -87,8 +92,14 @@ static bool rd(uint16_t reg, uint8_t *out) {
     return true;
 }
 
-static enum { CAM_OFF, CAM_FAILED, CAM_IDLE, CAM_BUSY, CAM_READY } state = CAM_OFF;
-static uint8_t frame[CAM_W * CAM_H];
+static enum { CAM_OFF, CAM_FAILED, CAM_IDLE, CAM_BUSY } state = CAM_OFF;
+// Only the preview's rows are captured, into two slots: the camera fills one
+// while the app decodes the other (the frame it was given last), so the next
+// picture is under way at once. Animated QRs change every 200ms.
+#define SLOT (CAM_W * OUT_H)
+static uint8_t frame[2 * SLOT];
+static int filling;            // the slot the DMA writes while CAM_BUSY
+static int shown = -1;         // the slot last given to the app
 static PIO pio;
 static uint sm, prog_offset;
 static int dma_ch;
@@ -168,11 +179,12 @@ static void set_size(int w, int h) {
     wr(0x380a, h >> 8); wr(0x380b, h & 0xff);
 }
 
-// Unflipped, the image comes out mirrored top to bottom.
-static void flip_rows() {
+// Unflipped, the image comes out mirrored top to bottom. The preview's rows
+// are the middle of the frame, so they are the same rows either way up.
+static void flip_rows(uint8_t *f) {
     static uint8_t tmp[CAM_W];
-    for (int y = 0; y < CAM_H / 2; y++) {
-        uint8_t *a = frame + y * CAM_W, *b = frame + (CAM_H - 1 - y) * CAM_W;
+    for (int y = 0; y < OUT_H / 2; y++) {
+        uint8_t *a = f + y * CAM_W, *b = f + (OUT_H - 1 - y) * CAM_W;
         memcpy(tmp, a, CAM_W);
         memcpy(a, b, CAM_W);
         memcpy(b, tmp, CAM_W);
@@ -200,17 +212,19 @@ static void restart_sm(uint32_t skip) {
     pio_sm_exec(pio, sm, pio_encode_jmp(prog_offset));
 }
 
-static void arm() {
-    restart_sm(0);
+// Capture the next frame's preview rows into `slot`, dropping the rows before them.
+static void arm(int slot) {
+    restart_sm(OUT_Y * CAM_W);
     dma_channel_config dc = dma_channel_get_default_config(dma_ch);
     channel_config_set_read_increment(&dc, false);
     channel_config_set_write_increment(&dc, true);
     channel_config_set_transfer_data_size(&dc, DMA_SIZE_8);
     channel_config_set_dreq(&dc, pio_get_dreq(pio, sm, false));
-    dma_channel_configure(dma_ch, &dc, frame, &pio->rxf[sm], sizeof(frame), true);
+    dma_channel_configure(dma_ch, &dc, frame + slot * SLOT, &pio->rxf[sm], SLOT, true);
 
     pio_sm_set_enabled(pio, sm, true);
     armed_ms = millis();
+    filling = slot;
     state = CAM_BUSY;
 }
 
@@ -235,37 +249,36 @@ const uint8_t *platform_camera_frame(int *width, int *height) {
             dma_channel_abort(dma_ch);
             state = CAM_IDLE;
         } else {
-            state = CAM_READY;
-            flip_rows();
+            shown = filling;
+            flip_rows(frame + shown * SLOT);
+            arm(1 - shown);   // the next picture, while the app reads this one
             cam_err[0] = 0;
             *width = CAM_W;
             *height = OUT_H;
-            return frame + OUT_Y * CAM_W;
+            return frame + shown * SLOT;
         }
     }
-    // CAM_IDLE, or CAM_READY once the app is done with the previous frame
-    if (state == CAM_IDLE) set_focus(true);
-    arm();
+    set_focus(true);
+    arm(shown == 0 ? 1 : 0);
     return nullptr;
 }
 
 const char *platform_camera_error() { return cam_err[0] ? cam_err : nullptr; }
 
-// A still: the rows of the last frame the preview showed, moved to the start
-// of the frame buffer, which is lent to the app: there's no RAM for a copy.
-// (The rows above and below were never on screen: other paper on the desk.)
+// A still: the last frame the preview showed, moved to the start of the frame
+// buffer, which is lent to the app: there's no RAM for a copy. The capture
+// under way into the other slot is dropped.
 uint8_t *platform_camera_still(int *width, int *height, size_t *room) {
-    if (state == CAM_BUSY) {   // the preview re-arms every other tick: wait for that frame
-        uint32_t t0 = millis();
-        while (dma_channel_is_busy(dma_ch) && millis() - t0 < 1000) {}
-        if (dma_channel_is_busy(dma_ch)) return nullptr;
-        state = CAM_READY;
-        flip_rows();
+    if (state == CAM_BUSY) {
+        dma_channel_abort(dma_ch);
+        pio_sm_set_enabled(pio, sm, false);
+        state = CAM_IDLE;
     }
-    if (state != CAM_READY) return nullptr;
+    if (shown < 0) return nullptr;
     still_held = true;
-    memmove(frame, frame + OUT_Y * CAM_W, OUT_H * CAM_W);
-    memset(frame + OUT_H * CAM_W, 0, sizeof(frame) - OUT_H * CAM_W);
+    memmove(frame, frame + shown * SLOT, SLOT);
+    memset(frame + SLOT, 0, sizeof(frame) - SLOT);
+    shown = -1;
     *width = CAM_W;
     *height = OUT_H;
     *room = sizeof(frame);
@@ -359,6 +372,7 @@ void platform_camera_stop() {
     pio_sm_set_enabled(pio, sm, false);
     // the frame can be a picture of a seed QR (or the app's still: wiped when it's done)
     if (!still_held) memset(frame, 0, sizeof(frame));
+    shown = -1;
     set_focus(false);
     wr(0x3008, 0x42);   // software power down
     asleep = true;
