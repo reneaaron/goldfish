@@ -47,7 +47,7 @@ Three PlatformIO environments share one source tree, split by `build_src_filter`
 
 Rules that follow from this:
 
-- `src/app` must not touch hardware. The platform boundary is small: the two camera hooks in `app/qrscan.h` (`platform_camera_frame`, `platform_camera_stop`), implemented once in `src/board` and once in `src/sim`; `platform_parallel` in `app/word_reader.h` (the board runs half of a word's network on its second core; a weak default in `word_reader.cpp` runs both halves in turn for sim and tests); plus each target's own `main` that sets up LVGL display/input and calls `ui_build()`.
+- `src/app` must not touch hardware. The platform boundary is small: the two camera hooks in `app/qrscan.h` (`platform_camera_frame`, `platform_camera_stop`), implemented once in `src/board` and once in `src/sim`; `platform_parallel` in `app/word_reader.h` (the board runs half of a word's network on its second core; a weak default in `word_reader.cpp` runs both halves in turn for sim and tests); `platform_backlight` in `app/ui.h` (PWM on the board, dimmed while a QR is shown so webcams don't overexpose it; a no-op in sim); plus each target's own `main` that sets up LVGL display/input and calls `ui_build()`.
 - The `test` env lists its source files one by one in `platformio.ini`. A new logic module in `src/app` has to be added to that list, and must not include LVGL: `ui.cpp` and `theme.cpp` are the only LVGL-dependent app files and are deliberately not in the test build.
 - `version.py` (a PlatformIO pre-script for the board and sim builds) writes the git tag or short commit hash to the ignored `include/version.h`; the home screen shows it.
 - Each test suite is `test/test_<name>/test_main.cpp` with its own `main()`; shared vectors live in `test/fixtures/`.

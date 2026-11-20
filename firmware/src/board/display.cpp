@@ -1,7 +1,9 @@
 #include "display.h"
 #include <Arduino.h>
 #include "hardware/spi.h"
+#include "hardware/pwm.h"
 #include "board_pins.h"
+#include "../app/ui.h"
 
 // Panel init sequence copied from Waveshare's RP2350-Touch-LCD-2 demo
 // (LCD_2in.cpp, MIT-style license). 0xFF marks a delay in ms, 0xFE a command.
@@ -26,6 +28,14 @@ static const uint8_t INIT_SEQ[] = {
     0xFE, 0x21,                        // inversion on
     0xFE, 0x29,                        // display on
 };
+
+constexpr uint16_t BL_WRAP = 999;
+
+void platform_backlight(int percent) {
+    if (percent < 0) percent = 0;
+    if (percent > 100) percent = 100;
+    pwm_set_gpio_level(PIN_LCD_BL, uint16_t((BL_WRAP + 1) * percent / 100));
+}
 
 static inline void cs(bool on) { gpio_put(PIN_LCD_CS, on ? 0 : 1); }
 
@@ -95,7 +105,13 @@ lv_display_t *display_init() {
     gpio_put(PIN_LCD_RST, 1); delay(100);
 
     run_init();
-    gpio_put(PIN_LCD_BL, 1);
+    // Backlight on PWM (~37 kHz, above hearing and flicker) so QR screens can dim it.
+    gpio_set_function(PIN_LCD_BL, GPIO_FUNC_PWM);
+    uint slice = pwm_gpio_to_slice_num(PIN_LCD_BL);
+    pwm_set_clkdiv(slice, 4.f);
+    pwm_set_wrap(slice, BL_WRAP);
+    pwm_set_enabled(slice, true);
+    platform_backlight(100);
 
     lv_display_t *d = lv_display_create(LCD_W, LCD_H);
     lv_display_set_color_format(d, LV_COLOR_FORMAT_RGB565);

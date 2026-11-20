@@ -128,6 +128,8 @@ const char *platform_camera_error() { return nullptr; }
 
 void platform_camera_stop() {}
 
+void platform_backlight(int) {}   // the window has no backlight
+
 // The board vanishes from the screen and comes back as a drive; here, just quit.
 void platform_reboot_to_bootloader() { fprintf(stderr, "[sim] reboot to bootloader\n"); exit(0); }
 
