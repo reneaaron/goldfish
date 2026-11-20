@@ -240,14 +240,14 @@ static bool cbor_component(Cbor *c, uint32_t *out) {
 
 struct UrKey {
     const uint8_t *key, *chain_code;
-    bool testnet, has_fp, children_ok;
+    bool testnet, has_fp;
     uint32_t fp, parent_fp;
     uint32_t path[MAX_PATH_LEN];
     size_t path_len;
 };
 
 // A crypto-keypath map. Origin: fills k->path and k->fp. Children: must be
-// 0/* or <0;1>/*.
+// 0/* or <0;1>/*, or left out, as Sparrow does: all three are read as <0;1>/*.
 static bool ur_keypath(Cbor *c, UrKey *k, bool origin) {
     uint64_t entries;
     if (!cbor_tag(c, 304) || !cbor_expect(c, 5, &entries)) return false;
@@ -281,7 +281,6 @@ static bool ur_keypath(Cbor *c, UrKey *k, bool origin) {
                 return false;
             }
             if (!cbor_expect(c, 4, &v) || v != 0 || !cbor_expect(c, 7, &f) || f != 20) return false;
-            k->children_ok = true;
         } else if (!cbor_skip(c)) {
             return false;
         }
@@ -337,7 +336,7 @@ MsResult multisig_load_ur_output(const uint8_t *cbor, size_t len) {
     for (uint64_t i = 0; i < n; i++) {
         UrKey k;
         if (!ur_hdkey(&c, &k)) return MS_BAD;
-        if (!k.has_fp || !k.path_len || !k.children_ok) return MS_UNSUPPORTED;
+        if (!k.has_fp || !k.path_len) return MS_UNSUPPORTED;
         bool testnet = k.testnet || (k.path_len >= 2 && k.path[1] == (BIP32_INITIAL_HARDENED_CHILD | 1));
         // The xpub, as BIP32 serializes it.
         uint8_t ser[BIP32_SERIALIZED_LEN], *p = ser;
