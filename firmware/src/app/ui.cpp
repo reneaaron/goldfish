@@ -155,6 +155,7 @@ static void build_home() {
 static uint8_t preview_buf[PREV_W * PREV_H];
 static lv_image_dsc_t preview_dsc;
 static lv_obj_t *preview_img, *scan_msg, *scan_sub, *scan_bar, *page_read_btn;
+static lv_obj_t *scan_hints;   // what the wallet scanner takes, until a status
 // Scan speed, per second: frames from the camera, QRs decoded, quirc's time
 // per frame (average and slowest). A long press on the preview shows it in
 // its own line at the bottom, above the progress bar.
@@ -191,6 +192,7 @@ static bool looks_like_psbt(const QrPayload &p) {
 }
 
 static void scan_status(const char *msg, const char *sub, lv_color_t c) {
+    if (scan_hints) lv_obj_add_flag(scan_hints, LV_OBJ_FLAG_HIDDEN);
     lv_label_set_text(scan_msg, msg);
     lv_obj_set_style_text_color(scan_msg, c, 0);
     lv_label_set_text(scan_sub, sub ? sub : "");
@@ -423,10 +425,11 @@ static void build_scan(ScanMode mode) {
     bool seed = mode == SCAN_SEED;
     if (mode == SCAN_WALLET) ur_decoder_reset(&ur_dec);
     lv_obj_t *scr = screen();
-    static const char *titles[] = {"Scan seed", "Scan QR", "Check card", "Scan words"};
+    static const char *titles[] = {"Scan seed", "Scan", "Check card", "Scan words"};
     // The title says what is scanned; one line says what to do. The second
-    // line stays empty until there is something to report.
-    static const char *prompts[] = {"Hold it in the frame", "A transaction or an address",
+    // line stays empty until there is something to report. The wallet's
+    // scanner says what it takes instead, until a status.
+    static const char *prompts[] = {"Hold it in the frame", "",
                                     "Let's check it matches", "Fit all the words in view"};
     topbar(scr, titles[mode], scan_back_cb);
     preview_image(scr);
@@ -441,6 +444,7 @@ static void build_scan(ScanMode mode) {
         lv_obj_add_event_cb(preview_img, [](lv_event_t *) {
             if (lv_obj_has_flag(scan_stats, LV_OBJ_FLAG_HIDDEN)) lv_obj_remove_flag(scan_stats, LV_OBJ_FLAG_HIDDEN);
             else lv_obj_add_flag(scan_stats, LV_OBJ_FLAG_HIDDEN);
+            if (scan_hints) lv_obj_add_flag(scan_hints, LV_OBJ_FLAG_HIDDEN);   // it would sit under the readout
         }, LV_EVENT_LONG_PRESSED, nullptr);
     }
     if (mode == SCAN_PAGE) corners(scr, W / 2, BAR + PREV_H / 2, W - 16, PREV_H - 16);   // the whole picture
@@ -459,6 +463,11 @@ static void build_scan(ScanMode mode) {
     }
     (void)seed;
     lv_obj_align(scan_sub, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + 40);
+    scan_hints = nullptr;
+    if (mode == SCAN_WALLET) {
+        scan_hints = text(scr, "Transactions, addresses\nand multisig wallets", &inter_15, TEXT_2, LV_TEXT_ALIGN_CENTER);
+        lv_obj_align(scan_hints, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + 16);
+    }
 
     scan_bar = lv_bar_create(scr);
     lv_obj_set_size(scan_bar, CW, 4);
