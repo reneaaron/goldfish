@@ -16,6 +16,9 @@
     --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     --bg: #EDF2F4; --panel: #fff; --text: #14222B; --text-2: #5A6B75; --accent: #C2501A;
+    /* A4's width and Letter's height: a sheet that fits on either paper, so
+       there's no paper setting to get wrong. Keep PAPER in the script in step. */
+    --pw: 210mm; --ph: 279.4mm;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) { --bg: #0E181F; --panel: #14222B; --text: #EDF2F4; --text-2: #9AAAB3; }
@@ -67,7 +70,7 @@
   .alert::before { content: "!"; flex: none; width: 5.6mm; height: 5.6mm; border-radius: 50%; background: var(--ink); color: #fff;
                    display: flex; align-items: center; justify-content: center; font-size: 3.4mm; font-weight: 700; }
   .alert span { font-weight: 400; color: var(--grey); }
-  .body { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 7mm; padding: 6mm 0; }
+  .body { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 7mm; padding: 3mm 0; }
   .gridwrap { display: flex; justify-content: center; }
 
   /* label strip: fingerprint | date | label, one box with hairline dividers */
@@ -107,7 +110,7 @@
 
   /* wallet cards: ID-1 size (85.6 x 54 mm, 3.18 mm corners), a faint cut line round each */
   /* one card, actual size and centred, with its steps under it */
-  .section { display: flex; flex-direction: column; align-items: center; gap: 6mm; }
+  .section { display: flex; flex-direction: column; align-items: center; gap: 5mm; }
   .section .steps { width: 100%; max-width: 150mm; margin: 0; }
   .section > .cap { color: var(--ink); font-weight: 600; margin-bottom: -2mm; }
   .section + .section { border-top: .2mm solid var(--line); padding-top: 10mm; }
@@ -143,18 +146,11 @@
   </div>
   <div class="row"><span>Also</span>
     <fieldset>
-      <label class="opt"><input type="checkbox" id="wordcards" checked> Word card</label>
       <label class="opt"><input type="checkbox" id="plain"> Plain (no text about what it's for, e.g. for a print shop)</label>
     </fieldset>
   </div>
-  <div class="row"><span>Paper</span>
-    <fieldset id="paper">
-      <label class="opt"><input type="radio" name="paper" value="a4" checked> A4</label>
-      <label class="opt"><input type="radio" name="paper" value="letter"> Letter</label>
-    </fieldset>
-  </div>
   <button type="button" onclick="window.print()">Print</button>
-  <p class="hint">Print at 100% (no “fit to page”). Fill each square fully with a dark pen; leave the white border
+  <p class="hint">Print at 100% (no “fit to page”) on A4 or Letter. Fill each square fully with a dark pen; leave the white border
      around the grid empty. Then choose “Check card” on Goldfish and scan it.</p>
 </div>
 
@@ -233,7 +229,7 @@ function gridSvg(n, cell, { qz = 3, all = false, sparse = false, ticks = true } 
 
 // Eight boxes for the 8 hex digits the signer shows, split 4+4 like on screen.
 const BOXES = `<span class="boxes">${'<b></b>'.repeat(8)}</span>`;
-const PAPER = { a4: [210, 297], letter: [215.9, 279.4] };
+const PAPER = [210, 279.4];   // --pw and --ph in the CSS
 const MARGIN = 14;
 const N = 21;   // a 12-word Compact SeedQR
 
@@ -323,9 +319,9 @@ function wordCard() {
   ]);
 }
 
-function walletPage(n, words) {
+function walletPage(n) {
   return `${alert}
-    <div class="body">${qrCard(n)}${words ? wordCard() : ''}</div>
+    <div class="body">${qrCard(n)}${wordCard()}</div>
     ${store}`;
 }
 
@@ -337,18 +333,8 @@ function wordPage() {
 
 function render() {
   const layout = document.querySelector('[name=layout]:checked').value;
-  const paper = document.querySelector('[name=paper]:checked').value;
-  const [pw, ph] = PAPER[paper];
-  const root = document.documentElement.style;
-  root.setProperty('--pw', pw + 'mm');
-  root.setProperty('--ph', ph + 'mm');
-  let style = document.getElementById('page-size');
-  if (!style) { style = document.createElement('style'); style.id = 'page-size'; document.head.append(style); }
-  style.textContent = `@page { size: ${paper === 'a4' ? 'A4' : 'letter'} portrait; margin: 0; }`;
-
-  const words = document.getElementById('wordcards').checked;
   // The wallet card and the word card share one sheet; the full page gets its own.
-  const pages = layout === 'page' ? [qrPage(N, PAPER[paper]), ...(words ? [wordPage()] : [])] : [walletPage(N, words)];
+  const pages = layout === 'page' ? [qrPage(N, PAPER), wordPage()] : [walletPage(N)];
   document.getElementById('sheets').classList.toggle('plain', document.getElementById('plain').checked);
   document.getElementById('sheets').innerHTML =
     pages.map(p => `<section class="sheet">${p}</section>`).join('');
