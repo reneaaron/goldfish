@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Build a Goldfish</title>
+<meta name="description" content="Build a Goldfish signer: buy the board, print the case, flash the firmware, put it together.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='30' fill='%23FF7A2F'/%3E%3Cg transform='translate(19 39.5)'%3E%3Crect x='20' y='0' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='30' y='0' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='0' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='0' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='10' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='10' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='60' y='10' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='80' y='10' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='0' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='60' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='70' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='30' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='30' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='60' y='30' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='80' y='30' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='20' y='40' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='30' y='40' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='40' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='40' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='10' y='10' width='29' height='29' rx='3' fill='%2314222B'/%3E%3Crect x='15' y='15' width='19' height='19' rx='1.5' fill='%23FFFFFF'/%3E%3Crect x='20' y='20' width='9' height='9' rx='1' fill='%2314222B'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rethink+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Goldfish brand colours, as on the flasher page. */
+  :root {
+    --bg: #FFFFFF; --surface: #FFFFFF; --surface-2: #EDF2F4; --border: #D9E2E6;
+    --text: #14222B; --text-2: #5A6B75; --text-3: #75858E;
+    --accent: #C2501A; --accent-dim: #FFE6D6;
+    --amber: #A16207; --amber-dim: #F5E6C4;
+    --sans: "Rethink Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 56px 20px 72px; background: var(--bg); color: var(--text);
+    font: 16px/1.5 var(--sans);
+  }
+  main { max-width: 760px; margin: 0 auto; }
+  .home { display: inline-block; margin-bottom: 24px; color: var(--text-3); text-decoration: none; font-size: 15px; }
+  .home:hover { color: var(--text); }
+  h1 { font: 700 40px/1.1 var(--sans); letter-spacing: -0.01em; margin: 0 0 12px; }
+  h2 { font-size: 20px; font-weight: 600; line-height: 1.3; margin: 0 0 4px; }
+  p { margin: 0 0 12px; color: var(--text-2); max-width: 60ch; }
+  a { color: var(--accent); }
+  code { font: 0.9em ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+  /* ---- the steps: numbered markers on a rail, as on the flasher page */
+  .steps { list-style: none; margin: 40px 0 0; padding: 0; }
+  .steps > li { position: relative; padding: 0 0 40px 52px; scroll-margin-top: 24px; }
+  .steps > li:last-child { padding-bottom: 0; }
+  .steps > li::before {
+    content: ""; position: absolute; left: 15px; top: 36px; bottom: 4px; width: 2px; background: var(--border);
+  }
+  .steps > li:last-child::before { display: none; }
+  .mark {
+    position: absolute; left: 0; top: -3px; width: 32px; height: 32px; border-radius: 50%;
+    display: grid; place-items: center; font-weight: 600; font-size: 15px;
+    background: var(--text); color: var(--bg);
+  }
+  .steps ul { margin: 0 0 12px; padding-left: 20px; color: var(--text-2); max-width: 60ch; }
+  .steps ul li { margin-bottom: 4px; }
+  details { color: var(--text-2); font-size: 15px; margin-top: 4px; }
+  summary { cursor: pointer; color: var(--text-3); width: fit-content; }
+  details > *:not(summary) { margin-top: 8px; }
+
+  .action {
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+    height: 48px; padding: 0 22px; margin: 4px 8px 8px 0;
+    border-radius: 12px; text-decoration: none;
+    background: var(--text); color: var(--bg); font-weight: 600; line-height: 1;
+  }
+  .action.quiet { background: var(--surface-2); color: var(--text); }
+  .action svg { width: 20px; height: 20px; flex: none; }
+
+  .note {
+    display: flex; gap: 10px; align-items: flex-start; border-radius: 10px;
+    padding: 12px 14px; margin: 8px 0 12px; max-width: 60ch; font-size: 15px;
+    background: var(--amber-dim); color: var(--amber);
+  }
+  .note svg { width: 20px; height: 20px; flex: none; margin-top: 2px; }
+
+  figure { margin: 8px 0 16px; }
+  figure img { display: block; width: 100%; max-width: 420px; height: auto; border-radius: 12px; background: var(--surface-2); }
+  figcaption { color: var(--text-3); font-size: 14px; margin-top: 6px; }
+
+  @media (max-width: 640px) {
+    body { padding-top: 32px; }
+    h1 { font-size: 32px; }
+    .steps > li { padding-left: 44px; }
+    .action { width: 100%; margin-right: 0; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="../">← Goldfish</a>
+  <h1>Build a Goldfish</h1>
+  <p>One board with a screen and a camera, one printed case, no soldering.
+     The firmware works in the simulator and is untested on real hardware:
+     not for real funds.</p>
+  <p>Want to see it first? <a href="../try/">Try it in your browser</a>.</p>
+
+  <ol class="steps">
+    <li id="parts">
+      <div class="mark">1</div>
+      <h2>Get the parts</h2>
+      <ul>
+        <li>Waveshare RP2350-Touch-LCD-2-C (SKU 30718). The -C version comes
+            with the OV5640 camera. $19.99 at Waveshare in November 2026.</li>
+        <li>A USB-C cable that carries data, not only charge.</li>
+        <li>Access to a 3D printer, for the case.</li>
+      </ul>
+      <a class="action" href="https://www.waveshare.com/rp2350-touch-lcd-2.htm?sku=30718">Buy from Waveshare</a>
+      <a class="action quiet" href="https://github.com/reneaaron/goldfish/tree/main/hardware#where-to-buy">Other shops by region</a>
+      <details>
+        <summary>Only found the board without camera?</summary>
+        <p>The base board is SKU 30711. Add an OV5640 module with a 24-pin
+           0.5&nbsp;mm DVP connector (ESP32-CAM style), and check its pinout
+           against the board's J1 before plugging it in. A 60–75° lens reads
+           QR codes better than a wide-angle one.</p>
+      </details>
+    </li>
+
+    <li id="print">
+      <div class="mark">2</div>
+      <h2>Print the case</h2>
+      <p>One part, no screws. Print it on an FDM printer, flat on its back,
+         without supports. PLA works.</p>
+      <a class="action" href="https://github.com/reneaaron/goldfish/raw/main/case/exports/case.stl">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>
+        Download case.stl</a>
+      <div class="note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5L2.5 20h19L12 3.5zM12 10v4.5M12 17.2v.1"/></svg>
+        <span>No tested infill or layer height yet. The walls next to the
+              screen are only 0.75&nbsp;mm thick, so check your slicer
+              doesn't drop them.</span>
+      </div>
+      <details>
+        <summary>Change the case</summary>
+        <p>It's modelled in <a href="https://github.com/v0l/gcad">gcad</a>; the
+           source, a STEP file and the measurements it's built from are in
+           <a href="https://github.com/reneaaron/goldfish/tree/main/case">case/</a>.</p>
+      </details>
+    </li>
+
+    <li id="flash">
+      <div class="mark">3</div>
+      <h2>Flash the firmware</h2>
+      <p>Do this before the board goes into the case: the first time, you
+         need the BOOT button, and the case covers it. Hold BOOT (right of the
+         USB-C socket, seen from the back), plug the board into your computer,
+         then let the flasher copy the firmware onto the drive that appears.
+         It needs Chrome or Edge on a computer.</p>
+      <a class="action" href="../flasher/">Open the flasher</a>
+      <p>Later updates don't need the button: tap the version on the home
+         screen, then Restart.</p>
+    </li>
+
+    <li id="assemble">
+      <div class="mark">4</div>
+      <h2>Put it together</h2>
+      <ul>
+        <li>The camera sits flat on the back of the board, on the microSD
+            slot, lens facing away from the screen. The hole in the case is
+            made for it there.</li>
+        <li>Lower the board into the case, screen up, USB-C socket into the
+            tunnel in the end wall.</li>
+        <li>Press down until the four standoffs sit in the sockets in the
+            posts and the glass is flush with the rim. Ribs in the sockets
+            hold them; no screws.</li>
+      </ul>
+      <div class="note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5L2.5 20h19L12 3.5zM12 10v4.5M12 17.2v.1"/></svg>
+        <span>Not confirmed yet whether the camera in the -C bundle comes
+              fixed in that spot. If yours is loose, glue it there.</span>
+      </div>
+      <figure>
+        <img src="../img/renders/02_back.png" alt="Render of the back of the case, with the camera's lens hole" loading="lazy">
+        <figcaption>The back: the lens looks out through the round hole.</figcaption>
+      </figure>
+    </li>
+
+    <li id="use">
+      <div class="mark">5</div>
+      <h2>Start using it</h2>
+      <p>Power it from a charger or a power bank, not your computer. Nothing
+         is saved on the device: each time you plug it in, load your seed
+         again.</p>
+      <ul>
+        <li>Load a seed: Scan QR on a SeedQR, Enter words, or make a new one
+            from dice, coins or drawn words.</li>
+        <li>Back it up on a paper QR card. <a href="../cards/">Print blank
+            cards</a> for 12-word seeds.</li>
+        <li>Connect wallet shows your public key as a QR for a watch-only
+            wallet. Signing hasn't been tried with Sparrow or another wallet
+            app yet.</li>
+      </ul>
+      <p>The full list of what it does is in the
+         <a href="https://github.com/reneaaron/goldfish/blob/main/firmware/README.md">firmware README</a>.</p>
+    </li>
+  </ol>
+</main>
+</body>
+</html>
