@@ -365,21 +365,28 @@ size_t ur_encode_part(const uint8_t *data, size_t len, size_t fragment_len, uint
         return w ? size_t(h) + w : 0;
     }
 
-    size_t frag = (seq - 1) % count;
+    if (count > UR_MAX_FRAGMENTS || seq == 0) return 0;
+    // Parts 1..count are the fragments in turn; after that each part XORs a
+    // pseudo-random set of them (fountain code), so a scanner that missed a
+    // frame doesn't wait for it to come round again.
+    uint8_t idx[UR_MAX_FRAGMENTS];
+    size_t deg = choose_fragments(seq, uint32_t(count), checksum, idx);
     uint8_t part[300];
     uint8_t *p = cbor_put(part, 4, 5);
-    p = cbor_put(p, 0, frag + 1);
+    p = cbor_put(p, 0, seq);
     p = cbor_put(p, 0, count);
     p = cbor_put(p, 0, msg_len);
     p = cbor_put(p, 0, checksum);
     p = cbor_put(p, 2, fragment_len);
     memset(p, 0, fragment_len);
-    size_t start = frag * fragment_len;
-    size_t take = msg_len - start < fragment_len ? msg_len - start : fragment_len;
-    memcpy(p, msg + start, take);
+    for (size_t k = 0; k < deg; k++) {
+        size_t start = idx[k] * fragment_len;
+        size_t take = msg_len - start < fragment_len ? msg_len - start : fragment_len;
+        for (size_t i = 0; i < take; i++) p[i] ^= msg[start + i];
+    }
     p += fragment_len;
 
-    int h = snprintf(out, cap, "UR:CRYPTO-PSBT/%u-%u/", unsigned(frag + 1), unsigned(count));
+    int h = snprintf(out, cap, "UR:CRYPTO-PSBT/%u-%u/", unsigned(seq), unsigned(count));
     if (h <= 0 || size_t(h) >= cap) return 0;
     size_t w = bytewords_encode(part, size_t(p - part), out + h, cap - size_t(h));
     return w ? size_t(h) + w : 0;

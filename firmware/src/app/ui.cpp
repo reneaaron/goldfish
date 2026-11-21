@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <wally_core.h>
+#include <src/libs/qrcode/qrcodegen.h>
 #include "address_verify.h"
 #include "amount.h"
 #include "bip85.h"
@@ -68,7 +69,13 @@ static lv_obj_t *scroll_area(lv_obj_t *scr, int y) {
 
 // Grey rounded card holding a QR code (the grey is the quiet zone). Not white:
 // a white card overexposes a webcam (Sparrow) until the modules bleed together.
-constexpr int QR_CARD = 168;
+// The QR is drawn here, not with lv_qrcode: that one always uses byte mode and
+// ECC medium, then grows the version to fill the space at the same scale, so an
+// animated PSBT frame came out 73 modules wide at 2 px. Here an uppercase UR
+// part goes in alphanumeric mode at ECC low, at the smallest version, as large
+// as fits: a 64-byte fragment is 41 modules at 4 px (about 0.5 mm each).
+constexpr int QR_PX = 164;               // the code itself: 41 modules x 4 px
+constexpr int QR_CARD = QR_PX + 16;      // plus the grey quiet zone
 static const lv_color_t QR_LIGHT = lv_color_hex(0xA0A0A0);
 // Backlight while a QR is on screen: at full a webcam overexposes the panel.
 constexpr int QR_BACKLIGHT = 30;
@@ -84,13 +91,37 @@ static lv_obj_t *qr_card(lv_obj_t *parent, int y, lv_obj_t **qr_out) {
     lv_obj_set_style_border_color(c, BORDER, 0);
     lv_obj_set_style_border_width(c, 1, 0);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, y);
-    lv_obj_t *qr = lv_qrcode_create(c);
-    lv_qrcode_set_size(qr, QR_CARD - 20);
-    lv_qrcode_set_dark_color(qr, lv_color_black());
-    lv_qrcode_set_light_color(qr, QR_LIGHT);
+    // A 1-bit canvas: palette index 0 light, 1 dark.
+    static uint8_t buf_data[LV_DRAW_BUF_SIZE(QR_PX, QR_PX, LV_COLOR_FORMAT_I1)];
+    static lv_draw_buf_t buf;
+    lv_draw_buf_init(&buf, QR_PX, QR_PX, LV_COLOR_FORMAT_I1, LV_STRIDE_AUTO, buf_data, sizeof(buf_data));
+    lv_draw_buf_set_flag(&buf, LV_IMAGE_FLAGS_MODIFIABLE);
+    lv_obj_t *qr = lv_canvas_create(c);
+    lv_canvas_set_draw_buf(qr, &buf);
+    lv_canvas_set_palette(qr, 0, lv_color_to_32(QR_LIGHT, LV_OPA_COVER));
+    lv_canvas_set_palette(qr, 1, lv_color_to_32(lv_color_black(), LV_OPA_COVER));
     lv_obj_center(qr);
     *qr_out = qr;
     return c;
+}
+
+// Draws text (NUL-terminated) into a qr_card's canvas.
+static void qr_set(lv_obj_t *canvas, const char *s) {
+    static uint8_t qr[qrcodegen_BUFFER_LEN_MAX], tmp[qrcodegen_BUFFER_LEN_MAX];
+    lv_draw_buf_t *buf = lv_canvas_get_draw_buf(canvas);
+    uint8_t *px = buf->data + 8;   // past the two-colour palette
+    uint32_t stride = buf->header.stride;
+    memset(px, 0, stride * QR_PX);
+    if (qrcodegen_encodeText(s, tmp, qr, qrcodegen_Ecc_LOW, qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX,
+                             qrcodegen_Mask_AUTO, false)) {
+        int n = qrcodegen_getSize(qr), scale = QR_PX / n, off = (QR_PX - n * scale) / 2;
+        for (int y = 0; y < n * scale; y++)
+            for (int x = 0; x < n * scale; x++)
+                if (qrcodegen_getModule(qr, x / scale, y / scale))
+                    px[(off + y) * stride + ((off + x) >> 3)] |= 0x80 >> ((off + x) & 7);
+    }
+    lv_image_cache_drop(buf);
+    lv_obj_invalidate(canvas);
 }
 
 // ---------------------------------------------------------------- home
@@ -811,7 +842,7 @@ static void build_export_xpub() {
 
     lv_obj_t *qr;
     lv_obj_t *qc = qr_card(scr, BAR + 2, &qr);
-    lv_qrcode_update(qr, xpub, n);
+    if (n) qr_set(qr, xpub);
     lv_obj_add_flag(qc, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(qc, key_details_cb, LV_EVENT_CLICKED, nullptr);
 
@@ -2724,14 +2755,15 @@ static void build_psbt_sign() {
 static lv_timer_t *anim_timer;
 static lv_obj_t *anim_qr, *anim_lbl;
 static uint32_t anim_seq;
-#define FRAGMENT_LEN 80
+static size_t anim_frag;
+#define FRAGMENT_LEN 64   // a 41-module QR at 4 px: see qr_card
 
 static void anim_tick(lv_timer_t *) {
     static char part[400];
     anim_seq++;
-    size_t n = ur_encode_part(signed_buf, signed_len, FRAGMENT_LEN, anim_seq, part, sizeof(part));
-    if (n) lv_qrcode_update(anim_qr, part, n);
-    size_t count = ur_part_count(signed_len, FRAGMENT_LEN);
+    size_t n = ur_encode_part(signed_buf, signed_len, anim_frag, anim_seq, part, sizeof(part));
+    if (n) qr_set(anim_qr, part);
+    size_t count = ur_part_count(signed_len, anim_frag);
     if (count > 1)
         lv_label_set_text_fmt(anim_lbl, "Scan with your wallet  \xC2\xB7  %u/%u", unsigned((anim_seq - 1) % count + 1),
                               unsigned(count));
@@ -2748,12 +2780,15 @@ static void signed_done_cb(lv_event_t *) {
 static void build_psbt_signed() {
     lv_obj_t *scr = screen();
     topbar(scr, "Signed", nullptr, ICON_CHECK, GREEN, GREEN_DIM);
-    qr_card(scr, BAR + 2, &anim_qr);
+    qr_card(scr, BAR, &anim_qr);
     // What to do, and which frame of an animated QR is showing.
     anim_lbl = text(scr, "Scan with your wallet", &inter_15, TEXT);
-    lv_obj_align(anim_lbl, LV_ALIGN_TOP_MID, 0, BAR + 2 + QR_CARD + 10);
+    lv_obj_align(anim_lbl, LV_ALIGN_TOP_MID, 0, BAR + QR_CARD + 4);
     place_bottom(btn_primary(scr, "Back to wallet", signed_done_cb));
     show(scr);
+    // Larger fragments (a denser QR) only for a PSBT past what 64-byte ones carry.
+    anim_frag = FRAGMENT_LEN;
+    while (ur_part_count(signed_len, anim_frag) > UR_MAX_FRAGMENTS) anim_frag++;
     anim_seq = 0;
     anim_tick(nullptr);
     if (anim_timer) lv_timer_delete(anim_timer);
