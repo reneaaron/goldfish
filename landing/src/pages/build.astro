@@ -1,0 +1,136 @@
+---
+import Base from "../layouts/Base.astro";
+---
+<Base title="Build a Goldfish" description="Build a Goldfish signer: buy the board, print the case, flash the firmware, put it together." root="../" current="build">
+<style is:global>
+  h1 { font-size: clamp(36px, 5vw, 52px); letter-spacing: -0.02em; line-height: 1.05; }
+  h2 { font-size: clamp(24px, 3vw, 28px); letter-spacing: -0.01em; line-height: 1.15; }
+  .lede { color: var(--muted); max-width: 52ch; margin-top: 14px; }
+  .lede a, .step a:not(.cta) { color: var(--accent); text-underline-offset: 3px; }
+
+  .intro { padding: 48px 0 56px; }
+
+  /* ---- the steps: one section each, number in the landing page's build-card circle */
+  .step { display: grid; grid-template-columns: 28px 1fr; column-gap: 20px; padding: 56px 0; border-top: 1px solid var(--line); scroll-margin-top: 8px; }
+  .step > * { grid-column: 2; max-width: 62ch; }
+  .step > i {
+    grid-column: 1; grid-row: 1; display: grid; place-items: center; width: 28px; height: 28px; margin-top: 2px;
+    border-radius: 50%; background: var(--accent); color: #fff; font-style: normal; font-weight: 600; font-size: 14px;
+  }
+  .step p, .step ul { color: var(--muted); margin-top: 12px; }
+  .step ul { padding-left: 20px; }
+  .step ul li + li { margin-top: 6px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+  .actions .cta.quiet { background: var(--raised); color: var(--text); }
+  details { color: var(--muted); font-size: 15px; margin-top: 16px; }
+  summary { cursor: pointer; color: var(--faint); width: fit-content; }
+  details p { font-size: 15px; }
+  .photo { border-radius: 20px; width: 100%; max-width: 480px; margin-top: 24px; }
+
+
+  @media (max-width: 820px) {
+    .intro { padding: 32px 0 40px; }
+    .step { padding: 40px 0; column-gap: 14px; }
+    .actions .cta { width: 100%; justify-content: center; }
+  }
+</style>
+
+<main class="wrap">
+  <div class="intro">
+    <h1>Build one</h1>
+    <p class="lede">One board with a screen and a camera, one printed case, no soldering.
+       The firmware works in the simulator and is untested on real hardware:
+       not for real funds. Want to see it first? <a href="../try/">Try it in your browser</a>.</p>
+  </div>
+
+  <section class="step" id="parts">
+    <i>1</i>
+    <h2>Get the parts</h2>
+    <ul>
+      <li>Waveshare RP2350-Touch-LCD-2-C (SKU 30718). The -C version comes
+          with the OV5640 camera. $19.99 at Waveshare in November 2026.</li>
+      <li>A USB-C cable that carries data, not only charge.</li>
+      <li>Access to a 3D printer, for the case.</li>
+    </ul>
+    <div class="actions">
+      <a class="cta" href="https://www.waveshare.com/rp2350-touch-lcd-2.htm?sku=30718">Buy from Waveshare</a>
+      <a class="cta quiet" href="https://github.com/reneaaron/goldfish/tree/main/hardware#where-to-buy">Other shops by region</a>
+    </div>
+    <details>
+      <summary>Only found the board without camera?</summary>
+      <p>The base board is SKU 30711. Add an OV5640 module with a 24-pin
+         0.5&nbsp;mm DVP connector (ESP32-CAM style), and check its pinout
+         against the board's J1 before plugging it in. A 60–75° lens reads
+         QR codes better than a wide-angle one.</p>
+    </details>
+  </section>
+
+  <section class="step" id="print">
+    <i>2</i>
+    <h2>Print the case</h2>
+    <p>One part, no screws. Print it on an FDM printer, flat on its back,
+       without supports. PLA works.</p>
+    <div class="actions">
+      <a class="cta" href="https://github.com/reneaaron/goldfish/raw/main/case/exports/case.stl">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>
+        Download case.stl</a>
+    </div>
+    <details>
+      <summary>Change the case</summary>
+      <p>It's modelled in <a href="https://github.com/v0l/gcad">gcad</a>; the
+         source, a STEP file and the measurements it's built from are in
+         <a href="https://github.com/reneaaron/goldfish/tree/main/case">case/</a>.</p>
+    </details>
+  </section>
+
+  <section class="step" id="flash">
+    <i>3</i>
+    <h2>Flash the firmware</h2>
+    <p>Do this before the board goes into the case: the first time, you
+       need the BOOT button, and the case covers it. Hold BOOT (right of the
+       USB-C socket, seen from the back), plug the board into your computer,
+       then let the flasher copy the firmware onto the drive that appears.
+       It needs Chrome or Edge on a computer.</p>
+    <div class="actions">
+      <a class="cta" href="../flasher/">Open the flasher</a>
+    </div>
+    <p>Later updates don't need the button: tap the version on the home
+       screen, then Restart.</p>
+  </section>
+
+  <section class="step" id="assemble">
+    <i>4</i>
+    <h2>Put it together</h2>
+    <ul>
+      <li>The camera sits flat on the back of the board, on the microSD
+          slot, lens facing away from the screen. The hole in the case is
+          made for it there.</li>
+      <li>Lower the board into the case, screen up, USB-C socket into the
+          tunnel in the end wall.</li>
+      <li>Press down until the four standoffs sit in the sockets in the
+          posts and the glass is flush with the rim. Ribs in the sockets
+          hold them; no screws.</li>
+    </ul>
+    <img class="photo" src="../img/renders/02_back.png" alt="Render of the back of the case: the camera looks out through the round hole" loading="lazy">
+  </section>
+
+  <section class="step" id="use">
+    <i>5</i>
+    <h2>Start using it</h2>
+    <p>Power it from a charger or a power bank, not your computer. Nothing
+       is saved on the device: each time you plug it in, load your seed
+       again.</p>
+    <ul>
+      <li>Load a seed: Scan QR on a SeedQR, Enter words, or make a new one
+          from dice, coins or drawn words.</li>
+      <li>Back it up on a paper QR card. <a href="../cards/">Print blank
+          cards</a> for 12-word seeds.</li>
+      <li>Connect wallet shows your public key as a QR for a watch-only
+          wallet. Signing hasn't been tried with Sparrow or another wallet
+          app yet.</li>
+    </ul>
+    <p>The full list of what it does is in the
+       <a href="https://github.com/reneaaron/goldfish/blob/main/firmware/README.md">firmware README</a>.</p>
+  </section>
+</main>
+</Base>
