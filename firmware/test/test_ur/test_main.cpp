@@ -62,6 +62,16 @@ void test_out_of_range_parts_rejected() {
     TEST_ASSERT_EQUAL(0, (int)dec.found);
 }
 
+// A good part of a 9219-byte message, past UR_MAX_MESSAGE: reported as too
+// big (the scan screen says so), not as damaged, and nothing is stored.
+void test_too_big_message() {
+    const char *part = "UR:CRYPTO-PSBT/1-93/LPADCSHLCFDKAXCYJYWNIAONHDIEHKDKAEAEADAOAXAAAHAMATAYASBKBDBNBTBABSBEBYBGBWBBBZCMCHCSCFCYCWCECACKCTCXCLCPCNDKDADSDIDEDTDRDNDWDPDMDLDYEHEYEOEEECENEMETESFTFRFNFSFMFHFZFPFWFXFYFEFGFLFDGAGEGRGSGTGLGWGDGYGMGUGHGOHFHGHDHKHTHPHHHLHYHEHNLKDSMSEM";
+    const uint8_t *p; size_t pl;
+    ur_decoder_reset(&dec);
+    TEST_ASSERT_EQUAL(UR_TOO_BIG, ur_decoder_add(&dec, part, strlen(part), &p, &pl));
+    TEST_ASSERT_EQUAL(0, (int)dec.seq_len);
+}
+
 void test_encode_roundtrip() {
     // decode the vector, re-encode with a different fragment size, decode again
     ur_decoder_reset(&dec);
@@ -95,5 +105,6 @@ int main() {
     RUN_TEST(test_not_ur);
     RUN_TEST(test_encode_roundtrip);
     RUN_TEST(test_out_of_range_parts_rejected);
+    RUN_TEST(test_too_big_message);
     return UNITY_END();
 }
