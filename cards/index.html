@@ -124,6 +124,8 @@
   .card.wc .boxes b:nth-child(4) { margin-right: 2.4mm; }
   .card .line { height: 5.5mm; border-bottom: .2mm solid var(--line); }
   .card .g { width: 54mm; height: 54mm; display: flex; align-items: center; justify-content: center; }
+  /* plain: only the blank grid, boxes and lines, nothing that says what they're for */
+  .plain .alert, .plain .steps, .plain .store { display: none; }
 </style>
 </head>
 <body>
@@ -142,6 +144,7 @@
   <div class="row"><span>Also</span>
     <fieldset>
       <label class="opt"><input type="checkbox" id="wordcards" checked> Word card</label>
+      <label class="opt"><input type="checkbox" id="plain"> Plain (no text about what it's for, e.g. for a print shop)</label>
     </fieldset>
   </div>
   <div class="row"><span>Paper</span>
@@ -346,6 +349,7 @@ function render() {
   const words = document.getElementById('wordcards').checked;
   // The wallet card and the word card share one sheet; the full page gets its own.
   const pages = layout === 'page' ? [qrPage(N, PAPER[paper]), ...(words ? [wordPage()] : [])] : [walletPage(N, words)];
+  document.getElementById('sheets').classList.toggle('plain', document.getElementById('plain').checked);
   document.getElementById('sheets').innerHTML =
     pages.map(p => `<section class="sheet">${p}</section>`).join('');
 }
