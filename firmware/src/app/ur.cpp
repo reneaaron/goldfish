@@ -229,6 +229,34 @@ static void add_pure(UrDecoder *d, int idx, const uint8_t *data) {
     d->found++;
 }
 
+// Store a mixed part, minus the fragments we already know: one that comes
+// down to a single fragment is new data even when the store is full (dropping
+// those stalled the scan for good once the store filled up). A camera reads
+// the same frame many times, so a part already stored is skipped.
+static void add_mixed(UrDecoder *d, uint32_t seq, uint8_t *idx, size_t deg, const uint8_t *data) {
+    static uint8_t part[256];
+    memcpy(part, data, d->fragment_len);
+    size_t n = 0;
+    for (size_t k = 0; k < deg; k++) {
+        if (d->received[idx[k]]) xor_into(part, &d->message[idx[k] * d->fragment_len], d->fragment_len);
+        else idx[n++] = idx[k];
+    }
+    if (n == 1) add_pure(d, idx[0], part);
+    if (n < 2 || d->mixed_n == 64) return;
+    for (size_t m = 0; m < d->mixed_n; m++)
+        if (d->mixed[m].seq == seq) return;
+    bool used[64] = {false};
+    for (size_t m = 0; m < d->mixed_n; m++) used[d->mixed[m].slot] = true;
+    uint16_t slot = 0;
+    while (used[slot]) slot++;
+    UrDecoder::Mixed &mx = d->mixed[d->mixed_n++];
+    mx.slot = slot;
+    mx.seq = seq;
+    mx.n = uint8_t(n);
+    memcpy(mx.idx, idx, n);
+    memcpy(d->mixed_data[slot], part, d->fragment_len);
+}
+
 // The assembled message: a CBOR byte string for crypto-psbt and bytes (the
 // payload is what's inside), any CBOR for crypto-output (the payload is all of it).
 static UrResult unwrap(UrDecoder *d, const uint8_t **payload, size_t *plen) {
@@ -287,10 +315,12 @@ UrResult ur_decoder_add(UrDecoder *d, const char *text, size_t len, const uint8_
     // Fragments are stored back to back in d->message, so the fragment count
     // must be exactly what the message needs (as bc-ur requires) and fit the
     // buffer. seq is 1-based: 0 would index fragment 255.
-    if (seq == 0 || seq > UINT32_MAX || seq_len == 0 || seq_len > UR_MAX_FRAGMENTS || msg_len == 0 ||
-        msg_len > UR_MAX_MESSAGE || frag_len == 0 || frag_len > 256 ||
-        seq_len != (msg_len + frag_len - 1) / frag_len || seq_len * frag_len > sizeof(d->message))
+    if (seq == 0 || seq > UINT32_MAX || seq_len == 0 || msg_len == 0 || frag_len == 0 || frag_len > 256 ||
+        seq_len != (msg_len + frag_len - 1) / frag_len)
         return UR_BAD;
+    // A good part of a message we have no room for: say so, instead of nothing.
+    if (msg_len > UR_MAX_MESSAGE || seq_len > UR_MAX_FRAGMENTS) return UR_TOO_BIG;
+    if (seq_len * frag_len > sizeof(d->message)) return UR_BAD;
 
     if (d->type != type || d->seq_len != seq_len || d->checksum != checksum || d->message_len != msg_len ||
         d->fragment_len != frag_len) {
@@ -304,21 +334,8 @@ UrResult ur_decoder_add(UrDecoder *d, const char *text, size_t len, const uint8_
 
     uint8_t idx[UR_MAX_FRAGMENTS];
     size_t deg = choose_fragments(uint32_t(seq), uint32_t(seq_len), uint32_t(checksum), idx);
-    if (deg == 1) {
-        add_pure(d, idx[0], c.p);
-    } else if (d->mixed_n < 64) {
-        UrDecoder::Mixed &mx = d->mixed[d->mixed_n];
-        // find a free data slot
-        bool used[64] = {false};
-        for (size_t m = 0; m < d->mixed_n; m++) used[d->mixed[m].slot] = true;
-        uint16_t slot = 0;
-        while (used[slot]) slot++;
-        mx.slot = slot;
-        mx.n = uint8_t(deg);
-        memcpy(mx.idx, idx, deg);
-        memcpy(d->mixed_data[slot], c.p, size_t(frag_len));
-        d->mixed_n++;
-    }
+    if (deg == 1) add_pure(d, idx[0], c.p);
+    else add_mixed(d, uint32_t(seq), idx, deg, c.p);
     reduce_mixed(d);
 
     if (d->found == d->seq_len) return finish(d, payload, plen);
