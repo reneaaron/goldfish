@@ -264,6 +264,8 @@ static void handle_ur(QrPayload &p) {
         lv_bar_set_value(scan_bar, ur_decoder_percent(&ur_dec), LV_ANIM_ON);
     } else if (r == UR_WRONG_TYPE) {
         scan_status("Nothing to sign or verify", "Show a transaction or an address", AMBER);
+    } else if (r == UR_TOO_BIG) {
+        scan_status("Transaction too big", "Spend fewer coins at once", AMBER);
     }
 }
 
