@@ -471,12 +471,15 @@ static void build_scan(ScanMode mode) {
         lv_obj_align(scan_hints, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + 16);
     }
 
+    // animated QR progress: full width along the preview's bottom edge, where the eyes are
     scan_bar = lv_bar_create(scr);
-    lv_obj_set_size(scan_bar, CW, 4);
+    lv_obj_set_size(scan_bar, W, 6);
+    lv_obj_set_pos(scan_bar, 0, BAR + PREV_H);
     lv_bar_set_range(scan_bar, 0, 100);
+    lv_obj_set_style_radius(scan_bar, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(scan_bar, 0, LV_PART_INDICATOR);
     lv_obj_set_style_bg_color(scan_bar, SURFACE_2, LV_PART_MAIN);
     lv_obj_set_style_bg_color(scan_bar, ACCENT, LV_PART_INDICATOR);
-    lv_obj_align(scan_bar, LV_ALIGN_BOTTOM_MID, 0, -14);
     lv_obj_add_flag(scan_bar, LV_OBJ_FLAG_HIDDEN);
     if (mode == SCAN_PAGE) place_bottom(page_read_btn = btn_primary(scr, ICON_CAMERA "   Read words", page_read_cb));
     if (mode == SCAN_SEED) lv_obj_align(quiet_link(scr, "Have written words instead?", written_cb, nullptr), LV_ALIGN_BOTTOM_MID, 0, 0);

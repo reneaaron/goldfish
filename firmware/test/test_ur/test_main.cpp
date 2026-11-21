@@ -20,12 +20,19 @@ void test_decode_multipart() {
     const uint8_t *payload = nullptr;
     size_t plen = 0;
     UrResult r = UR_NOT_UR;
+    int last = 0;
     for (int i = 0; i < UR_MULTISIG_PARTS_N; i++) {
         r = ur_decoder_add(&dec, UR_MULTISIG_PARTS[i], strlen(UR_MULTISIG_PARTS[i]), &payload, &plen);
         TEST_ASSERT_TRUE(r == UR_PROGRESS || r == UR_COMPLETE);
-        if (i < UR_MULTISIG_PARTS_N - 1) TEST_ASSERT_EQUAL(UR_PROGRESS, r);
+        if (i < UR_MULTISIG_PARTS_N - 1) {
+            TEST_ASSERT_EQUAL(UR_PROGRESS, r);
+            TEST_ASSERT_TRUE(ur_decoder_percent(&dec) >= last);   // never goes back
+            TEST_ASSERT_TRUE(ur_decoder_percent(&dec) < 100);     // 100 only once complete
+            last = ur_decoder_percent(&dec);
+        }
     }
     TEST_ASSERT_EQUAL(UR_COMPLETE, r);
+    TEST_ASSERT_EQUAL(100, ur_decoder_percent(&dec));
     expect_base64(payload, plen, UR_MULTISIG_BASE64);
 }
 

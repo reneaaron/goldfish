@@ -182,9 +182,16 @@ void ur_decoder_reset(UrDecoder *d) {
     for (size_t i = 0; i < sizeof(*d); i++) v[i] = 0;
 }
 
-int ur_decoder_percent(const UrDecoder *d) {
-    if (!d->seq_len) return 0;
-    return int(d->found * 100 / d->seq_len);
+int ur_decoder_percent(const UrDecoder *d) { return d->percent; }
+
+// Mixed parts count half: a few turn out redundant, and the bar shouldn't
+// promise more than it has.
+static void update_percent(UrDecoder *d) {
+    size_t missing = d->seq_len - d->found;
+    size_t pending = d->mixed_n < missing ? d->mixed_n : missing;
+    int p = int((2 * d->found + pending) * 100 / (2 * d->seq_len));
+    if (p > 99) p = 99;
+    if (p > d->percent) d->percent = p;
 }
 
 static void xor_into(uint8_t *dst, const uint8_t *src, size_t n) {
@@ -338,7 +345,11 @@ UrResult ur_decoder_add(UrDecoder *d, const char *text, size_t len, const uint8_
     else add_mixed(d, uint32_t(seq), idx, deg, c.p);
     reduce_mixed(d);
 
-    if (d->found == d->seq_len) return finish(d, payload, plen);
+    if (d->found == d->seq_len) {
+        d->percent = 100;
+        return finish(d, payload, plen);
+    }
+    update_percent(d);
     return UR_PROGRESS;
 }
 
