@@ -1077,7 +1077,7 @@ static void build_new_seed() {
     lv_obj_align(r2, LV_ALIGN_TOP_MID, 0, 63);
     divider(c, 125);
     char draw[32];
-    snprintf(draw, sizeof(draw), "Pick %d words yourself", new_words - 1);
+    snprintf(draw, sizeof(draw), "%d from a hat", new_words);
     lv_obj_t *r3 = list_row(c, ICON_KEYBOARD, "Draw words", draw, draw_cb);
     lv_obj_align(r3, LV_ALIGN_TOP_MID, 0, 126);
     show(scr);
