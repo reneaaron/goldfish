@@ -5,7 +5,9 @@ RP2350-Touch-LCD-2 (RP2350A, 16MB flash, 2" 240×320 touch screen, OV5640
 camera connector). The board has no Wi-Fi or Bluetooth hardware.
 
 Status: early. Seed loading, BIP-39 passphrases, new seeds with a SeedQR backup, xpub export and
-PSBT review/signing (single-sig and multisig) work in the simulator; the board's camera driver is untested on hardware. Not for real funds.
+PSBT review/signing (single-sig and multisig) work in the simulator. On the board, the camera reads seed, descriptor and animated PSBT QRs, and a
+2-of-3 multisig with Sparrow 2.5.2 on signet was set up, signed and broadcast; single-sig signing
+hasn't been tried there yet. Not for real funds.
 
 ![Seed flow in the simulator](docs/screens/flow.png)
 ![Transaction flow in the simulator](docs/screens/flow_psbt.png)
@@ -416,8 +418,8 @@ seed there.
 on a computer: it asks for the `RP2350` drive, refuses any other folder, and
 writes the file there. The `Web flasher` workflow publishes that page on GitHub
 Pages together with the firmware built from a release tag (`v0.1.0`), and the
-page shows the file's version, commit and SHA-256. Like the firmware, it is
-untested on a real board.
+page shows the file's version, commit and SHA-256. The page is untested on a
+real board (copying the file onto the drive by hand works).
 
 Updating is the same steps with a newer file. Nothing is stored on the board,
 so there is nothing to migrate and an older version can be flashed back. The
@@ -441,8 +443,8 @@ computer, when a seed is loaded.
   mapping in `src/board/touch.cpp` (marked TODO).
 - The scan screen shows the camera image. If it stays black, the line under
   it says why: `Chip id 0x…, not 0x5640` (camera not found or not an OV5640)
-  or `No image within 1s` (no pixel clock or sync). The driver in `src/board/camera.cpp` is untested:
-  if the image is blurry on an autofocus module, tune `CAM_FOCUS` there.
+  or `No image within 1s` (no pixel clock or sync). If the image is
+  blurry on an autofocus module, tune `CAM_FOCUS` in `src/board/camera.cpp`.
 
 ## Pin map
 
