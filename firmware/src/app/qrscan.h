@@ -14,6 +14,8 @@ bool qrscan_init(int width, int height);
 // Decode one 8-bit grayscale frame (width*height bytes). Returns true and fills
 // `out` if a QR code was found and decoded.
 bool qrscan_frame(const uint8_t *gray, QrPayload *out);
+// QR finder patterns (the three corner squares) seen in the last frame, decoded or not.
+int qrscan_finders();
 void qrscan_free();
 
 // Platform hook: return the latest grayscale frame, or nullptr if none is ready.

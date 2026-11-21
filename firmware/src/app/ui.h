@@ -18,7 +18,7 @@
 //        -> back to the scanner, which now takes the wallet's transactions / addresses
 //   Home -> Enter words (12, or 24 from the first word) -> one screen per word -> Wallet
 //        camera -> Scan seed
-//   Scan seed -> Read words (a photo of the written backup, experimental)
+//   Scan seed -> held still on written words (a photo of the backup, experimental)
 //        -> (hold still: a second, sharper picture) -> Words found (the photo, each
 //        word boxed) -> Read (or Retake: back to Scan seed) -> Reading words -> Check words (12 or 24, from how many were found): the
 //        words in order, "?" where unread; tap one -> its picture -> Change /
@@ -35,7 +35,7 @@
 
 enum UiScreen {
     UI_HOME,
-    UI_SCAN_SEED,        // a SeedQR, or written words on "Read words" (also from Enter words)
+    UI_SCAN_SEED,        // a SeedQR, or written words once held still (also from Enter words)
     UI_WALLET,           // home once a seed is loaded: fingerprint, Scan QR, Wallet options
     UI_PASSPHRASE,       // BIP-39 passphrase keyboard, from Wallet options
     UI_WALLET_OPTIONS,
@@ -94,7 +94,7 @@ void ui_backup_next();         // "Next part"
 const uint8_t *ui_backup_qr();
 // "Continue" on the child number screen: derive the BIP-85 child, start its card flow.
 void ui_child_seed(uint32_t index);
-bool ui_page_read();           // "Read words" on Scan seed: false if there's no picture
+bool ui_page_read();           // read the words on Scan seed now (it also starts by itself): false if there's no picture
 bool ui_page_found_read();     // "Read" on Words found: false if nothing was found
 int ui_page_count();           // words on the Check words list
 int ui_page_slot(int i);       // its word i (BIP-39 index), -1 if unread
