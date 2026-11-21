@@ -1,9 +1,9 @@
 # Browser simulator: src/app + src/web compiled to WebAssembly with Emscripten,
-# with the page around it (try/).
+# for the page around it (landing/src/pages/try.astro, published at /try/).
 #
 #   pio pkg install -e sim          # once: fetches LVGL and libwally into .pio/libdeps/sim
-#   make -C web -j                  # -> .pio/build/web/{index.html,signer.js,signer.wasm,samples/}
-#   python3 -m http.server -d .pio/build/web
+#   make -C web -j                  # -> .pio/build/web/{signer.js,signer.wasm,samples/}
+#   (see firmware/README.md, Browser simulator, to serve it with its page)
 #
 # Needs emcc on PATH (emsdk). Same sources and libraries as the sim env in
 # platformio.ini, with src/web in place of src/sim.
@@ -35,18 +35,10 @@ LDFLAGS := $(OPT) -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=16MB -sSTACK_SIZE=1MB
            -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU16 -sFILESYSTEM=0
 
 .PHONY: all clean
-all: $(OUT)/signer.js $(OUT)/index.html $(OUT)/img/handwritten_page_thumb.jpg samples
+all: $(OUT)/signer.js samples
 
 $(OUT)/signer.js: $(OBJS)
 	$(CXX) $(LDFLAGS) $^ -o $@
-
-$(OUT)/index.html: $(FW)/../try/index.html
-	@mkdir -p $(@D)
-	cp $< $@
-
-$(OUT)/img/%: $(FW)/../try/img/%
-	@mkdir -p $(@D)
-	cp $< $@
 
 SAMPLES := testseed_height_demise_standard_12word.png mainpsbt_height_demise_base64.png \
            handwritten_page_demo.png

@@ -354,12 +354,14 @@ in place of `src/sim`: the screen is a `<canvas>`, the pointer is the touch
 screen, and the camera sees a picture the page hands it (one of a few
 `sim/samples`: the test seed, a transaction for it, and a handwritten page,
 `handwritten_page_demo.png`, that the firmware reads 24 of 24). The page is
-[`try/index.html`](../try/index.html). Needs `emcc` (emsdk 4.0.10).
+[`landing/src/pages/try.astro`](../landing/src/pages/try.astro), part of the website. Needs `emcc` (emsdk 4.0.10).
 
 ```bash
 pio pkg install -e sim          # once: LVGL and libwally
 make -C web -j                  # -> .pio/build/web
-python3 -m http.server -d .pio/build/web
+(cd ../landing && npm ci && npm run build)   # the website, with the page at dist/try/
+cp -r .pio/build/web/{signer.js,signer.wasm,samples} ../landing/dist/try/
+python3 -m http.server -d ../landing/dist     # then open /try/
 ```
 
 The `Website` workflow (`pages.yml`) builds it from `main` and publishes it at `/try/`.
@@ -384,9 +386,9 @@ seed there.
    `RP2350` appears.
 2. Copy `firmware.uf2` onto it. The board reboots into the firmware.
 
-[`flasher/index.html`](../flasher/index.html) does step 2 from Chrome or Edge
+[`landing/src/pages/flasher.astro`](../landing/src/pages/flasher.astro), published at `/flasher/`, does step 2 from Chrome or Edge
 on a computer: it asks for the `RP2350` drive, refuses any other folder, and
-writes the file there. The `Web flasher` workflow publishes that page on GitHub
+writes the file there. The `Website` workflow publishes that page on GitHub
 Pages together with the firmware built from a release tag (`v0.1.0`), and the
 page shows the file's version, commit and SHA-256. Like the firmware, it is
 untested on a real board.

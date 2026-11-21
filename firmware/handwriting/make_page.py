@@ -6,7 +6,7 @@ the training strips (EMNIST capitals, handwriting fonts), but a fixed seed.
 Run from firmware/handwriting:
   uv run --with-requirements requirements.txt python make_page.py --emnist <byclass npz> --fonts <dir> \
       --out ../sim/samples/handwritten_page.png
-Prints the 24 words. The browser simulator's page (try/) uses --seed 5 --pad 80, which
+Prints the 24 words. The browser simulator's page (/try/) uses --seed 5 --pad 80, which
 the firmware reads 24 of 24:
   ... make_page.py --emnist ... --fonts ... --seed 5 --pad 80 --out ../sim/samples/handwritten_page_demo.png
 """
