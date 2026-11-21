@@ -233,6 +233,8 @@ static int run_shots(const char *dir) {
     setenv("SIM_CAMERA", "sim/samples/does-not-exist.png", 1);
     ui_build();
     pump(300); save(dir, "1_home");
+    ui_brightness_panel(true); pump(300); save(dir, "1c_brightness");
+    ui_brightness_panel(false); pump(300);
     ui_goto(UI_UPDATE); pump(300); save(dir, "1b_update");
     ui_goto(UI_SCAN_SEED);
     pump(300); save(dir, "2_scan_waiting");
@@ -653,6 +655,7 @@ static int run_control() {
         if (!strcmp(line, "widgets")) {
             lv_area_t all = {0, 0, 239, 319};
             dump_widgets(lv_screen_active(), all);
+            dump_widgets(lv_layer_top(), all);   // the brightness panel
         } else if (sscanf(line, "tap %d %d", &a, &b) == 2) {
             touch_at.x = a; touch_at.y = b;
             touch_down = true;  pump(80);

@@ -50,7 +50,22 @@ The seed lives in RAM only: Forget seed or unplugging removes it.
    the amount a URI asks for (`amount=`) is shown too, or flagged if it isn't valid
 6. Sign transaction: Scan QR on a PSBT (animated UR `crypto-psbt`, or a single
    base64 frame), review the amount, fee and change, check each output's
-   address, slide to sign, then show the signed PSBT as an animated UR
+   address, slide to sign, then show the signed PSBT as an animated UR.
+   In Sparrow, set the QR density to Low (in versions up to 2.2, the
+   "Decrease Density" button; Sparrow remembers it): Medium and High codes are too dense
+   for the camera's 240x180 picture, and their fragments (over 256 bytes)
+   aren't accepted. A long press on the camera picture shows the scan speed:
+   frames per second, QR codes decoded per second, and quirc's time per frame
+   (average and slowest).
+   A PSBT can be up to 8 KB, about 15 inputs of a 2-of-3 multisig or 10 of
+   a 3-of-5 (fewer when the wallet app adds the full previous transactions);
+   a bigger one says "Transaction too big".
+
+Brightness: on any screen, drag down from the top edge for a panel with a
+brightness slider (10 to 100%); tap below it or drag it back up to close it.
+A screen with a QR code still dims to 30% of the setting (at least 10%) so a
+webcam doesn't overexpose it. Like everything else it's kept in RAM only:
+full brightness again after unplugging.
 
 Enter words restores from a words backup: type each word. It starts at 12
 words; a 24-word backup taps "24 words" on the first word. The keyboard only offers letters that lead to a word and, on the last
@@ -244,8 +259,9 @@ pio test -e test
   and the BIP39 vector with passphrase `TREZOR` (root key, fingerprint `b4e3f5ed`),
   removed again and wiped with the seed
 - UR: SeedSigner's 29-part `crypto-psbt` vector, plus an encode/decode round trip,
-  and parts whose header would overrun the decoder's buffer (sequence 0,
-  more fragments than the message needs)
+  parts whose header would overrun the decoder's buffer (sequence 0,
+  more fragments than the message needs), and a part of a message past 8 KB
+  reported as too big
 - Multisig descriptor: SeedSigner's native segwit 2-of-3 test wallet, with
   addresses and a witness script worked out by embit; the three spellings of
   the chains, a `crypto-output` UR made with urtypes (also cut short at every
@@ -313,13 +329,24 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
   scanned and confirmed, then signed and finalized with a cosigner; every
   spelling of the descriptor at both scanners; a 3-of-5 after a cosigner has
   signed; wallets the seed isn't in, a forged fingerprint, `multi`, a wrong
-  checksum; change to another multisig; the descriptor gone after a wipe
+  checksum; change to another multisig; the descriptor gone after a wipe;
+  a 15-input transaction through a camera that reads each frame twice and
+  misses three in four; a 20-input one, past 8 KB, refused as too big
+- Brightness: the panel opens from a drag at the top edge (also one that
+  starts on the back button, which isn't pressed), not from one further down,
+  and closes from a tap below it (which doesn't reach the screen under it) or
+  a drag back up
 - Written words: a handwritten page held still on Scan seed is read without a
   tap, and Retake waits for the view to change; a QR held still isn't
 
 The simulator runs headless for this (`SIM_CONTROL=1`, commands on stdin, see
 `src/sim/main.cpp`), on a clock that only moves when the test says so. A
 failing test prints the signer's screen and saves it as `e2e/failure_*.png`.
+
+For the board's camera, `e2e/qr_player.py --out <file>.html` writes a page that
+plays what Sparrow would: the test SeedQR, then testnet PSBTs for that seed in
+three sizes as animated UR at Sparrow's three densities, at its 200ms a frame.
+Hold the board up to the screen and long-press the preview for the scan speed.
 
 ## Desktop simulator
 
