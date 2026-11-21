@@ -239,3 +239,47 @@ def test_descriptor_goes_with_the_seed(dev):
     dev.tap("Scan QR")
     dev.scan_animated(psbt_parts(psbt))
     assert dev.screen == "PSBT_ERROR" and "needs its wallet's descriptor" in dev.text()
+
+
+def test_big_transaction_through_a_bad_camera(dev):
+    """15 inputs, close to the most the signer takes (8 KB). The camera reads
+    each frame twice and misses 75% of the animation: the fountain-coded
+    parts still complete it (they used to fill up the decoder and stall)."""
+    import random
+    rng = random.Random(1)
+    wallet = two_of_three()
+    psbt = wallet.create_psbt([wallet.fund(i, 100_000) for i in range(15)], [(STRANGER, 1_000_000)], fee=3_000)
+    parts = psbt_parts(psbt)
+
+    def bad_camera():
+        while True:
+            part = next(parts)
+            if rng.random() < 0.25:
+                yield part
+                yield part
+
+    loaded(dev)
+    dev.tap("Scan QR")
+    dev.scan(wallet.descriptor())
+    dev.tap("Use wallet")
+    dev.scan_animated(bad_camera())
+    assert dev.screen == "PSBT_OVERVIEW", dev.text()
+    signed, _ = review_and_sign(dev)
+    wallet.combine(psbt, signed)
+    assert wallet.signers(psbt) == {SIGNER.fingerprint}
+
+
+def test_too_big_transaction_says_so(dev):
+    """Past 8 KB the signer can't take a transaction, and tells the user
+    instead of showing nothing."""
+    wallet = two_of_three()
+    psbt = wallet.create_psbt([wallet.fund(i, 100_000) for i in range(20)], [(STRANGER, 1_000_000)], fee=3_000)
+    assert len(psbt.serialize()) > 8192
+    loaded(dev)
+    dev.tap("Scan QR")
+    dev.scan(wallet.descriptor())
+    dev.tap("Use wallet")
+    parts = psbt_parts(psbt)
+    for _ in range(3):
+        dev.scan(next(parts), ms=200)
+    assert dev.screen == "SCAN" and "Transaction too big" in dev.text(), dev.text()

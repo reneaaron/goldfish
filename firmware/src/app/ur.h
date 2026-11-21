@@ -16,6 +16,7 @@ enum UrResult {
     UR_WRONG_TYPE,     // a UR, but none of the types below
     UR_PROGRESS,       // part accepted, more needed
     UR_COMPLETE,       // message assembled
+    UR_TOO_BIG,        // a well-formed part of a message past UR_MAX_MESSAGE
 };
 
 enum UrType {
@@ -31,8 +32,8 @@ struct UrDecoder {
     uint8_t received[UR_MAX_FRAGMENTS];         // 1 once a pure fragment is known
     uint8_t message[UR_MAX_MESSAGE + 256];      // fragments, back to back
     size_t found;                               // pure fragments known
-    // mixed parts we couldn't reduce yet
-    struct Mixed { uint8_t idx[UR_MAX_FRAGMENTS]; uint8_t n; uint16_t slot; };
+    // mixed parts we couldn't reduce yet: only their still unknown fragments
+    struct Mixed { uint8_t idx[UR_MAX_FRAGMENTS]; uint8_t n; uint16_t slot; uint32_t seq; };
     Mixed mixed[64];
     uint8_t mixed_data[64][256];
     size_t mixed_n;
