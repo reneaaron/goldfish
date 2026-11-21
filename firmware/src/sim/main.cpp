@@ -487,7 +487,7 @@ static int run_shots(const char *dir) {
     if (ui_current() != UI_VERIFY_RESULT) { fprintf(stderr, "multisig address was not accepted (screen %d)\n", ui_current()); return 1; }
     pump(300); save(dir, "50_multisig_verify");
 
-    // Scan words (experimental): a photo of a written 24-word test seed
+    // Read words on Scan seed (experimental): a photo of a written 24-word test seed
     // (handwriting/make_page.py). Words read are used; the rest are typed.
     static const char *const page_words[24] = {
         "calm", "scene", "merit", "capable", "noble", "great", "task", "reject", "also", "fury", "media", "vendor",
@@ -496,14 +496,12 @@ static int run_shots(const char *dir) {
     ui_goto(UI_HOME);
     cam_override = false;
     setenv("SIM_CAMERA", "sim/samples/handwritten_page.png", 1);
-    ui_goto(UI_SCAN_SEED);   // a written page shown to the QR scanner: the way out
-    pump(300); save(dir, "50b_scan_seed_written");
     ui_seed_entry(UI_ENTER_WORDS, 24);
-    ui_goto(UI_SCAN_PAGE);
+    ui_goto(UI_SCAN_SEED);   // as the camera on Enter words does
     pump(300); save(dir, "51_scan_page");
     if (!ui_page_read()) { fprintf(stderr, "no page picture\n"); return 1; }
     pump(20); save(dir, "51a_page_hold_still");   // the words found, before the sharp picture
-    for (int i = 0; i < 400 && ui_current() == UI_SCAN_PAGE; i++) pump(20);   // hold still: the words, then the sharp picture
+    for (int i = 0; i < 400 && ui_current() == UI_SCAN_SEED; i++) pump(20);   // hold still: the words, then the sharp picture
     pump(300); save(dir, "51b_page_found");
     if (!ui_page_found_read()) { fprintf(stderr, "no words found (screen %d)\n", ui_current()); return 1; }
     for (int i = 0; i < 400 && ui_current() == UI_PAGE_READING; i++) {
