@@ -10,7 +10,7 @@ Goldfish ("Sign and forget."): a stateless, camera-based Bitcoin signer for the 
 - `case/`: printed case in gcad (`.gcad` parts, `.gasm` assembly)
 - `hardware/`: parts list, board notes
 - `flasher/`: one static page that copies `firmware.uf2` onto the board's BOOT drive
-- `landing/`: the project website's landing page; `.github/workflows/pages.yml` publishes it on GitHub Pages (landing at `/`, flasher with the latest tagged firmware at `/flasher/`, cards at `/cards/`, the browser simulator built from `main` at `/try/`) on pushes to `main` that touch the site and on `v*` tags
+- `landing/`: the project website, a small Astro site (`src/layouts/Base.astro` holds the head, nav and footer every page shares; pages in `src/pages`: the landing page and the build guide at `/build/`; `npm run dev` / `npm run build` from `landing/`); `.github/workflows/pages.yml` publishes it on GitHub Pages (landing at `/`, flasher with the latest tagged firmware at `/flasher/`, cards at `/cards/`, the browser simulator built from `main` at `/try/`) on pushes to `main` that touch the site and on `v*` tags
 - `try/`: the page around the browser (WebAssembly) build of the firmware, built by `firmware/web/Makefile`
 - `cards/`: one self-contained page (no external requests) that prints blank cards for 12-word seeds only: the 21×21 SeedQR grid (full page or wallet cards) and word cards; the grid's labels and part lines must match the device's `build_backup_block` in `ui.cpp`
 - `marketing/`: Blender render scripts that consume `case/exports/case.stl` and `firmware/docs/screens/*.png`

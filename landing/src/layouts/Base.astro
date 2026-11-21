@@ -1,0 +1,72 @@
+---
+// Every page: head, nav and footer. root is the way back to the site's top
+// ("" on the landing page, "../" one level down): the site lives under a subpath.
+import "../styles/site.css";
+
+interface Props { title: string; description: string; root?: string; current?: "build"; }
+const { title, description, root = "", current } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title}</title>
+<meta name="description" content={description}>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='30' fill='%23FF7A2F'/%3E%3Cg transform='translate(19 39.5)'%3E%3Crect x='20' y='0' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='30' y='0' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='0' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='0' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='10' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='10' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='60' y='10' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='80' y='10' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='0' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='60' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='70' y='20' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='30' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='30' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='60' y='30' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='80' y='30' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='20' y='40' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='30' y='40' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='40' y='40' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='50' y='40' width='9' height='9' rx='2' fill='%23FFFFFF'/%3E%3Crect x='10' y='10' width='29' height='29' rx='3' fill='%2314222B'/%3E%3Crect x='15' y='15' width='19' height='19' rx='1.5' fill='%23FFFFFF'/%3E%3Crect x='20' y='20' width='9' height='9' rx='1' fill='%2314222B'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<slot name="head" />
+</head>
+<body>
+
+<header class="wrap">
+  <nav>
+    <a class="brand" href={root || "#"}>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 94 54" aria-hidden="true">
+        <rect x="20" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="30" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="10" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="10" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="60" y="10" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="80" y="10" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="0" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="60" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="70" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="30" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="30" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="60" y="30" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="80" y="30" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="20" y="40" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="30" y="40" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="40" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="40" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="10" y="10" width="29" height="29" rx="3" fill="#14222B"/>
+        <rect x="15" y="15" width="19" height="19" rx="1.5" fill="#FFFFFF"/>
+        <rect x="20" y="20" width="9" height="9" rx="1" fill="#14222B"/>
+      </svg>
+      goldfish
+    </a>
+    <a class="link wide" href={`${root}#how`}>How it works</a>
+    <a class="link" href={`${root}try/`}>Try it</a>
+    <a class="link wide" href={current === "build" ? "./" : `${root}#build`} aria-current={current === "build" ? "page" : undefined}>Build one</a>
+    <a class="link" href="https://github.com/reneaaron/goldfish" aria-label="GitHub">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49l-.01-1.9c-2.78.62-3.37-1.21-3.37-1.21-.46-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.9 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05A9.36 9.36 0 0 1 12 6.96c.85 0 1.71.12 2.51.34 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9l-.01 2.82c0 .27.18.59.69.49A10.03 10.03 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/></svg>
+    </a>
+  </nav>
+</header>
+
+<slot />
+
+<footer>
+  <div class="wrap">
+    <span>Goldfish is open source. Early, and not for real funds yet.</span>
+    <span><a href="https://github.com/reneaaron/goldfish">GitHub</a></span>
+  </div>
+</footer>
+</body>
+</html>
