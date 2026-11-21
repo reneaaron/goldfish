@@ -2900,6 +2900,154 @@ static bool backup_screen(UiScreen s) {
            s == UI_BACKUP_BLOCK || s == UI_BACKUP_SCAN || s == UI_SEED_READY;
 }
 
+// ---------------------------------------------------------------- brightness
+// Drag down from the top edge, on any screen: a panel with a brightness slider
+// slides over it. Tap below it or drag it back up to close. RAM only, like
+// everything else: full brightness again after unplugging.
+constexpr int BRIGHT_MIN = 10;     // never so dark the screen is lost
+constexpr int BRIGHT_EDGE = 24;    // a drag must start this close to the top
+constexpr int BRIGHT_PULL = 32;    // and come down this far
+constexpr int BRIGHT_H = 92;
+static int brightness = 100;
+// The slider has no padding to keep its knob inside the track: padding would
+// also start the fill 14px in, a notch at the track's left end. Instead its
+// value stops half a knob short of each end; the setting maps to that stretch.
+constexpr int BRIGHT_SL_H = 28, BRIGHT_SPAN = 1000;
+constexpr int BRIGHT_LO = BRIGHT_SPAN * (BRIGHT_SL_H / 2) / CW, BRIGHT_HI = BRIGHT_SPAN - BRIGHT_LO;
+static lv_obj_t *bright_scrim, *bright_panel;
+static bool bright_closing;
+static lv_point_t pull_from;
+static lv_timer_t *pull_timer;
+
+// A QR screen keeps its dimming, scaled with the setting.
+static void apply_backlight() {
+    platform_backlight(qr_shown ? LV_MAX(BRIGHT_MIN, brightness * QR_BACKLIGHT / 100) : brightness);
+}
+
+static void bright_slider_cb(lv_event_t *e) {
+    lv_obj_t *sl = (lv_obj_t *)lv_event_get_target(e);
+    int v = lv_slider_get_value(sl), c = LV_CLAMP(BRIGHT_LO, v, BRIGHT_HI);
+    if (c != v) lv_slider_set_value(sl, c, LV_ANIM_OFF);
+    brightness = BRIGHT_MIN + (c - BRIGHT_LO) * (100 - BRIGHT_MIN) / (BRIGHT_HI - BRIGHT_LO);
+    apply_backlight();
+}
+
+static void bright_slide(void *o, int32_t v) { lv_obj_set_y((lv_obj_t *)o, v); }
+static void bright_closed(lv_anim_t *) {
+    lv_obj_delete(bright_scrim);
+    bright_scrim = bright_panel = nullptr;
+    bright_closing = false;
+}
+
+// Dragged back up: close.
+static void bright_push_cb(lv_event_t *e) {
+    static int32_t from;
+    lv_point_t p;
+    lv_indev_get_point(lv_indev_active(), &p);
+    if (lv_event_get_code(e) == LV_EVENT_PRESSED) from = p.y;
+    else if (from - p.y > BRIGHT_PULL / 2) {
+        lv_indev_wait_release(lv_indev_active());
+        ui_brightness_panel(false);
+    }
+}
+
+void ui_brightness_panel(bool open) {
+    if (open == (bright_scrim != nullptr) || bright_closing) return;
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_exec_cb(&a, bright_slide);
+    lv_anim_set_duration(&a, 160);
+    if (!open) {
+        lv_anim_set_var(&a, bright_panel);
+        lv_anim_set_values(&a, lv_obj_get_y(bright_panel), -BRIGHT_H - 16);
+        lv_anim_set_completed_cb(&a, bright_closed);
+        bright_closing = true;   // one close only; taps meanwhile still land on the scrim
+        lv_anim_start(&a);
+        return;
+    }
+    bright_scrim = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(bright_scrim);
+    lv_obj_set_size(bright_scrim, W, H);
+    lv_obj_set_style_bg_color(bright_scrim, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(bright_scrim, LV_OPA_50, 0);
+    lv_obj_add_flag(bright_scrim, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(bright_scrim, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(bright_scrim, [](lv_event_t *) { ui_brightness_panel(false); }, LV_EVENT_CLICKED, nullptr);
+
+    bright_panel = lv_obj_create(bright_scrim);
+    lv_obj_remove_style_all(bright_panel);
+    // Taller than shown by its radius, which sits off screen: only the bottom is rounded.
+    lv_obj_set_size(bright_panel, W, BRIGHT_H + 16);
+    lv_obj_set_style_pad_top(bright_panel, 16, 0);
+    lv_obj_set_style_bg_color(bright_panel, SURFACE, 0);
+    lv_obj_set_style_bg_opa(bright_panel, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(bright_panel, 16, 0);
+    lv_obj_add_flag(bright_panel, LV_OBJ_FLAG_CLICKABLE);         // taps on it don't close it
+    lv_obj_remove_flag(bright_panel, LV_OBJ_FLAG_SCROLLABLE);      // a scroll would eat the swipe up
+    lv_obj_add_event_cb(bright_panel, bright_push_cb, LV_EVENT_PRESSED, nullptr);
+    lv_obj_add_event_cb(bright_panel, bright_push_cb, LV_EVENT_PRESSING, nullptr);
+
+    lv_obj_align(caption(bright_panel, "BRIGHTNESS"), LV_ALIGN_TOP_MID, 0, 12);
+    lv_obj_t *sl = lv_slider_create(bright_panel);
+    lv_obj_remove_style_all(sl);
+    lv_obj_set_size(sl, CW, BRIGHT_SL_H);
+    lv_slider_set_range(sl, 0, BRIGHT_SPAN);
+    lv_slider_set_value(sl, BRIGHT_LO + (brightness - BRIGHT_MIN) * (BRIGHT_HI - BRIGHT_LO) / (100 - BRIGHT_MIN),
+                        LV_ANIM_OFF);
+    lv_obj_set_style_bg_color(sl, SURFACE_2, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(sl, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_radius(sl, 14, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(sl, ACCENT_DIM, LV_PART_INDICATOR);
+    lv_obj_set_style_bg_opa(sl, LV_OPA_COVER, LV_PART_INDICATOR);
+    lv_obj_set_style_radius(sl, 14, LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(sl, ACCENT, LV_PART_KNOB);
+    lv_obj_set_style_bg_opa(sl, LV_OPA_COVER, LV_PART_KNOB);
+    lv_obj_set_style_radius(sl, LV_RADIUS_CIRCLE, LV_PART_KNOB);
+    lv_obj_set_style_pad_all(sl, 2, LV_PART_KNOB);
+    lv_obj_set_ext_click_area(sl, 12);
+    lv_obj_add_event_cb(sl, bright_slider_cb, LV_EVENT_VALUE_CHANGED, nullptr);
+    lv_obj_align(sl, LV_ALIGN_TOP_MID, 0, 36);
+    lv_obj_t *grip = lv_obj_create(bright_panel);                // says: drag back up
+    lv_obj_remove_style_all(grip);
+    lv_obj_remove_flag(grip, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_size(grip, 36, 4);
+    lv_obj_set_style_radius(grip, 2, 0);
+    lv_obj_set_style_bg_color(grip, TEXT_3, 0);
+    lv_obj_set_style_bg_opa(grip, LV_OPA_COVER, 0);
+    lv_obj_align(grip, LV_ALIGN_BOTTOM_MID, 0, -8);
+
+    lv_anim_set_var(&a, bright_panel);
+    lv_anim_set_values(&a, -BRIGHT_H - 16, -16);
+    lv_anim_start(&a);
+}
+
+// A touch that starts at the top edge is followed until it comes down far
+// enough or lets go, whatever screen is under it: a scrolling list or a button
+// would otherwise take the drag for itself. (LVGL tells an input device's
+// callbacks about the press, not the movement, so a timer follows it.)
+static void pull_tick(lv_timer_t *t) {
+    lv_indev_t *in = (lv_indev_t *)lv_timer_get_user_data(t);
+    lv_point_t p;
+    lv_indev_get_point(in, &p);
+    bool down = lv_indev_get_state(in) == LV_INDEV_STATE_PRESSED;
+    int dy = p.y - pull_from.y, dx = LV_ABS(p.x - pull_from.x);
+    bool sideways = dx > dy && dx > BRIGHT_PULL / 2;
+    if (down && !sideways && dy < BRIGHT_PULL) return;
+    lv_timer_delete(t);
+    pull_timer = nullptr;
+    if (!down || sideways || bright_scrim) return;
+    lv_indev_reset(in, nullptr);       // whatever was pressed doesn't get a click
+    lv_indev_wait_release(in);
+    ui_brightness_panel(true);
+}
+
+static void pull_cb(lv_event_t *e) {
+    lv_indev_t *in = (lv_indev_t *)lv_event_get_target(e);
+    lv_indev_get_point(in, &pull_from);
+    if (pull_from.y >= BRIGHT_EDGE || bright_scrim || pull_timer) return;
+    pull_timer = lv_timer_create(pull_tick, 15, in);
+}
+
 void ui_goto(UiScreen s) {
     if (ui_current() == UI_PAGE_REVIEW) page_review_y = lv_obj_get_scroll_y(page_review_list);
     // (Words found shows preview_buf: the photo, kept there; scanning stopped before it)
@@ -2961,9 +3109,15 @@ void ui_goto(UiScreen s) {
         case UI_PAGE_WORD: build_page_word(); break;
         case UI_UPDATE: build_update(); break;
     }
-    platform_backlight(qr_shown ? QR_BACKLIGHT : 100);
+    apply_backlight();
 }
 
 UiScreen ui_current() { return current; }
 
-void ui_build() { ui_goto(UI_HOME); }
+void ui_build() {
+    for (lv_indev_t *in = lv_indev_get_next(nullptr); in; in = lv_indev_get_next(in)) {
+        if (lv_indev_get_type(in) != LV_INDEV_TYPE_POINTER) continue;
+        lv_indev_add_event_cb(in, pull_cb, LV_EVENT_PRESSED, nullptr);
+    }
+    ui_goto(UI_HOME);
+}
