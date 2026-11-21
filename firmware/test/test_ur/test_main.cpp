@@ -1,7 +1,7 @@
-#include <stdio.h>
 // UR crypto-psbt decoding/encoding against SeedSigner's multi-part vector.
 // Run: pio test -e test
 #include <unity.h>
+#include <stdio.h>
 #include <string.h>
 #include <wally_core.h>
 #include "../../src/app/ur.h"

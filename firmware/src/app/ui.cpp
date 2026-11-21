@@ -2755,14 +2755,15 @@ static void build_psbt_sign() {
 static lv_timer_t *anim_timer;
 static lv_obj_t *anim_qr, *anim_lbl;
 static uint32_t anim_seq;
+static size_t anim_frag;
 #define FRAGMENT_LEN 64   // a 41-module QR at 4 px: see qr_card
 
 static void anim_tick(lv_timer_t *) {
     static char part[400];
     anim_seq++;
-    size_t n = ur_encode_part(signed_buf, signed_len, FRAGMENT_LEN, anim_seq, part, sizeof(part));
+    size_t n = ur_encode_part(signed_buf, signed_len, anim_frag, anim_seq, part, sizeof(part));
     if (n) qr_set(anim_qr, part);
-    size_t count = ur_part_count(signed_len, FRAGMENT_LEN);
+    size_t count = ur_part_count(signed_len, anim_frag);
     if (count > 1)
         lv_label_set_text_fmt(anim_lbl, "Scan with your wallet  \xC2\xB7  %u/%u", unsigned((anim_seq - 1) % count + 1),
                               unsigned(count));
@@ -2785,6 +2786,9 @@ static void build_psbt_signed() {
     lv_obj_align(anim_lbl, LV_ALIGN_TOP_MID, 0, BAR + QR_CARD + 4);
     place_bottom(btn_primary(scr, "Back to wallet", signed_done_cb));
     show(scr);
+    // Larger fragments (a denser QR) only for a PSBT past what 64-byte ones carry.
+    anim_frag = FRAGMENT_LEN;
+    while (ur_part_count(signed_len, anim_frag) > UR_MAX_FRAGMENTS) anim_frag++;
     anim_seq = 0;
     anim_tick(nullptr);
     if (anim_timer) lv_timer_delete(anim_timer);

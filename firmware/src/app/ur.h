@@ -49,8 +49,9 @@ UrResult ur_decoder_add(UrDecoder *d, const char *text, size_t len,
 int ur_decoder_percent(const UrDecoder *d);
 
 // Encode `data` as crypto-psbt part number `seq` (1-based): parts 1..count are
-// the fragments, later ones fountain-coded mixes of them, as the bc-ur encoder. Writes an upper-case string (QR alphanumeric mode). Returns its
-// length, 0 on error.
+// the fragments, later ones fountain-coded mixes of them, as the bc-ur encoder.
+// Writes an upper-case string (QR alphanumeric mode). Returns its length, 0 on
+// error (including more than UR_MAX_FRAGMENTS fragments).
 size_t ur_encode_part(const uint8_t *data, size_t len, size_t fragment_len,
                       uint32_t seq, char *out, size_t cap);
 size_t ur_part_count(size_t len, size_t fragment_len);
