@@ -3,5 +3,13 @@
   "version": "0.0.0+f2e4271",
   "description": "QR code decoder (vendored from https://github.com/dlbeer/quirc at f2e4271ae43a15d9263704e07bc86cba5697d74d)",
   "license": "ISC",
-  "build": { "flags": ["-DQUIRC_MAX_REGIONS=254"] }
+  "build": {
+    "flags": [
+      "-DQUIRC_MAX_REGIONS=254",
+      "-DQUIRC_FLOAT_TYPE=float",
+      "-DQUIRC_USE_TGMATH",
+      "-fsingle-precision-constant",
+      "-O2"
+    ]
+  }
 }

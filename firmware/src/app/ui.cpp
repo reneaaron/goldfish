@@ -155,6 +155,11 @@ static void build_home() {
 static uint8_t preview_buf[PREV_W * PREV_H];
 static lv_image_dsc_t preview_dsc;
 static lv_obj_t *preview_img, *scan_msg, *scan_sub, *scan_bar, *page_read_btn;
+// Scan speed, per second: frames from the camera, QRs decoded, quirc's time
+// per frame (average and slowest). A long press on the preview shows it in
+// its own line at the bottom, above the progress bar.
+static lv_obj_t *scan_stats;
+static uint32_t st_t0, st_frames, st_codes, st_ms, st_max;
 static lv_timer_t *scan_timer;
 enum ScanMode { SCAN_SEED, SCAN_WALLET, SCAN_CONFIRM, SCAN_PAGE };
 static ScanMode scan_mode;
@@ -334,7 +339,23 @@ static void scan_tick(lv_timer_t *) {
     if (scan_mode == SCAN_PAGE) return;   // just the preview, until "Read words"
 
     static QrPayload p;   // static: 3KB is a lot of stack on the RP2350
-    if (!qrscan_frame(frame, &p)) return;
+    uint32_t t = lv_tick_get();
+    bool found = qrscan_frame(frame, &p);
+    uint32_t dt = lv_tick_elaps(t);
+    st_frames++;
+    st_codes += found;
+    st_ms += dt;
+    if (dt > st_max) st_max = dt;
+    if (lv_tick_elaps(st_t0) >= 1000) {
+        uint32_t span = lv_tick_elaps(st_t0);
+        lv_label_set_text_fmt(scan_stats, "%lu.%lu fps  %lu.%lu qr/s  %lu ms (%lu)",
+                              (unsigned long)(st_frames * 1000 / span), (unsigned long)(st_frames * 10000 / span % 10),
+                              (unsigned long)(st_codes * 1000 / span), (unsigned long)(st_codes * 10000 / span % 10),
+                              (unsigned long)(st_frames ? st_ms / st_frames : 0), (unsigned long)st_max);
+        st_t0 = lv_tick_get();
+        st_frames = st_codes = st_ms = st_max = 0;
+    }
+    if (!found) return;
     if (scan_mode == SCAN_SEED) handle_seed_payload(p);
     else if (scan_mode == SCAN_WALLET) handle_wallet_payload(p);
     else handle_confirm_payload(p);
@@ -409,6 +430,19 @@ static void build_scan(ScanMode mode) {
                                     "Let's check it matches", "Fit all the words in view"};
     topbar(scr, titles[mode], scan_back_cb);
     preview_image(scr);
+    st_t0 = lv_tick_get();
+    st_frames = st_codes = st_ms = st_max = 0;
+    // a page has its Read button down there, and reads no QRs to count
+    scan_stats = text(scr, "", &inter_13, TEXT_3, LV_TEXT_ALIGN_CENTER);
+    lv_obj_align(scan_stats, LV_ALIGN_BOTTOM_MID, 0, -22);
+    lv_obj_add_flag(scan_stats, LV_OBJ_FLAG_HIDDEN);
+    if (mode != SCAN_PAGE) {
+        lv_obj_add_flag(preview_img, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(preview_img, [](lv_event_t *) {
+            if (lv_obj_has_flag(scan_stats, LV_OBJ_FLAG_HIDDEN)) lv_obj_remove_flag(scan_stats, LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_add_flag(scan_stats, LV_OBJ_FLAG_HIDDEN);
+        }, LV_EVENT_LONG_PRESSED, nullptr);
+    }
     if (mode == SCAN_PAGE) corners(scr, W / 2, BAR + PREV_H / 2, W - 16, PREV_H - 16);   // the whole picture
     else corners(scr, W / 2, BAR + PREV_H / 2, 150, 150);
 

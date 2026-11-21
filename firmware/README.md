@@ -50,7 +50,13 @@ The seed lives in RAM only: Forget seed or unplugging removes it.
    the amount a URI asks for (`amount=`) is shown too, or flagged if it isn't valid
 6. Sign transaction: Scan QR on a PSBT (animated UR `crypto-psbt`, or a single
    base64 frame), review the amount, fee and change, check each output's
-   address, slide to sign, then show the signed PSBT as an animated UR
+   address, slide to sign, then show the signed PSBT as an animated UR.
+   In Sparrow, set the QR density to Low (in versions up to 2.2, the
+   "Decrease Density" button; Sparrow remembers it): Medium and High codes are too dense
+   for the camera's 240x180 picture, and their fragments (over 256 bytes)
+   aren't accepted. A long press on the camera picture shows the scan speed:
+   frames per second, QR codes decoded per second, and quirc's time per frame
+   (average and slowest).
 
 Enter words restores from a words backup: type each word. It starts at 12
 words; a 24-word backup taps "24 words" on the first word. The keyboard only offers letters that lead to a word and, on the last
@@ -315,6 +321,11 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
 The simulator runs headless for this (`SIM_CONTROL=1`, commands on stdin, see
 `src/sim/main.cpp`), on a clock that only moves when the test says so. A
 failing test prints the signer's screen and saves it as `e2e/failure_*.png`.
+
+For the board's camera, `e2e/qr_player.py --out <file>.html` writes a page that
+plays what Sparrow would: the test SeedQR, then testnet PSBTs for that seed in
+three sizes as animated UR at Sparrow's three densities, at its 200ms a frame.
+Hold the board up to the screen and long-press the preview for the scan speed.
 
 ## Desktop simulator
 
