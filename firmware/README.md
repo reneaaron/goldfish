@@ -50,7 +50,9 @@ The seed lives in RAM only: Forget seed or unplugging removes it.
    the amount a URI asks for (`amount=`) is shown too, or flagged if it isn't valid
 6. Sign transaction: Scan QR on a PSBT (animated UR `crypto-psbt`, or a single
    base64 frame), review the amount, fee and change, check each output's
-   address, slide to sign, then show the signed PSBT as an animated UR.
+   address, slide to sign, then show the signed PSBT as an animated UR: 64-byte
+   fragments in alphanumeric mode at ECC low, so each frame is a 41-module
+   QR at 4 px a module (about 0.5 mm) that a laptop webcam can read.
    In Sparrow, set the QR density to Low (in versions up to 2.2, the
    "Decrease Density" button; Sparrow remembers it): Medium and High codes are too dense
    for the camera's 240x180 picture, and their fragments (over 256 bytes)
