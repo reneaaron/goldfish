@@ -76,6 +76,8 @@ void platform_reboot_to_bootloader();
 // Backlight in percent (100 = full). One per target.
 void platform_backlight(int percent);
 void ui_goto(UiScreen s);
+// Brightness panel (drag down from the top edge on any screen): open or close it.
+void ui_brightness_panel(bool open);
 UiScreen ui_current();
 
 // For the simulator's scripted run: the same actions as the on-screen controls.

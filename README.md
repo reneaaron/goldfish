@@ -57,6 +57,8 @@ app, and the code hasn't been reviewed or audited.
    device, then sign that wallet's transactions as
    one of its cosigners (native segwit `wsh(sortedmulti)`).
 
+On any screen, drag down from the top edge to set the screen's brightness.
+
 ## Quick start
 
 ```bash

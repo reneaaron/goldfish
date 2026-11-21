@@ -61,6 +61,12 @@ The seed lives in RAM only: Forget seed or unplugging removes it.
    a 3-of-5 (fewer when the wallet app adds the full previous transactions);
    a bigger one says "Transaction too big".
 
+Brightness: on any screen, drag down from the top edge for a panel with a
+brightness slider (10 to 100%); tap below it or drag it back up to close it.
+A screen with a QR code still dims to 30% of the setting (at least 10%) so a
+webcam doesn't overexpose it. Like everything else it's kept in RAM only:
+full brightness again after unplugging.
+
 Enter words restores from a words backup: type each word. It starts at 12
 words; a 24-word backup taps "24 words" on the first word. The keyboard only offers letters that lead to a word and, on the last
 word, only words with a valid checksum. The seed loads right away.
@@ -323,6 +329,10 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
   checksum; change to another multisig; the descriptor gone after a wipe;
   a 15-input transaction through a camera that reads each frame twice and
   misses three in four; a 20-input one, past 8 KB, refused as too big
+- Brightness: the panel opens from a drag at the top edge (also one that
+  starts on the back button, which isn't pressed), not from one further down,
+  and closes from a tap below it (which doesn't reach the screen under it) or
+  a drag back up
 
 The simulator runs headless for this (`SIM_CONTROL=1`, commands on stdin, see
 `src/sim/main.cpp`), on a clock that only moves when the test says so. A
