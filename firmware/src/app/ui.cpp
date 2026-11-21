@@ -2559,7 +2559,7 @@ static void build_psbt_overview() {
     bool self_only = review.spend == 0;
     uint64_t headline = self_only ? review.self : review.spend;
     char cap[48];
-    snprintf(cap, sizeof(cap), "%s%s", self_only ? "SENDING TO YOURSELF" : "YOU'RE SENDING", review.testnet ? "  \xC2\xB7  TESTNET" : "");
+    snprintf(cap, sizeof(cap), "%s%s", self_only ? "TO YOURSELF" : "YOU'RE SENDING", review.testnet ? "  \xC2\xB7  TESTNET" : "");
     lv_obj_t *cl = caption(scr, cap);
     if (review.testnet) lv_obj_set_style_text_color(cl, AMBER, 0);
     lv_obj_align(cl, LV_ALIGN_TOP_MID, 0, BAR + 12);
