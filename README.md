@@ -19,9 +19,11 @@ Status: early, not for real funds. The firmware runs on the Waveshare board
 ([`try/`](try), WebAssembly). It loads seeds from a
 QR, typed words or a photo of a handwritten backup, makes new seeds from dice,
 coins or drawn words, backs them up as QR cards, and reviews and signs
-single-sig and multisig transactions. Signing has only been tested against a
-stand-in wallet in the end-to-end tests, not against Sparrow or another wallet
-app, and the code hasn't been reviewed or audited.
+single-sig and multisig transactions. On a real board,
+one 2-of-3 multisig wallet has been set up with Sparrow 2.5.2 on signet and a
+transaction signed and broadcast. Single-sig signing has only been tested
+against a stand-in wallet in the end-to-end tests, and the code hasn't been
+reviewed or audited.
 
 ## Repository
 
