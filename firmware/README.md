@@ -192,7 +192,8 @@ can name any cosigner keys next to ours:
 - Show the descriptor QR to Scan QR: as
   plain text, as a `crypto-output` UR (BCR-2020-010, sortedmulti with HD keys),
   or as text in a `bytes` UR. `/<0;1>/*`, `/{0,1}/*` and `/0/*` are all read as
-  receive 0, change 1. A checksum, if there is one, must be right
+  receive 0, change 1, and so is a `crypto-output` key with no children, the way
+  Sparrow shows it (pick UR, not BBQr). A checksum, if there is one, must be right
 - The seed must really be one of the keys: the key at the origin path the
   descriptor gives for our fingerprint has to be the xpub written there
 - A screen then shows M of N, every key's fingerprint and the first receive
@@ -262,7 +263,7 @@ pio test -e test
 - Multisig descriptor: SeedSigner's native segwit 2-of-3 test wallet, with
   addresses and a witness script worked out by embit; the three spellings of
   the chains, a `crypto-output` UR made with urtypes (also cut short at every
-  byte), bad checksum, unsupported forms, a seed that isn't a cosigner, our
+  byte) and one shown by Sparrow 2.5.2 (keys without children), bad checksum, unsupported forms, a seed that isn't a cosigner, our
   fingerprint on someone else's key, and a changed passphrase
 - Multisig PSBT: that wallet's test input with change, a self-transfer and a
   payment; our signature checked against the transaction and against the hash
