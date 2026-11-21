@@ -52,7 +52,9 @@ The seed lives in RAM only: Forget seed or unplugging removes it.
    base64 frame), review the amount, fee and change, check each output's
    address, slide to sign, then show the signed PSBT as an animated UR: 64-byte
    fragments in alphanumeric mode at ECC low, so each frame is a 41-module
-   QR at 4 px a module (about 0.5 mm) that a laptop webcam can read.
+   QR at 4 px a module (about 0.5 mm) that a laptop webcam can read. After the
+   plain fragments come fountain-coded mixes of them, as Sparrow and SeedSigner
+   send, so a wallet that missed a frame doesn't wait a whole loop for it.
    In Sparrow, set the QR density to Low (in versions up to 2.2, the
    "Decrease Density" button; Sparrow remembers it): Medium and High codes are too dense
    for the camera's 240x180 picture, and their fragments (over 256 bytes)
@@ -258,7 +260,8 @@ pio test -e test
   the same seed's BIP-48 multisig keys (Zpub, testnet Vpub) worked out by embit,
   and the BIP39 vector with passphrase `TREZOR` (root key, fingerprint `b4e3f5ed`),
   removed again and wiped with the seed
-- UR: SeedSigner's 29-part `crypto-psbt` vector, plus an encode/decode round trip,
+- UR: SeedSigner's 29-part `crypto-psbt` vector, plus an encode/decode round trip
+  and a decode from the encoder's fountain parts alone or with every other fragment missing,
   parts whose header would overrun the decoder's buffer (sequence 0,
   more fragments than the message needs), and a part of a message past 8 KB
   reported as too big
@@ -322,7 +325,7 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
 - Single-sig: a new seed from dice rolls, its words typed back in, the wallet
   linked from the xpub QR, a receive address verified, a transaction with
   change reviewed and signed; a 24-word seed typed in; SeedQR Standard and Compact; the QR card check;
-  an animated PSBT joined mid-cycle (fountain parts only) and a base64 frame;
+  an animated PSBT joined mid-cycle (fountain parts only) both ways and a base64 frame;
   another seed's transaction, another wallet's address, and fake change
 - Multisig: Connect wallet's four keys (single-sig and multisig, mainnet and
   testnet) against embit; a 2-of-3 around the linked multisig key, refused until its descriptor is

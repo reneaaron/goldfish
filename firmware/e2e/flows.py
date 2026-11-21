@@ -90,10 +90,11 @@ def verify_address(dev, shown):
     return result
 
 
-def review_and_sign(dev):
+def review_and_sign(dev, skip_frames=0):
     """From Review: step through every output, slide to sign, and scan the
-    signed transaction off the screen. Returns it, with the texts of each
-    screen passed on the way for the test to check."""
+    signed transaction off the screen, joining its animation `skip_frames`
+    frames in. Returns it, with the texts of each screen passed on the way
+    for the test to check."""
     seen = [dev.text()]
     dev.tap("Check addresses")
     while dev.screen == "PSBT_OUTPUT":
@@ -109,6 +110,7 @@ def review_and_sign(dev):
         dev.wait(200)
         return frame
 
+    dev.wait(200 * skip_frames)
     signed = read_psbt(next_frame)
     dev.tap("Back to wallet")
     return signed, seen

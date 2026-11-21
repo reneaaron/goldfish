@@ -1,3 +1,4 @@
+#include <stdio.h>
 // UR crypto-psbt decoding/encoding against SeedSigner's multi-part vector.
 // Run: pio test -e test
 #include <unity.h>
@@ -88,7 +89,7 @@ void test_encode_roundtrip() {
     char part[1200];
     UrResult r = UR_NOT_UR;
     const uint8_t *p2 = nullptr; size_t pl2 = 0;
-    for (uint32_t seq = 3; seq < 3 + count; seq++) {   // start mid-cycle, as a camera would
+    for (uint32_t seq = 1; seq <= count; seq++) {
         size_t n = ur_encode_part(psbt, plen, 100, seq, part, sizeof(part));
         TEST_ASSERT_GREATER_THAN(0, n);
         r = ur_decoder_add(&d2, part, n, &p2, &pl2);
@@ -98,12 +99,43 @@ void test_encode_roundtrip() {
     TEST_ASSERT_EQUAL_MEMORY(psbt, p2, plen);
 }
 
+void test_encode_fountain() {
+    // A camera that joins after the pure fragments, or misses some, completes
+    // from the fountain-coded parts that follow them.
+    ur_decoder_reset(&dec);
+    const uint8_t *payload = nullptr; size_t plen = 0;
+    for (int i = 0; i < UR_MULTISIG_PARTS_N; i++)
+        ur_decoder_add(&dec, UR_MULTISIG_PARTS[i], strlen(UR_MULTISIG_PARTS[i]), &payload, &plen);
+    static uint8_t psbt[8192];
+    memcpy(psbt, payload, plen);
+    size_t count = ur_part_count(plen, 64);
+    char part[1200];
+    for (uint32_t skip = 0; skip < 2; skip++) {   // 0: none of the pure parts; 1: every other one
+        static UrDecoder d2;
+        ur_decoder_reset(&d2);
+        UrResult r = UR_NOT_UR;
+        const uint8_t *p2 = nullptr; size_t pl2 = 0;
+        uint32_t seq = skip ? 1 : uint32_t(count) + 1;
+        for (; seq < 10 * count && r != UR_COMPLETE; seq++) {
+            if (skip && seq <= count && seq % 2) continue;
+            size_t n = ur_encode_part(psbt, plen, 64, seq, part, sizeof(part));
+            TEST_ASSERT_GREATER_THAN(0, n);
+            r = ur_decoder_add(&d2, part, n, &p2, &pl2);
+        }
+        TEST_ASSERT_EQUAL(UR_COMPLETE, r);
+        TEST_ASSERT_EQUAL(plen, pl2);
+        TEST_ASSERT_EQUAL_MEMORY(psbt, p2, plen);
+        printf("fountain, skip=%u: %u fragments, complete at part %u\n", unsigned(skip), unsigned(count), unsigned(seq - 1));
+    }
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_decode_multipart);
     RUN_TEST(test_corrupt_part_rejected);
     RUN_TEST(test_not_ur);
     RUN_TEST(test_encode_roundtrip);
+    RUN_TEST(test_encode_fountain);
     RUN_TEST(test_out_of_range_parts_rejected);
     RUN_TEST(test_too_big_message);
     return UNITY_END();

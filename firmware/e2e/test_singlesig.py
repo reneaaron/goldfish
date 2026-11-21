@@ -149,13 +149,14 @@ def test_fake_change_blocks_signing(dev):
 
 def test_psbt_joined_mid_animation(dev):
     """The camera rarely catches the first frame: the scanner has to finish
-    from fountain-coded parts alone. Also a single base64 frame."""
+    from fountain-coded parts alone, and so does the wallet app reading the
+    signed one back. Also a single base64 frame."""
     wallet = linked_wallet(dev)
     psbt = wallet.create_psbt([wallet.fund(1, 60_000)], [(stranger_address(), 25_000)], fee=400)
     dev.tap("Scan QR")
     dev.scan_animated(psbt_parts(psbt, fragment_len=60, skip=40))
     assert dev.screen == "PSBT_OVERVIEW", dev.text()
-    signed, _ = review_and_sign(dev)
+    signed, _ = review_and_sign(dev, skip_frames=20)   # past every pure fragment
     wallet.combine(psbt, signed)
     assert wallet.signers(psbt) == {Seed(MNEMONIC).fingerprint}
 
