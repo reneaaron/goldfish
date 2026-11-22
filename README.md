@@ -6,6 +6,8 @@ Nothing is ever saved on the device, the board has no Wi-Fi or Bluetooth
 hardware, and the firmware has no USB stack, so the USB cable only powers it:
 transactions go in and out through the camera and the screen.
 
+🌐 [Website](https://reneaaron.github.io/goldfish/)
+
 ![Goldfish start screen: Scan QR or enter words](marketing/renders/out/07_hero_home.png)
 
 <p>
