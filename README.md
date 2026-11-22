@@ -1,3 +1,5 @@
+<p align="center"><img src="marketing/mascot/goldfish-mark.svg" width="120" alt="Goldfish"></p>
+
 # Goldfish
 
 **Sign and forget.** A Bitcoin signer you build from an off-the-shelf board and a printed case.
