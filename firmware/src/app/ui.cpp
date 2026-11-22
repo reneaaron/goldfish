@@ -67,16 +67,15 @@ static lv_obj_t *scroll_area(lv_obj_t *scr, int y) {
     return a;
 }
 
-// Grey rounded card holding a QR code (the grey is the quiet zone). Not white:
-// a white card overexposes a webcam (Sparrow) until the modules bleed together.
+// White rounded card holding a QR code (the white is the quiet zone).
 // The QR is drawn here, not with lv_qrcode: that one always uses byte mode and
 // ECC medium, then grows the version to fill the space at the same scale, so an
 // animated PSBT frame came out 73 modules wide at 2 px. Here an uppercase UR
 // part goes in alphanumeric mode at ECC low, at the smallest version, as large
 // as fits: a 64-byte fragment is 41 modules at 4 px (about 0.5 mm each).
 constexpr int QR_PX = 164;               // the code itself: 41 modules x 4 px
-constexpr int QR_CARD = QR_PX + 16;      // plus the grey quiet zone
-static const lv_color_t QR_LIGHT = lv_color_hex(0xA0A0A0);
+constexpr int QR_CARD = QR_PX + 16;      // plus the white quiet zone
+static const lv_color_t QR_LIGHT = lv_color_white();
 // Backlight while a QR is on screen: at full a webcam overexposes the panel.
 constexpr int QR_BACKLIGHT = 30;
 static bool qr_shown;   // the screen being built has a QR card: ui_goto dims for it
