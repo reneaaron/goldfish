@@ -3091,7 +3091,7 @@ constexpr int FISH_W = 84, FISH_H = 48, N_BUBBLES = 8;
 // Where the fish swims (its top-left corner); bubbles go up off the screen.
 constexpr int X_MIN = 8, X_MAX = W - FISH_W - 8, Y_MIN = 40, Y_MAX = H - FISH_H - 60;
 static lv_timer_t *saver_timer, *idle_timer;
-static lv_obj_t *saver_fish, *saver_thought;
+static lv_obj_t *saver_fish, *saver_thought, *saver_thought_l;
 static struct Bubble { lv_obj_t *o; float x, y; int phase; } bubbles[N_BUBBLES];
 static float fish_x, fish_y, fish_ty;
 static int fish_dir;   // -1 swims left (the logo's own way), +1 right
@@ -3183,17 +3183,19 @@ static void saver_tick(lv_timer_t *) {
         lv_obj_set_pos(b.o, (int)(b.x + 2 * wave(t, 1400, b.phase)), (int)b.y);
     }
 
-    // Now and then, a thought, under the fish.
+    // Now and then, a thought, in a bubble over the fish.
     if (reached(now, next_thought)) {
-        lv_label_set_text(saver_thought, thoughts[thought_i++ % (sizeof(thoughts) / sizeof(*thoughts))]);
+        lv_label_set_text(saver_thought_l, thoughts[thought_i++ % (sizeof(thoughts) / sizeof(*thoughts))]);
         lv_obj_remove_flag(saver_thought, LV_OBJ_FLAG_HIDDEN);
         thought_until = now + 3000;
         next_thought = now + 10000;
     }
     if (reached(now, thought_until)) lv_obj_add_flag(saver_thought, LV_OBJ_FLAG_HIDDEN);
     lv_obj_update_layout(saver_thought);
-    int tw = lv_obj_get_width(saver_thought);
-    lv_obj_set_pos(saver_thought, LV_CLAMP(4, (int)fish_x + FISH_W / 2 - tw / 2, W - tw - 4), (int)fish_y + FISH_H + 8);
+    int tw = lv_obj_get_width(saver_thought), th = lv_obj_get_height(saver_thought);
+    int ty = (int)fish_y - th - 6;
+    if (ty < 4) ty = (int)fish_y + FISH_H + 6;
+    lv_obj_set_pos(saver_thought, LV_CLAMP(4, (int)fish_x + FISH_W / 2 - tw / 2, W - tw - 4), ty);
 }
 
 static lv_obj_t *saver_part(lv_obj_t *o) {
@@ -3239,7 +3241,17 @@ void ui_screensaver(bool open) {
     lv_image_set_src(saver_fish, fish_facing(fish_dir));
     lv_image_set_pivot(saver_fish, FISH_W / 2, FISH_H / 2);
 
-    saver_thought = text(saver, "", &inter_13, TEXT_3);
+    saver_thought = saver_part(lv_obj_create(saver));
+    lv_obj_remove_style_all(saver_thought);
+    lv_obj_set_size(saver_thought, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_color(saver_thought, SURFACE, 0);
+    lv_obj_set_style_bg_opa(saver_thought, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(saver_thought, 1, 0);
+    lv_obj_set_style_border_color(saver_thought, BORDER, 0);
+    lv_obj_set_style_radius(saver_thought, 12, 0);
+    lv_obj_set_style_pad_hor(saver_thought, 10, 0);
+    lv_obj_set_style_pad_ver(saver_thought, 5, 0);
+    saver_thought_l = text(saver_thought, "", &inter_13, TEXT);
     lv_obj_add_flag(saver_thought, LV_OBJ_FLAG_HIDDEN);
 
     saver_t0 = saver_last = lv_tick_get();
