@@ -1,3 +1,5 @@
+<p align="center"><img src="marketing/mascot/goldfish-mark.svg" width="120" alt="Goldfish"></p>
+
 # Goldfish
 
 **Sign and forget.** A Bitcoin signer you build from an off-the-shelf board and a printed case.
@@ -5,6 +7,8 @@ Load your seed from a QR code, review and sign transactions, unplug and it forge
 Nothing is ever saved on the device, the board has no Wi-Fi or Bluetooth
 hardware, and the firmware has no USB stack, so the USB cable only powers it:
 transactions go in and out through the camera and the screen.
+
+🌐 [Website](https://reneaaron.github.io/goldfish/)
 
 ![Goldfish start screen: Scan QR or enter words](marketing/renders/out/07_hero_home.png)
 
