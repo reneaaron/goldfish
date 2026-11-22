@@ -75,8 +75,8 @@ full brightness again after unplugging.
 
 Screensaver: a minute untouched on Home or Wallet and the goldfish swims
 about, blowing the odd bubble and now and then thinking out loud ("Where was
-I?"), which also hides the fingerprint. A tap brings the screen back and
-presses nothing.
+I?"), with the backlight at its lowest (10%), which also hides the fingerprint.
+A tap brings the screen back at the set brightness and presses nothing.
 
 Enter words restores from a words backup: type each word. It starts at 12
 words; a 24-word backup taps "24 words" on the first word. The keyboard only offers letters that lead to a word and, on the last

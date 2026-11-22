@@ -2954,8 +2954,10 @@ static bool bright_closing;
 static lv_point_t pull_from;
 static lv_timer_t *pull_timer;
 
-// A QR screen keeps its dimming, scaled with the setting.
+// A QR screen keeps its dimming, scaled with the setting; the screensaver
+// goes to the lowest the setting allows.
 static void apply_backlight() {
+    if (saver) return platform_backlight(BRIGHT_MIN);
     platform_backlight(qr_shown ? LV_MAX(BRIGHT_MIN, brightness * QR_BACKLIGHT / 100) : brightness);
 }
 
@@ -3084,8 +3086,8 @@ static void pull_cb(lv_event_t *e) {
 }
 
 // ---------------------------------------------------------------- screensaver
-// A minute untouched on Home or Wallet: the goldfish swims about, which also
-// hides the fingerprint. A tap brings the screen back and does nothing else.
+// A minute untouched on Home or Wallet: the goldfish swims about, with the
+// backlight at its lowest, which also hides the fingerprint. A tap brings the screen back and does nothing else.
 constexpr uint32_t SAVER_IDLE_MS = 60000;
 constexpr int FISH_W = 84, FISH_H = 48, N_BUBBLES = 8;
 // Where the fish swims (its top-left corner); bubbles go up off the screen.
@@ -3211,6 +3213,7 @@ void ui_screensaver(bool open) {
         saver_timer = nullptr;
         lv_obj_delete(saver);
         saver = saver_fish = saver_thought = nullptr;
+        apply_backlight();
         return;
     }
     saver = lv_obj_create(lv_layer_top());
@@ -3260,6 +3263,7 @@ void ui_screensaver(bool open) {
     thought_i = 0;
     saver_tick(nullptr);
     saver_timer = lv_timer_create(saver_tick, 30, nullptr);
+    apply_backlight();
 }
 
 static void idle_tick(lv_timer_t *) {
