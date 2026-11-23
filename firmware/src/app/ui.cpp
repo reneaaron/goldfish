@@ -3118,13 +3118,17 @@ static const char *const thoughts[] = {
 };
 
 // The logo turned to face right: the same pixels, each row reversed (RGB565 plane, then alpha).
-static uint8_t fish_right_map[FISH_W * FISH_H * 3];
+// Built on the heap while the screensaver is up and freed when it closes, so the
+// 12 KB are free again for reading words; without the memory the fish keeps facing left.
+constexpr size_t FISH_BYTES = FISH_W * FISH_H * 3;
+static uint8_t *fish_right_map;
 static lv_image_dsc_t fish_right;
 static const lv_image_dsc_t *fish_facing(int dir) {
     if (dir < 0 || goldfish_logo.header.w != FISH_W || goldfish_logo.header.h != FISH_H ||
-        goldfish_logo.data_size != sizeof(fish_right_map))
+        goldfish_logo.data_size != FISH_BYTES)
         return &goldfish_logo;
-    if (!fish_right.data) {
+    if (!fish_right_map) {
+        if (!(fish_right_map = (uint8_t *)malloc(FISH_BYTES))) return &goldfish_logo;
         const uint8_t *src = goldfish_logo.data;
         uint8_t *rgb = fish_right_map, *a = fish_right_map + FISH_W * FISH_H * 2;
         for (int y = 0; y < FISH_H; y++)
@@ -3213,6 +3217,8 @@ void ui_screensaver(bool open) {
         saver_timer = nullptr;
         lv_obj_delete(saver);
         saver = saver_fish = saver_thought = nullptr;
+        free(fish_right_map);   // nothing shows it now
+        fish_right_map = nullptr;
         apply_backlight();
         return;
     }
