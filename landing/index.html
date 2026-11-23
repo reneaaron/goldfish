@@ -164,7 +164,7 @@
   .also p { color: var(--muted); font-size: 16px; margin-top: 4px; }
 
   /* ---- build */
-  .build { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 40px; }
+  .build { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px; margin-top: 40px; }
   .build a {
     display: block; padding: 22px; border-radius: 16px; background: var(--raised); text-decoration: none;
     border: 1px solid transparent; transition: border-color .15s;
@@ -382,6 +382,7 @@
         <a href="flasher/"><i>2</i><h3>Flash the firmware</h3><p>From your browser, with the bare board: hold BOOT, plug in, pick the drive.</p></a>
         <a href="assemble/"><i>3</i><h3>Assemble</h3><p>Connect the camera to the board, then press both into the case.</p></a>
         <a href="cards/"><i>4</i><h3>Print backup cards</h3><p>Blank SeedQR and word cards for 12-word seeds.</p></a>
+        <a href="start/"><i>5</i><h3>First use</h3><p>Set up a seed, then connect a wallet app such as Sparrow.</p></a>
       </div>
       <img class="photo" src="img/renders/06_lineup.png" alt="Render: four signers in graphite, white and orange cases showing different screens" loading="lazy">
     </div>
