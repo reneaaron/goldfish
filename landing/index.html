@@ -164,21 +164,21 @@
   .also p { color: var(--muted); font-size: 16px; margin-top: 4px; }
 
   /* ---- build */
-  .build { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 40px; }
-  .build a {
-    display: block; padding: 22px; border-radius: 16px; background: var(--raised); text-decoration: none;
-    border: 1px solid transparent; transition: border-color .15s;
-  }
-  .build a:hover { border-color: var(--accent); }
-  .build i { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: #fff; font-style: normal; font-weight: 600; font-size: 14px; margin-bottom: 14px; }
+  .build { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 40px; }
+  .build div { padding: 22px; border-radius: 16px; background: var(--raised); }
   .build p { color: var(--muted); font-size: 15px; margin-top: 4px; }
-  .build + .photo { margin-top: 16px; aspect-ratio: 16 / 7; object-position: 50% 42%; }
+  .build-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 40px; }
+  .build-head .cta { margin: 0; }
+  .cta.below { display: none; }   /* phones: the button goes after the cards, not between heading and intro */
+  .build ~ .photo { margin-top: 16px; aspect-ratio: 16 / 7; object-position: 50% 42%; }
 
   footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--faint); font-size: 14px; }
   footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
   footer a:hover { color: var(--text); }
 
   @media (max-width: 820px) {
+    .build-head .cta { display: none; }
+    .cta.below { display: flex; justify-content: center; margin-top: 20px; }
     .hero-fig .notes { display: none; }
     .notes-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; margin: 16px 0 0; padding: 0; list-style: none;
       font: 700 21px Caveat, "Segoe Print", cursive; color: var(--accent); }
@@ -375,14 +375,17 @@
 
   <section id="build">
     <div class="wrap">
-      <h2>Build one</h2>
-      <p class="lede">One off-the-shelf board with a touch screen, one camera, one printed case that clips shut. No soldering iron in the parts list.</p>
-      <div class="build">
-        <a href="https://github.com/reneaaron/goldfish/tree/main/hardware"><i>1</i><h3>Get the parts</h3><p>A Waveshare RP2350-Touch-LCD-2 and an OV5640 camera.</p></a>
-        <a href="https://github.com/reneaaron/goldfish/tree/main/case"><i>2</i><h3>Print the case</h3><p>STL and STEP files, in whatever colour you like.</p></a>
-        <a href="flasher/"><i>3</i><h3>Flash the firmware</h3><p>From your browser: hold BOOT, plug in, pick the drive.</p></a>
-        <a href="cards/"><i>4</i><h3>Print backup cards</h3><p>Blank SeedQR and word cards for 12-word seeds.</p></a>
+      <div class="build-head">
+        <h2>Build one</h2>
+        <a class="cta" href="parts/">Open the build guide →</a>
       </div>
+      <p class="lede">One off-the-shelf board with a touch screen and camera, one printed case. No soldering.</p>
+      <div class="build">
+        <div><h3>What it costs</h3><p>About $20 for the board with its camera, from Waveshare (ships worldwide), Amazon or Newegg in the US, or Switch Science in Japan. Plus printing the case.</p></div>
+        <div><h3>What you need</h3><p>A computer and a USB-C data cable to flash it. A 3D printer, or a printing service that posts you the case.</p></div>
+        <div><h3>How hard it is</h3><p>No soldering and no tools. The camera's ribbon cable is the only fiddly part, and the guide shows it step by step.</p></div>
+      </div>
+      <a class="cta below" href="parts/">Open the build guide →</a>
       <img class="photo" src="img/renders/06_lineup.png" alt="Render: four signers in graphite, white and orange cases showing different screens" loading="lazy">
     </div>
   </section>

@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>First use · Goldfish</title>
+<meta name="description" content="Using a Goldfish signer for the first time: set up a seed, connect it to Sparrow, verify a receive address, and sign a transaction.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Crect x='8' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='11' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='20' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='26' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='2' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='20' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='23' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='20' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='26' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='8' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='11' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='5' y='11' width='9' height='9' fill='%2314222B'/%3E%3Crect x='6' y='12' width='7' height='7' fill='%23FFFFFF'/%3E%3Crect x='8' y='14' width='3' height='3' fill='%2314222B'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rethink+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Follows the landing page's brand (landing/index.html): white ground, ink text,
+     paper surfaces, one orange. */
+  :root {
+    --bg: #FFFFFF; --raised: #EDF2F4; --rule: #D9E2E6;
+    --text: #14222B; --muted: #5A6B75; --faint: #75858E; --accent: #C2501A;
+    --amber: #A16207; --amber-dim: #F5E6C4;
+    --sans: "Rethink Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+  a { color: var(--accent); }
+
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+  nav { display: flex; align-items: center; gap: 4px; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 700; letter-spacing: -0.01em;
+           color: inherit; text-decoration: none; margin-right: auto; }
+  .brand svg { width: 40px; height: 23px; }
+  nav a.link { color: var(--muted); font-size: 15px; font-weight: 500; text-decoration: none; padding: 8px 12px; border-radius: 8px; }
+  nav a.link:hover { color: var(--text); background: var(--raised); }
+  nav a.link svg { width: 20px; height: 20px; display: block; }
+
+  main.wrap { padding-top: 32px; padding-bottom: 96px; }
+  h1 { font-size: clamp(36px, 5.6vw, 52px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; margin: 0; }
+  .lede { color: var(--muted); max-width: 58ch; margin: 14px 0 0; }
+  h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; margin: 56px 0 8px; }
+  h3 { font-size: 18px; font-weight: 600; margin: 0; }
+  p { color: var(--muted); max-width: 62ch; margin: 0 0 12px; }
+  b { color: var(--text); font-weight: 600; }
+  figure { margin: 0; }
+  figcaption { color: var(--faint); font-size: 14px; margin-top: 8px; }
+
+  .action {
+    display: inline-flex; align-items: center; height: 48px; padding: 0 20px; border-radius: 12px;
+    background: var(--text); color: var(--bg); font-weight: 600; font-size: 16px; text-decoration: none;
+  }
+  .action.quiet { background: var(--raised); color: var(--text); }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0 0; }
+  .note a { color: inherit; font-weight: 600; }
+  .note { background: var(--amber-dim); color: var(--amber); border-radius: 12px; padding: 12px 16px; max-width: 62ch; margin: 16px 0; font-size: 16px; }
+  @media (max-width: 640px) { nav a.link.wide { display: none; } h2 { margin-top: 40px; font-size: 24px; } }
+
+  .steps { list-style: none; margin: 40px 0 0; padding: 0; counter-reset: step; max-width: 760px; }
+  .steps > li { position: relative; padding: 0 0 44px 52px; counter-increment: step; }
+  .steps > li::before {
+    content: counter(step); position: absolute; left: 0; top: 0; width: 32px; height: 32px; border-radius: 50%;
+    display: grid; place-items: center; background: var(--accent); color: #fff; font-weight: 600; font-size: 15px;
+  }
+  .steps > li::after { content: ""; position: absolute; left: 15px; top: 40px; bottom: 8px; width: 2px; background: var(--rule); }
+  .steps > li:last-child { padding-bottom: 0; }
+  .steps > li:last-child::after { display: none; }
+  .steps h2 { margin: 0 0 8px; font-size: 24px; line-height: 32px; }
+  .steps ol { color: var(--muted); padding-left: 22px; margin: 0 0 12px; max-width: 60ch; }
+  .steps ol li { margin-bottom: 6px; }
+  .steps figure { margin: 16px 0; }
+  .steps img { width: 100%; height: auto; border-radius: 16px; display: block; background: var(--raised); }
+  .shots { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+  .shots figure { margin: 0; width: 168px; }
+  .steps .shots img { border-radius: 14px; border: 4px solid var(--text); background: var(--raised); }
+  .shots figcaption { text-align: center; }
+  .steps h3 { margin: 20px 0 6px; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
+  .pair figure { margin: 0; }
+  @media (max-width: 520px) { .pair { grid-template-columns: 1fr; } }
+
+  /* ---- build steps: the same bar and Back/Next on parts, flasher, assemble, cards and start
+     (flasher and cards show them only when opened with ?build). Keep the five copies in step. */
+  .bs { display: flex; gap: 6px; height: auto; align-items: stretch; margin: 0 0 32px; }
+  .bs a { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px;
+          background: #EDF2F4; border: 1px solid transparent; color: #5A6B75; font-size: 14px; font-weight: 500;
+          line-height: 1.2; text-decoration: none; }
+  .bs a:hover { border-color: #D9E2E6; color: #14222B; }
+  .bs i { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+          background: #FFFFFF; color: #5A6B75; font-size: 12px; font-style: normal; font-weight: 600; }
+  .bs .done i { background: #C2501A; color: #FFFFFF; }
+  .bs a[aria-current] { background: #14222B; color: #FFFFFF; }
+  .bs a[aria-current] i { background: #FF7A2F; color: #FFFFFF; }
+  .bs span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bs-foot { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between;
+             margin-top: 56px; padding-top: 28px; border-top: 1px solid #D9E2E6; }
+  .bs-foot .back { color: #5A6B75; font-weight: 500; text-decoration: none; }
+  .bs-foot .back:hover { color: #14222B; }
+  .bs-foot .go { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin-left: auto; }
+  .bs-foot .go p { margin: 0; }
+  .bs-foot .fwd { display: inline-flex; align-items: center; height: 48px; padding: 0 20px; border-radius: 12px;
+                  background: #14222B; color: #FFFFFF; font-size: 16px; font-weight: 600; text-decoration: none; }
+  .bs[hidden], .bs-foot[hidden] { display: none; }
+  @media (max-width: 640px) { .bs a:not([aria-current]) { flex: none; } .bs a:not([aria-current]) span { display: none; } }
+  @media print { .bs, .bs-foot { display: none !important; } }
+</style>
+</head>
+<body>
+
+<header class="wrap">
+  <nav>
+    <a class="brand" href="../">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 94 54" aria-hidden="true">
+        <rect x="20" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="30" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="10" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="10" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="60" y="10" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="80" y="10" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="0" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="60" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="70" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="30" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="30" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="60" y="30" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="80" y="30" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="20" y="40" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="30" y="40" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="40" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="40" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="10" y="10" width="29" height="29" rx="3" fill="#14222B"/>
+        <rect x="15" y="15" width="19" height="19" rx="1.5" fill="#FFFFFF"/>
+        <rect x="20" y="20" width="9" height="9" rx="1" fill="#14222B"/>
+      </svg>
+      goldfish
+    </a>
+    <a class="link wide" href="../#how">How it works</a>
+    <a class="link" href="../try/">Try it</a>
+    <a class="link wide" href="../#build">Build one</a>
+    <a class="link" href="https://github.com/reneaaron/goldfish" aria-label="GitHub">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49l-.01-1.9c-2.78.62-3.37-1.21-3.37-1.21-.46-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.9 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05A9.36 9.36 0 0 1 12 6.96c.85 0 1.71.12 2.51.34 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9l-.01 2.82c0 .27.18.59.69.49A10.03 10.03 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/></svg>
+    </a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <nav class="bs" aria-label="Build steps">
+    <a href="../parts/" class="done"><i>1</i><span>Get the parts</span></a>
+    <a href="../flasher/?build" class="done"><i>2</i><span>Flash</span></a>
+    <a href="../assemble/" class="done"><i>3</i><span>Assemble</span></a>
+    <a href="../cards/?build" class="done"><i>4</i><span>Backup cards</span></a>
+    <a href="../start/" aria-current="step"><i>5</i><span>First use</span></a>
+  </nav>
+  <h1>First use</h1>
+  <p class="lede">Give Goldfish a seed, connect it to a wallet app, then receive a small amount and
+     send it out again. Goldfish holds the key and signs. The wallet app shows your balance and
+     builds the transactions.</p>
+  <p class="note">Goldfish is early software. Try it with test coins, not real funds.</p>
+
+  <ol class="steps">
+    <li>
+      <h2>Set up a seed</h2>
+      <p>Plug the device into a charger or a power bank. The home screen offers three ways in.</p>
+      <div class="shots">
+        <figure><img src="../img/screens/1_home.png" alt="Home screen: Enter words, Scan QR, Create new seed" loading="lazy"><figcaption>Home</figcaption></figure>
+        <figure><img src="../img/screens/15_new_seed.png" alt="New seed screen: Dice rolls, Coin flips, Draw words" loading="lazy"><figcaption>Create new seed</figcaption></figure>
+        <figure><img src="../img/screens/18_backup_words.png" alt="The device showing words 1 to 4 of 12 to write down" loading="lazy"><figcaption>Write the words down</figcaption></figure>
+      </div>
+      <h3>You already have a seed</h3>
+      <p>Tap <b>Scan QR</b> to scan its SeedQR, or <b>Enter words</b> to type it in.</p>
+      <h3>You need a new one</h3>
+      <ol>
+        <li>Tap <b>Create new seed</b> and make it from dice rolls, coin flips or drawn words.</li>
+        <li><b>Write the words down</b> as the device shows them, for example on the
+            <a href="../cards/">backup cards</a>. This is the only copy: nothing is saved on the device.</li>
+        <li>Then load the seed from what you wrote, with <b>Scan QR</b> or <b>Enter words</b>.
+            Creating a seed doesn't load it. Entering it again is how you find out that your backup is right.</li>
+      </ol>
+      <p>With a seed loaded, the screen says <b>Ready to sign</b> and shows the seed's fingerprint.
+         Unplugging forgets the seed, so you load it from your backup each time you use the device.</p>
+    </li>
+    <li>
+      <h2>Show your public key</h2>
+      <p>Using test coins? First set <b>Network</b> in Wallet options to <b>Testnet</b>: the key
+         it shows is for one network only.</p>
+      <p>On Goldfish, tap <b>Wallet options</b>, then <b>Connect wallet</b>. The <b>Watch-only wallet</b>
+         screen shows a QR code with your public key. It lets a wallet app see your balance and
+         prepare transactions, but not spend.</p>
+      <div class="shots">
+        <figure><img src="../img/screens/3_seed_loaded.png" alt="Ready to sign screen with the fingerprint, Wallet options and Scan QR" loading="lazy"><figcaption>Wallet options</figcaption></figure>
+        <figure><img src="../img/screens/4_seed_menu.png" alt="Options list with Connect wallet at the top" loading="lazy"><figcaption>Connect wallet</figcaption></figure>
+        <figure><img src="../img/screens/5_export_xpub.png" alt="Watch-only wallet screen showing a QR code of the public key" loading="lazy"><figcaption>The QR to scan</figcaption></figure>
+      </div>
+    </li>
+    <li>
+      <h2>Scan it with a wallet app</h2>
+      <p>Goldfish works together with a wallet app, sometimes called a coordinator. This guide uses
+         <a href="https://sparrowwallet.com/">Sparrow Wallet</a> on a computer with a webcam.
+         There are others, some of them for phones.</p>
+      <ol>
+        <li>In Sparrow, <b>create a new wallet</b>.</li>
+        <li>Choose <b>watch-only wallet</b>.</li>
+        <li>Press the <b>camera button</b> and hold the Goldfish screen up to your webcam.</li>
+        <li>Check that the fingerprint in Sparrow is the one on the Goldfish screen.</li>
+      </ol>
+    </li>
+    <li>
+      <h2>Receive a test amount</h2>
+      <p>Your new wallet can receive. Before you use an address, let Goldfish confirm that it
+         belongs to your seed.</p>
+      <ol>
+        <li>In Sparrow, open a receive address. There is a QR code next to it.</li>
+        <li>On Goldfish, tap <b>Scan QR</b> and scan that code. <b>Address verified</b> means
+            the address belongs to your wallet.</li>
+        <li>From another wallet, send a small test amount to the address, ideally
+            <b>1,000 to 10,000 sats</b>.</li>
+      </ol>
+      <div class="shots">
+        <figure><img src="../img/screens/13_verify_found.png" alt="Goldfish showing Address verified with the address and its receive number" loading="lazy"><figcaption>Address verified</figcaption></figure>
+      </div>
+    </li>
+    <li>
+      <h2>Send some out again</h2>
+      <p>Sending takes two scans: the unsigned transaction goes from Sparrow to Goldfish, and the
+         signed one comes back.</p>
+      <h3>From Sparrow to Goldfish</h3>
+      <ol>
+        <li>In Sparrow, paste the address you want to send to and prepare the transaction.</li>
+        <li>Press <b>Show QR</b> and choose <b>low density</b>. That makes an animated QR code
+            that Goldfish can scan more easily.</li>
+        <li>On Goldfish, tap <b>Scan QR</b> and hold it up to the code until it has all the parts.</li>
+      </ol>
+      <h3>Review and sign on Goldfish</h3>
+      <ol>
+        <li>Check the amount and the fee, then <b>Check addresses</b> to see where each part goes.</li>
+        <li><b>Slide to sign</b>. This only signs: your wallet app sends the transaction.</li>
+      </ol>
+      <div class="shots">
+        <figure><img src="../img/screens/7_psbt_overview.png" alt="Review screen with the amount, recipients, fee and change" loading="lazy"><figcaption>Review</figcaption></figure>
+        <figure><img src="../img/screens/8_psbt_output_1.png" alt="An output's amount and address" loading="lazy"><figcaption>Check each address</figcaption></figure>
+        <figure><img src="../img/screens/10_psbt_sign.png" alt="Confirm screen with send, fee, total and Slide to sign" loading="lazy"><figcaption>Slide to sign</figcaption></figure>
+        <figure><img src="../img/screens/11_psbt_signed.png" alt="Signed screen with an animated QR code to scan with your wallet" loading="lazy"><figcaption>The signed transaction</figcaption></figure>
+      </div>
+      <h3>From Goldfish back to Sparrow</h3>
+      <ol>
+        <li>Goldfish now shows the signed transaction as an animated QR code.</li>
+        <li>In Sparrow, click the <b>scan</b> button and hold the Goldfish screen up to your webcam.</li>
+        <li>Sparrow now has the signed transaction and can send it.</li>
+      </ol>
+    </li>
+  </ol>
+
+  <div class="bs-foot">
+    <a class="back" href="../cards/?build">← Print backup cards</a>
+    <div class="go"><p>That was the whole loop. See everything else the device does.</p><a class="fwd" href="../#how">How it works →</a></div>
+  </div>
+</main>
+
+</body>
+</html>

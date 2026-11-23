@@ -5,6 +5,9 @@ name: Website
 #              the screens retaken from the latest release, so they show its tag)
 #   /flasher/  flasher/index.html plus firmware.uf2 and firmware.json
 #   /cards/    cards/index.html (blank backup cards to print)
+#   /parts/    parts/ (what to buy, and the case files from case/exports to print)
+#   /assemble/ assemble/ (connecting the camera, closing the case)
+#   /start/    start/ (first use: a seed, then a wallet app; screens from firmware/docs/screens)
 #   /try/      try/index.html plus the firmware built for the browser (firmware/web),
 #              from the commit being deployed, not the release tag
 # The flasher offers the latest GitHub release's firmware.uf2 (release.yml),
@@ -16,7 +19,7 @@ name: Website
 on:
   push:
     branches: [main]
-    paths: ['landing/**', 'flasher/**', 'cards/**', 'try/**', 'firmware/src/**', 'firmware/web/**', 'firmware/platformio.ini', 'firmware/include/**', 'firmware/lib/**', 'firmware/sim/samples/**', 'firmware/docs/screens/**', 'marketing/renders/out/**', '.github/workflows/pages.yml']
+    paths: ['landing/**', 'flasher/**', 'cards/**', 'parts/**', 'assemble/**', 'start/**', 'case/exports/**', 'try/**', 'firmware/src/**', 'firmware/web/**', 'firmware/platformio.ini', 'firmware/include/**', 'firmware/lib/**', 'firmware/sim/samples/**', 'firmware/docs/screens/**', 'marketing/renders/out/**', '.github/workflows/pages.yml']
   workflow_run:
     workflows: [Release]
     types: [completed]
@@ -102,6 +105,8 @@ jobs:
           if [ -d "$RUNNER_TEMP/screens" ]; then cp "$RUNNER_TEMP/screens/"*.png site/img/screens/; fi
           cp flasher/index.html site/flasher/
           cp cards/index.html site/cards/
+          # parts/files is a symlink too (case/exports); start/ uses the landing page's img/screens
+          cp -rL parts assemble start site/
           cp -r "$RUNNER_TEMP/try" site/try && rm -rf site/try/obj
           cp "$RUNNER_TEMP/fw/firmware.uf2" "$RUNNER_TEMP/fw/firmware.json" site/flasher/
           jq -r '"Firmware \(.version)"' site/flasher/firmware.json >> "$GITHUB_STEP_SUMMARY"

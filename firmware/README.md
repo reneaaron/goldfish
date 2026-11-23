@@ -6,8 +6,8 @@ camera connector). The board has no Wi-Fi or Bluetooth hardware.
 
 Status: early. Seed loading, BIP-39 passphrases, new seeds with a SeedQR backup, xpub export and
 PSBT review/signing (single-sig and multisig) work in the simulator. On the board, the camera reads seed, descriptor and animated PSBT QRs, and a
-2-of-3 multisig with Sparrow 2.5.2 on signet was set up, signed and broadcast; single-sig signing
-hasn't been tried there yet. Not for real funds.
+2-of-3 multisig with Sparrow 2.5.2 on signet was set up, signed and broadcast, and single-sig
+transactions have been signed with Sparrow, on mainnet too. Not for real funds.
 
 ![Seed flow in the simulator](docs/screens/flow.png)
 ![Transaction flow in the simulator](docs/screens/flow_psbt.png)

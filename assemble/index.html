@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assemble · Goldfish</title>
+<meta name="description" content="Connect the camera to the flashed board, check that it scans, and press it into the printed case.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Crect x='8' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='11' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='20' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='26' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='2' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='20' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='23' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='20' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='26' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='8' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='11' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='5' y='11' width='9' height='9' fill='%2314222B'/%3E%3Crect x='6' y='12' width='7' height='7' fill='%23FFFFFF'/%3E%3Crect x='8' y='14' width='3' height='3' fill='%2314222B'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rethink+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Follows the landing page's brand (landing/index.html): white ground, ink text,
+     paper surfaces, one orange. */
+  :root {
+    --bg: #FFFFFF; --raised: #EDF2F4; --rule: #D9E2E6;
+    --text: #14222B; --muted: #5A6B75; --faint: #75858E; --accent: #C2501A;
+    --amber: #A16207; --amber-dim: #F5E6C4;
+    --sans: "Rethink Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+  a { color: var(--accent); }
+
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+  nav { display: flex; align-items: center; gap: 4px; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 700; letter-spacing: -0.01em;
+           color: inherit; text-decoration: none; margin-right: auto; }
+  .brand svg { width: 40px; height: 23px; }
+  nav a.link { color: var(--muted); font-size: 15px; font-weight: 500; text-decoration: none; padding: 8px 12px; border-radius: 8px; }
+  nav a.link:hover { color: var(--text); background: var(--raised); }
+  nav a.link svg { width: 20px; height: 20px; display: block; }
+
+  main.wrap { padding-top: 32px; padding-bottom: 96px; }
+  h1 { font-size: clamp(36px, 5.6vw, 52px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; margin: 0; }
+  .lede { color: var(--muted); max-width: 58ch; margin: 14px 0 0; }
+  h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; margin: 56px 0 8px; }
+  h3 { font-size: 18px; font-weight: 600; margin: 0; }
+  p { color: var(--muted); max-width: 62ch; margin: 0 0 12px; }
+  b { color: var(--text); font-weight: 600; }
+  figure { margin: 0; }
+  figcaption { color: var(--faint); font-size: 14px; margin-top: 8px; }
+
+  .action {
+    display: inline-flex; align-items: center; height: 48px; padding: 0 20px; border-radius: 12px;
+    background: var(--text); color: var(--bg); font-weight: 600; font-size: 16px; text-decoration: none;
+  }
+  .action.quiet { background: var(--raised); color: var(--text); }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0 0; }
+  .note a { color: inherit; font-weight: 600; }
+  .note { background: var(--amber-dim); color: var(--amber); border-radius: 12px; padding: 12px 16px; max-width: 62ch; margin: 16px 0; font-size: 16px; }
+  @media (max-width: 640px) { nav a.link.wide { display: none; } h2 { margin-top: 40px; font-size: 24px; } }
+
+  .steps { list-style: none; margin: 40px 0 0; padding: 0; counter-reset: step; max-width: 760px; }
+  .steps > li { position: relative; padding: 0 0 44px 52px; counter-increment: step; }
+  .steps > li::before {
+    content: counter(step); position: absolute; left: 0; top: 0; width: 32px; height: 32px; border-radius: 50%;
+    display: grid; place-items: center; background: var(--accent); color: #fff; font-weight: 600; font-size: 15px;
+  }
+  .steps > li::after { content: ""; position: absolute; left: 15px; top: 40px; bottom: 8px; width: 2px; background: var(--rule); }
+  .steps > li:last-child { padding-bottom: 0; }
+  .steps > li:last-child::after { display: none; }
+  .steps h2 { margin: 0 0 8px; font-size: 24px; line-height: 32px; }
+  .steps ol { color: var(--muted); padding-left: 22px; margin: 0 0 12px; max-width: 60ch; }
+  .steps ol li { margin-bottom: 6px; }
+  .steps figure { margin: 16px 0; }
+  .steps img { width: 100%; height: auto; border-radius: 16px; display: block; background: var(--raised); }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
+  .pair figure { margin: 0; }
+  @media (max-width: 520px) { .pair { grid-template-columns: 1fr; } }
+
+  /* ---- build steps: the same bar and Back/Next on parts, flasher, assemble, cards and start
+     (flasher and cards show them only when opened with ?build). Keep the five copies in step. */
+  .bs { display: flex; gap: 6px; height: auto; align-items: stretch; margin: 0 0 32px; }
+  .bs a { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px;
+          background: #EDF2F4; border: 1px solid transparent; color: #5A6B75; font-size: 14px; font-weight: 500;
+          line-height: 1.2; text-decoration: none; }
+  .bs a:hover { border-color: #D9E2E6; color: #14222B; }
+  .bs i { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+          background: #FFFFFF; color: #5A6B75; font-size: 12px; font-style: normal; font-weight: 600; }
+  .bs .done i { background: #C2501A; color: #FFFFFF; }
+  .bs a[aria-current] { background: #14222B; color: #FFFFFF; }
+  .bs a[aria-current] i { background: #FF7A2F; color: #FFFFFF; }
+  .bs span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bs-foot { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between;
+             margin-top: 56px; padding-top: 28px; border-top: 1px solid #D9E2E6; }
+  .bs-foot .back { color: #5A6B75; font-weight: 500; text-decoration: none; }
+  .bs-foot .back:hover { color: #14222B; }
+  .bs-foot .go { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin-left: auto; }
+  .bs-foot .go p { margin: 0; }
+  .bs-foot .fwd { display: inline-flex; align-items: center; height: 48px; padding: 0 20px; border-radius: 12px;
+                  background: #14222B; color: #FFFFFF; font-size: 16px; font-weight: 600; text-decoration: none; }
+  .bs[hidden], .bs-foot[hidden] { display: none; }
+  @media (max-width: 640px) { .bs a:not([aria-current]) { flex: none; } .bs a:not([aria-current]) span { display: none; } }
+  @media print { .bs, .bs-foot { display: none !important; } }
+</style>
+</head>
+<body>
+
+<header class="wrap">
+  <nav>
+    <a class="brand" href="../">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 94 54" aria-hidden="true">
+        <rect x="20" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="30" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="10" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="10" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="60" y="10" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="80" y="10" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="0" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="60" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="70" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="30" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="30" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="60" y="30" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="80" y="30" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="20" y="40" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="30" y="40" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="40" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="40" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="10" y="10" width="29" height="29" rx="3" fill="#14222B"/>
+        <rect x="15" y="15" width="19" height="19" rx="1.5" fill="#FFFFFF"/>
+        <rect x="20" y="20" width="9" height="9" rx="1" fill="#14222B"/>
+      </svg>
+      goldfish
+    </a>
+    <a class="link wide" href="../#how">How it works</a>
+    <a class="link" href="../try/">Try it</a>
+    <a class="link wide" href="../#build">Build one</a>
+    <a class="link" href="https://github.com/reneaaron/goldfish" aria-label="GitHub">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49l-.01-1.9c-2.78.62-3.37-1.21-3.37-1.21-.46-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.9 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05A9.36 9.36 0 0 1 12 6.96c.85 0 1.71.12 2.51.34 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9l-.01 2.82c0 .27.18.59.69.49A10.03 10.03 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/></svg>
+    </a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <nav class="bs" aria-label="Build steps">
+    <a href="../parts/" class="done"><i>1</i><span>Get the parts</span></a>
+    <a href="../flasher/?build" class="done"><i>2</i><span>Flash</span></a>
+    <a href="../assemble/" aria-current="step"><i>3</i><span>Assemble</span></a>
+    <a href="../cards/?build"><i>4</i><span>Backup cards</span></a>
+    <a href="../start/"><i>5</i><span>First use</span></a>
+  </nav>
+  <h1>Assemble</h1>
+  <p class="lede">Connect the camera, check that it scans, then press the board into the case.
+     No tools. The camera's ribbon connector is the only fiddly part.</p>
+  <p class="note">Not flashed yet? <a href="../flasher/">Flash the firmware first</a>: it needs the BOOT
+     button, and the case covers it.</p>
+
+  <ol class="steps">
+    <li>
+      <h2>Connect the camera</h2>
+      <p>The camera's ribbon plugs into the long connector on the back of the board (the side
+         without the screen). The connector has a black flip that locks the ribbon in place.</p>
+      <div class="pair">
+        <figure>
+          <img src="img/camera-before.png" alt="The back of the board with the camera connector empty" loading="lazy">
+          <figcaption>Before: the connector is empty.</figcaption>
+        </figure>
+        <figure>
+          <img src="img/camera-after.png" alt="The back of the board with the camera's ribbon in the connector and the camera lying on the microSD slot" loading="lazy">
+          <figcaption>After: ribbon in, camera facing up.</figcaption>
+        </figure>
+      </div>
+      <ol>
+        <li><b>Check that the flip is open</b>, pointing up. If it isn't, pull it up with your finger.</li>
+        <li><b>Plug the ribbon in with the camera facing up</b>, so the gold contacts face down.
+            It goes in from the side opposite the flip.</li>
+        <li><b>Push the flip down</b> to lock the ribbon.</li>
+      </ol>
+      <p><a href="https://youtu.be/yG0c27WbU6g?t=232">Watch it being done (YouTube, starts where the camera goes in)</a>.
+         In the video the black flip is on the other side of the connector than on the boards
+         Waveshare makes today. The side the ribbon goes in from is the same.</p>
+    </li>
+    <li>
+      <h2>Check that the camera works, before the case goes on</h2>
+      <p>Plug the board in, open a screen that scans a QR code and point the camera at
+         one. If nothing scans, unplug and reseat the ribbon as in step 1.</p>
+    </li>
+    <li>
+      <h2>Press it into the case</h2>
+      <p>Unplug first. Lower the board into the case with the screen up and the USB-C socket at
+         the end with the opening. The lens looks out through the hole in the back. Press down
+         until the board's four standoffs sit in their sockets and the glass lies flush with
+         the case.</p>
+    </li>
+  </ol>
+
+  <div class="bs-foot">
+    <a class="back" href="../flasher/?build">← Flash the firmware</a>
+    <div class="go"><p>Assembled and showing the home screen?</p><a class="fwd" href="../cards/?build">Next: print backup cards →</a></div>
+  </div>
+</main>
+
+</body>
+</html>
