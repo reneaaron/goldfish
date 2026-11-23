@@ -70,6 +70,9 @@
   .steps ol li { margin-bottom: 6px; }
   .steps figure { margin: 16px 0; }
   .steps img { width: 100%; height: auto; border-radius: 16px; display: block; background: var(--raised); }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
+  .pair figure { margin: 0; }
+  @media (max-width: 520px) { .pair { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -125,12 +128,27 @@
   <ol class="steps">
     <li>
       <h2>Connect the camera</h2>
-      <!-- TODO(camera guide): the exact steps, the photo (assemble/img/camera.jpg) and the
-           video link go here. Until then this step only says what the repo already knows. -->
-      <p>The camera is on a short ribbon with 24 contacts at its end. It plugs into the camera
-         connector on the back of the board (the side without the screen).</p>
-      <p>When it's in, the camera sits on the back of the board, on top of the microSD slot,
-         centred side to side, with the lens facing away from the screen.</p>
+      <p>The camera's ribbon plugs into the long connector on the back of the board (the side
+         without the screen). The connector has a black flip that locks the ribbon in place.</p>
+      <div class="pair">
+        <figure>
+          <img src="img/camera-before.png" alt="The back of the board with the camera connector empty" loading="lazy">
+          <figcaption>Before: the connector is empty.</figcaption>
+        </figure>
+        <figure>
+          <img src="img/camera-after.png" alt="The back of the board with the camera's ribbon in the connector and the camera lying on the microSD slot" loading="lazy">
+          <figcaption>After: ribbon in, camera facing up.</figcaption>
+        </figure>
+      </div>
+      <ol>
+        <li><b>Check that the flip is open</b>, pointing up. If it isn't, pull it up with your finger.</li>
+        <li><b>Plug the ribbon in with the camera facing up</b>, so the gold contacts face down.
+            It goes in from the side opposite the flip.</li>
+        <li><b>Push the flip down</b> to lock the ribbon.</li>
+      </ol>
+      <p><a href="https://youtu.be/yG0c27WbU6g?t=232">Watch it being done (YouTube, starts where the camera goes in)</a>.
+         In the video the black flip is on the other side of the connector than on the boards
+         Waveshare makes today. The side the ribbon goes in from is the same.</p>
     </li>
     <li>
       <h2>Check that the camera works, before the case goes on</h2>
