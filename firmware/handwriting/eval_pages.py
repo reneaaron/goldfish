@@ -13,14 +13,21 @@ Each labelled word is matched to the found word whose box covers most of it.
 Found words that match no label but were offered anyway are counted as
 "stray" (a number, a heading, a margin line read as a word).
 
+An entry may also give "seed", the page's words in order. The words offered
+are then scored against that list too, without boxes or order:
+  in list      offered, one of the page's words (each counts once)
+  not in list  offered, not one of them (a misread, or a title read as a word)
+  whole page   every word of the list offered, nothing else offered
+
 Usage (from firmware/, after handwriting/build.sh):
-  python3 handwriting/eval_pages.py <dir> [<dir> ...] [--side 640] [--show]
+  python3 handwriting/eval_pages.py <dir> [<dir> ...] [--side 640] [--jobs 8] [--show]
 """
 import argparse
 import json
 import os
 import subprocess
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 
 CLI = os.path.join(os.path.dirname(os.path.abspath(__file__)), "out", "page_cli")
 
@@ -46,13 +53,17 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("dirs", nargs="+")
     ap.add_argument("--side", type=int, default=640, help="longer image side the reader sees")
+    ap.add_argument("--jobs", type=int, default=max(1, os.cpu_count() // 3))
     ap.add_argument("--show", action="store_true")
     args = ap.parse_args()
     total, per_dir = Counter(), {}
     for d in args.dirs:
         labels = json.load(open(os.path.join(d, "labels.json")))
         files = [os.path.join(d, e["file"]) for e in labels]
-        out = subprocess.run([CLI, str(args.side)] + files, capture_output=True, text=True, check=True).stdout
+        chunks = [files[i::args.jobs] for i in range(args.jobs) if files[i::args.jobs]]
+        run = lambda c: subprocess.run([CLI, str(args.side)] + c, capture_output=True, text=True, check=True).stdout
+        with ThreadPoolExecutor(len(chunks)) as pool:
+            out = "".join(pool.map(run, chunks))
         results = {json.loads(l)["file"]: json.loads(l) for l in out.splitlines()}
         t = Counter()
         for e, f in zip(labels, files):
@@ -62,7 +73,18 @@ def main():
             boxes = [bbox(w["corners"]) for w in found]
             used = set()
             img_t = Counter()
-            for lw in e["words"]:
+            if "seed" in e:
+                left = Counter(e["seed"])
+                for w in found:
+                    if w["ok"]:
+                        hit = next((s for s in left if left[s] and right_word(s, w["word"])), None)
+                        if hit:
+                            left[hit] -= 1
+                        img_t["in list" if hit else "not in list"] += 1
+                img_t["list"] = len(e["seed"])
+                img_t["pages"] = 1
+                img_t["whole page"] = img_t["in list"] == len(e["seed"]) and not img_t["not in list"]
+            for lw in e.get("words", []):
                 cov = [covered(lw["box"], b) for b in boxes]
                 k = max(range(len(cov)), key=cov.__getitem__) if cov else -1
                 if k < 0 or cov[k] < 0.5:
@@ -88,6 +110,9 @@ def main():
         n = t["right"] + t["WRONG"] + t["none"] + t["missed"]
         print(f"{os.path.basename(d.rstrip('/')):10} {n:4} words: right {t['right']} ({100 * t['right'] / max(1, n):.0f}%), "
               f"WRONG {t['WRONG']}, none {t['none']}, missed {t['missed']}, stray offered {t['stray']}")
+        if t["pages"]:
+            print(f"{'':10} {t['list']:4} listed: in list {t['in list']} ({100 * t['in list'] / t['list']:.0f}%), "
+                  f"not in list {t['not in list']}, whole page {t['whole page']} of {t['pages']}")
 
 
 if __name__ == "__main__":

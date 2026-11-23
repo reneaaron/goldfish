@@ -187,17 +187,29 @@ def gpu_normalise(x):
     return (a / top).clamp(-0.5, 1.5).view(x.shape)
 
 
-def saved_batches(d, dev, batch=256):
-    x = torch.from_numpy(np.load(os.path.join(d, "x.npy"))).to(dev)
-    y = torch.from_numpy(np.load(os.path.join(d, "y.npy")).astype(np.int64)).to(dev)
-    ln = torch.from_numpy(np.load(os.path.join(d, "len.npy")).astype(np.int64)).to(dev)
-    print("strips", len(x), flush=True)
+def saved_batches(dirs, dev, batch=256):
+    """Batches from gen_strips.py / page_strips.py outputs. Each dir may end in
+    ":share" (e.g. data/strips_gpt:0.3): that share of every batch comes from
+    it; dirs without one split the rest."""
+    sets, shares = [], []
+    for spec in dirs:
+        d, _, share = spec.partition(":")
+        x = torch.from_numpy(np.load(os.path.join(d, "x.npy"))).to(dev)
+        y = torch.from_numpy(np.load(os.path.join(d, "y.npy")).astype(np.int64)).to(dev)
+        ln = torch.from_numpy(np.load(os.path.join(d, "len.npy")).astype(np.int64)).to(dev)
+        sets.append((x, y, ln))
+        shares.append(float(share) if share else None)
+        print("strips", d, len(x), flush=True)
+    rest = (1 - sum(v for v in shares if v)) / max(1, shares.count(None))
+    counts = [round(batch * (v if v else rest)) for v in shares]
     while True:
-        idx = torch.randint(0, len(x), (batch,), device=dev)
-        lens = ln[idx]
-        ys = y[idx]
-        keep = torch.arange(ys.shape[1], device=dev)[None, :] < lens[:, None]
-        yield gpu_normalise(x[idx])[:, None], ys[keep], lens
+        xs, ys, lens = [], [], []
+        for (x, y, ln), n in zip(sets, counts):
+            idx = torch.randint(0, len(x), (n,), device=dev)
+            xs.append(x[idx]), ys.append(y[idx]), lens.append(ln[idx])
+        x, y, lens = torch.cat(xs), torch.cat(ys), torch.cat(lens)
+        keep = torch.arange(y.shape[1], device=dev)[None, :] < lens[:, None]
+        yield gpu_normalise(x)[:, None], y[keep], lens
 
 
 def main():
@@ -211,21 +223,21 @@ def main():
     ap.add_argument("--eval-only", action="store_true")
     ap.add_argument("--show", action="store_true")
     ap.add_argument("--viterbi", action="store_true", help="best-path word scores, as in the firmware")
-    ap.add_argument("--data", help="directory from gen_strips.py: train on it, on the GPU, instead of drawing strips")
+    ap.add_argument("--data", nargs="*", help="directories from gen_strips.py / page_strips.py (dir[:share]): train on them, on the GPU, instead of drawing strips")
     ap.add_argument("--init", help="start from these weights (e.g. model/words.pt) instead of from scratch")
     args = ap.parse_args()
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     os.makedirs(args.out, exist_ok=True)
     lex = Lexicon(args.viterbi)
-    real = load_real(args.eval)
+    real = {d: load_real([d]) for d in args.eval}
     net = Net().to(dev)
     ckpt = os.path.join(args.out, "words.pt")
 
     def report(tag):
-        if real:
-            t = evaluate(net, real, lex, dev, args.margin, args.show)
-            n = len(real)
-            print(f"{tag}: real {t['right']}/{n} right, {t['WRONG']} wrong, {t['none']} none "
+        for d, items in real.items():
+            t = evaluate(net, items, lex, dev, args.margin, args.show)
+            n = len(items)
+            print(f"{tag}: {os.path.basename(d.rstrip('/'))} {t['right']}/{n} right, {t['WRONG']} wrong, {t['none']} none "
                   f"(best guess right {t['best_right']}/{n})", flush=True)
 
     if args.eval_only:

@@ -1662,6 +1662,23 @@ static void page_fail(const char *msg, const char *sub) {
     scan_status(msg, sub, AMBER);
 }
 
+// Out of memory: which step, and the largest block left (found by trying),
+// so a report from a board says where RAM ran out.
+static void page_oom(const char *what) {
+    static char sub[64];
+    // the largest block, then everything allocatable, block by block, then all given back
+    void *held[24];
+    int nh = 0, largest = 0, total = 0;
+    for (int kb = 160; kb > 0 && nh < 24;) {
+        void *volatile p = malloc((size_t)kb * 1024);   // volatile: the compiler may not drop a malloc it can see freed
+        if (p) { held[nh++] = p; total += kb; if (!largest) largest = kb; }
+        else kb -= 2;
+    }
+    for (int i = 0; i < nh; i++) free(held[i]);
+    snprintf(sub, sizeof(sub), "Out of memory (%s %d/%d KB)", what, largest, total);
+    page_fail(sub, "Restart the device");
+}
+
 // One step per tick, so the screen keeps up: find the words, then one band
 // at a time (the user holds still until the camera is done), then, after
 // Words found, each word in two ticks: show its strip, then read it and add
@@ -1685,7 +1702,7 @@ static void page_tick(lv_timer_t *t) {
         return;
     }
     if (page_step == PAGE_BANDS) {
-        if (!band_buf && !page_band_alloc()) { page_fail("Out of memory", "Restart the device"); return; }
+        if (!band_buf && !page_band_alloc()) { page_oom("Camera"); return; }
         if (!page_band()) {   // Words found says why, over the photo (Scan words has no room for it)
             const char *err = platform_camera_error();
             page_err = err ? err : "Hold still and try again";
@@ -1740,7 +1757,7 @@ static void page_reading_back_cb(lv_event_t *) {
 
 bool ui_page_found_read() {
     if (ui_current() != UI_PAGE_FOUND || !ncands || page_err) return false;
-    if (!word_reader_init()) { page_fail("Out of memory", "Restart the device"); return false; }
+    if (!word_reader_init()) { page_oom("Reader"); return false; }
     page_cut = false;
     ui_goto(UI_PAGE_READING);
     return true;

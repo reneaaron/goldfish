@@ -6,6 +6,7 @@
 // into a strip for word_reader. Experimental.
 //
 //   1. paper brightness per 16x16 block -> ink = clearly darker than its paper
+//      (by up to a fifth; less on a page whose darkest strokes are faint)
 //   2. tilt: the angle (within +-15 degrees) at which ink rows line up best
 //   3. rows: where ink lies along that angle; ruled lines are too thin to count
 //   4. words: within a row, ink separated by a gap wider than the row height

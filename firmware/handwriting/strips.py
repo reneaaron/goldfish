@@ -81,6 +81,12 @@ def ink_layer(text, g, rng, h):
     canvas = Image.new("L", (W, H), 0)
     base = int(h * 1.5)
     x = int(h * 0.3)
+    if use_font and rng.random() < 0.5:         # the whole word at once: joined script, the font's own spacing
+        fs = ImageFont.truetype(font.path, max(8, int(h * 1.35 * rng.uniform(0.9, 1.1))))
+        l, t, r, b = fs.getbbox(text, anchor="ls")
+        if 0 < r - l < W - x and base + t >= 0 and base + b <= H:
+            ImageDraw.Draw(canvas).text((x - l, base), text, font=fs, fill=255, anchor="ls")
+        text = ""
     for ch in text:
         jitter = int(rng.normal(0, h * 0.04))
         scale = rng.uniform(0.88, 1.12)

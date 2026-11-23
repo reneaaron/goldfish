@@ -48,13 +48,13 @@ def _chunk(args):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--emnist", required=True)
-    ap.add_argument("--fonts", required=True)
+    ap.add_argument("--fonts", required=True, nargs="+", help="directories of .ttf")
     ap.add_argument("--n", type=int, default=800000)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--out", required=True, help="directory: x.npy, y.npy, len.npy")
     args = ap.parse_args()
-    fonts = sorted(glob.glob(os.path.join(args.fonts, "*.ttf")))
+    fonts = sorted({p for d in args.fonts for p in glob.glob(os.path.join(d, "*.ttf"))}, key=os.path.basename)
     os.makedirs(args.out, exist_ok=True)
     # results go straight to files on disk, not into the parent's memory
     x = np.lib.format.open_memmap(os.path.join(args.out, "x.npy"), "w+", np.uint8, (args.n, STRIP_H, STRIP_W))
