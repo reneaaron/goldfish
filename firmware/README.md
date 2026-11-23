@@ -245,15 +245,27 @@ The build is reproducible: the same commit gives a byte-identical
 `firmware.uf2`, whatever the checkout path or home directory. The platform,
 Arduino core, toolchain, LVGL and libwally are all pinned in `platformio.ini`,
 and `-ffile-prefix-map` keeps the PlatformIO packages path out of the binary.
-To check a release, build its tag on a clean tree (a dirty tree adds `+` to
-the version and so changes the file) and compare against the SHA-256 the web
-flasher shows:
+Each release tag (`v0.1.0`) gets a GitHub release, built by
+`.github/workflows/release.yml` on a clean runner: `firmware.uf2`, its
+`SHA256SUMS`, and a build provenance attestation that ties the file to that
+workflow and tag. Check a downloaded file either way:
+
+```bash
+gh attestation verify firmware.uf2 --repo reneaaron/goldfish \
+  --signer-workflow reneaaron/goldfish/.github/workflows/release.yml --source-ref refs/tags/v0.1.0
+```
+
+Without `--signer-workflow` and `--source-ref` any workflow run in the repo,
+on any branch, would pass.
 
 ```bash
 git checkout v0.1.0 && pio run && sha256sum .pio/build/rp2350_touch_lcd_2/firmware.uf2
 ```
 
-CI prints the same hash in each run's summary.
+Build on a clean tree: a dirty tree adds `+` to the version and so changes the
+file. Compare against the release's `SHA256SUMS`, not only the hash the web
+flasher shows: that page and its file come from the same place. CI prints the
+hash of each commit's build in the run summary.
 
 ## Tests
 
@@ -426,9 +438,10 @@ seed there.
 
 [`flasher/index.html`](../flasher/index.html) does step 2 from Chrome or Edge
 on a computer: it asks for the `RP2350` drive, refuses any other folder, and
-writes the file there. The `Web flasher` workflow publishes that page on GitHub
-Pages together with the firmware built from a release tag (`v0.1.0`), and the
-page shows the file's version, commit and SHA-256. The page is untested on a
+writes the file there. The `Website` workflow publishes that page on GitHub
+Pages together with the latest release's `firmware.uf2`, after checking it
+against the release's `SHA256SUMS` and attestation, and the page shows the
+file's version, commit and SHA-256. The page is untested on a
 real board (copying the file onto the drive by hand works).
 
 Updating is the same steps with a newer file. Nothing is stored on the board,
