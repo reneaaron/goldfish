@@ -108,6 +108,15 @@ jobs:
           # parts/files is a symlink too (case/exports); start/ uses the landing page's img/screens
           cp -rL parts assemble start site/
           cp -r "$RUNNER_TEMP/try" site/try && rm -rf site/try/obj
+          # Renders are ~2 MB lossless PNGs; serve them as WebP (~15-45 KB each).
+          # The repo's pages keep pointing at the PNGs so they still open locally.
+          uv run --with pillow==13.0.0 python -I - site/img/renders <<'EOF'
+          import pathlib, sys
+          from PIL import Image
+          for png in pathlib.Path(sys.argv[1]).glob("*.png"):
+              Image.open(png).convert("RGB").save(png.with_suffix(".webp"), quality=85, method=6)
+          EOF
+          sed -i -E 's#(img/renders/[A-Za-z0-9_]+)\.png#\1.webp#g' site/index.html site/parts/index.html
           cp "$RUNNER_TEMP/fw/firmware.uf2" "$RUNNER_TEMP/fw/firmware.json" site/flasher/
           jq -r '"Firmware \(.version)"' site/flasher/firmware.json >> "$GITHUB_STEP_SUMMARY"
           # The page shows this same hash, computed in the browser.
