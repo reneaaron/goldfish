@@ -85,6 +85,7 @@ void ui_screensaver(bool open);
 // For the simulator's scripted run: the same actions as the on-screen controls.
 void ui_next_output();         // "Next" on an output screen
 bool ui_swipe_sign();          // completes the swipe; false if signing failed
+void ui_qr_full_screen();      // tap the signed QR: full screen, or back
 bool verify_done();            // the address check has a result
 void ui_multisig_use();        // "Use wallet" on the Multisig wallet screen
 void ui_key_details();         // tap the Connect wallet card: QR <-> its text

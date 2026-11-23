@@ -12,6 +12,7 @@ LV_FONT_DECLARE(rethink_32);
 LV_FONT_DECLARE(mono_16);
 LV_FONT_DECLARE(mono_22);
 LV_FONT_DECLARE(mono_26);
+LV_FONT_DECLARE(icons_17);   // the full-screen QR button only
 LV_FONT_DECLARE(icons_34);
 LV_FONT_DECLARE(icons_40);
 LV_IMAGE_DECLARE(goldfish_logo);     // home and wallet logo, from marketing/mascot/goldfish-mark.svg (images/svg2c.py)
@@ -52,6 +53,7 @@ LV_IMAGE_DECLARE(usb_off_13);        // Home: USB is power only, from images/usb
 #define ICON_DICE_6       "\xEE\x8A\x8C"   // dice-6
 #define ICON_HEADS        "\xEE\x91\xAD"   // user-round: a head
 #define ICON_TAILS        "\xEE\x87\xB2"   // binary: the number side
+#define ICON_MAXIMIZE     "\xEE\x84\x96"   // maximize, icons_17 only: full-screen QR
 
 namespace th {
 extern const lv_color_t BG, SURFACE, SURFACE_2, BORDER, TEXT, TEXT_2, TEXT_3;

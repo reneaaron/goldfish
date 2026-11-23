@@ -273,6 +273,8 @@ static int run_shots(const char *dir) {
     ui_next_output();        pump(300); save(dir, "10_psbt_sign");
     if (!ui_swipe_sign()) { fprintf(stderr, "signing failed\n"); return 1; }
     pump(400); save(dir, "11_psbt_signed");
+    ui_qr_full_screen(); pump(300); save(dir, "11b_psbt_signed_full");
+    ui_qr_full_screen(); pump(100);
 
     // Verify address: one of ours (receive #7), then a foreign one.
     ui_goto(UI_WALLET); pump(300); save(dir, "12_wallet_menu");

@@ -52,9 +52,14 @@ The seed lives in RAM only: Forget seed or unplugging removes it.
    the amount a URI asks for (`amount=`) is shown too, or flagged if it isn't valid
 6. Sign transaction: Scan QR on a PSBT (animated UR `crypto-psbt`, or a single
    base64 frame), review the amount, fee and change, check each output's
-   address, slide to sign, then show the signed PSBT as an animated UR: 64-byte
-   fragments in alphanumeric mode at ECC low, so each frame is a 41-module
-   QR at 4 px a module (about 0.5 mm) that a laptop webcam can read. After the
+   address, slide to sign, then show the signed PSBT as an animated UR: 30-byte
+   fragments (SeedSigner's size) in alphanumeric mode at ECC low, so each frame
+   is a 33-module QR at 5 px a module, a new one every 250 or 350 ms in turn (a
+   wallet sampling at a fixed period, like Sparrow every 200 ms, can't lock in
+   step and keep catching the change). Tap the QR, or the full-screen
+   button at the top right, to fill the screen:
+   6 px modules (about 0.76 mm) on black, which a laptop webcam can focus on in
+   a dim room; tap again to go back. After the
    plain fragments come fountain-coded mixes of them, as Sparrow and SeedSigner
    send, so a wallet that missed a frame doesn't wait a whole loop for it.
    In Sparrow, set the QR density to Low (in versions up to 2.2, the
@@ -68,14 +73,15 @@ The seed lives in RAM only: Forget seed or unplugging removes it.
    a bigger one says "Transaction too big".
 
 Brightness: on any screen, drag down from the top edge for a panel with a
-brightness slider (10 to 100%); tap below it or drag it back up to close it.
-A screen with a QR code still dims to 30% of the setting (at least 10%) so a
-webcam doesn't overexpose it. Like everything else it's kept in RAM only:
+brightness slider (1 to 100%, finer at the dim end); tap below it or drag it
+back up to close it. While it's open the screen stays at 10% or more, so a
+setting too dark to see can always be undone; below 10% it applies on closing. In a dim room a webcam overexposes a QR at full
+brightness: turn it down. Like everything else it's kept in RAM only:
 full brightness again after unplugging.
 
 Screensaver: a minute untouched on Home or Wallet and the goldfish swims
 about, blowing the odd bubble and now and then thinking out loud ("Where was
-I?"), with the backlight at its lowest (10%), which also hides the fingerprint.
+I?"), with the backlight at 10% (or the setting, if lower), which also hides the fingerprint.
 A tap brings the screen back at the set brightness and presses nothing.
 
 Enter words restores from a words backup: type each word. It starts at 12
@@ -353,7 +359,7 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
 - Single-sig: a new seed from dice rolls, its words typed back in, the wallet
   linked from the xpub QR, a receive address verified, a transaction with
   change reviewed and signed; a 24-word seed typed in; SeedQR Standard and Compact; the QR card check;
-  an animated PSBT joined mid-cycle (fountain parts only) both ways and a base64 frame;
+  an animated PSBT joined mid-cycle (fountain parts only) both ways and a base64 frame; the signed QR read in full screen;
   another seed's transaction, another wallet's address, and fake change;
   a passphrase typed on the keyboard giving the key and signatures embit
   derives from the same words and passphrase, and removed again
