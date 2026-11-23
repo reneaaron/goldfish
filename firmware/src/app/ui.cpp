@@ -1530,6 +1530,7 @@ static void build_enter_words() {
     if (!drawing && !word_n && edit_slot < 0)   // not while fixing one word of a page
         lv_obj_align(quiet_link(scr, new_words == 12 ? "24 words" : "12 words", restore_length_cb, nullptr),
                      LV_ALIGN_TOP_MID, 0, BAR + 92);
+    lv_obj_move_foreground(word_kb);   // its key balloons go over the link
     words_refresh();
     show(scr);
 }
