@@ -62,15 +62,14 @@ jobs:
             (cd "$fw" && sha256sum -c SHA256SUMS)
             gh attestation verify "$fw/firmware.uf2" --repo "$GITHUB_REPOSITORY" \
               --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" --source-ref "refs/tags/$tag"
-            echo "version=$tag" >> "$fw/info"
-            echo "commit=$(git rev-list -n1 "$tag")" >> "$fw/info"
+            version=$tag commit=$(git rev-list -n1 "$tag")
           else
             (cd firmware && pio run)
             cp firmware/.pio/build/rp2350_touch_lcd_2/firmware.uf2 "$fw/"
             # The version the firmware shows on its home screen (firmware/version.py).
-            echo "version=$(sed -n 's/#define FW_VERSION "\(.*\)"/\1/p' firmware/include/version.h)" >> "$fw/info"
-            echo "commit=$GITHUB_SHA" >> "$fw/info"
+            version=$(sed -n 's/#define FW_VERSION "\(.*\)"/\1/p' firmware/include/version.h) commit=$GITHUB_SHA
           fi
+          jq -n --arg version "$version" --arg commit "$commit" '{$version, $commit}' > "$fw/firmware.json"
       - name: Assemble site
         run: |
           mkdir -p site/flasher site/cards
@@ -79,10 +78,8 @@ jobs:
           cp flasher/index.html site/flasher/
           cp cards/index.html site/cards/
           cp -r "$RUNNER_TEMP/try" site/try && rm -rf site/try/obj
-          cp "$RUNNER_TEMP/fw/firmware.uf2" site/flasher/
-          . "$RUNNER_TEMP/fw/info"
-          echo "{\"version\":\"$version\",\"commit\":\"$commit\"}" > site/flasher/firmware.json
-          echo "Firmware $version" >> "$GITHUB_STEP_SUMMARY"
+          cp "$RUNNER_TEMP/fw/firmware.uf2" "$RUNNER_TEMP/fw/firmware.json" site/flasher/
+          jq -r '"Firmware \(.version)"' site/flasher/firmware.json >> "$GITHUB_STEP_SUMMARY"
           # The page shows this same hash, computed in the browser.
           (cd site/flasher && sha256sum firmware.uf2) | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1

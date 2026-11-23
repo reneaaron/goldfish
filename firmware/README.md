@@ -251,8 +251,12 @@ Each release tag (`v0.1.0`) gets a GitHub release, built by
 workflow and tag. Check a downloaded file either way:
 
 ```bash
-gh attestation verify firmware.uf2 --repo reneaaron/goldfish
+gh attestation verify firmware.uf2 --repo reneaaron/goldfish \
+  --signer-workflow reneaaron/goldfish/.github/workflows/release.yml --source-ref refs/tags/v0.1.0
 ```
+
+Without `--signer-workflow` and `--source-ref` any workflow run in the repo,
+on any branch, would pass.
 
 ```bash
 git checkout v0.1.0 && pio run && sha256sum .pio/build/rp2350_touch_lcd_2/firmware.uf2

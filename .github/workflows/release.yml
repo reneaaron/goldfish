@@ -3,7 +3,8 @@ name: Release
 # Builds the board firmware for a release tag (v0.1.0) and publishes it as a
 # GitHub release: firmware.uf2, SHA256SUMS and a build provenance attestation,
 # so anyone can check the file came from this workflow at this tag:
-#   gh attestation verify firmware.uf2 --repo reneaaron/goldfish
+#   gh attestation verify firmware.uf2 --repo reneaaron/goldfish \
+#     --signer-workflow reneaaron/goldfish/.github/workflows/release.yml --source-ref refs/tags/v0.1.0
 # The build is reproducible, so a local build of the tag gives the same hash.
 # The Website workflow runs after this one and offers the release's file.
 
@@ -58,7 +59,8 @@ jobs:
           Check it before flashing, either way:
 
           \`\`\`bash
-          gh attestation verify firmware.uf2 --repo $GITHUB_REPOSITORY
+          gh attestation verify firmware.uf2 --repo $GITHUB_REPOSITORY \\
+            --signer-workflow $GITHUB_REPOSITORY/.github/workflows/release.yml --source-ref $GITHUB_REF
           \`\`\`
 
           \`\`\`bash
