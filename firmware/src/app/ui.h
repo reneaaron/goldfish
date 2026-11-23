@@ -17,7 +17,6 @@
 //        -> Multisig wallet (M of N, key fingerprints, first address) -> Use wallet
 //        -> back to the scanner, which now takes the wallet's transactions / addresses
 //   Home -> Enter words (12, or 24 from the first word) -> one screen per word -> Wallet
-//        camera -> Scan seed
 //   Scan seed -> held still on written words (a photo of the backup, experimental)
 //        -> (hold still: a second, sharper picture) -> Words found (the photo, each
 //        word boxed) -> Read (or Retake: back to Scan seed) -> Reading words -> Check words (12 or 24, from how many were found): the
@@ -35,7 +34,7 @@
 
 enum UiScreen {
     UI_HOME,
-    UI_SCAN_SEED,        // a SeedQR, or written words once held still (also from Enter words)
+    UI_SCAN_SEED,        // a SeedQR, or written words once held still
     UI_WALLET,           // home once a seed is loaded: fingerprint, Scan QR, Wallet options
     UI_PASSPHRASE,       // BIP-39 passphrase keyboard, from Wallet options
     UI_WALLET_OPTIONS,

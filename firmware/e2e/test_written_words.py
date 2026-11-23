@@ -12,7 +12,7 @@ GREY = Image.new("L", (320, 240), 128)
 
 
 def test_written_page_starts_by_itself(dev):
-    dev.tap("Scan QR")
+    dev.tap("Scan seed")
     assert dev.screen == "SCAN_SEED"
     dev.show_page(PAGE)
     dev.wait_for(lambda: dev.screen == "PAGE_FOUND", ms=5000, what="the words to be found")
@@ -32,7 +32,7 @@ def test_written_page_starts_by_itself(dev):
 
 def test_qr_held_still_does_not_read_words(dev):
     """A QR that isn't a seed stays a QR: its modules are never taken for words."""
-    dev.tap("Scan QR")
+    dev.tap("Scan seed")
     dev.show(Image.open(FIRMWARE / "sim" / "samples" / "testpsbt_height_demise_base64.png").convert("L"))
     dev.wait(3000)
     assert dev.screen == "SCAN_SEED", dev.text()

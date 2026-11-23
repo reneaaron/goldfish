@@ -21,7 +21,7 @@ format SeedSigner uses (the UI just calls it a seed QR), as typed BIP39
 words, or are made on the device. A BIP-39 passphrase can be added after loading.
 The seed lives in RAM only: Forget seed or unplugging removes it.
 
-1. Home: Scan QR, Enter words, or New seed. The top left corner shows Wi-Fi,
+1. Home: Scan seed, Enter words, or New seed. The top left corner shows Wi-Fi,
    Bluetooth and USB crossed out: the board has no radio, and the firmware has
    no USB stack, so USB-C is power only (until Restart into the bootloader, see Flash).
 2. Wallet: the home screen once a seed is loaded, shaped like Home: the logo,
@@ -71,8 +71,7 @@ Enter words restores from a words backup: type each word. It starts at 12
 words; a 24-word backup taps "24 words" on the first word. The keyboard only offers letters that lead to a word and, on the last
 word, only words with a valid checksum. The seed loads right away.
 
-Experimental: Scan seed also reads a handwritten backup (the camera button next
-to the word field opens it too), on any paper (plain, ruled, a printed card; one or more
+Experimental: Scan seed also reads a handwritten backup, on any paper (plain, ruled, a printed card; one or more
 columns; numbered or not). A SeedQR is read as soon as it is in view. For written
 words, fit the page in view and hold still: after about 2 seconds with no QR
 finder pattern in view and at least 8 words found on the preview (checked at

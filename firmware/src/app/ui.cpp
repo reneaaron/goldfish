@@ -142,7 +142,7 @@ static void build_home() {
     lv_obj_set_height(words, 48);
     lv_obj_set_style_bg_opa(words, LV_OPA_COVER, 0);
     lv_obj_align(words, LV_ALIGN_BOTTOM_MID, 0, -40 - 48 - 8);
-    lv_obj_t *scan = btn_primary(scr, ICON_CAMERA "   Scan QR", go_cb, GO(UI_SCAN_SEED));
+    lv_obj_t *scan = btn_primary(scr, ICON_CAMERA "   Scan seed", go_cb, GO(UI_SCAN_SEED));
     lv_obj_align(scan, LV_ALIGN_BOTTOM_MID, 0, -40);
     // Making a new seed is a different job, so it sits apart and quieter.
     lv_obj_align(quiet_link(scr, ICON_DICE "  Create new seed", go_cb, GO(UI_NEW_SEED)), LV_ALIGN_BOTTOM_MID, 0, -4);
@@ -165,7 +165,6 @@ static lv_timer_t *scan_timer;
 // SCAN_SEED: a SeedQR, read as soon as it is seen, or written words, read once the camera holds still on them
 enum ScanMode { SCAN_SEED, SCAN_WALLET, SCAN_CONFIRM };
 static ScanMode scan_mode;
-static bool scan_from_words;   // Scan seed was opened from Enter words: Back returns there
 static AddressCheck check;
 static int qr_w, qr_h;
 static UrDecoder ur_dec;
@@ -418,9 +417,7 @@ static void scan_back_cb(lv_event_t *) {
     }
     scan_stop();
     ur_decoder_reset(&ur_dec);
-    // back to Enter words as it was left: its word count is kept, nothing was typed yet
-    ui_goto(scan_mode == SCAN_SEED && scan_from_words ? UI_ENTER_WORDS
-            : scan_mode == SCAN_SEED ? UI_HOME : scan_mode == SCAN_CONFIRM ? UI_BACKUP_BLOCK : UI_WALLET);
+    ui_goto(scan_mode == SCAN_SEED ? UI_HOME : scan_mode == SCAN_CONFIRM ? UI_BACKUP_BLOCK : UI_WALLET);
 }
 
 // Viewfinder corner brackets around the target area of the preview.
@@ -466,7 +463,7 @@ static void build_scan(ScanMode mode) {
     // The title says what is scanned; one line says what to do. The second
     // line stays empty until there is something to report. The wallet's
     // scanner says what it takes instead, until a status.
-    static const char *prompts[] = {"SeedQR or written words", "", "Let's check it matches"};
+    static const char *prompts[] = {"QR code or written words", "", "Let's check it matches"};
     topbar(scr, titles[mode], scan_back_cb);
     preview_image(scr);
     st_t0 = lv_tick_get();
@@ -929,7 +926,7 @@ static void build_update() {
 // New seed is a tool: entropy only ever comes from the user (dice, coins, or
 // words drawn by hand with coin flips for the last word, see seed_create.h),
 // then the user writes down the words and optionally copies a QR card. The
-// new seed is never loaded: the user loads it like any other, by Scan QR or
+// new seed is never loaded: the user loads it like any other, by Scan seed or
 // Enter words. Enter words loads straight away. "Back up as QR" runs the card
 // flow for the loaded seed.
 static int new_words = 12;               // 12; Enter words can switch to 24
@@ -1346,32 +1343,12 @@ static void words_back_cb(lv_event_t *) {
     ui_goto(UI_ENTER_WORDS);
 }
 
-static void scan_page_cb(lv_event_t *) {
-    word_prefix[0] = 0;
-    ui_goto(UI_SCAN_SEED);
-    scan_from_words = true;   // after ui_goto, which clears it outside the seed flows
-}
-
 static void build_enter_words() {
     lv_obj_t *scr = screen();
     char title[24];
     snprintf(title, sizeof(title), "Word %d of %d", (edit_slot >= 0 ? edit_slot : word_n) + 1,
              drawing ? new_words - 1 : new_words);
-    lv_obj_t *bar = topbar(scr, title, words_back_cb);
-
-    // the camera, in the header opposite Back: a written backup, read in one go
-    // (not while drawing words, or when the keyboard is fixing one word of a
-    // page already read).
-    // Only before the first word: words typed and then a page read would be in
-    // the list twice, and lost again on Back.
-    if (!drawing && edit_slot < 0 && !word_n) {
-        lv_obj_t *cam = lv_button_create(bar);
-        lv_obj_remove_style_all(cam);
-        lv_obj_set_size(cam, 44, 44);
-        lv_obj_align(cam, LV_ALIGN_RIGHT_MID, -4, 2);
-        lv_obj_add_event_cb(cam, scan_page_cb, LV_EVENT_CLICKED, nullptr);
-        lv_obj_center(text(cam, ICON_CAMERA, &inter_17_semi, TEXT_2));
-    }
+    topbar(scr, title, words_back_cb);
     lv_obj_t *f = card(scr, CW, 40);
     lv_obj_set_style_pad_ver(f, 0, 0);
     lv_obj_align(f, LV_ALIGN_TOP_MID, 0, BAR + 2);
@@ -3094,7 +3071,6 @@ void ui_goto(UiScreen s) {
     if (s == UI_MULTISIG && !multisig_loaded()) s = UI_WALLET;
     // The new seed lives only inside its own flow: leaving it wipes everything.
     if (!seed_entry_screen(s) && !backup_screen(s)) new_seed_wipe();
-    if (!seed_entry_screen(s) && s != UI_SCAN_SEED) scan_from_words = false;
     bool needs_pending = backup_screen(s) && s != UI_BACKUP_BLOCK && s != UI_BACKUP_SCAN;
     bool needs_qr = s == UI_BACKUP_BLOCK || s == UI_BACKUP_SCAN;
     if ((needs_pending && !pending.len) || (needs_qr && (!pending.len || !qr_n))) { new_seed_wipe(); s = UI_HOME; }

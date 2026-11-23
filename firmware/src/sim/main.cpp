@@ -498,8 +498,7 @@ static int run_shots(const char *dir) {
     ui_goto(UI_HOME);
     cam_override = false;
     setenv("SIM_CAMERA", "sim/samples/handwritten_page.png", 1);
-    ui_seed_entry(UI_ENTER_WORDS, 24);
-    ui_goto(UI_SCAN_SEED);   // as the camera on Enter words does
+    ui_goto(UI_SCAN_SEED);
     pump(300); save(dir, "51_scan_page");
     pump(1850); save(dir, "51a_page_hold_still");   // held still: it starts by itself, the words found before the sharp picture
     for (int i = 0; i < 400 && ui_current() == UI_SCAN_SEED; i++) pump(20);   // hold still: the words, then the sharp picture
