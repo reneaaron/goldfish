@@ -192,6 +192,24 @@ void test_ur_crypto_output() {
     TEST_ASSERT_FALSE(multisig_loaded());
 }
 
+// Sparrow leaves the children out of each key: read as <0;1>/*.
+void test_ur_crypto_output_sparrow() {
+    const uint8_t *payload = nullptr;
+    size_t len = 0;
+    load_seed(SPARROW_MNEMONIC);
+    ur_decoder_reset(&dec);
+    TEST_ASSERT_EQUAL(UR_COMPLETE, ur_decoder_add(&dec, SPARROW_UR_OUTPUT, strlen(SPARROW_UR_OUTPUT), &payload, &len));
+    TEST_ASSERT_EQUAL(UR_TYPE_OUTPUT, dec.type);
+    TEST_ASSERT_EQUAL(MS_OK, multisig_load_ur_output(payload, len));
+    TEST_ASSERT_EQUAL(2, multisig_info()->m);
+    TEST_ASSERT_EQUAL(3, multisig_info()->n);
+    TEST_ASSERT_EQUAL(2, multisig_info()->ours);
+    TEST_ASSERT_TRUE(multisig_info()->testnet);
+    expect_address(SPARROW_ADDR_RECEIVE_0, 0, 0);
+    expect_address(SPARROW_ADDR_CHANGE_4, 1, 4);
+    multisig_clear();
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_load);
@@ -207,5 +225,6 @@ int main() {
     RUN_TEST(test_same_key_twice);
     RUN_TEST(test_dropped_with_the_seed);
     RUN_TEST(test_ur_crypto_output);
+    RUN_TEST(test_ur_crypto_output_sparrow);
     return UNITY_END();
 }

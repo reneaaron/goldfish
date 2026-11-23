@@ -1,6 +1,7 @@
 // New seeds from dice, coins and words. Dice vectors are SeedSigner's
-// tests/test_mnemonic_generation.py; coin vectors were computed with Python's
-// hashlib and the BIP39 wordlist, independent of this code. No RNG anywhere.
+// tests/test_mnemonic_generation.py; coin and drawn-last-word vectors were
+// computed with Python's hashlib and embit following SeedSigner's
+// helpers/mnemonic_generation.py, independent of this code. No RNG anywhere.
 // Run: pio test -e test
 #include <unity.h>
 #include <string.h>
@@ -8,6 +9,7 @@
 #include <wally_core.h>
 #include <wally_bip39.h>
 #include "../../src/app/seed_create.h"
+#include "../fixtures/bip39_vectors.h"
 
 static void assert_mnemonic(const char *expected, const SeedEntropy &e) {
     char *mn = nullptr;
@@ -24,6 +26,9 @@ void test_dice_12() {
     r = "66666666666666666666666666666666666666666666666666";
     TEST_ASSERT_TRUE(seed_from_dice(r, strlen(r), 12, &e));
     assert_mnemonic("senior morning song proud recycle toy search apple trigger lend vibrant arrest", e);
+    r = "11111111111111111111111111111111111111111111111111";
+    TEST_ASSERT_TRUE(seed_from_dice(r, strlen(r), 12, &e));
+    assert_mnemonic("diet glad hat rural panther lawsuit act drop gallery urge where fit", e);
 }
 
 void test_dice_24() {
@@ -32,6 +37,14 @@ void test_dice_24() {
     TEST_ASSERT_TRUE(seed_from_dice(r, strlen(r), 24, &e));
     assert_mnemonic("resource timber firm banner horror pupil frozen main pear direct pioneer broken grid core insane "
                     "begin sister pony end debate task silk empty curious", e);
+    r = "222222222222222222222222222222222222222222222555555555555555555555555555555555555555555555555555555";
+    TEST_ASSERT_TRUE(seed_from_dice(r, strlen(r), 24, &e));
+    assert_mnemonic("garden uphold level clog sword globe armor issue two cute scorpion improve verb artwork blind "
+                    "tail raw butter combine move produce foil feature wave", e);
+    r = "222222222222222222222222222222222222222222222555555555555555555555555555555555555555555555555555556";
+    TEST_ASSERT_TRUE(seed_from_dice(r, strlen(r), 24, &e));
+    assert_mnemonic("lizard broken love tired depend eyebrow excess lonely advance father various cram ignore panic "
+                    "feed plunge miss regret boring unique galaxy fan detail fly", e);
 }
 
 void test_dice_rejects() {
@@ -54,6 +67,15 @@ void test_coins() {
     TEST_ASSERT_TRUE(seed_from_coins(f, 256, 24, &e));
     assert_mnemonic("multiply poverty relax ozone gorilla cheap coffee steak inch picture upgrade doll tank wrong grace "
                     "letter parrot drive mass attack journey journey pull eager", e);
+    memset(f, '0', 256);                              // all tails
+    TEST_ASSERT_TRUE(seed_from_coins(f, 128, 12, &e));
+    assert_mnemonic("earth naive tongue material rebel cotton credit quarter market peanut memory other", e);
+    TEST_ASSERT_TRUE(seed_from_coins(f, 256, 24, &e));
+    assert_mnemonic("gun library main saddle doctor meat pizza bone brave output matter chef merry flag abuse puppy "
+                    "first rotate era tent news arrest pepper finger", e);
+    memset(f, '1', 128);                              // all heads
+    TEST_ASSERT_TRUE(seed_from_coins(f, 128, 12, &e));
+    assert_mnemonic("exit pulp believe feature horror vehicle home more patrol hair drink resist", e);
     f[0] = '2';
     TEST_ASSERT_FALSE(seed_from_coins(f, 256, 24, &e));
 }
@@ -129,6 +151,10 @@ void test_final_word() {
     SeedEntropy e;
     TEST_ASSERT_TRUE(seed_final_word(idx, 12, "1010101", &e));
     assert_mnemonic("crawl focus rescue cable view pledge rather dinner cousin unfair day prize", e);
+    TEST_ASSERT_TRUE(seed_final_word(idx, 12, "0000000", &e));
+    assert_mnemonic("crawl focus rescue cable view pledge rather dinner cousin unfair day account", e);
+    TEST_ASSERT_TRUE(seed_final_word(idx, 12, "1111111", &e));
+    assert_mnemonic("crawl focus rescue cable view pledge rather dinner cousin unfair day zoo", e);
     TEST_ASSERT_FALSE(seed_final_word(idx, 12, "101010", &e));      // 6 flips: one short
     n = parse("bubble father debate ankle injury fence mesh evolve section wet coyote violin pyramid flower rent "
               "arrow round clutch myth safe base skin mobile", idx);
@@ -138,6 +164,12 @@ void test_final_word() {
     uint16_t all[24];
     TEST_ASSERT_EQUAL(24, seed_word_indexes(e, all));
     TEST_ASSERT_EQUAL_STRING("sausage", seed_word(all[23]));
+    TEST_ASSERT_TRUE(seed_final_word(idx, 24, "000", &e));
+    seed_word_indexes(e, all);
+    TEST_ASSERT_EQUAL_STRING("aware", seed_word(all[23]));
+    TEST_ASSERT_TRUE(seed_final_word(idx, 24, "111", &e));
+    seed_word_indexes(e, all);
+    TEST_ASSERT_EQUAL_STRING("wild", seed_word(all[23]));
 }
 
 void test_word_indexes() {
@@ -161,6 +193,44 @@ void test_wordlist_matches_libwally() {
     }
 }
 
+// Every 12- and 24-word BIP-39 vector, both ways: the entropy shows the
+// vector's words, and typing those words gives the entropy back.
+void test_bip39_vectors() {
+    for (int i = 0; i < BIP39_VECTOR_COUNT; i++) {
+        const Bip39Vector &v = BIP39_VECTORS[i];
+        SeedEntropy e;
+        memset(&e, 0, sizeof(e));
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_hex_to_bytes(v.entropy_hex, e.bytes, sizeof(e.bytes), &e.len));
+
+        uint16_t idx[24];
+        int n = seed_word_indexes(e, idx);
+        TEST_ASSERT_EQUAL(e.len == 16 ? 12 : 24, n);
+        char words[24 * 9] = "";
+        for (int w = 0; w < n; w++) {
+            if (w) strcat(words, " ");
+            strcat(words, seed_word(idx[w]));
+        }
+        TEST_ASSERT_EQUAL_STRING_MESSAGE(v.mnemonic, words, v.entropy_hex);
+
+        memset(idx, 0, sizeof(idx));
+        int typed = 0;
+        for (const char *w = v.mnemonic; *w; typed++) {
+            const char *end = strchr(w, ' ');
+            size_t len = end ? (size_t)(end - w) : strlen(w);
+            int found = -1;
+            for (int k = 0; k < 2048 && found < 0; k++)
+                if (strlen(seed_word(k)) == len && !strncmp(seed_word(k), w, len)) found = k;
+            TEST_ASSERT_GREATER_OR_EQUAL(0, found);
+            idx[typed] = (uint16_t)found;
+            w += len + (end ? 1 : 0);
+        }
+        SeedEntropy back;
+        TEST_ASSERT_TRUE(seed_from_words(idx, typed, &back));
+        TEST_ASSERT_EQUAL(e.len, back.len);
+        TEST_ASSERT_EQUAL_MEMORY_MESSAGE(e.bytes, back.bytes, e.len, v.entropy_hex);
+    }
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_dice_12);
@@ -173,5 +243,6 @@ int main() {
     RUN_TEST(test_final_word);
     RUN_TEST(test_word_indexes);
     RUN_TEST(test_wordlist_matches_libwally);
+    RUN_TEST(test_bip39_vectors);
     return UNITY_END();
 }

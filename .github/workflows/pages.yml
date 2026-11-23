@@ -1,22 +1,25 @@
 name: Website
 
 # Publishes the project website on GitHub Pages:
-#   /          landing/ (the Goldfish landing page, with its screens and renders)
+#   /          landing/ (the Goldfish landing page, with its screens and renders;
+#              the screens retaken from the latest release, so they show its tag)
 #   /flasher/  flasher/index.html plus firmware.uf2 and firmware.json
 #   /cards/    cards/index.html (blank backup cards to print)
 #   /try/      try/index.html plus the firmware built for the browser (firmware/web),
 #              from the commit being deployed, not the release tag
-# The flasher always offers the latest release tag (v0.1.0); until the first
-# tag exists it offers the commit being deployed. Needs, once, in the repo settings:
-# - Pages > Source: GitHub Actions
-# - Environments > github-pages > deployment branches and tags: allow tags v*
-#   (by default only the main branch may deploy)
+# The flasher offers the latest GitHub release's firmware.uf2 (release.yml),
+# checked here against its SHA256SUMS and build attestation; until the first
+# release exists it offers the commit being deployed. Runs on pushes to main
+# that touch the site and after each Release run. Needs, once, in the repo
+# settings: Pages > Source: GitHub Actions.
 
 on:
   push:
-    tags: ['v*']
     branches: [main]
     paths: ['landing/**', 'flasher/**', 'cards/**', 'try/**', 'firmware/src/**', 'firmware/web/**', 'firmware/platformio.ini', 'firmware/include/**', 'firmware/lib/**', 'firmware/sim/samples/**', 'firmware/docs/screens/**', 'marketing/renders/out/**', '.github/workflows/pages.yml']
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
   workflow_dispatch:
 
 concurrency:
@@ -25,50 +28,86 @@ concurrency:
 
 permissions:
   contents: read
+  attestations: read
 
 jobs:
   build:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0   # tags, to find the latest release
-      - uses: astral-sh/setup-uv@v6
-      - uses: actions/cache@v4
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.platformio
           key: pio-board-${{ hashFiles('firmware/platformio.ini') }}
       - run: uv tool install platformio==6.1.19
-      - uses: mymindstorm/setup-emsdk@v14
+      - uses: mymindstorm/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984 # v16
         with:
           version: 4.0.10
-      # Before the release's firmware is checked out below: /try/ runs this commit's.
       - name: Browser simulator
         run: pio pkg install -e sim && make -C web -j"$(nproc)" && mv .pio/build/web "$RUNNER_TEMP/try"
         working-directory: firmware
-      - name: Check out the firmware to offer
+      - name: Firmware to offer
+        id: firmware
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          tag=$(git tag --list 'v*' --sort=-v:refname | head -1)
-          echo "Firmware from ${tag:-this commit}" >> "$GITHUB_STEP_SUMMARY"
-          if [ -n "$tag" ]; then git checkout -q "$tag" -- firmware; fi
-      - run: pio run
-        working-directory: firmware
+          fw="$RUNNER_TEMP/fw" && mkdir -p "$fw"
+          # Empty only when there is no release yet; any other failure stops the run.
+          tag=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases \
+            --limit 1 --json tagName -q '.[0].tagName // empty')
+          if [ -n "$tag" ]; then
+            gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern firmware.uf2 --pattern SHA256SUMS --dir "$fw"
+            (cd "$fw" && sha256sum -c SHA256SUMS)
+            gh attestation verify "$fw/firmware.uf2" --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" --source-ref "refs/tags/$tag"
+            version=$tag commit=$(git rev-list -n1 "$tag")
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          else
+            (cd firmware && pio run)
+            cp firmware/.pio/build/rp2350_touch_lcd_2/firmware.uf2 "$fw/"
+            # The version the firmware shows on its home screen (firmware/version.py).
+            version=$(sed -n 's/#define FW_VERSION "\(.*\)"/\1/p' firmware/include/version.h) commit=$GITHUB_SHA
+          fi
+          jq -n --arg version "$version" --arg commit "$commit" '{$version, $commit}' > "$fw/firmware.json"
+      # The landing page's screens, taken from the release on offer, so the home
+      # screen shows its tag (version.py) rather than the commit the PNGs in the
+      # repo were made at. Only screens the repo already has are replaced.
+      - name: Screens from the release
+        if: steps.firmware.outputs.tag != ''
+        env:
+          TAG: ${{ steps.firmware.outputs.tag }}
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq libx11-dev
+          rel="$RUNNER_TEMP/release" shots="$RUNNER_TEMP/shots" && mkdir -p "$shots" "$RUNNER_TEMP/screens"
+          git worktree add --detach "$rel" "$TAG"
+          (cd "$rel/firmware" && pio run -e sim && SIM_SHOTS="$shots" .pio/build/sim/program)
+          uv run --with pillow==13.0.0 python -I - "$shots" firmware/docs/screens "$RUNNER_TEMP/screens" <<'EOF'
+          import os, sys
+          from PIL import Image
+          shots, ref, out = sys.argv[1:]
+          for f in os.listdir(ref):
+              ppm = os.path.join(shots, f.removesuffix(".png") + ".ppm")
+              if f.endswith(".png") and os.path.exists(ppm):
+                  Image.open(ppm).save(os.path.join(out, f))
+          EOF
       - name: Assemble site
         run: |
           mkdir -p site/flasher site/cards
           # landing/img/{screens,renders} are symlinks into the repo: copy what they point to
           cp -rL landing/. site/
+          if [ -d "$RUNNER_TEMP/screens" ]; then cp "$RUNNER_TEMP/screens/"*.png site/img/screens/; fi
           cp flasher/index.html site/flasher/
           cp cards/index.html site/cards/
           cp -r "$RUNNER_TEMP/try" site/try && rm -rf site/try/obj
-          cp firmware/.pio/build/rp2350_touch_lcd_2/firmware.uf2 site/flasher/
-          # The version the firmware shows on its home screen (firmware/version.py).
-          version=$(sed -n 's/#define FW_VERSION "\(.*\)"/\1/p' firmware/include/version.h)
-          echo "{\"version\":\"$version\",\"commit\":\"${{ github.sha }}\"}" > site/flasher/firmware.json
-          echo "Firmware $version" >> "$GITHUB_STEP_SUMMARY"
+          cp "$RUNNER_TEMP/fw/firmware.uf2" "$RUNNER_TEMP/fw/firmware.json" site/flasher/
+          jq -r '"Firmware \(.version)"' site/flasher/firmware.json >> "$GITHUB_STEP_SUMMARY"
           # The page shows this same hash, computed in the browser.
           (cd site/flasher && sha256sum firmware.uf2) | tee -a "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site
 
@@ -83,4 +122,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

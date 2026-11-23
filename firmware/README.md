@@ -5,7 +5,9 @@ RP2350-Touch-LCD-2 (RP2350A, 16MB flash, 2" 240×320 touch screen, OV5640
 camera connector). The board has no Wi-Fi or Bluetooth hardware.
 
 Status: early. Seed loading, BIP-39 passphrases, new seeds with a SeedQR backup, xpub export and
-PSBT review/signing (single-sig and multisig) work in the simulator; the board's camera driver is untested on hardware. Not for real funds.
+PSBT review/signing (single-sig and multisig) work in the simulator. On the board, the camera reads seed, descriptor and animated PSBT QRs, and a
+2-of-3 multisig with Sparrow 2.5.2 on signet was set up, signed and broadcast; single-sig signing
+hasn't been tried there yet. Not for real funds.
 
 ![Seed flow in the simulator](docs/screens/flow.png)
 ![Transaction flow in the simulator](docs/screens/flow_psbt.png)
@@ -50,7 +52,11 @@ The seed lives in RAM only: Forget seed or unplugging removes it.
    the amount a URI asks for (`amount=`) is shown too, or flagged if it isn't valid
 6. Sign transaction: Scan QR on a PSBT (animated UR `crypto-psbt`, or a single
    base64 frame), review the amount, fee and change, check each output's
-   address, slide to sign, then show the signed PSBT as an animated UR.
+   address, slide to sign, then show the signed PSBT as an animated UR: 64-byte
+   fragments in alphanumeric mode at ECC low, so each frame is a 41-module
+   QR at 4 px a module (about 0.5 mm) that a laptop webcam can read. After the
+   plain fragments come fountain-coded mixes of them, as Sparrow and SeedSigner
+   send, so a wallet that missed a frame doesn't wait a whole loop for it.
    In Sparrow, set the QR density to Low (in versions up to 2.2, the
    "Decrease Density" button; Sparrow remembers it): Medium and High codes are too dense
    for the camera's 240x180 picture, and their fragments (over 256 bytes)
@@ -66,6 +72,11 @@ brightness slider (10 to 100%); tap below it or drag it back up to close it.
 A screen with a QR code still dims to 30% of the setting (at least 10%) so a
 webcam doesn't overexpose it. Like everything else it's kept in RAM only:
 full brightness again after unplugging.
+
+Screensaver: a minute untouched on Home or Wallet and the goldfish swims
+about, blowing the odd bubble and now and then thinking out loud ("Where was
+I?"), with the backlight at its lowest (10%), which also hides the fingerprint.
+A tap brings the screen back at the set brightness and presses nothing.
 
 Enter words restores from a words backup: type each word. It starts at 12
 words; a 24-word backup taps "24 words" on the first word. The keyboard only offers letters that lead to a word and, on the last
@@ -194,7 +205,8 @@ can name any cosigner keys next to ours:
 - Show the descriptor QR to Scan QR: as
   plain text, as a `crypto-output` UR (BCR-2020-010, sortedmulti with HD keys),
   or as text in a `bytes` UR. `/<0;1>/*`, `/{0,1}/*` and `/0/*` are all read as
-  receive 0, change 1. A checksum, if there is one, must be right
+  receive 0, change 1, and so is a `crypto-output` key with no children, the way
+  Sparrow shows it (pick UR, not BBQr). A checksum, if there is one, must be right
 - The seed must really be one of the keys: the key at the origin path the
   descriptor gives for our fingerprint has to be the xpub written there
 - A screen then shows M of N, every key's fingerprint and the first receive
@@ -235,15 +247,30 @@ The build is reproducible: the same commit gives a byte-identical
 `firmware.uf2`, whatever the checkout path or home directory. The platform,
 Arduino core, toolchain, LVGL and libwally are all pinned in `platformio.ini`,
 and `-ffile-prefix-map` keeps the PlatformIO packages path out of the binary.
-To check a release, build its tag on a clean tree (a dirty tree adds `+` to
-the version and so changes the file) and compare against the SHA-256 the web
-flasher shows:
+The toolchain archives come from URLs in the pinned platform, and PlatformIO
+checks no hash for those; the release workflow checks them against
+[`toolchain.sha256`](toolchain.sha256) before building.
+Each release tag (`v0.1.0`) gets a GitHub release, built by
+`.github/workflows/release.yml` on a clean runner: `firmware.uf2`, its
+`SHA256SUMS`, and a build provenance attestation that ties the file to that
+workflow and tag. Check a downloaded file either way:
+
+```bash
+gh attestation verify firmware.uf2 --repo reneaaron/goldfish \
+  --signer-workflow reneaaron/goldfish/.github/workflows/release.yml --source-ref refs/tags/v0.1.0
+```
+
+Without `--signer-workflow` and `--source-ref` any workflow run in the repo,
+on any branch, would pass.
 
 ```bash
 git checkout v0.1.0 && pio run && sha256sum .pio/build/rp2350_touch_lcd_2/firmware.uf2
 ```
 
-CI prints the same hash in each run's summary.
+Build on a clean tree: a dirty tree adds `+` to the version and so changes the
+file. Compare against the release's `SHA256SUMS`, not only the hash the web
+flasher shows: that page and its file come from the same place. CI prints the
+hash of each commit's build in the run summary.
 
 ## Tests
 
@@ -256,15 +283,21 @@ pio test -e test
 - Key derivation: the BIP84 test vector (fingerprint `73c5da0a`, zpub, testnet vpub),
   the same seed's BIP-48 multisig keys (Zpub, testnet Vpub) worked out by embit,
   and the BIP39 vector with passphrase `TREZOR` (root key, fingerprint `b4e3f5ed`),
-  removed again and wiped with the seed
-- UR: SeedSigner's 29-part `crypto-psbt` vector, plus an encode/decode round trip,
+  removed again and wiped with the seed; with the passphrase, the zpub and vpub
+  worked out by embit; a 24-word seed (`abandon` x23 `art`): fingerprint and
+  zpub by embit
+- BIP39: every 12- and 24-word vector in Trezor's `vectors.json` (16): the
+  entropy shows the vector's words, typing the words gives the entropy back,
+  and with passphrase `TREZOR` it loads the vector's root key
+- UR: SeedSigner's 29-part `crypto-psbt` vector, plus an encode/decode round trip
+  and a decode from the encoder's fountain parts alone or with every other fragment missing,
   parts whose header would overrun the decoder's buffer (sequence 0,
   more fragments than the message needs), and a part of a message past 8 KB
   reported as too big
 - Multisig descriptor: SeedSigner's native segwit 2-of-3 test wallet, with
   addresses and a witness script worked out by embit; the three spellings of
   the chains, a `crypto-output` UR made with urtypes (also cut short at every
-  byte), bad checksum, unsupported forms, a seed that isn't a cosigner, our
+  byte) and one shown by Sparrow 2.5.2 (keys without children), bad checksum, unsupported forms, a seed that isn't a cosigner, our
   fingerprint on someone else's key, and a changed passphrase
 - Multisig PSBT: that wallet's test input with change, a self-transfer and a
   payment; our signature checked against the transaction and against the hash
@@ -277,7 +310,7 @@ pio test -e test
   transaction, extra redeem or witness scripts, and a multisig witness script
   that isn't the descriptor's; and a bogus signature of ours already in the
   PSBT, which signing refuses to hand out
-- Verify address: BIP84 first receive/change addresses, URIs and their
+- Verify address: BIP84's three addresses (receive 0 and 1, change 0), URIs and their
   amounts, testnet, foreign addresses, and a different seed loaded afterwards;
   multisig receive and change addresses, with and without the descriptor
 - Amounts: BIP177 and legacy BTC formatting from ₿0 to the 21M cap
@@ -321,8 +354,10 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
 - Single-sig: a new seed from dice rolls, its words typed back in, the wallet
   linked from the xpub QR, a receive address verified, a transaction with
   change reviewed and signed; a 24-word seed typed in; SeedQR Standard and Compact; the QR card check;
-  an animated PSBT joined mid-cycle (fountain parts only) and a base64 frame;
-  another seed's transaction, another wallet's address, and fake change
+  an animated PSBT joined mid-cycle (fountain parts only) both ways and a base64 frame;
+  another seed's transaction, another wallet's address, and fake change;
+  a passphrase typed on the keyboard giving the key and signatures embit
+  derives from the same words and passphrase, and removed again
 - Multisig: Connect wallet's four keys (single-sig and multisig, mainnet and
   testnet) against embit; a 2-of-3 around the linked multisig key, refused until its descriptor is
   scanned and confirmed, then signed and finalized with a cosigner; every
@@ -417,10 +452,11 @@ seed there.
 
 [`flasher/index.html`](../flasher/index.html) does step 2 from Chrome or Edge
 on a computer: it asks for the `RP2350` drive, refuses any other folder, and
-writes the file there. The `Web flasher` workflow publishes that page on GitHub
-Pages together with the firmware built from a release tag (`v0.1.0`), and the
-page shows the file's version, commit and SHA-256. Like the firmware, it is
-untested on a real board.
+writes the file there. The `Website` workflow publishes that page on GitHub
+Pages together with the latest release's `firmware.uf2`, after checking it
+against the release's `SHA256SUMS` and attestation, and the page shows the
+file's version, commit and SHA-256. The page is untested on a
+real board (copying the file onto the drive by hand works).
 
 Updating is the same steps with a newer file. Nothing is stored on the board,
 so there is nothing to migrate and an older version can be flashed back. The
@@ -444,8 +480,8 @@ computer, when a seed is loaded.
   mapping in `src/board/touch.cpp` (marked TODO).
 - The scan screen shows the camera image. If it stays black, the line under
   it says why: `Chip id 0x…, not 0x5640` (camera not found or not an OV5640)
-  or `No image within 1s` (no pixel clock or sync). The driver in `src/board/camera.cpp` is untested:
-  if the image is blurry on an autofocus module, tune `CAM_FOCUS` there.
+  or `No image within 1s` (no pixel clock or sync). If the image is
+  blurry on an autofocus module, tune `CAM_FOCUS` in `src/board/camera.cpp`.
 
 ## Pin map
 

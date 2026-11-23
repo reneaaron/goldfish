@@ -35,6 +35,12 @@ void test_bip84_first_receive() {
     TEST_ASSERT_EQUAL_STRING("bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu", a);
 }
 
+void test_bip84_second_receive() {
+    char a[96];
+    TEST_ASSERT_GREATER_THAN(0, address_at(false, 0, 1, a, sizeof(a)));
+    TEST_ASSERT_EQUAL_STRING("bc1qnjg0jd8228aq7egyzacy8cys3knf9xvrerkf9g", a);
+}
+
 void test_bip84_first_change() {
     char a[96];
     TEST_ASSERT_GREATER_THAN(0, address_at(false, 1, 0, a, sizeof(a)));
@@ -172,6 +178,7 @@ void test_multisig_leaves_single_sig_alone() {
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_bip84_first_receive);
+    RUN_TEST(test_bip84_second_receive);
     RUN_TEST(test_bip84_first_change);
     RUN_TEST(test_verify_receive_from_uri);
     RUN_TEST(test_verify_deeper_receive);

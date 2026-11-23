@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <wally_core.h>
+#include <src/libs/qrcode/qrcodegen.h>
 #include "address_verify.h"
 #include "amount.h"
 #include "bip85.h"
@@ -66,10 +67,15 @@ static lv_obj_t *scroll_area(lv_obj_t *scr, int y) {
     return a;
 }
 
-// Grey rounded card holding a QR code (the grey is the quiet zone). Not white:
-// a white card overexposes a webcam (Sparrow) until the modules bleed together.
-constexpr int QR_CARD = 168;
-static const lv_color_t QR_LIGHT = lv_color_hex(0xA0A0A0);
+// White rounded card holding a QR code (the white is the quiet zone).
+// The QR is drawn here, not with lv_qrcode: that one always uses byte mode and
+// ECC medium, then grows the version to fill the space at the same scale, so an
+// animated PSBT frame came out 73 modules wide at 2 px. Here an uppercase UR
+// part goes in alphanumeric mode at ECC low, at the smallest version, as large
+// as fits: a 64-byte fragment is 41 modules at 4 px (about 0.5 mm each).
+constexpr int QR_PX = 164;               // the code itself: 41 modules x 4 px
+constexpr int QR_CARD = QR_PX + 16;      // plus the white quiet zone
+static const lv_color_t QR_LIGHT = lv_color_white();
 // Backlight while a QR is on screen: at full a webcam overexposes the panel.
 constexpr int QR_BACKLIGHT = 30;
 static bool qr_shown;   // the screen being built has a QR card: ui_goto dims for it
@@ -84,13 +90,37 @@ static lv_obj_t *qr_card(lv_obj_t *parent, int y, lv_obj_t **qr_out) {
     lv_obj_set_style_border_color(c, BORDER, 0);
     lv_obj_set_style_border_width(c, 1, 0);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, y);
-    lv_obj_t *qr = lv_qrcode_create(c);
-    lv_qrcode_set_size(qr, QR_CARD - 20);
-    lv_qrcode_set_dark_color(qr, lv_color_black());
-    lv_qrcode_set_light_color(qr, QR_LIGHT);
+    // A 1-bit canvas: palette index 0 light, 1 dark.
+    static uint8_t buf_data[LV_DRAW_BUF_SIZE(QR_PX, QR_PX, LV_COLOR_FORMAT_I1)];
+    static lv_draw_buf_t buf;
+    lv_draw_buf_init(&buf, QR_PX, QR_PX, LV_COLOR_FORMAT_I1, LV_STRIDE_AUTO, buf_data, sizeof(buf_data));
+    lv_draw_buf_set_flag(&buf, LV_IMAGE_FLAGS_MODIFIABLE);
+    lv_obj_t *qr = lv_canvas_create(c);
+    lv_canvas_set_draw_buf(qr, &buf);
+    lv_canvas_set_palette(qr, 0, lv_color_to_32(QR_LIGHT, LV_OPA_COVER));
+    lv_canvas_set_palette(qr, 1, lv_color_to_32(lv_color_black(), LV_OPA_COVER));
     lv_obj_center(qr);
     *qr_out = qr;
     return c;
+}
+
+// Draws text (NUL-terminated) into a qr_card's canvas.
+static void qr_set(lv_obj_t *canvas, const char *s) {
+    static uint8_t qr[qrcodegen_BUFFER_LEN_MAX], tmp[qrcodegen_BUFFER_LEN_MAX];
+    lv_draw_buf_t *buf = lv_canvas_get_draw_buf(canvas);
+    uint8_t *px = buf->data + 8;   // past the two-colour palette
+    uint32_t stride = buf->header.stride;
+    memset(px, 0, stride * QR_PX);
+    if (qrcodegen_encodeText(s, tmp, qr, qrcodegen_Ecc_LOW, qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX,
+                             qrcodegen_Mask_AUTO, false)) {
+        int n = qrcodegen_getSize(qr), scale = QR_PX / n, off = (QR_PX - n * scale) / 2;
+        for (int y = 0; y < n * scale; y++)
+            for (int x = 0; x < n * scale; x++)
+                if (qrcodegen_getModule(qr, x / scale, y / scale))
+                    px[(off + y) * stride + ((off + x) >> 3)] |= 0x80 >> ((off + x) & 7);
+    }
+    lv_image_cache_drop(buf);
+    lv_obj_invalidate(canvas);
 }
 
 // ---------------------------------------------------------------- home
@@ -839,7 +869,7 @@ static void build_export_xpub() {
 
     lv_obj_t *qr;
     lv_obj_t *qc = qr_card(scr, BAR + 2, &qr);
-    lv_qrcode_update(qr, xpub, n);
+    if (n) qr_set(qr, xpub);
     lv_obj_add_flag(qc, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(qc, key_details_cb, LV_EVENT_CLICKED, nullptr);
 
@@ -2570,7 +2600,7 @@ static void build_psbt_overview() {
     bool self_only = review.spend == 0;
     uint64_t headline = self_only ? review.self : review.spend;
     char cap[48];
-    snprintf(cap, sizeof(cap), "%s%s", self_only ? "SENDING TO YOURSELF" : "YOU'RE SENDING", review.testnet ? "  \xC2\xB7  TESTNET" : "");
+    snprintf(cap, sizeof(cap), "%s%s", self_only ? "TO YOURSELF" : "YOU'RE SENDING", review.testnet ? "  \xC2\xB7  TESTNET" : "");
     lv_obj_t *cl = caption(scr, cap);
     if (review.testnet) lv_obj_set_style_text_color(cl, AMBER, 0);
     lv_obj_align(cl, LV_ALIGN_TOP_MID, 0, BAR + 12);
@@ -2735,14 +2765,15 @@ static void build_psbt_sign() {
 static lv_timer_t *anim_timer;
 static lv_obj_t *anim_qr, *anim_lbl;
 static uint32_t anim_seq;
-#define FRAGMENT_LEN 80
+static size_t anim_frag;
+#define FRAGMENT_LEN 64   // a 41-module QR at 4 px: see qr_card
 
 static void anim_tick(lv_timer_t *) {
     static char part[400];
     anim_seq++;
-    size_t n = ur_encode_part(signed_buf, signed_len, FRAGMENT_LEN, anim_seq, part, sizeof(part));
-    if (n) lv_qrcode_update(anim_qr, part, n);
-    size_t count = ur_part_count(signed_len, FRAGMENT_LEN);
+    size_t n = ur_encode_part(signed_buf, signed_len, anim_frag, anim_seq, part, sizeof(part));
+    if (n) qr_set(anim_qr, part);
+    size_t count = ur_part_count(signed_len, anim_frag);
     if (count > 1)
         lv_label_set_text_fmt(anim_lbl, "Scan with your wallet  \xC2\xB7  %u/%u", unsigned((anim_seq - 1) % count + 1),
                               unsigned(count));
@@ -2759,12 +2790,15 @@ static void signed_done_cb(lv_event_t *) {
 static void build_psbt_signed() {
     lv_obj_t *scr = screen();
     topbar(scr, "Signed", nullptr, ICON_CHECK, GREEN, GREEN_DIM);
-    qr_card(scr, BAR + 2, &anim_qr);
+    qr_card(scr, BAR, &anim_qr);
     // What to do, and which frame of an animated QR is showing.
     anim_lbl = text(scr, "Scan with your wallet", &inter_15, TEXT);
-    lv_obj_align(anim_lbl, LV_ALIGN_TOP_MID, 0, BAR + 2 + QR_CARD + 10);
+    lv_obj_align(anim_lbl, LV_ALIGN_TOP_MID, 0, BAR + QR_CARD + 4);
     place_bottom(btn_primary(scr, "Back to wallet", signed_done_cb));
     show(scr);
+    // Larger fragments (a denser QR) only for a PSBT past what 64-byte ones carry.
+    anim_frag = FRAGMENT_LEN;
+    while (ur_part_count(signed_len, anim_frag) > UR_MAX_FRAGMENTS) anim_frag++;
     anim_seq = 0;
     anim_tick(nullptr);
     if (anim_timer) lv_timer_delete(anim_timer);
@@ -2926,12 +2960,15 @@ static int brightness = 100;
 constexpr int BRIGHT_SL_H = 28, BRIGHT_SPAN = 1000;
 constexpr int BRIGHT_LO = BRIGHT_SPAN * (BRIGHT_SL_H / 2) / CW, BRIGHT_HI = BRIGHT_SPAN - BRIGHT_LO;
 static lv_obj_t *bright_scrim, *bright_panel;
+static lv_obj_t *saver;   // the screensaver, see below
 static bool bright_closing;
 static lv_point_t pull_from;
 static lv_timer_t *pull_timer;
 
-// A QR screen keeps its dimming, scaled with the setting.
+// A QR screen keeps its dimming, scaled with the setting; the screensaver
+// goes to the lowest the setting allows.
 static void apply_backlight() {
+    if (saver) return platform_backlight(BRIGHT_MIN);
     platform_backlight(qr_shown ? LV_MAX(BRIGHT_MIN, brightness * QR_BACKLIGHT / 100) : brightness);
 }
 
@@ -3055,11 +3092,198 @@ static void pull_tick(lv_timer_t *t) {
 static void pull_cb(lv_event_t *e) {
     lv_indev_t *in = (lv_indev_t *)lv_event_get_target(e);
     lv_indev_get_point(in, &pull_from);
-    if (pull_from.y >= BRIGHT_EDGE || bright_scrim || pull_timer) return;
+    if (pull_from.y >= BRIGHT_EDGE || bright_scrim || saver || pull_timer) return;
     pull_timer = lv_timer_create(pull_tick, 15, in);
 }
 
+// ---------------------------------------------------------------- screensaver
+// A minute untouched on Home or Wallet: the goldfish swims about, with the
+// backlight at its lowest, which also hides the fingerprint. A tap brings the screen back and does nothing else.
+constexpr uint32_t SAVER_IDLE_MS = 60000;
+constexpr int FISH_W = 84, FISH_H = 48, N_BUBBLES = 8;
+// Where the fish swims (its top-left corner); bubbles go up off the screen.
+constexpr int X_MIN = 8, X_MAX = W - FISH_W - 8, Y_MIN = 40, Y_MAX = H - FISH_H - 60;
+static lv_timer_t *saver_timer, *idle_timer;
+static lv_obj_t *saver_fish, *saver_thought, *saver_thought_l;
+static struct Bubble { lv_obj_t *o; float x, y; int phase; } bubbles[N_BUBBLES];
+static float fish_x, fish_y, fish_ty;
+static int fish_dir;   // -1 swims left (the logo's own way), +1 right
+static uint32_t saver_t0, saver_last, next_bubble, next_thought, thought_until;
+static int thought_i;
+// Goldfish memory meets bitcoin. One line each at inter_13, and nothing the device doesn't do.
+static const char *const thoughts[] = {
+    "Blub.",
+    "Don't trust. Verify.",
+    "Where was I?",
+    "Not your keys... wait, whose?",
+    "21 million bubbles. Max.",
+    "Ooh, a castle!",
+    "Tick tock, next block.",
+    "Did I have a seed just now?",
+    "Stay humble. Blow bubbles.",
+    "Few understand. I forgot.",
+    "Low time preference: 3 sec.",
+    "No Wi-Fi. Just water.",
+    "Unplug me and I forget.",
+    "Sign and... what was it?",
+};
+
+// The logo turned to face right: the same pixels, each row reversed (RGB565 plane, then alpha).
+static uint8_t fish_right_map[FISH_W * FISH_H * 3];
+static lv_image_dsc_t fish_right;
+static const lv_image_dsc_t *fish_facing(int dir) {
+    if (dir < 0 || goldfish_logo.header.w != FISH_W || goldfish_logo.header.h != FISH_H ||
+        goldfish_logo.data_size != sizeof(fish_right_map))
+        return &goldfish_logo;
+    if (!fish_right.data) {
+        const uint8_t *src = goldfish_logo.data;
+        uint8_t *rgb = fish_right_map, *a = fish_right_map + FISH_W * FISH_H * 2;
+        for (int y = 0; y < FISH_H; y++)
+            for (int x = 0; x < FISH_W; x++) {
+                int from = y * FISH_W + (FISH_W - 1 - x), to = y * FISH_W + x;
+                rgb[to * 2] = src[from * 2];
+                rgb[to * 2 + 1] = src[from * 2 + 1];
+                a[to] = src[FISH_W * FISH_H * 2 + from];
+            }
+        fish_right = goldfish_logo;
+        fish_right.data = fish_right_map;
+    }
+    return &fish_right;
+}
+
+static bool reached(uint32_t now, uint32_t at) { return (int32_t)(now - at) >= 0; }
+
+static float wave(uint32_t t, int ms_per_turn, int phase_deg = 0) {
+    return lv_trigo_sin((int16_t)((t % ms_per_turn) * 360 / ms_per_turn + phase_deg)) / 32767.0f;
+}
+
+static void saver_tick(lv_timer_t *) {
+    uint32_t now = lv_tick_get(), t = now - saver_t0;
+    float dt = LV_MIN(now - saver_last, 100u);
+    saver_last = now;
+
+    // Swim to one side, turn, and wander up and down on the way.
+    fish_x += fish_dir * 0.03f * dt;
+    if ((fish_dir > 0 && fish_x > X_MAX) || (fish_dir < 0 && fish_x < X_MIN)) {
+        fish_dir = -fish_dir;
+        lv_image_set_src(saver_fish, fish_facing(fish_dir));
+        fish_ty = lv_rand(Y_MIN, Y_MAX);
+    }
+    fish_y += (fish_ty - fish_y) * 0.0015f * dt;
+    float bob = 4 * wave(t, 2000);
+    lv_obj_set_pos(saver_fish, (int)fish_x, (int)(fish_y + bob));
+    lv_image_set_rotation(saver_fish, (int)(fish_dir * 30 * wave(t, 2000, 90)));   // nose follows the bob
+
+    // Bubbles from the mouth, wobbling up.
+    int mouth_x = fish_dir > 0 ? (int)fish_x + FISH_W - 8 : (int)fish_x + 8;
+    if (reached(now, next_bubble)) {
+        for (Bubble &b : bubbles) {
+            if (!lv_obj_has_flag(b.o, LV_OBJ_FLAG_HIDDEN)) continue;
+            int d = lv_rand(3, 7);
+            lv_obj_set_size(b.o, d, d);
+            b.x = mouth_x - d / 2;
+            b.y = fish_y + bob + FISH_H / 3;
+            b.phase = lv_rand(0, 359);
+            lv_obj_remove_flag(b.o, LV_OBJ_FLAG_HIDDEN);
+            break;
+        }
+        next_bubble = now + lv_rand(700, 2200);
+    }
+    for (Bubble &b : bubbles) {
+        if (lv_obj_has_flag(b.o, LV_OBJ_FLAG_HIDDEN)) continue;
+        b.y -= 0.035f * dt;
+        if (b.y < -12) { lv_obj_add_flag(b.o, LV_OBJ_FLAG_HIDDEN); continue; }
+        lv_obj_set_pos(b.o, (int)(b.x + 2 * wave(t, 1400, b.phase)), (int)b.y);
+    }
+
+    // Now and then, a thought, in a bubble over the fish.
+    if (reached(now, next_thought)) {
+        lv_label_set_text(saver_thought_l, thoughts[thought_i++ % (sizeof(thoughts) / sizeof(*thoughts))]);
+        lv_obj_remove_flag(saver_thought, LV_OBJ_FLAG_HIDDEN);
+        thought_until = now + 3000;
+        next_thought = now + 10000;
+    }
+    if (reached(now, thought_until)) lv_obj_add_flag(saver_thought, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_update_layout(saver_thought);
+    int tw = lv_obj_get_width(saver_thought), th = lv_obj_get_height(saver_thought);
+    int ty = (int)fish_y - th - 6;
+    if (ty < 4) ty = (int)fish_y + FISH_H + 6;
+    lv_obj_set_pos(saver_thought, LV_CLAMP(4, (int)fish_x + FISH_W / 2 - tw / 2, W - tw - 4), ty);
+}
+
+static lv_obj_t *saver_part(lv_obj_t *o) {
+    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
+    return o;
+}
+
+void ui_screensaver(bool open) {
+    if (open == (saver != nullptr)) return;
+    if (!open) {
+        lv_timer_delete(saver_timer);
+        saver_timer = nullptr;
+        lv_obj_delete(saver);
+        saver = saver_fish = saver_thought = nullptr;
+        apply_backlight();
+        return;
+    }
+    saver = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(saver);
+    lv_obj_set_size(saver, W, H);
+    lv_obj_set_style_bg_opa(saver, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(saver, BG, 0);
+    lv_obj_remove_flag(saver, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(saver, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(saver, [](lv_event_t *) {
+        lv_indev_wait_release(lv_indev_active());   // the tap only wakes the screen
+        ui_screensaver(false);
+    }, LV_EVENT_PRESSED, nullptr);
+
+    for (Bubble &b : bubbles) {
+        b.o = saver_part(lv_obj_create(saver));
+        lv_obj_remove_style_all(b.o);
+        lv_obj_set_style_radius(b.o, LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_border_width(b.o, 1, 0);
+        lv_obj_set_style_border_color(b.o, lv_color_hex(0xB9C4CA), 0);
+        lv_obj_add_flag(b.o, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    fish_dir = -1;
+    fish_x = X_MAX;
+    fish_y = fish_ty = (Y_MIN + Y_MAX) / 2;
+    saver_fish = saver_part(lv_image_create(saver));
+    lv_image_set_src(saver_fish, fish_facing(fish_dir));
+    lv_image_set_pivot(saver_fish, FISH_W / 2, FISH_H / 2);
+
+    saver_thought = saver_part(lv_obj_create(saver));
+    lv_obj_remove_style_all(saver_thought);
+    lv_obj_set_size(saver_thought, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_color(saver_thought, SURFACE, 0);
+    lv_obj_set_style_bg_opa(saver_thought, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(saver_thought, 1, 0);
+    lv_obj_set_style_border_color(saver_thought, BORDER, 0);
+    lv_obj_set_style_radius(saver_thought, 12, 0);
+    lv_obj_set_style_pad_hor(saver_thought, 10, 0);
+    lv_obj_set_style_pad_ver(saver_thought, 5, 0);
+    saver_thought_l = text(saver_thought, "", &inter_13, TEXT);
+    lv_obj_add_flag(saver_thought, LV_OBJ_FLAG_HIDDEN);
+
+    saver_t0 = saver_last = lv_tick_get();
+    next_bubble = saver_t0 + 300;
+    next_thought = saver_t0 + 2000;
+    thought_i = 0;
+    saver_tick(nullptr);
+    saver_timer = lv_timer_create(saver_tick, 30, nullptr);
+    apply_backlight();
+}
+
+static void idle_tick(lv_timer_t *) {
+    if (saver || bright_scrim || (current != UI_HOME && current != UI_WALLET)) return;
+    if (lv_display_get_inactive_time(nullptr) >= SAVER_IDLE_MS) ui_screensaver(true);
+}
+
 void ui_goto(UiScreen s) {
+    ui_screensaver(false);
     if (ui_current() == UI_PAGE_REVIEW) page_review_y = lv_obj_get_scroll_y(page_review_list);
     // (Words found shows preview_buf: the photo, kept there; scanning stopped before it)
     // Reading words keeps the camera on: a camera just woken gave blank frames, and the
@@ -3129,5 +3353,6 @@ void ui_build() {
         if (lv_indev_get_type(in) != LV_INDEV_TYPE_POINTER) continue;
         lv_indev_add_event_cb(in, pull_cb, LV_EVENT_PRESSED, nullptr);
     }
+    idle_timer = lv_timer_create(idle_tick, 500, nullptr);
     ui_goto(UI_HOME);
 }

@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Goldfish ("Sign and forget."): a stateless, camera-based Bitcoin signer for the Waveshare RP2350-Touch-LCD-2 (240×320 touch screen, OV5640 camera, no radio). The seed lives in RAM only; all I/O is QR codes through the camera and the screen. Status: works in the desktop simulator, untested on real hardware, not for real funds.
+Goldfish ("Sign and forget."): a stateless, camera-based Bitcoin signer for the Waveshare RP2350-Touch-LCD-2 (240×320 touch screen, OV5640 camera, no radio). The seed lives in RAM only; all I/O is QR codes through the camera and the screen. Status: works in the desktop simulator; on one real board, QR scanning and a 2-of-3 multisig with Sparrow on signet (set up, signed, broadcast) work, single-sig signing untried; not for real funds.
 
 - `firmware/`: PlatformIO project (the only code that builds and has tests)
 - `case/`: printed case in gcad (`.gcad` parts, `.gasm` assembly)
 - `hardware/`: parts list, board notes
 - `flasher/`: one static page that copies `firmware.uf2` onto the board's BOOT drive
-- `landing/`: the project website's landing page; `.github/workflows/pages.yml` publishes it on GitHub Pages (landing at `/`, flasher with the latest tagged firmware at `/flasher/`, cards at `/cards/`, the browser simulator built from `main` at `/try/`) on pushes to `main` that touch the site and on `v*` tags
+- `landing/`: the project website's landing page; `.github/workflows/pages.yml` publishes it on GitHub Pages (landing at `/`, flasher with the latest GitHub release's firmware at `/flasher/`, cards at `/cards/`, the browser simulator built from `main` at `/try/`) on pushes to `main` that touch the site and after each release. `.github/workflows/release.yml` builds a pushed `v*` tag (no cache) and publishes `firmware.uf2`, `SHA256SUMS` and a build provenance attestation as a GitHub release, after checking the toolchain archives against `firmware/toolchain.sha256` (update it when bumping the platform); the site workflow checks both before offering the file. Actions are pinned by commit SHA (Dependabot proposes updates); `main` takes changes only through PRs with green CI, and `v*` tags can't be moved or deleted
 - `try/`: the page around the browser (WebAssembly) build of the firmware, built by `firmware/web/Makefile`
 - `cards/`: one self-contained page (no external requests) that prints blank cards for 12-word seeds only: the 21×21 SeedQR grid (full page or wallet cards) and word cards; the grid's labels and part lines must match the device's `build_backup_block` in `ui.cpp`
 - `marketing/`: Blender render scripts that consume `case/exports/case.stl` and `firmware/docs/screens/*.png`
