@@ -200,6 +200,63 @@ def test_24_words_by_hand(dev):
     assert fingerprint_on_screen(dev) == Seed(words).fingerprint
 
 
+def test_keyboard_types_on_release(dev):
+    """A letter key is typed when the finger lifts, not when it lands. While
+    held, the letter is shown in a balloon above the key. Sliding to the next
+    letter corrects a miss; sliding onto a key that is off, or onto Del, keeps
+    the letter; sliding well above the keyboard calls it off. A finger that
+    slips onto the next key as it lifts still types the key it was holding."""
+    dev.tap("Enter words")
+    key = lambda k: next(w for w in dev.widgets() if w.kind == "key" and w.text == k)
+    mid = lambda k: ((key(k).x1 + key(k).x2) // 2, (key(k).y1 + key(k).y2) // 2)
+    press = lambda k: dev.cmd("press %d %d" % mid(k))
+    field = lambda: next(t for t in dev.texts() if t.endswith("_"))
+    above = (0, key("q").y1 - 44, 240, key("q").y1)   # the strip over the top row
+    row = dev.screenshot().crop(above)
+
+    press("q")
+    assert field() == "_"
+    assert dev.screenshot().crop(above) != row   # the balloon
+    press("w")
+    dev.wait(200)
+    dev.cmd("release")
+    assert field() == "w_"
+    assert dev.screenshot().crop(above) == row
+
+    press("a")                                   # slips onto s (off after "w") while lifting
+    press("s")
+    dev.cmd("release")
+    assert field() == "wa_"
+    dev.key("Del")
+
+    press("e")                                   # slips onto r, a live key, while lifting
+    dev.wait(200)
+    press("r")
+    dev.cmd("release")
+    assert field() == "we_"
+    dev.key("Del")
+
+    press("a")                                   # called off
+    dev.cmd("press 120 %d" % (above[1] - 16))
+    dev.wait(200)
+    dev.cmd("release")
+    assert field() == "w_"
+
+    press("i")                                   # onto Del: the letter stays, nothing is deleted
+    dev.wait(200)
+    press("Del")
+    dev.wait(200)
+    dev.cmd("release")
+    assert field() == "wi_"
+
+    press("Del")                                 # Del itself is as before: at once, and no letter after it
+    assert field() == "w_"
+    press("a")
+    dev.wait(200)
+    dev.cmd("release")
+    assert field() == "w_"
+
+
 def test_child_seed_from_the_keypad(dev):
     """Child seed: type a number on the keypad and confirm with its OK key."""
     load_by_words(dev, MNEMONIC)

@@ -132,6 +132,107 @@ static lv_obj_t *quiet_link(lv_obj_t *parent, const char *s, lv_event_cb_t cb, v
 static void restore_cb(lv_event_t *);
 static void child_start_cb(lv_event_t *);
 
+// The keys are narrower than a fingertip, so a character key (KB_CHAR) shows
+// itself in a balloon above the finger and is only typed on release. LVGL
+// drops the press when the finger slides off the key; kb_touch_cb keeps it
+// and follows the finger:
+// - onto another character key: that one is held instead, so a wrong key is
+//   corrected by sliding;
+// - onto anything else (a key that is off, Del, OK): the held key stays;
+// - well above the keyboard: the press is called off.
+// A lifting finger rolls and often reports a last position on the next key,
+// so a key held for less than KB_SETTLE ms when the finger lifts gives way to
+// the one held before it (kb_lift_cb).
+constexpr int KB_CHAR = LV_BUTTONMATRIX_CTRL_POPOVER | LV_BUTTONMATRIX_CTRL_NO_REPEAT;
+constexpr uint32_t KB_NONE = LV_BUTTONMATRIX_BUTTON_NONE, KB_SETTLE = 100;
+constexpr int KB_CALL_OFF = 24;   // px above the keyboard
+static bool kb_sliding;           // a key callback during the pick-up isn't a key press
+static bool kb_follow;            // this press began on a character key (or on none)
+static uint32_t kb_held = KB_NONE, kb_before = KB_NONE, kb_since;
+
+static bool kb_is_char(lv_obj_t *kb, uint32_t b) {
+    return b != KB_NONE && lv_buttonmatrix_has_button_ctrl(kb, b, LV_BUTTONMATRIX_CTRL_POPOVER);
+}
+
+static void kb_touch_cb(lv_event_t *e) {
+    if (kb_sliding) return;
+    lv_obj_t *kb = lv_event_get_target_obj(e);
+    lv_event_code_t code = lv_event_get_code(e);
+    uint32_t b = lv_buttonmatrix_get_selected_button(kb);
+    if (code == LV_EVENT_PRESSED) {
+        kb_follow = b == KB_NONE || kb_is_char(kb, b);   // Del, OK and the layer keys stay as LVGL has them
+        kb_held = kb_before = b;
+    } else if (code == LV_EVENT_PRESSING && kb_follow) {
+        lv_point_t p;
+        lv_indev_get_point(lv_event_get_indev(e), &p);
+        lv_area_t a;
+        lv_obj_get_coords(kb, &a);
+        if (p.y < a.y1 - KB_CALL_OFF) {
+            b = KB_NONE;
+        } else if (b == KB_NONE) {               // LVGL let go of the key, or there was none
+            kb_sliding = true;
+            lv_obj_send_event(kb, LV_EVENT_PRESSED, lv_event_get_indev(e));   // the key under the finger
+            kb_sliding = false;
+            b = lv_buttonmatrix_get_selected_button(kb);
+            if (!kb_is_char(kb, b)) b = kb_held;
+        }
+        lv_buttonmatrix_set_selected_button(kb, b);
+        if (b != kb_held) {
+            kb_before = kb_held;
+            kb_held = b;
+            kb_since = lv_tick_get();
+        }
+    }
+    // LVGL only redraws the key's own column; the balloon is wider.
+    static uint32_t shown = KB_NONE;
+    b = lv_obj_has_state(kb, LV_STATE_PRESSED) ? lv_buttonmatrix_get_selected_button(kb) : KB_NONE;
+    if (b != shown) lv_obj_invalidate(kb);
+    shown = b;
+}
+
+// Before LVGL types the held key on release.
+static void kb_lift_cb(lv_event_t *e) {
+    lv_obj_t *kb = lv_event_get_target_obj(e);
+    if (kb_follow && kb_held != KB_NONE && kb_before != KB_NONE && lv_tick_elaps(kb_since) < KB_SETTLE)
+        lv_buttonmatrix_set_selected_button(kb, kb_before);
+}
+
+// The balloon: LVGL's own popover is the pressed key stretched one row up, as
+// narrow as the key and with the same small letter. Over its upper half goes a
+// wider box with the character in a large font, kept inside the screen.
+static void kb_draw_cb(lv_event_t *e) {
+    lv_obj_t *kb = lv_event_get_target_obj(e);
+    lv_draw_task_t *t = lv_event_get_draw_task(e);
+    lv_draw_dsc_base_t *base = (lv_draw_dsc_base_t *)lv_draw_task_get_draw_dsc(t);
+    uint32_t b = lv_buttonmatrix_get_selected_button(kb);
+    if (base->part != LV_PART_ITEMS || base->id1 != b || !lv_obj_has_state(kb, LV_STATE_PRESSED) ||
+        !lv_buttonmatrix_has_button_ctrl(kb, b, LV_BUTTONMATRIX_CTRL_POPOVER)) return;
+    if (lv_draw_task_get_type(t) == LV_DRAW_TASK_TYPE_LABEL) {   // the small letter: the balloon has it
+        lv_draw_task_get_label_dsc(t)->opa = LV_OPA_TRANSP;
+        return;
+    }
+    if (lv_draw_task_get_type(t) != LV_DRAW_TASK_TYPE_FILL) return;
+    constexpr int BW = 46;
+    lv_area_t a;
+    lv_draw_task_get_area(t, &a);                 // the key and the row above it
+    a.y2 = a.y1 + (a.y2 - a.y1) / 2 - 2;
+    a.x1 = LV_CLAMP(2, (a.x1 + a.x2 + 1 - BW) / 2, W - 2 - BW);
+    a.x2 = a.x1 + BW - 1;
+    lv_draw_rect_dsc_t r;
+    lv_draw_rect_dsc_init(&r);
+    r.bg_color = ACCENT;
+    r.radius = 10;
+    lv_draw_rect(base->layer, &r, &a);
+    lv_draw_label_dsc_t l;
+    lv_draw_label_dsc_init(&l);
+    l.font = &mono_26;
+    l.color = lv_color_white();
+    l.align = LV_TEXT_ALIGN_CENTER;
+    l.text = lv_buttonmatrix_get_button_text(kb, b);
+    a.y1 += (a.y2 - a.y1 + 1 - lv_font_get_line_height(l.font)) / 2;
+    lv_draw_label(base->layer, &l, &a);
+}
+
 // Look of the on-screen keyboards (button matrices): Enter words and Passphrase.
 static void kb_style(lv_obj_t *kb) {
     lv_obj_set_style_bg_opa(kb, LV_OPA_TRANSP, 0);
@@ -146,6 +247,14 @@ static void kb_style(lv_obj_t *kb) {
     lv_obj_set_style_text_font(kb, &inter_17_semi, LV_PART_ITEMS);
     lv_obj_set_style_text_color(kb, TEXT, LV_PART_ITEMS);
     lv_obj_set_style_bg_color(kb, ACCENT_DIM, LV_PART_ITEMS | LV_STATE_PRESSED);
+    lv_obj_add_event_cb(kb, kb_touch_cb, LV_EVENT_PRESSED, nullptr);
+    lv_obj_add_event_cb(kb, kb_touch_cb, LV_EVENT_PRESSING, nullptr);
+    lv_obj_add_event_cb(kb, kb_touch_cb, LV_EVENT_RELEASED, nullptr);
+    lv_obj_add_event_cb(kb, kb_touch_cb, LV_EVENT_PRESS_LOST, nullptr);
+    lv_obj_add_event_cb(kb, kb_lift_cb, lv_event_code_t(LV_EVENT_RELEASED | LV_EVENT_PREPROCESS), nullptr);
+    lv_obj_remove_flag(kb, LV_OBJ_FLAG_SCROLLABLE);   // a slide over the keys is not a scroll
+    lv_obj_add_flag(kb, LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);
+    lv_obj_add_event_cb(kb, kb_draw_cb, LV_EVENT_DRAW_TASK_ADDED, nullptr);
 }
 
 static void build_home() {
@@ -679,6 +788,7 @@ static void pass_set_layer(int layer) {
     // Wider keys for everything that isn't a single character; OK looks like a
     // primary button. Only Del repeats while held: a repeating letter would add
     // characters unnoticed, and a repeating layer key would flip layers.
+    // Single characters get the popover (KB_CHAR).
     static lv_buttonmatrix_ctrl_t ctrl[36];
     int b = 0;
     for (int i = 0; map[i][0]; i++) {
@@ -686,6 +796,7 @@ static void pass_set_layer(int layer) {
         bool key = map[i][1] != 0;
         int c = !key ? 1 : !strcmp(map[i], "space") ? 4 : !strcmp(map[i], "OK") ? 2 | LV_BUTTONMATRIX_CTRL_CHECKED : 2;
         if (strcmp(map[i], "Del")) c |= LV_BUTTONMATRIX_CTRL_NO_REPEAT;
+        if (!key) c |= KB_CHAR;
         ctrl[b++] = lv_buttonmatrix_ctrl_t(c);
     }
     lv_buttonmatrix_set_ctrl_map(pass_kb, ctrl);
@@ -720,7 +831,7 @@ void ui_passphrase_key(const char *k) {
 
 static void pass_kb_cb(lv_event_t *) {
     uint32_t b = lv_buttonmatrix_get_selected_button(pass_kb);
-    if (b != LV_BUTTONMATRIX_BUTTON_NONE) ui_passphrase_key(lv_buttonmatrix_get_button_text(pass_kb, b));
+    if (b != LV_BUTTONMATRIX_BUTTON_NONE && !kb_sliding) ui_passphrase_key(lv_buttonmatrix_get_button_text(pass_kb, b));
 }
 static void pass_toggle_cb(lv_event_t *) {
     pass_hidden = !pass_hidden;
@@ -1363,7 +1474,7 @@ static void sugg_cb(lv_event_t *e) { word_accept(sugg_idx[(intptr_t)lv_event_get
 
 static void kb_cb(lv_event_t *e) {
     uint32_t b = lv_buttonmatrix_get_selected_button(word_kb);
-    if (b == LV_BUTTONMATRIX_BUTTON_NONE) return;
+    if (b == LV_BUTTONMATRIX_BUTTON_NONE || kb_sliding) return;
     size_t l = strlen(word_prefix);
     if (b == 26) { if (l) word_prefix[l - 1] = 0; }
     else if (l + 1 < sizeof(word_prefix)) { word_prefix[l] = lv_buttonmatrix_get_button_text(word_kb, b)[0]; word_prefix[l + 1] = 0; }
@@ -1413,6 +1524,7 @@ static void build_enter_words() {
     lv_obj_set_style_bg_opa(word_kb, LV_OPA_30, LV_PART_ITEMS | LV_STATE_DISABLED);
     lv_obj_set_style_text_color(word_kb, TEXT_3, LV_PART_ITEMS | LV_STATE_DISABLED);
     lv_buttonmatrix_set_button_width(word_kb, 26, 2);   // "Del" spans two keys
+    for (int b = 0; b < 26; b++) lv_buttonmatrix_set_button_ctrl(word_kb, b, lv_buttonmatrix_ctrl_t(KB_CHAR));
     lv_obj_add_event_cb(word_kb, kb_cb, LV_EVENT_VALUE_CHANGED, nullptr);
     // Enter words starts at 12; a seed with 24 switches here, before the first word.
     if (!drawing && !word_n && edit_slot < 0)   // not while fixing one word of a page

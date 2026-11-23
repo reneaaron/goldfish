@@ -588,6 +588,8 @@ static int run_shots(const char *dir) {
 //                        flags: "-", or "off" if scrolled out of view or disabled
 //   tap X Y              touch and release
 //   drag X1 Y1 X2 Y2     touch, move, release
+//   press X Y            touch and hold (already touching: move there)
+//   release              lift the finger
 //   wait MS              let time pass
 //   camera [PATH]        hold a picture (PNG/JPEG) up to the camera; no path: take it away
 //   shot PATH            save the screen as a PPM
@@ -662,6 +664,11 @@ static int run_control() {
         } else if (sscanf(line, "tap %d %d", &a, &b) == 2) {
             touch_at.x = a; touch_at.y = b;
             touch_down = true;  pump(80);
+            touch_down = false; pump(300);
+        } else if (sscanf(line, "press %d %d", &a, &b) == 2) {   // finger down and held (or moved, if already down)
+            touch_at.x = a; touch_at.y = b;
+            touch_down = true;  pump(80);
+        } else if (!strcmp(line, "release")) {
             touch_down = false; pump(300);
         } else if (sscanf(line, "drag %d %d %d %d", &a, &b, &c, &d) == 4) {
             touch_at.x = a; touch_at.y = b;
