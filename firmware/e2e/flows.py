@@ -30,7 +30,7 @@ def load_by_words(dev, mnemonic):
 
 
 def load_by_qr(dev, mnemonic, compact=False):
-    dev.tap("Scan seed")
+    dev.tap("Scan")
     dev.scan(seedqr(mnemonic, compact))
     assert dev.screen == "WALLET", dev.text()
 

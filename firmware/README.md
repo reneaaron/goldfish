@@ -21,7 +21,7 @@ format SeedSigner uses (the UI just calls it a seed QR), as typed BIP39
 words, or are made on the device. A BIP-39 passphrase can be added after loading.
 The seed lives in RAM only: Forget seed or unplugging removes it.
 
-1. Home: Scan seed, Enter words, or New seed. The top left corner shows Wi-Fi,
+1. Home: Scan (a seed QR or written words), Enter words, or New seed. The top left corner shows Wi-Fi,
    Bluetooth and USB crossed out: the board has no radio, and the firmware has
    no USB stack, so USB-C is power only (until Restart into the bootloader, see Flash).
 2. Wallet: the home screen once a seed is loaded, shaped like Home: the logo,

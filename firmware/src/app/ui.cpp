@@ -142,7 +142,7 @@ static void build_home() {
     lv_obj_set_height(words, 48);
     lv_obj_set_style_bg_opa(words, LV_OPA_COVER, 0);
     lv_obj_align(words, LV_ALIGN_BOTTOM_MID, 0, -40 - 48 - 8);
-    lv_obj_t *scan = btn_primary(scr, ICON_CAMERA "   Scan seed", go_cb, GO(UI_SCAN_SEED));
+    lv_obj_t *scan = btn_primary(scr, ICON_CAMERA "   Scan", go_cb, GO(UI_SCAN_SEED));
     lv_obj_align(scan, LV_ALIGN_BOTTOM_MID, 0, -40);
     // Making a new seed is a different job, so it sits apart and quieter.
     lv_obj_align(quiet_link(scr, ICON_DICE "  Create new seed", go_cb, GO(UI_NEW_SEED)), LV_ALIGN_BOTTOM_MID, 0, -4);
@@ -461,8 +461,9 @@ static void build_scan(ScanMode mode) {
     lv_obj_t *scr = screen();
     static const char *titles[] = {"Scan seed", "Scan", "Check card"};
     // The title says what is scanned; one line says what to do. The second
-    // line stays empty until there is something to report. The wallet's
-    // scanner says what it takes instead, until a status.
+    // line stays empty until there is something to report, except on Scan
+    // seed: there it says how words are read (nothing to tap), until a status.
+    // The wallet's scanner says what it takes instead, until a status.
     static const char *prompts[] = {"QR code or written words", "", "Let's check it matches"};
     topbar(scr, titles[mode], scan_back_cb);
     preview_image(scr);
@@ -485,15 +486,15 @@ static void build_scan(ScanMode mode) {
     last_probe = lv_tick_get();
 
     scan_msg = text(scr, prompts[mode], &inter_17_semi, TEXT, LV_TEXT_ALIGN_CENTER);
-    lv_obj_align(scan_msg, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + 14);
-    scan_sub = text(scr, "", &inter_13, TEXT_3, LV_TEXT_ALIGN_CENTER);
+    lv_obj_align(scan_msg, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + (seed ? 18 : 14));
+    scan_sub = text(scr, seed ? "Hold still to read words" : "", &inter_13, TEXT_3, LV_TEXT_ALIGN_CENTER);
     // one line each, kept off the screen edge: status texts are written to fit, this only catches a slip
     lv_obj_t *lines[] = {scan_msg, scan_sub};
     for (lv_obj_t *l : lines) {
         lv_obj_set_width(l, CW);
         lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
     }
-    lv_obj_align(scan_sub, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + 40);
+    lv_obj_align(scan_sub, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + (seed ? 44 : 40));
     scan_hints = nullptr;
     if (mode == SCAN_WALLET) {
         scan_hints = text(scr, "Transactions, addresses\nand multisig wallets", &inter_15, TEXT_2, LV_TEXT_ALIGN_CENTER);

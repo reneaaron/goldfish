@@ -11,13 +11,13 @@ def test_pull_down_opens_and_tap_below_closes(dev):
     assert not panel_open(dev)
     dev.cmd("drag 120 4 120 100")
     assert panel_open(dev), dev.text()
-    dev.tap("Scan seed")             # under the shade: closes it, doesn't scan
+    dev.tap("Scan")             # under the shade: closes it, doesn't scan
     assert not panel_open(dev)
     assert dev.screen == "HOME"
 
 
 def test_drag_from_back_button_opens_panel_not_back(dev):
-    dev.tap("Scan seed")
+    dev.tap("Scan")
     assert dev.screen == "SCAN_SEED"
     dev.cmd("drag 24 10 24 120")   # starts on the back chevron
     assert panel_open(dev)
