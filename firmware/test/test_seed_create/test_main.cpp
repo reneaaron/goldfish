@@ -1,6 +1,7 @@
 // New seeds from dice, coins and words. Dice vectors are SeedSigner's
-// tests/test_mnemonic_generation.py; coin vectors were computed with Python's
-// hashlib and the BIP39 wordlist, independent of this code. No RNG anywhere.
+// tests/test_mnemonic_generation.py; coin and drawn-last-word vectors were
+// computed with Python's hashlib and embit following SeedSigner's
+// helpers/mnemonic_generation.py, independent of this code. No RNG anywhere.
 // Run: pio test -e test
 #include <unity.h>
 #include <string.h>
@@ -24,6 +25,9 @@ void test_dice_12() {
     r = "66666666666666666666666666666666666666666666666666";
     TEST_ASSERT_TRUE(seed_from_dice(r, strlen(r), 12, &e));
     assert_mnemonic("senior morning song proud recycle toy search apple trigger lend vibrant arrest", e);
+    r = "11111111111111111111111111111111111111111111111111";
+    TEST_ASSERT_TRUE(seed_from_dice(r, strlen(r), 12, &e));
+    assert_mnemonic("diet glad hat rural panther lawsuit act drop gallery urge where fit", e);
 }
 
 void test_dice_24() {
@@ -32,6 +36,14 @@ void test_dice_24() {
     TEST_ASSERT_TRUE(seed_from_dice(r, strlen(r), 24, &e));
     assert_mnemonic("resource timber firm banner horror pupil frozen main pear direct pioneer broken grid core insane "
                     "begin sister pony end debate task silk empty curious", e);
+    r = "222222222222222222222222222222222222222222222555555555555555555555555555555555555555555555555555555";
+    TEST_ASSERT_TRUE(seed_from_dice(r, strlen(r), 24, &e));
+    assert_mnemonic("garden uphold level clog sword globe armor issue two cute scorpion improve verb artwork blind "
+                    "tail raw butter combine move produce foil feature wave", e);
+    r = "222222222222222222222222222222222222222222222555555555555555555555555555555555555555555555555555556";
+    TEST_ASSERT_TRUE(seed_from_dice(r, strlen(r), 24, &e));
+    assert_mnemonic("lizard broken love tired depend eyebrow excess lonely advance father various cram ignore panic "
+                    "feed plunge miss regret boring unique galaxy fan detail fly", e);
 }
 
 void test_dice_rejects() {
@@ -54,6 +66,15 @@ void test_coins() {
     TEST_ASSERT_TRUE(seed_from_coins(f, 256, 24, &e));
     assert_mnemonic("multiply poverty relax ozone gorilla cheap coffee steak inch picture upgrade doll tank wrong grace "
                     "letter parrot drive mass attack journey journey pull eager", e);
+    memset(f, '0', 256);                              // all tails
+    TEST_ASSERT_TRUE(seed_from_coins(f, 128, 12, &e));
+    assert_mnemonic("earth naive tongue material rebel cotton credit quarter market peanut memory other", e);
+    TEST_ASSERT_TRUE(seed_from_coins(f, 256, 24, &e));
+    assert_mnemonic("gun library main saddle doctor meat pizza bone brave output matter chef merry flag abuse puppy "
+                    "first rotate era tent news arrest pepper finger", e);
+    memset(f, '1', 128);                              // all heads
+    TEST_ASSERT_TRUE(seed_from_coins(f, 128, 12, &e));
+    assert_mnemonic("exit pulp believe feature horror vehicle home more patrol hair drink resist", e);
     f[0] = '2';
     TEST_ASSERT_FALSE(seed_from_coins(f, 256, 24, &e));
 }
@@ -129,6 +150,10 @@ void test_final_word() {
     SeedEntropy e;
     TEST_ASSERT_TRUE(seed_final_word(idx, 12, "1010101", &e));
     assert_mnemonic("crawl focus rescue cable view pledge rather dinner cousin unfair day prize", e);
+    TEST_ASSERT_TRUE(seed_final_word(idx, 12, "0000000", &e));
+    assert_mnemonic("crawl focus rescue cable view pledge rather dinner cousin unfair day account", e);
+    TEST_ASSERT_TRUE(seed_final_word(idx, 12, "1111111", &e));
+    assert_mnemonic("crawl focus rescue cable view pledge rather dinner cousin unfair day zoo", e);
     TEST_ASSERT_FALSE(seed_final_word(idx, 12, "101010", &e));      // 6 flips: one short
     n = parse("bubble father debate ankle injury fence mesh evolve section wet coyote violin pyramid flower rent "
               "arrow round clutch myth safe base skin mobile", idx);
@@ -138,6 +163,12 @@ void test_final_word() {
     uint16_t all[24];
     TEST_ASSERT_EQUAL(24, seed_word_indexes(e, all));
     TEST_ASSERT_EQUAL_STRING("sausage", seed_word(all[23]));
+    TEST_ASSERT_TRUE(seed_final_word(idx, 24, "000", &e));
+    seed_word_indexes(e, all);
+    TEST_ASSERT_EQUAL_STRING("aware", seed_word(all[23]));
+    TEST_ASSERT_TRUE(seed_final_word(idx, 24, "111", &e));
+    seed_word_indexes(e, all);
+    TEST_ASSERT_EQUAL_STRING("wild", seed_word(all[23]));
 }
 
 void test_word_indexes() {
