@@ -79,6 +79,8 @@ void ui_goto(UiScreen s);
 // Brightness panel (drag down from the top edge on any screen): open or close it.
 void ui_brightness_panel(bool open);
 UiScreen ui_current();
+// Screensaver (a minute untouched on Home or Wallet): the goldfish swims about, now and then a thought. Any tap closes it.
+void ui_screensaver(bool open);
 
 // For the simulator's scripted run: the same actions as the on-screen controls.
 void ui_next_output();         // "Next" on an output screen
