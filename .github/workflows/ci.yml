@@ -21,9 +21,9 @@ jobs:
     name: Unit and end-to-end tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-      - uses: actions/cache@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.platformio
           key: pio-native-${{ hashFiles('firmware/platformio.ini') }}
@@ -34,7 +34,7 @@ jobs:
         run: pio test -e test
       - name: End-to-end tests
         run: uv run --with-requirements e2e/requirements.txt pytest e2e
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
         with:
           name: e2e-failures
@@ -45,9 +45,9 @@ jobs:
     name: Board firmware
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-      - uses: actions/cache@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.platformio
           key: pio-board-${{ hashFiles('firmware/platformio.ini') }}
@@ -55,7 +55,7 @@ jobs:
       - run: pio run
       # The build is reproducible, so this matches a local build of the same commit.
       - run: (cd .pio/build/rp2350_touch_lcd_2 && sha256sum firmware.uf2) | tee -a "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: firmware
           path: firmware/.pio/build/rp2350_touch_lcd_2/firmware.uf2
@@ -64,14 +64,14 @@ jobs:
     name: Browser simulator
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-      - uses: actions/cache@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.platformio
           key: pio-native-${{ hashFiles('firmware/platformio.ini') }}
       - run: uv tool install platformio==6.1.19
-      - uses: mymindstorm/setup-emsdk@v14
+      - uses: mymindstorm/setup-emsdk@6ab9eb1bda2574c4ddb79809fc9247783eaf9021 # v14
         with:
           version: 4.0.10
       - run: pio pkg install -e sim && make -C web -j"$(nproc)"

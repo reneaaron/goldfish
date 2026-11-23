@@ -5,6 +5,7 @@
 #include <wally_core.h>
 #include <wally_bip32.h>
 #include "../../src/app/wallet.h"
+#include "../fixtures/bip39_vectors.h"
 
 static SeedEntropy zero_entropy_12() {
     SeedEntropy e;
@@ -120,6 +121,64 @@ void test_passphrase() {
     TEST_ASSERT_EQUAL_STRING("73c5da0a", fp);
 }
 
+// 24 words: all-zero 32-byte entropy = "abandon x23 art". BIP-84's vectors
+// are 12 words only, so the fingerprint and zpub were worked out by embit.
+void test_24_words() {
+    SeedEntropy e;
+    memset(&e, 0, sizeof(e));
+    e.len = 32;
+    TEST_ASSERT_TRUE(wallet_load(e));
+    TEST_ASSERT_EQUAL(24, wallet_word_count());
+    char fp[9];
+    wallet_fingerprint_hex(fp);
+    TEST_ASSERT_EQUAL_STRING("5436d724", fp);
+    char out[200];
+    TEST_ASSERT_GREATER_THAN(0, wallet_export_xpub(out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING(
+        "[5436d724/84h/0h/0h]zpub6qTBTNftBzVTjgVcSUw7vW5N1KQbV93Jnrw314RHGkCkSx4vk6nEWH1MJfReXi2WThvuDRiRpyT7cDoakEcZMQ1iZPgfJgQrcVMR4aJWh6S",
+        out);
+    wallet_wipe();
+}
+
+// Every 12- and 24-word BIP-39 vector: the entropy, loaded with the
+// passphrase TREZOR, gives the vector's root key.
+void test_bip39_vectors() {
+    for (int i = 0; i < BIP39_VECTOR_COUNT; i++) {
+        const Bip39Vector &v = BIP39_VECTORS[i];
+        SeedEntropy e;
+        memset(&e, 0, sizeof(e));
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_hex_to_bytes(v.entropy_hex, e.bytes, sizeof(e.bytes), &e.len));
+        TEST_ASSERT_TRUE(wallet_load(e));
+        TEST_ASSERT_EQUAL(e.len == 16 ? 12 : 24, wallet_word_count());
+        TEST_ASSERT_TRUE(wallet_set_passphrase("TREZOR"));
+        char *xprv = nullptr;
+        TEST_ASSERT_EQUAL(WALLY_OK, bip32_key_to_base58(wallet_root(), BIP32_FLAG_KEY_PRIVATE, &xprv));
+        TEST_ASSERT_EQUAL_STRING_MESSAGE(v.xprv, xprv, v.entropy_hex);
+        wally_free_string(xprv);
+        wallet_wipe();
+    }
+}
+
+// The exported key follows the passphrase: same path, the passphrase's root.
+// Expected values worked out by embit.
+void test_passphrase_export() {
+    TEST_ASSERT_TRUE(wallet_load(zero_entropy_12()));
+    TEST_ASSERT_TRUE(wallet_set_passphrase("TREZOR"));
+    char out[200];
+    TEST_ASSERT_GREATER_THAN(0, wallet_export_xpub(out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING(
+        "[b4e3f5ed/84h/0h/0h]zpub6rXDN3yuixCtvAyzKn3uWLDr8qXKEQ2orduEL5AAysdHZmuPVUL2vbMQDEhp8L9hRsgM8J8idDNPdZjrob8R5e7x7UoYXVdfjDG96TLa7La",
+        out);
+    wallet_set_testnet(true);
+    size_t n = wallet_export_xpub(out, sizeof(out));
+    wallet_set_testnet(false);
+    TEST_ASSERT_GREATER_THAN(0, n);
+    TEST_ASSERT_EQUAL_STRING(
+        "[b4e3f5ed/84h/1h/0h]vpub5Y1FMRorHhCpQ7SksCWpqf8HLtMibo6yE4kyGHGys7aHxvrdtTJne1Jdi4FtdLJ9B9Jm2z8cNgKa7Xtvjoa9ap6XEd7C4KLuDE69ca86npL",
+        out);
+    wallet_wipe();
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_fingerprint);
@@ -128,5 +187,8 @@ int main() {
     RUN_TEST(test_multisig_keys);
     RUN_TEST(test_wipe);
     RUN_TEST(test_passphrase);
+    RUN_TEST(test_24_words);
+    RUN_TEST(test_bip39_vectors);
+    RUN_TEST(test_passphrase_export);
     return UNITY_END();
 }

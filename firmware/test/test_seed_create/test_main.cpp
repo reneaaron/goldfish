@@ -9,6 +9,7 @@
 #include <wally_core.h>
 #include <wally_bip39.h>
 #include "../../src/app/seed_create.h"
+#include "../fixtures/bip39_vectors.h"
 
 static void assert_mnemonic(const char *expected, const SeedEntropy &e) {
     char *mn = nullptr;
@@ -192,6 +193,44 @@ void test_wordlist_matches_libwally() {
     }
 }
 
+// Every 12- and 24-word BIP-39 vector, both ways: the entropy shows the
+// vector's words, and typing those words gives the entropy back.
+void test_bip39_vectors() {
+    for (int i = 0; i < BIP39_VECTOR_COUNT; i++) {
+        const Bip39Vector &v = BIP39_VECTORS[i];
+        SeedEntropy e;
+        memset(&e, 0, sizeof(e));
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_hex_to_bytes(v.entropy_hex, e.bytes, sizeof(e.bytes), &e.len));
+
+        uint16_t idx[24];
+        int n = seed_word_indexes(e, idx);
+        TEST_ASSERT_EQUAL(e.len == 16 ? 12 : 24, n);
+        char words[24 * 9] = "";
+        for (int w = 0; w < n; w++) {
+            if (w) strcat(words, " ");
+            strcat(words, seed_word(idx[w]));
+        }
+        TEST_ASSERT_EQUAL_STRING_MESSAGE(v.mnemonic, words, v.entropy_hex);
+
+        memset(idx, 0, sizeof(idx));
+        int typed = 0;
+        for (const char *w = v.mnemonic; *w; typed++) {
+            const char *end = strchr(w, ' ');
+            size_t len = end ? (size_t)(end - w) : strlen(w);
+            int found = -1;
+            for (int k = 0; k < 2048 && found < 0; k++)
+                if (strlen(seed_word(k)) == len && !strncmp(seed_word(k), w, len)) found = k;
+            TEST_ASSERT_GREATER_OR_EQUAL(0, found);
+            idx[typed] = (uint16_t)found;
+            w += len + (end ? 1 : 0);
+        }
+        SeedEntropy back;
+        TEST_ASSERT_TRUE(seed_from_words(idx, typed, &back));
+        TEST_ASSERT_EQUAL(e.len, back.len);
+        TEST_ASSERT_EQUAL_MEMORY_MESSAGE(e.bytes, back.bytes, e.len, v.entropy_hex);
+    }
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_dice_12);
@@ -204,5 +243,6 @@ int main() {
     RUN_TEST(test_final_word);
     RUN_TEST(test_word_indexes);
     RUN_TEST(test_wordlist_matches_libwally);
+    RUN_TEST(test_bip39_vectors);
     return UNITY_END();
 }
