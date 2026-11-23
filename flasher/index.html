@@ -74,6 +74,7 @@
   .action:active { transform: scale(.98); }
   .action:disabled { background: var(--surface-2); color: var(--text-3); cursor: default; transform: none; }
   .action svg { width: 20px; height: 20px; flex: none; }
+  main[data-state=done] #flash { background: var(--surface-2); color: var(--text); }   /* "Next" is the way on */
 
   .note {
     display: flex; gap: 10px; align-items: flex-start; border-radius: 10px;
@@ -199,17 +200,17 @@
       <li class="active" id="step-boot">
         <div class="mark"><span>1</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
         <h2>Start update mode</h2>
-        <p>Plug the device into your computer. On its home screen, tap the
-           version number in the top right corner, then Restart. A drive
-           called <code>RP2350</code> appears on your computer.</p>
+        <p><b>New board:</b> hold BOOT (right of the USB-C socket, seen from
+           the back) and plug it into your computer. Let go once the cable is in.</p>
+        <p><b>Already runs Goldfish:</b> plug it in, tap the version number in
+           the top right corner of the home screen, then Restart.</p>
+        <p>A drive called <code>RP2350</code> appears on your computer.</p>
         <details>
-          <summary>First flash, or the device doesn't start?</summary>
+          <summary>No drive?</summary>
           <ul>
-            <li>Take the board out of the case, hold BOOT (right of the USB-C
-                socket, seen from the back) and plug in USB-C.</li>
-            <li>Keep BOOT held until the cable is in.</li>
             <li>Use a cable that carries data. Some only charge.</li>
             <li>Unplug and try again: the board only looks at BOOT when it gets power.</li>
+            <li>If the board is in its case and won't start, take it out to reach BOOT.</li>
           </ul>
         </details>
       </li>
@@ -238,6 +239,9 @@
            in the top right corner.</p>
         <p id="check-after" hidden>Before you load a seed, unplug the board from the computer
            and power it from a charger or a power bank.</p>
+        <a class="action" id="next" href="../cards/" hidden>Next: print backup cards</a>
+        <p id="next-alt" hidden>Or <a href="../#how">see how signing works</a>,
+           or <a href="../try/">practise in your browser</a> first.</p>
       </li>
     </ol>
   </div>
@@ -278,7 +282,7 @@ function setState(state) {
   $('board-caption').textContent = state === 'done' ? 'What the screen should show' : 'Seen from the back';
   $('progress').hidden = state !== 'writing';
   $('drive-text').hidden = state === 'writing' || state === 'done';
-  $('check-after').hidden = state !== 'done';
+  $('check-after').hidden = $('next').hidden = $('next-alt').hidden = state !== 'done';
   $('check-title').textContent = state === 'done' ? 'Flashed. Check the version on the board' : 'Check the version on the board';
   button.disabled = state === 'loading' || state === 'writing';
   button.textContent = { loading: 'Loading firmware…', writing: 'Copying…', done: 'Flash another board' }[state] || 'Choose the RP2350 drive';
