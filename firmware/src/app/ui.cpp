@@ -176,7 +176,7 @@ static void build_home() {
     lv_obj_set_height(words, 48);
     lv_obj_set_style_bg_opa(words, LV_OPA_COVER, 0);
     lv_obj_align(words, LV_ALIGN_BOTTOM_MID, 0, -40 - 48 - 8);
-    lv_obj_t *scan = btn_primary(scr, ICON_CAMERA "   Scan QR", go_cb, GO(UI_SCAN_SEED));
+    lv_obj_t *scan = btn_primary(scr, ICON_CAMERA "   Scan", go_cb, GO(UI_SCAN_SEED));
     lv_obj_align(scan, LV_ALIGN_BOTTOM_MID, 0, -40);
     // Making a new seed is a different job, so it sits apart and quieter.
     lv_obj_align(quiet_link(scr, ICON_DICE "  Create new seed", go_cb, GO(UI_NEW_SEED)), LV_ALIGN_BOTTOM_MID, 0, -4);
@@ -188,7 +188,7 @@ static void build_home() {
 #define PREV_H 180
 static uint8_t preview_buf[PREV_W * PREV_H];
 static lv_image_dsc_t preview_dsc;
-static lv_obj_t *preview_img, *scan_msg, *scan_sub, *scan_bar, *page_read_btn;
+static lv_obj_t *preview_img, *scan_msg, *scan_sub, *scan_bar;
 static lv_obj_t *scan_hints;   // what the wallet scanner takes, until a status
 // Scan speed, per second: frames from the camera, QRs decoded, quirc's time
 // per frame (average and slowest). A long press on the preview shows it in
@@ -196,14 +196,29 @@ static lv_obj_t *scan_hints;   // what the wallet scanner takes, until a status
 static lv_obj_t *scan_stats;
 static uint32_t st_t0, st_frames, st_codes, st_ms, st_max;
 static lv_timer_t *scan_timer;
-enum ScanMode { SCAN_SEED, SCAN_WALLET, SCAN_CONFIRM, SCAN_PAGE };
+// SCAN_SEED: a SeedQR, read as soon as it is seen, or written words, read once the camera holds still on them
+enum ScanMode { SCAN_SEED, SCAN_WALLET, SCAN_CONFIRM };
 static ScanMode scan_mode;
-static bool page_from_scan_seed;   // Scan words was opened from Scan seed: Back returns there
 static AddressCheck check;
 static int qr_w, qr_h;
 static UrDecoder ur_dec;
 static PsbtReview review;
 static int out_index;
+
+// Written words on Scan seed are read without a tap, once the view has held
+// still on them for STEADY_MS: the sharper picture that follows needs the
+// user still anyway. A QR never starts it (any finder pattern seen restarts
+// the wait), but a blurry one can look like words: Words found offers Retake.
+#define STEADY_MS 2100
+#define PROBE_MS 500        // at most this often: finding the words takes a while on the board
+#define STEADY_DIFF 6       // mean change per pixel between frames (of 255) that counts as moving
+#define PAGE_MIN_WORDS 8
+static uint8_t steady_ref[(PREV_W / 4) * (PREV_H / 4)];   // the last preview, small: a picture of the seed, wiped by scan_stop
+static bool steady_have;
+static uint32_t steady_since, last_probe;
+// Back from the page flow (Retake, Back, a failure): no new try until the
+// view changes, or the same picture would be taken again at once.
+static bool page_retake, page_armed;
 
 // camera_off false: just the preview stops (reading a page takes more pictures)
 static void scan_stop(bool camera_off = true) {
@@ -213,6 +228,8 @@ static void scan_stop(bool camera_off = true) {
     qrscan_free();
     qr_w = qr_h = 0;
     memset(preview_buf, 0, sizeof(preview_buf));
+    memset(steady_ref, 0, sizeof(steady_ref));
+    steady_have = false;
 }
 
 static bool starts_with_ci(const QrPayload &p, const char *s) {
@@ -353,6 +370,26 @@ static void handle_wallet_payload(QrPayload &p) {
 }
 
 static void handle_confirm_payload(QrPayload &p);
+static bool page_probe(const uint8_t *frame, int w, int h);
+
+// True once the view has held still on what looks like written words.
+static bool page_watch(const uint8_t *frame, int w, int h) {
+    uint32_t now = lv_tick_get();
+    int diff = 0, k = 0;
+    for (int y = 0; y < PREV_H; y += 4)
+        for (int x = 0; x < PREV_W; x += 4, k++) {
+            uint8_t v = preview_buf[y * PREV_W + x];
+            diff += abs(v - steady_ref[k]);
+            steady_ref[k] = v;
+        }
+    diff /= k;
+    if (!steady_have) { steady_have = true; steady_since = now; return false; }
+    if (diff > STEADY_DIFF) page_armed = true;
+    if (diff > STEADY_DIFF || qrscan_finders()) { steady_since = now; return false; }
+    if (!page_armed || now - steady_since < STEADY_MS || now - last_probe < PROBE_MS) return false;
+    last_probe = now;
+    return page_probe(frame, w, h);
+}
 
 static bool cam_err;   // the scan screen is showing platform_camera_error()
 
@@ -366,15 +403,13 @@ static void scan_tick(lv_timer_t *) {
     }
     if (cam_err) { scan_status("Camera is back", "Show the QR again", TEXT); cam_err = false; }
     if (w != qr_w || h != qr_h) {
-        bool ok = scan_mode == SCAN_PAGE || qrscan_init(w, h);   // a page is read from a still, not here
-        if (!ok) { scan_status("Camera error", "Restart the device", RED); return; }
+        if (!qrscan_init(w, h)) { scan_status("Camera error", "Restart the device", RED); return; }
         qr_w = w; qr_h = h;
     }
     for (int y = 0; y < PREV_H; y++)
         for (int x = 0; x < PREV_W; x++)
             preview_buf[y * PREV_W + x] = frame[(y * h / PREV_H) * w + (x * w / PREV_W)];
     lv_obj_invalidate(preview_img);
-    if (scan_mode == SCAN_PAGE) return;   // just the preview, until "Read words"
 
     static QrPayload p;   // static: 3KB is a lot of stack on the RP2350
     uint32_t t = lv_tick_get();
@@ -393,7 +428,10 @@ static void scan_tick(lv_timer_t *) {
         st_t0 = lv_tick_get();
         st_frames = st_codes = st_ms = st_max = 0;
     }
-    if (!found) return;
+    if (!found) {
+        if (scan_mode == SCAN_SEED && page_watch(frame, w, h)) ui_page_read();   // this timer is gone now
+        return;
+    }
     if (scan_mode == SCAN_SEED) handle_seed_payload(p);
     else if (scan_mode == SCAN_WALLET) handle_wallet_payload(p);
     else handle_confirm_payload(p);
@@ -405,17 +443,15 @@ static void page_tick(lv_timer_t *t);
 static lv_timer_t *page_timer;
 
 static void scan_back_cb(lv_event_t *) {
-    if (scan_mode == SCAN_PAGE && page_timer) {   // finding the words: cancel, the live camera again
+    if (scan_mode == SCAN_SEED && page_timer) {   // finding the words: cancel, the live camera again
         page_flow_wipe();
-        ui_goto(UI_SCAN_PAGE);
+        page_retake = true;
+        ui_goto(UI_SCAN_SEED);
         return;
     }
     scan_stop();
     ur_decoder_reset(&ur_dec);
-    ui_goto(scan_mode == SCAN_SEED      ? UI_HOME
-            : scan_mode == SCAN_CONFIRM ? UI_BACKUP_BLOCK
-            : scan_mode == SCAN_PAGE    ? (page_from_scan_seed ? UI_SCAN_SEED : UI_ENTER_WORDS)
-                                        : UI_WALLET);
+    ui_goto(scan_mode == SCAN_SEED ? UI_HOME : scan_mode == SCAN_CONFIRM ? UI_BACKUP_BLOCK : UI_WALLET);
 }
 
 // Viewfinder corner brackets around the target area of the preview.
@@ -437,10 +473,6 @@ static void corners(lv_obj_t *parent, int cx, int cy, int cw, int ch) {
     }
 }
 
-static void page_read_cb(lv_event_t *);
-static void written_cb(lv_event_t *);
-static lv_obj_t *quiet_link(lv_obj_t *parent, const char *s, lv_event_cb_t cb, void *ud);
-
 // preview_buf on screen, under the top bar.
 static void preview_image(lv_obj_t *scr) {
     preview_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
@@ -461,44 +493,42 @@ static void build_scan(ScanMode mode) {
     bool seed = mode == SCAN_SEED;
     if (mode == SCAN_WALLET) ur_decoder_reset(&ur_dec);
     lv_obj_t *scr = screen();
-    static const char *titles[] = {"Scan seed", "Scan", "Check card", "Scan words"};
+    static const char *titles[] = {"Scan seed", "Scan", "Check card"};
     // The title says what is scanned; one line says what to do. The second
-    // line stays empty until there is something to report. The wallet's
-    // scanner says what it takes instead, until a status.
-    static const char *prompts[] = {"Hold it in the frame", "",
-                                    "Let's check it matches", "Fit all the words in view"};
+    // line stays empty until there is something to report, except on Scan
+    // seed: there it says how words are read (nothing to tap), until a status.
+    // The wallet's scanner says what it takes instead, until a status.
+    static const char *prompts[] = {"QR code or written words", "", "Let's check it matches"};
     topbar(scr, titles[mode], scan_back_cb);
     preview_image(scr);
     st_t0 = lv_tick_get();
     st_frames = st_codes = st_ms = st_max = 0;
-    // a page has its Read button down there, and reads no QRs to count
     scan_stats = text(scr, "", &inter_13, TEXT_3, LV_TEXT_ALIGN_CENTER);
     lv_obj_align(scan_stats, LV_ALIGN_BOTTOM_MID, 0, -22);
     lv_obj_add_flag(scan_stats, LV_OBJ_FLAG_HIDDEN);
-    if (mode != SCAN_PAGE) {
-        lv_obj_add_flag(preview_img, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_event_cb(preview_img, [](lv_event_t *) {
-            if (lv_obj_has_flag(scan_stats, LV_OBJ_FLAG_HIDDEN)) lv_obj_remove_flag(scan_stats, LV_OBJ_FLAG_HIDDEN);
-            else lv_obj_add_flag(scan_stats, LV_OBJ_FLAG_HIDDEN);
-            if (scan_hints) lv_obj_add_flag(scan_hints, LV_OBJ_FLAG_HIDDEN);   // it would sit under the readout
-        }, LV_EVENT_LONG_PRESSED, nullptr);
-    }
-    if (mode == SCAN_PAGE) corners(scr, W / 2, BAR + PREV_H / 2, W - 16, PREV_H - 16);   // the whole picture
+    lv_obj_add_flag(preview_img, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(preview_img, [](lv_event_t *) {
+        if (lv_obj_has_flag(scan_stats, LV_OBJ_FLAG_HIDDEN)) lv_obj_remove_flag(scan_stats, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(scan_stats, LV_OBJ_FLAG_HIDDEN);
+        if (scan_hints) lv_obj_add_flag(scan_hints, LV_OBJ_FLAG_HIDDEN);   // it would sit under the readout
+    }, LV_EVENT_LONG_PRESSED, nullptr);
+    // a seed may be a written page: the whole picture (a QR is read anywhere in it)
+    if (seed) corners(scr, W / 2, BAR + PREV_H / 2, W - 16, PREV_H - 16);
     else corners(scr, W / 2, BAR + PREV_H / 2, 150, 150);
+    page_armed = !page_retake;
+    page_retake = false;
+    last_probe = lv_tick_get();
 
-    // a page has the Read button below the preview: the prompt goes in one small line
-    scan_msg = text(scr, prompts[mode], mode == SCAN_PAGE ? &inter_13 : &inter_17_semi, mode == SCAN_PAGE ? TEXT_2 : TEXT,
-                    LV_TEXT_ALIGN_CENTER);
-    lv_obj_align(scan_msg, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + (mode == SCAN_PAGE ? 6 : 14));
-    scan_sub = text(scr, "", &inter_13, TEXT_3, LV_TEXT_ALIGN_CENTER);
+    scan_msg = text(scr, prompts[mode], &inter_17_semi, TEXT, LV_TEXT_ALIGN_CENTER);
+    lv_obj_align(scan_msg, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + (seed ? 18 : 14));
+    scan_sub = text(scr, seed ? "Hold still to read words" : "", &inter_13, TEXT_3, LV_TEXT_ALIGN_CENTER);
     // one line each, kept off the screen edge: status texts are written to fit, this only catches a slip
     lv_obj_t *lines[] = {scan_msg, scan_sub};
     for (lv_obj_t *l : lines) {
         lv_obj_set_width(l, CW);
         lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
     }
-    (void)seed;
-    lv_obj_align(scan_sub, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + 40);
+    lv_obj_align(scan_sub, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + (seed ? 44 : 40));
     scan_hints = nullptr;
     if (mode == SCAN_WALLET) {
         scan_hints = text(scr, "Transactions, addresses\nand multisig wallets", &inter_15, TEXT_2, LV_TEXT_ALIGN_CENTER);
@@ -512,8 +542,6 @@ static void build_scan(ScanMode mode) {
     lv_obj_set_style_bg_color(scan_bar, ACCENT, LV_PART_INDICATOR);
     lv_obj_align(scan_bar, LV_ALIGN_BOTTOM_MID, 0, -14);
     lv_obj_add_flag(scan_bar, LV_OBJ_FLAG_HIDDEN);
-    if (mode == SCAN_PAGE) place_bottom(page_read_btn = btn_primary(scr, ICON_CAMERA "   Read words", page_read_cb));
-    if (mode == SCAN_SEED) lv_obj_align(quiet_link(scr, "Have written words instead?", written_cb, nullptr), LV_ALIGN_BOTTOM_MID, 0, 0);
 
     show(scr);
     // often: the camera has the next frame under way, the tick only collects it
@@ -933,7 +961,7 @@ static void build_update() {
 // New seed is a tool: entropy only ever comes from the user (dice, coins, or
 // words drawn by hand with coin flips for the last word, see seed_create.h),
 // then the user writes down the words and optionally copies a QR card. The
-// new seed is never loaded: the user loads it like any other, by Scan QR or
+// new seed is never loaded: the user loads it like any other, by Scan seed or
 // Enter words. Enter words loads straight away. "Back up as QR" runs the card
 // flow for the loaded seed.
 static int new_words = 12;               // 12; Enter words can switch to 24
@@ -963,7 +991,7 @@ static int words_page;                   // Write down words: 4 per page
 static char txt_words[4][12], txt_field[16], txt_sugg[2][12], txt_tail[40];
 
 // ---------------------------------------------------------------- written page
-// Scan words: one still of the written backup (platform_camera_still), its
+// Written words on Scan seed: one still of the written backup (platform_camera_still), its
 // words found by page_reader in reading order, each word's strip cut from a
 // sharper picture taken in bands of rows (platform_camera_band), then each
 // read by word_reader, then one list of the words ("slots") to check against
@@ -1073,15 +1101,6 @@ static void to_new_seed_cb(lv_event_t *) { ui_seed_entry(UI_NEW_SEED, 12); }
 static void restore_cb(lv_event_t *) { ui_seed_entry(UI_ENTER_WORDS, 12); }
 // "24 words" / "12 words" on the first word screen of Enter words.
 static void restore_length_cb(lv_event_t *) { ui_seed_entry(UI_ENTER_WORDS, new_words == 12 ? 24 : 12); }
-// Scan seed -> "Have written words instead?": straight to Scan words (the word
-// count comes from the words found on the page).
-static void written_cb(lv_event_t *) {
-    new_seed_wipe();   // what ui_seed_entry does, without building the keyboard screen first
-    new_words = 12;
-    drawing = false;
-    page_from_scan_seed = true;
-    ui_goto(UI_SCAN_PAGE);
-}
 
 void ui_backup_loaded() {
     new_seed_wipe();
@@ -1359,32 +1378,12 @@ static void words_back_cb(lv_event_t *) {
     ui_goto(UI_ENTER_WORDS);
 }
 
-static void scan_page_cb(lv_event_t *) {
-    word_prefix[0] = 0;
-    page_from_scan_seed = false;
-    ui_goto(UI_SCAN_PAGE);
-}
-
 static void build_enter_words() {
     lv_obj_t *scr = screen();
     char title[24];
     snprintf(title, sizeof(title), "Word %d of %d", (edit_slot >= 0 ? edit_slot : word_n) + 1,
              drawing ? new_words - 1 : new_words);
-    lv_obj_t *bar = topbar(scr, title, words_back_cb);
-
-    // the camera, in the header opposite Back: a written backup, read in one go
-    // (not while drawing words, or when the keyboard is fixing one word of a
-    // page already read).
-    // Only before the first word: words typed and then a page read would be in
-    // the list twice, and lost again on Back.
-    if (!drawing && edit_slot < 0 && !word_n) {
-        lv_obj_t *cam = lv_button_create(bar);
-        lv_obj_remove_style_all(cam);
-        lv_obj_set_size(cam, 44, 44);
-        lv_obj_align(cam, LV_ALIGN_RIGHT_MID, -4, 2);
-        lv_obj_add_event_cb(cam, scan_page_cb, LV_EVENT_CLICKED, nullptr);
-        lv_obj_center(text(cam, ICON_CAMERA, &inter_17_semi, TEXT_2));
-    }
+    topbar(scr, title, words_back_cb);
     lv_obj_t *f = card(scr, CW, 40);
     lv_obj_set_style_pad_ver(f, 0, 0);
     lv_obj_align(f, LV_ALIGN_TOP_MID, 0, BAR + 2);
@@ -1456,7 +1455,7 @@ static lv_obj_t *word_box(lv_obj_t *scr, int i) {
     return o;
 }
 
-// Taking the picture on Scan words: the frozen photo dimmed under an accent
+// Taking the picture on Scan seed: the frozen photo dimmed under an accent
 // frame, so it reads as taken, not hung; then each word found boxed, grey
 // until its sharper strip is cut, accent once it is (a gap stays amber): the
 // only motion while the camera holds the screen.
@@ -1469,11 +1468,12 @@ bool ui_page_read() {
     // The camera stays on for the sharper bands, and this screen stays up with the
     // preview frozen until Words found: about a second, the user holding still.
     if (scan_timer) { lv_timer_delete(scan_timer); scan_timer = nullptr; }
+    qrscan_free();   // the QR scanner's buffers: the sharp picture and the reader need the RAM
+    qr_w = qr_h = 0;
     page_still = g; page_w = w; page_h = h;
     ncands = 0;
     read_i = 0;
-    lv_obj_add_flag(page_read_btn, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_t *taken = lv_obj_create(lv_obj_get_screen(preview_img));   // Scan words, even mid fade-in
+    lv_obj_t *taken = lv_obj_create(lv_obj_get_screen(preview_img));   // Scan seed, even mid fade-in
     lv_obj_remove_style_all(taken);
     lv_obj_remove_flag(taken, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_pos(taken, 0, BAR);
@@ -1563,7 +1563,6 @@ static bool page_band() {
     return true;
 }
 
-static void page_read_cb(lv_event_t *) { ui_page_read(); }
 
 
 // ---- the reading scene: the strip the word reader gets, the fish above
@@ -1662,8 +1661,19 @@ static void page_make_slots() {
 
 static void page_fail(const char *msg, const char *sub) {
     page_flow_wipe();
-    ui_goto(UI_SCAN_PAGE);
+    page_retake = true;
+    ui_goto(UI_SCAN_SEED);
     scan_status(msg, sub, AMBER);
+}
+
+// Does the camera's frame look like written words? Only how many are found
+// counts; the page itself is found again from the still.
+static bool page_probe(const uint8_t *frame, int w, int h) {
+    bool ok = page_find(frame, w, h, &page);
+    int found = 0;
+    for (int i = 0; ok && i < page.n; i++) found += !page.words[i].guessed;
+    secure_zero(&page, sizeof(page));
+    return found >= PAGE_MIN_WORDS;
 }
 
 // Out of memory: which step, and the largest block left (found by trying),
@@ -1694,7 +1704,7 @@ static void page_tick(lv_timer_t *t) {
         for (int y = 0; y < PREV_H; y++)
             for (int x = 0; x < PREV_W; x++)
                 preview_buf[y * PREV_W + x] = page_still[(y * page_h / PREV_H) * page_w + x * page_w / PREV_W];
-        lv_obj_invalidate(preview_img);   // the still, frozen on Scan words
+        lv_obj_invalidate(preview_img);   // the still, frozen on Scan seed
         if (page_find_words()) {
             page_step = PAGE_BANDS;   // the sharp picture right away, while the user holds still
             for (int i = 0; i < ncands; i++) {
@@ -1707,7 +1717,7 @@ static void page_tick(lv_timer_t *t) {
     }
     if (page_step == PAGE_BANDS) {
         if (!band_buf && !page_band_alloc()) { page_oom("Camera"); return; }
-        if (!page_band()) {   // Words found says why, over the photo (Scan words has no room for it)
+        if (!page_band()) {   // Words found says why, over the photo (Scan seed has no room for it)
             const char *err = platform_camera_error();
             page_err = err ? err : "Hold still and try again";
             platform_camera_stop();
@@ -1756,7 +1766,8 @@ static void page_tick(lv_timer_t *t) {
 // Back while reading, or Retake: stop, and take another picture.
 static void page_reading_back_cb(lv_event_t *) {
     page_flow_wipe();
-    ui_goto(UI_SCAN_PAGE);
+    page_retake = true;
+    ui_goto(UI_SCAN_SEED);
 }
 
 bool ui_page_found_read() {
@@ -3004,7 +3015,7 @@ static void build_multisig() {
 // Making or entering a seed: only while none is loaded.
 static bool seed_entry_screen(UiScreen s) {
     return s == UI_NEW_SEED || s == UI_ENTROPY_DICE || s == UI_ENTROPY_COINS || s == UI_ENTER_WORDS ||
-           s == UI_SCAN_PAGE || s == UI_PAGE_FOUND || s == UI_PAGE_READING || s == UI_PAGE_REVIEW || s == UI_PAGE_WORD;
+           s == UI_PAGE_FOUND || s == UI_PAGE_READING || s == UI_PAGE_REVIEW || s == UI_PAGE_WORD;
 }
 // The card flow: for a new seed, or the loaded one.
 static bool backup_screen(UiScreen s) {
@@ -3423,7 +3434,6 @@ void ui_goto(UiScreen s) {
         case UI_BACKUP_SCAN: build_scan(SCAN_CONFIRM); break;
         case UI_CHILD_INDEX: build_child_index(); break;
         case UI_MULTISIG: build_multisig(); break;
-        case UI_SCAN_PAGE: build_scan(SCAN_PAGE); break;
         case UI_PAGE_FOUND: build_page_found(); break;
         case UI_PAGE_READING: build_page_reading(); break;
         case UI_PAGE_REVIEW: build_page_review(); break;

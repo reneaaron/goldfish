@@ -166,6 +166,10 @@ class Device:
         image.save(path)
         self.cmd("camera %s" % path)
 
+    def show_page(self, path):
+        """Hold a written page up to the camera; its picture file is also the still."""
+        self.cmd("page %s" % path)
+
     def look_away(self):
         self.cmd("camera")
 

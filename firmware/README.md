@@ -23,7 +23,7 @@ format SeedSigner uses (the UI just calls it a seed QR), as typed BIP39
 words, or are made on the device. A BIP-39 passphrase can be added after loading.
 The seed lives in RAM only: Forget seed or unplugging removes it.
 
-1. Home: Scan QR, Enter words, or New seed. The top left corner shows Wi-Fi,
+1. Home: Scan (a seed QR or written words), Enter words, or New seed. The top left corner shows Wi-Fi,
    Bluetooth and USB crossed out: the board has no radio, and the firmware has
    no USB stack, so USB-C is power only (until Restart into the bootloader, see Flash).
 2. Wallet: the home screen once a seed is loaded, shaped like Home: the logo,
@@ -88,9 +88,11 @@ Enter words restores from a words backup: type each word. It starts at 12
 words; a 24-word backup taps "24 words" on the first word. The keyboard only offers letters that lead to a word and, on the last
 word, only words with a valid checksum. The seed loads right away.
 
-Experimental: the camera button next to the word field opens Scan words, for a
-handwritten backup on any paper (plain, ruled, a printed card; one or more
-columns; numbered or not). Fit the page in view and tap Read words: the device
+Experimental: Scan seed also reads a handwritten backup, on any paper (plain, ruled, a printed card; one or more
+columns; numbered or not). A SeedQR is read as soon as it is in view. For written
+words, fit the page in view and hold still: after about 2 seconds with no QR
+finder pattern in view and at least 8 words found on the preview (checked at
+most twice a second), the device
 takes one picture and finds the words (`src/app/page_reader.cpp`: the paper's
 brightness, how dark the page's darkest strokes are (so a hard pencil still
 counts as ink), the photo's tilt, ruled and margin lines erased, blobs of ink
@@ -375,6 +377,8 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
   starts on the back button, which isn't pressed), not from one further down,
   and closes from a tap below it (which doesn't reach the screen under it) or
   a drag back up
+- Written words: a handwritten page held still on Scan seed is read without a
+  tap, and Retake waits for the view to change; a QR held still isn't
 
 The simulator runs headless for this (`SIM_CONTROL=1`, commands on stdin, see
 `src/sim/main.cpp`), on a clock that only moves when the test says so. A

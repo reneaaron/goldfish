@@ -1,9 +1,11 @@
 #include "qrscan.h"
 #include <string.h>
 #include <quirc.h>
+#include <quirc_internal.h>   // num_capstones: finder patterns seen
 
 static struct quirc *q;
 static int qw, qh;
+static int finders;
 
 bool qrscan_init(int width, int height) {
     if (!q) q = quirc_new();
@@ -18,6 +20,7 @@ bool qrscan_frame(const uint8_t *gray, QrPayload *out) {
     uint8_t *img = quirc_begin(q, &w, &h);
     memcpy(img, gray, size_t(w) * h);
     quirc_end(q);
+    finders = q->num_capstones;
 
     bool found = false;
     int n = quirc_count(q);
@@ -40,7 +43,10 @@ bool qrscan_frame(const uint8_t *gray, QrPayload *out) {
     return found;
 }
 
+int qrscan_finders() { return q ? finders : 0; }
+
 void qrscan_free() {
     if (q) quirc_destroy(q);
     q = nullptr;
+    finders = 0;
 }
