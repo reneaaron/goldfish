@@ -19,7 +19,7 @@ name: Website
 on:
   push:
     branches: [main]
-    paths: ['landing/**', 'flasher/**', 'cards/**', 'parts/**', 'assemble/**', 'start/**', 'case/exports/**', 'case/renders/**', 'try/**', 'firmware/src/**', 'firmware/web/**', 'firmware/platformio.ini', 'firmware/include/**', 'firmware/lib/**', 'firmware/sim/samples/**', 'firmware/docs/screens/**', 'marketing/renders/out/**', '.github/workflows/pages.yml']
+    paths: ['landing/**', 'flasher/**', 'cards/**', 'parts/**', 'assemble/**', 'start/**', 'case/exports/**', 'try/**', 'firmware/src/**', 'firmware/web/**', 'firmware/platformio.ini', 'firmware/include/**', 'firmware/lib/**', 'firmware/sim/samples/**', 'firmware/docs/screens/**', 'marketing/renders/out/**', '.github/workflows/pages.yml']
   workflow_run:
     workflows: [Release]
     types: [completed]
@@ -105,7 +105,7 @@ jobs:
           if [ -d "$RUNNER_TEMP/screens" ]; then cp "$RUNNER_TEMP/screens/"*.png site/img/screens/; fi
           cp flasher/index.html site/flasher/
           cp cards/index.html site/cards/
-          # parts/files, parts/img and start/img are symlinks too (case/exports, case/renders, firmware/docs/screens)
+          # parts/files and start/img are symlinks too (case/exports, firmware/docs/screens)
           cp -rL parts assemble start site/
           cp -r "$RUNNER_TEMP/try" site/try && rm -rf site/try/obj
           cp "$RUNNER_TEMP/fw/firmware.uf2" "$RUNNER_TEMP/fw/firmware.json" site/flasher/

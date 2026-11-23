@@ -33,8 +33,6 @@
   nav a.link svg { width: 20px; height: 20px; display: block; }
 
   main.wrap { padding-top: 32px; padding-bottom: 96px; }
-  .crumb { color: var(--faint); font-size: 15px; font-weight: 500; margin: 0 0 10px; }
-  .crumb a { color: inherit; }
   h1 { font-size: clamp(36px, 5.6vw, 52px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; margin: 0; }
   .lede { color: var(--muted); max-width: 58ch; margin: 14px 0 0; }
   h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; margin: 56px 0 8px; }
@@ -51,8 +49,6 @@
   .action.quiet { background: var(--raised); color: var(--text); }
   .actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0 0; }
   .note { background: var(--amber-dim); color: var(--amber); border-radius: 12px; padding: 12px 16px; max-width: 62ch; margin: 16px 0; font-size: 16px; }
-  .next { margin-top: 56px; padding-top: 28px; border-top: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
-  .next p { margin: 0; }
   @media (max-width: 640px) { nav a.link.wide { display: none; } h2 { margin-top: 40px; font-size: 24px; } }
 
   .list { list-style: none; margin: 28px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
@@ -65,7 +61,11 @@
   td { padding: 12px 16px 12px 0; border-bottom: 1px solid var(--rule); color: var(--muted); vertical-align: top; }
   td:first-child { color: var(--text); font-weight: 600; white-space: nowrap; }
   .print { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; margin-top: 16px; }
-  .print img { width: 100%; height: auto; border-radius: 16px; background: var(--raised); display: block; }
+  .case3d { position: relative; aspect-ratio: 4 / 3; border-radius: 16px; overflow: hidden; background: var(--raised); }
+  .case3d img, .case3d canvas { width: 100%; height: 100%; object-fit: cover; display: block; touch-action: none; }
+  .view3d { position: absolute; right: 12px; bottom: 12px; height: 40px; padding: 0 16px; border: 0; border-radius: 10px;
+            background: var(--text); color: var(--bg); font: 600 15px var(--sans); cursor: pointer; }
+  .case3d .hint { position: absolute; left: 14px; bottom: 10px; margin: 0; font-size: 13px; color: var(--faint); pointer-events: none; }
   .routes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 24px; }
   .routes section { background: var(--raised); border-radius: 16px; padding: 22px; }
   .routes h3 { margin-bottom: 10px; }
@@ -77,6 +77,31 @@
   .routes dd { margin: 0; font-weight: 600; }
   .src { margin-top: 16px; font-size: 15px; }
   @media (max-width: 760px) { .list, .print, .routes { grid-template-columns: 1fr; } .print { gap: 20px; } }
+
+  /* ---- build steps: the same bar and Back/Next on parts, flasher, assemble, cards and start
+     (flasher and cards show them only when opened with ?build). Keep the five copies in step. */
+  .bs { display: flex; gap: 6px; height: auto; align-items: stretch; margin: 0 0 32px; }
+  .bs a { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px;
+          background: #EDF2F4; border: 1px solid transparent; color: #5A6B75; font-size: 14px; font-weight: 500;
+          line-height: 1.2; text-decoration: none; }
+  .bs a:hover { border-color: #D9E2E6; color: #14222B; }
+  .bs i { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+          background: #FFFFFF; color: #5A6B75; font-size: 12px; font-style: normal; font-weight: 600; }
+  .bs .done i { background: #C2501A; color: #FFFFFF; }
+  .bs a[aria-current] { background: #14222B; color: #FFFFFF; }
+  .bs a[aria-current] i { background: #FF7A2F; color: #FFFFFF; }
+  .bs span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bs-foot { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between;
+             margin-top: 56px; padding-top: 28px; border-top: 1px solid #D9E2E6; }
+  .bs-foot .back { color: #5A6B75; font-weight: 500; text-decoration: none; }
+  .bs-foot .back:hover { color: #14222B; }
+  .bs-foot .go { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin-left: auto; }
+  .bs-foot .go p { margin: 0; }
+  .bs-foot .fwd { display: inline-flex; align-items: center; height: 48px; padding: 0 20px; border-radius: 12px;
+                  background: #14222B; color: #FFFFFF; font-size: 16px; font-weight: 600; text-decoration: none; }
+  .bs[hidden], .bs-foot[hidden] { display: none; }
+  @media (max-width: 640px) { .bs a:not([aria-current]) { flex: none; } .bs a:not([aria-current]) span { display: none; } }
+  @media print { .bs, .bs-foot { display: none !important; } }
 </style>
 </head>
 <body>
@@ -122,7 +147,13 @@
 </header>
 
 <main class="wrap">
-  <p class="crumb"><a href="../#build">Build one</a> · Step 1 of 5</p>
+  <nav class="bs" aria-label="Build steps">
+    <a href="../parts/" aria-current="step"><i>1</i><span>Get the parts</span></a>
+    <a href="../flasher/?build"><i>2</i><span>Flash</span></a>
+    <a href="../assemble/"><i>3</i><span>Assemble</span></a>
+    <a href="../cards/?build"><i>4</i><span>Backup cards</span></a>
+    <a href="../start/"><i>5</i><span>First use</span></a>
+  </nav>
   <h1>Get the parts</h1>
   <p class="lede">Two things to buy and one to print. Nothing is soldered, and the case needs no screws.</p>
 
@@ -168,8 +199,9 @@
 
   <h2 id="case">Print the case</h2>
   <div class="print">
-    <figure>
-      <img src="img/case.png" alt="Drawing of the one-piece printed case" loading="lazy">
+    <figure class="case3d" id="case3d">
+      <img src="../img/renders/02_back.png" alt="Render: the printed case from the back, with the hole for the camera lens and the USB-C opening" loading="lazy">
+      <button type="button" class="view3d" id="view3d">View in 3D</button>
     </figure>
     <div>
       <p>One file, either way. No supports, no screws, no other printed parts.</p>
@@ -183,7 +215,6 @@
       <ul>
         <li><b>Flat on its back, no supports.</b></li>
         <li><b>PLA works</b>, in whatever colour you like.</li>
-        <li>The long walls are only 0.75&nbsp;mm thick, so handle the case gently.</li>
         <li>The board's four standoffs press into the case. How tightly they grip depends on your printer.</li>
       </ul>
     </section>
@@ -202,11 +233,61 @@
   <p class="src">Need to change a dimension? The case is modelled in gcad:
     <a href="https://github.com/reneaaron/goldfish/tree/main/case">source and measurements on GitHub</a>.</p>
 
-  <div class="next">
-    <p>Got the board? Flash it as it comes, before the camera or the case go on.</p>
-    <a class="action" href="../flasher/">Next: flash the firmware →</a>
+  <div class="bs-foot">
+    <a class="back" href="../#build">← Build one</a>
+    <div class="go"><p>Got the board? Flash it as it comes, before the camera or the case go on.</p><a class="fwd" href="../flasher/?build">Next: flash the firmware →</a></div>
   </div>
 </main>
+
+<script type="importmap">{"imports": {"three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+  // The 3D view of case.stl. three.js (from jsDelivr) and the STL load only on "View in 3D":
+  // until then the page requests neither.
+  const fig = document.getElementById('case3d'), btn = document.getElementById('view3d');
+  btn.addEventListener('click', async () => {
+    btn.disabled = true; btn.textContent = 'Loading…';
+    try {
+      const THREE = await import('three');
+      const { STLLoader } = await import('three/addons/loaders/STLLoader.js');
+      const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+      const geo = await new STLLoader().loadAsync('files/case.stl');
+      geo.center(); geo.computeBoundingSphere();
+      const r = geo.boundingSphere.radius;
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color('#EDF2F4');
+      scene.add(new THREE.HemisphereLight('#FFFFFF', '#B8C4CA', 2.4));
+      const sun = new THREE.DirectionalLight('#FFFFFF', 2.0);
+      sun.position.set(2 * r, -r, 3 * r);
+      const fill = new THREE.DirectionalLight('#FFFFFF', 1.0);
+      fill.position.set(-2 * r, 2 * r, -r);
+      scene.add(sun, fill);
+      scene.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: '#FF9A55', roughness: 0.6 })));
+
+      const cam = new THREE.PerspectiveCamera(35, 4 / 3, r / 10, r * 20);
+      cam.up.set(0, 0, 1);   // the STL is Z-up, as gcad models it
+      cam.position.set(2.2 * r, -2.6 * r, 1.6 * r);
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      const controls = new OrbitControls(cam, renderer.domElement);
+      controls.enableDamping = true; controls.autoRotate = true; controls.autoRotateSpeed = 1.5;
+      controls.addEventListener('start', () => { controls.autoRotate = false; });
+
+      const hint = document.createElement('p');
+      hint.className = 'hint'; hint.textContent = 'Drag to turn, pinch or scroll to zoom';
+      fig.replaceChildren(renderer.domElement, hint);
+      const size = () => {
+        renderer.setSize(fig.clientWidth, fig.clientHeight, false);
+        cam.aspect = fig.clientWidth / fig.clientHeight; cam.updateProjectionMatrix();
+      };
+      size(); new ResizeObserver(size).observe(fig);
+      renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, cam); });
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Couldn’t load the 3D view. Try again';
+    }
+  });
+</script>
 
 </body>
 </html>

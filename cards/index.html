@@ -170,6 +170,31 @@
   .card .g { width: 54mm; height: 54mm; display: flex; align-items: center; justify-content: center; }
   /* plain: only the blank grid, boxes and lines, nothing that says what they're for */
   .plain .alert, .plain .steps, .plain .store { display: none; }
+
+  /* ---- build steps: the same bar and Back/Next on parts, flasher, assemble, cards and start
+     (flasher and cards show them only when opened with ?build). Keep the five copies in step. */
+  .bs { display: flex; gap: 6px; height: auto; align-items: stretch; margin: 0 0 32px; }
+  .bs a { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px;
+          background: #EDF2F4; border: 1px solid transparent; color: #5A6B75; font-size: 14px; font-weight: 500;
+          line-height: 1.2; text-decoration: none; }
+  .bs a:hover { border-color: #D9E2E6; color: #14222B; }
+  .bs i { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+          background: #FFFFFF; color: #5A6B75; font-size: 12px; font-style: normal; font-weight: 600; }
+  .bs .done i { background: #C2501A; color: #FFFFFF; }
+  .bs a[aria-current] { background: #14222B; color: #FFFFFF; }
+  .bs a[aria-current] i { background: #FF7A2F; color: #FFFFFF; }
+  .bs span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bs-foot { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between;
+             margin-top: 56px; padding-top: 28px; border-top: 1px solid #D9E2E6; }
+  .bs-foot .back { color: #5A6B75; font-weight: 500; text-decoration: none; }
+  .bs-foot .back:hover { color: #14222B; }
+  .bs-foot .go { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin-left: auto; }
+  .bs-foot .go p { margin: 0; }
+  .bs-foot .fwd { display: inline-flex; align-items: center; height: 48px; padding: 0 20px; border-radius: 12px;
+                  background: #14222B; color: #FFFFFF; font-size: 16px; font-weight: 600; text-decoration: none; }
+  .bs[hidden], .bs-foot[hidden] { display: none; }
+  @media (max-width: 640px) { .bs a:not([aria-current]) { flex: none; } .bs a:not([aria-current]) span { display: none; } }
+  @media print { .bs, .bs-foot { display: none !important; } }
 </style>
 </head>
 <body>
@@ -215,6 +240,13 @@
 </header>
 
 <main class="controls wrap">
+  <nav class="bs" aria-label="Build steps" hidden>
+    <a href="../parts/" class="done"><i>1</i><span>Get the parts</span></a>
+    <a href="../flasher/?build" class="done"><i>2</i><span>Flash</span></a>
+    <a href="../assemble/" class="done"><i>3</i><span>Assemble</span></a>
+    <a href="../cards/?build" aria-current="step"><i>4</i><span>Backup cards</span></a>
+    <a href="../start/"><i>5</i><span>First use</span></a>
+  </nav>
   <h1>Backup cards</h1>
   <p class="lede">Blank cards for a 12-word seed, to print and fill in by hand while Goldfish shows it. Print them blank:
      never type words or fill in a QR on a computer.</p>
@@ -239,6 +271,13 @@
 </main>
 
 <div class="sheets" id="sheets"></div>
+
+<div class="wrap">
+  <div class="bs-foot" hidden>
+    <a class="back" href="../assemble/">← Assemble</a>
+    <div class="go"><a class="fwd" href="../start/">Next: first use →</a></div>
+  </div>
+</div>
 
 <footer>
   <div class="wrap">
@@ -433,6 +472,11 @@ function render() {
 
 document.querySelectorAll('input').forEach(i => i.addEventListener('change', render));
 render();
+</script>
+<script>
+  // Opened as a step of the build (?build): show the build steps.
+  if (new URLSearchParams(location.search).has('build'))
+    for (const e of document.querySelectorAll('.bs, .bs-foot')) e.hidden = false;
 </script>
 </body>
 </html>

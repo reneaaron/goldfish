@@ -33,8 +33,6 @@
   nav a.link svg { width: 20px; height: 20px; display: block; }
 
   main.wrap { padding-top: 32px; padding-bottom: 96px; }
-  .crumb { color: var(--faint); font-size: 15px; font-weight: 500; margin: 0 0 10px; }
-  .crumb a { color: inherit; }
   h1 { font-size: clamp(36px, 5.6vw, 52px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; margin: 0; }
   .lede { color: var(--muted); max-width: 58ch; margin: 14px 0 0; }
   h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; margin: 56px 0 8px; }
@@ -52,8 +50,6 @@
   .actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0 0; }
   .note a { color: inherit; font-weight: 600; }
   .note { background: var(--amber-dim); color: var(--amber); border-radius: 12px; padding: 12px 16px; max-width: 62ch; margin: 16px 0; font-size: 16px; }
-  .next { margin-top: 56px; padding-top: 28px; border-top: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
-  .next p { margin: 0; }
   @media (max-width: 640px) { nav a.link.wide { display: none; } h2 { margin-top: 40px; font-size: 24px; } }
 
   .steps { list-style: none; margin: 40px 0 0; padding: 0; counter-reset: step; max-width: 760px; }
@@ -78,6 +74,31 @@
   .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
   .pair figure { margin: 0; }
   @media (max-width: 520px) { .pair { grid-template-columns: 1fr; } }
+
+  /* ---- build steps: the same bar and Back/Next on parts, flasher, assemble, cards and start
+     (flasher and cards show them only when opened with ?build). Keep the five copies in step. */
+  .bs { display: flex; gap: 6px; height: auto; align-items: stretch; margin: 0 0 32px; }
+  .bs a { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px;
+          background: #EDF2F4; border: 1px solid transparent; color: #5A6B75; font-size: 14px; font-weight: 500;
+          line-height: 1.2; text-decoration: none; }
+  .bs a:hover { border-color: #D9E2E6; color: #14222B; }
+  .bs i { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+          background: #FFFFFF; color: #5A6B75; font-size: 12px; font-style: normal; font-weight: 600; }
+  .bs .done i { background: #C2501A; color: #FFFFFF; }
+  .bs a[aria-current] { background: #14222B; color: #FFFFFF; }
+  .bs a[aria-current] i { background: #FF7A2F; color: #FFFFFF; }
+  .bs span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bs-foot { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between;
+             margin-top: 56px; padding-top: 28px; border-top: 1px solid #D9E2E6; }
+  .bs-foot .back { color: #5A6B75; font-weight: 500; text-decoration: none; }
+  .bs-foot .back:hover { color: #14222B; }
+  .bs-foot .go { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin-left: auto; }
+  .bs-foot .go p { margin: 0; }
+  .bs-foot .fwd { display: inline-flex; align-items: center; height: 48px; padding: 0 20px; border-radius: 12px;
+                  background: #14222B; color: #FFFFFF; font-size: 16px; font-weight: 600; text-decoration: none; }
+  .bs[hidden], .bs-foot[hidden] { display: none; }
+  @media (max-width: 640px) { .bs a:not([aria-current]) { flex: none; } .bs a:not([aria-current]) span { display: none; } }
+  @media print { .bs, .bs-foot { display: none !important; } }
 </style>
 </head>
 <body>
@@ -123,7 +144,13 @@
 </header>
 
 <main class="wrap">
-  <p class="crumb"><a href="../#build">Build one</a> · Step 5 of 5</p>
+  <nav class="bs" aria-label="Build steps">
+    <a href="../parts/" class="done"><i>1</i><span>Get the parts</span></a>
+    <a href="../flasher/?build" class="done"><i>2</i><span>Flash</span></a>
+    <a href="../assemble/" class="done"><i>3</i><span>Assemble</span></a>
+    <a href="../cards/?build" class="done"><i>4</i><span>Backup cards</span></a>
+    <a href="../start/" aria-current="step"><i>5</i><span>First use</span></a>
+  </nav>
   <h1>First use</h1>
   <p class="lede">Give Goldfish a seed, connect it to a wallet app, then receive a small amount and
      send it out again. Goldfish holds the key and signs. The wallet app shows your balance and
@@ -222,9 +249,9 @@
     </li>
   </ol>
 
-  <div class="next">
-    <p>That was the whole loop. See everything else the device does.</p>
-    <a class="action" href="../#how">How it works →</a>
+  <div class="bs-foot">
+    <a class="back" href="../cards/?build">← Print backup cards</a>
+    <div class="go"><p>That was the whole loop. See everything else the device does.</p><a class="fwd" href="../#how">How it works →</a></div>
   </div>
 </main>
 
