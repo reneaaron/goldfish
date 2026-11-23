@@ -167,10 +167,9 @@
   .build { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 40px; }
   .build div { padding: 22px; border-radius: 16px; background: var(--raised); }
   .build p { color: var(--muted); font-size: 15px; margin-top: 4px; }
-  .guide { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-top: 24px; }
-  .guide .cta { margin: 0; }
-  .guide p { color: var(--muted); font-size: 15px; margin: 0; }
-  .guide + .photo { margin-top: 32px; aspect-ratio: 16 / 7; object-position: 50% 42%; }
+  .build-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 40px; }
+  .build-head .cta { margin: 0; }
+  .build + .photo { margin-top: 16px; aspect-ratio: 16 / 7; object-position: 50% 42%; }
 
   footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--faint); font-size: 14px; }
   footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
@@ -373,16 +372,15 @@
 
   <section id="build">
     <div class="wrap">
-      <h2>Build one</h2>
-      <p class="lede">One off-the-shelf board with a touch screen, one camera, one printed case that clips shut. No soldering iron in the parts list.</p>
-      <div class="build">
-        <div><h3>One board to buy</h3><p>A Waveshare RP2350-Touch-LCD-2 with its camera in the box, about $20.</p></div>
-        <div><h3>One case to print</h3><p>One piece, no supports, no screws. Print it yourself or order it printed.</p></div>
-        <div><h3>No tools</h3><p>Flash it from your browser, plug in the camera, press it into the case.</p></div>
-      </div>
-      <div class="guide">
+      <div class="build-head">
+        <h2>Build one</h2>
         <a class="cta" href="parts/">Open the build guide →</a>
-        <p>Five steps, from buying the board to your first signed transaction.</p>
+      </div>
+      <p class="lede">One off-the-shelf board with a touch screen and camera, one printed case. No soldering.</p>
+      <div class="build">
+        <div><h3>What it costs</h3><p>About $20 for the board with its camera, from Waveshare (ships worldwide) or resellers in the US, EU, UK, Japan and Australia. Plus printing the case.</p></div>
+        <div><h3>What you need</h3><p>A computer and a USB-C data cable to flash it. A 3D printer, or a printing service that posts you the case.</p></div>
+        <div><h3>How hard it is</h3><p>No soldering and no tools. The camera's ribbon cable is the only fiddly part, and the guide shows it step by step.</p></div>
       </div>
       <img class="photo" src="img/renders/06_lineup.png" alt="Render: four signers in graphite, white and orange cases showing different screens" loading="lazy">
     </div>
