@@ -1,0 +1,11 @@
+# Actions are pinned by commit SHA; this proposes updates as PRs, which go
+# through review and CI like any other change.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']
