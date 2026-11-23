@@ -23,6 +23,7 @@
 #define WR_T 48             // steps across the strip
 #define WR_C 39             // blank, A-Z, 0-9, '.', ')'
 #define WR_MIN_MARGIN 5.0f  // natural log: the word must be ~150x likelier than the next
+#define WR_TOPK 32          // most candidates word_reader_top gives
 
 struct WordResult {
     int word;       // BIP-39 index of the best word, -1 if none
@@ -35,6 +36,10 @@ void word_reader_free();
 // allowed: which word indexes may be picked (nullptr = all). True when the
 // best word leads by WR_MIN_MARGIN; out is filled either way.
 bool word_reader_read(const uint8_t *strip, bool (*allowed)(int), WordResult *out);
+
+// The k (2..WR_TOPK) likeliest words for a strip, best first: their indexes
+// and scores (natural log, comparable within one strip). Returns how many.
+int word_reader_top(const uint8_t *strip, bool (*allowed)(int), int k, int *words, float *scores);
 
 // Platform hook: fn(a) and fn(b) at the same time, back when both are done.
 // The board runs fn(a) on its second core; elsewhere (a weak default here)

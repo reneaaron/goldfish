@@ -1672,6 +1672,23 @@ static bool page_probe(const uint8_t *frame, int w, int h) {
     return found >= PAGE_MIN_WORDS;
 }
 
+// Out of memory: which step, and the largest block left (found by trying),
+// so a report from a board says where RAM ran out.
+static void page_oom(const char *what) {
+    static char sub[64];
+    // the largest block, then everything allocatable, block by block, then all given back
+    void *held[24];
+    int nh = 0, largest = 0, total = 0;
+    for (int kb = 160; kb > 0 && nh < 24;) {
+        void *volatile p = malloc((size_t)kb * 1024);   // volatile: the compiler may not drop a malloc it can see freed
+        if (p) { held[nh++] = p; total += kb; if (!largest) largest = kb; }
+        else kb -= 2;
+    }
+    for (int i = 0; i < nh; i++) free(held[i]);
+    snprintf(sub, sizeof(sub), "Out of memory (%s %d/%d KB)", what, largest, total);
+    page_fail(sub, "Restart the device");
+}
+
 // One step per tick, so the screen keeps up: find the words, then one band
 // at a time (the user holds still until the camera is done), then, after
 // Words found, each word in two ticks: show its strip, then read it and add
@@ -1695,7 +1712,7 @@ static void page_tick(lv_timer_t *t) {
         return;
     }
     if (page_step == PAGE_BANDS) {
-        if (!band_buf && !page_band_alloc()) { page_fail("Out of memory", "Restart the device"); return; }
+        if (!band_buf && !page_band_alloc()) { page_oom("Camera"); return; }
         if (!page_band()) {   // Words found says why, over the photo (Scan seed has no room for it)
             const char *err = platform_camera_error();
             page_err = err ? err : "Hold still and try again";
@@ -1751,7 +1768,7 @@ static void page_reading_back_cb(lv_event_t *) {
 
 bool ui_page_found_read() {
     if (ui_current() != UI_PAGE_FOUND || !ncands || page_err) return false;
-    if (!word_reader_init()) { page_fail("Out of memory", "Restart the device"); return false; }
+    if (!word_reader_init()) { page_oom("Reader"); return false; }
     page_cut = false;
     ui_goto(UI_PAGE_READING);
     return true;
@@ -3129,13 +3146,17 @@ static const char *const thoughts[] = {
 };
 
 // The logo turned to face right: the same pixels, each row reversed (RGB565 plane, then alpha).
-static uint8_t fish_right_map[FISH_W * FISH_H * 3];
+// Built on the heap while the screensaver is up and freed when it closes, so the
+// 12 KB are free again for reading words; without the memory the fish keeps facing left.
+constexpr size_t FISH_BYTES = FISH_W * FISH_H * 3;
+static uint8_t *fish_right_map;
 static lv_image_dsc_t fish_right;
 static const lv_image_dsc_t *fish_facing(int dir) {
     if (dir < 0 || goldfish_logo.header.w != FISH_W || goldfish_logo.header.h != FISH_H ||
-        goldfish_logo.data_size != sizeof(fish_right_map))
+        goldfish_logo.data_size != FISH_BYTES)
         return &goldfish_logo;
-    if (!fish_right.data) {
+    if (!fish_right_map) {
+        if (!(fish_right_map = (uint8_t *)malloc(FISH_BYTES))) return &goldfish_logo;
         const uint8_t *src = goldfish_logo.data;
         uint8_t *rgb = fish_right_map, *a = fish_right_map + FISH_W * FISH_H * 2;
         for (int y = 0; y < FISH_H; y++)
@@ -3224,6 +3245,8 @@ void ui_screensaver(bool open) {
         saver_timer = nullptr;
         lv_obj_delete(saver);
         saver = saver_fish = saver_thought = nullptr;
+        free(fish_right_map);   // nothing shows it now
+        fish_right_map = nullptr;
         apply_backlight();
         return;
     }

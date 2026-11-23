@@ -88,7 +88,8 @@ words, fit the page in view and hold still: after about 2 seconds with no QR
 finder pattern in view and at least 8 words found on the preview (checked at
 most twice a second), the device
 takes one picture and finds the words (`src/app/page_reader.cpp`: the paper's
-brightness, the photo's tilt, ruled and margin lines erased, blobs of ink
+brightness, how dark the page's darkest strokes are (so a hard pencil still
+counts as ink), the photo's tilt, ruled and margin lines erased, blobs of ink
 grouped into words, a row number joined to its word, reading order by columns
 then rows), takes a second picture twice as sharp while you hold still (about
 a second) and cuts each word's strip from it, where the word really is in that
@@ -98,8 +99,8 @@ frames, and the camera's two sizes needn't line up exactly). Words found then
 shows the first picture with each word boxed (amber: a gap where a word should
 be) and how many there are, so a blurry, dark or badly framed picture is
 retaken before the slow part; the camera is done by then. Read reads each strip
-as a whole word (`src/app/word_reader.cpp`: a small int8 network, 138k weights, trained on synthetic strips by
-`handwriting/train_words.py` and exported by `handwriting/export_words.py`;
+as a whole word (`src/app/word_reader.cpp`: a small int8 network, 138k weights, trained on synthetic strips and words
+from AI-generated photos of written seeds by `handwriting/train_words.py` and exported by `handwriting/export_words.py`;
 see `handwriting/README.md`,
 gives letter probabilities across the word; every BIP-39 word and its first 4
 letters is scored by its best path through them, and the best is offered only
@@ -121,8 +122,8 @@ match is how a misread word further up shows; if it doesn't fit (or couldn't be
 read) while all other words are known, its screen offers the word that does
 fit, read again from its picture among only those. Scan seed has a "Written
 words instead?" link for anyone who points the QR scanner at paper. On 384
-words in 18 phone and web photos (demo seeds) at 1000 pixels: 65% read, 2
-wrong, the rest left to fix; real text that isn't a seed word is sometimes read
+words in 18 phone and web photos (demo seeds) at 1000 pixels: 67% read, 4
+wrong (letter-box cards and tiny photos), the rest left to fix; real text that isn't a seed word is sometimes read
 as one. The simulator finds the words on the camera image file at up to 500
 pixels and cuts them from it at up to 1000. The board finds them on what its
 preview shows (the middle 240x180 of each frame; the rows above and below were
