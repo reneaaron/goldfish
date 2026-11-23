@@ -176,7 +176,7 @@ static int out_index;
 // still on them for STEADY_MS: the sharper picture that follows needs the
 // user still anyway. A QR never starts it (any finder pattern seen restarts
 // the wait), but a blurry one can look like words: Words found offers Retake.
-#define STEADY_MS 1500
+#define STEADY_MS 2100
 #define PROBE_MS 500        // at most this often: finding the words takes a while on the board
 #define STEADY_DIFF 6       // mean change per pixel between frames (of 255) that counts as moving
 #define PAGE_MIN_WORDS 8

@@ -501,7 +501,7 @@ static int run_shots(const char *dir) {
     ui_seed_entry(UI_ENTER_WORDS, 24);
     ui_goto(UI_SCAN_SEED);   // as the camera on Enter words does
     pump(300); save(dir, "51_scan_page");
-    pump(1250); save(dir, "51a_page_hold_still");   // held still: it starts by itself, the words found before the sharp picture
+    pump(1850); save(dir, "51a_page_hold_still");   // held still: it starts by itself, the words found before the sharp picture
     for (int i = 0; i < 400 && ui_current() == UI_SCAN_SEED; i++) pump(20);   // hold still: the words, then the sharp picture
     pump(300); save(dir, "51b_page_found");
     if (!ui_page_found_read()) { fprintf(stderr, "no words found (screen %d)\n", ui_current()); return 1; }
