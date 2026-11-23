@@ -110,7 +110,7 @@ def review_and_sign(dev, skip_frames=0):
         dev.wait(200)
         return frame
 
-    dev.wait(200 * skip_frames)
+    dev.wait(300 * skip_frames)   # the signed QR's frames last 300 ms on average
     signed = read_psbt(next_frame)
-    dev.tap("Back to wallet")
+    dev.tap("Done")
     return signed, seen

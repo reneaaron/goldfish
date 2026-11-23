@@ -9,7 +9,7 @@ from embit import bip39
 
 from flows import (connect_wallet, fingerprint_on_screen, load_by_qr, load_by_words,
                    review_and_sign, verify_address)
-from hostwallet import NET, Seed, Wallet, psbt_parts, seedqr
+from hostwallet import NET, Seed, Wallet, psbt_parts, read_psbt, seedqr
 
 MNEMONIC = "crew marble private differ race truly blush basket crater affair prepare unique"
 STRANGER = Seed("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about")
@@ -163,6 +163,33 @@ def test_psbt_joined_mid_animation(dev):
     dev.tap("Scan QR")
     dev.scan(psbt.to_base64())
     assert dev.screen == "PSBT_OVERVIEW", dev.text()
+
+
+def test_signed_qr_full_screen(dev):
+    """The signed QR fills the screen from the bar's button (or a tap on the
+    QR), the wallet app reads the whole transaction there, and a tap goes back."""
+    wallet = linked_wallet(dev)
+    psbt = wallet.create_psbt([wallet.fund(4, 80_000)], [(stranger_address(), 50_000)], fee=500)
+    dev.tap("Scan QR")
+    dev.scan_animated(psbt_parts(psbt))
+    dev.tap("Check addresses")
+    while dev.screen == "PSBT_OUTPUT":
+        dev.tap("Next address" if "Next address" in dev.texts() else "Continue")
+    dev.slide()
+    dev.tap_icon("MAXIMIZE")
+    assert dev.screenshot().convert("L").getpixel((120, 4)) == 0   # black above the QR, over the bar
+
+    def next_frame():
+        frame = dev.read_qr()
+        dev.wait(300)
+        return frame
+
+    wallet.combine(psbt, read_psbt(next_frame))
+    assert wallet.signers(psbt) == {Seed(MNEMONIC).fingerprint}
+    dev.cmd("tap 120 160")
+    assert dev.screenshot().convert("L").getpixel((120, 4)) > 200
+    dev.tap("Done")
+    assert dev.screen == "WALLET"
 
 
 def test_24_words_by_hand(dev):

@@ -72,15 +72,25 @@ static lv_obj_t *scroll_area(lv_obj_t *scr, int y) {
 // ECC medium, then grows the version to fill the space at the same scale, so an
 // animated PSBT frame came out 73 modules wide at 2 px. Here an uppercase UR
 // part goes in alphanumeric mode at ECC low, at the smallest version, as large
-// as fits: a 64-byte fragment is 41 modules at 4 px (about 0.5 mm each).
-constexpr int QR_PX = 164;               // the code itself: 41 modules x 4 px
+// as fits: a 30-byte fragment is 33 modules at 5 px (about 0.64 mm each), a
+// 41-module code 4 px.
+constexpr int QR_PX = 165;               // the code itself: 33 modules x 5 px
 constexpr int QR_CARD = QR_PX + 16;      // plus the white quiet zone
 static const lv_color_t QR_LIGHT = lv_color_white();
-// Backlight while a QR is on screen: at full a webcam overexposes the panel.
-constexpr int QR_BACKLIGHT = 30;
-static bool qr_shown;   // the screen being built has a QR card: ui_goto dims for it
+// A 1-bit canvas for a QR, side x side, in the given static buffer: palette
+// index 0 light, 1 dark.
+static lv_obj_t *qr_canvas(lv_obj_t *parent, lv_draw_buf_t *buf, uint8_t *data, uint32_t size, int side) {
+    lv_draw_buf_init(buf, side, side, LV_COLOR_FORMAT_I1, LV_STRIDE_AUTO, data, size);
+    lv_draw_buf_set_flag(buf, LV_IMAGE_FLAGS_MODIFIABLE);
+    lv_obj_t *qr = lv_canvas_create(parent);
+    lv_canvas_set_draw_buf(qr, buf);
+    lv_canvas_set_palette(qr, 0, lv_color_to_32(QR_LIGHT, LV_OPA_COVER));
+    lv_canvas_set_palette(qr, 1, lv_color_to_32(lv_color_black(), LV_OPA_COVER));
+    lv_obj_center(qr);
+    return qr;
+}
+
 static lv_obj_t *qr_card(lv_obj_t *parent, int y, lv_obj_t **qr_out) {
-    qr_shown = true;
     lv_obj_t *c = lv_obj_create(parent);
     lv_obj_remove_style_all(c);
     lv_obj_set_size(c, QR_CARD, QR_CARD);
@@ -90,16 +100,9 @@ static lv_obj_t *qr_card(lv_obj_t *parent, int y, lv_obj_t **qr_out) {
     lv_obj_set_style_border_color(c, BORDER, 0);
     lv_obj_set_style_border_width(c, 1, 0);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, y);
-    // A 1-bit canvas: palette index 0 light, 1 dark.
     static uint8_t buf_data[LV_DRAW_BUF_SIZE(QR_PX, QR_PX, LV_COLOR_FORMAT_I1)];
     static lv_draw_buf_t buf;
-    lv_draw_buf_init(&buf, QR_PX, QR_PX, LV_COLOR_FORMAT_I1, LV_STRIDE_AUTO, buf_data, sizeof(buf_data));
-    lv_draw_buf_set_flag(&buf, LV_IMAGE_FLAGS_MODIFIABLE);
-    lv_obj_t *qr = lv_canvas_create(c);
-    lv_canvas_set_draw_buf(qr, &buf);
-    lv_canvas_set_palette(qr, 0, lv_color_to_32(QR_LIGHT, LV_OPA_COVER));
-    lv_canvas_set_palette(qr, 1, lv_color_to_32(lv_color_black(), LV_OPA_COVER));
-    lv_obj_center(qr);
+    lv_obj_t *qr = qr_canvas(c, &buf, buf_data, sizeof(buf_data), QR_PX);
     *qr_out = qr;
     return c;
 }
@@ -110,10 +113,11 @@ static void qr_set(lv_obj_t *canvas, const char *s) {
     lv_draw_buf_t *buf = lv_canvas_get_draw_buf(canvas);
     uint8_t *px = buf->data + 8;   // past the two-colour palette
     uint32_t stride = buf->header.stride;
-    memset(px, 0, stride * QR_PX);
+    int side = buf->header.w;   // square: QR_PX, or QR_FULL when tapped full screen
+    memset(px, 0, stride * side);
     if (qrcodegen_encodeText(s, tmp, qr, qrcodegen_Ecc_LOW, qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX,
                              qrcodegen_Mask_AUTO, false)) {
-        int n = qrcodegen_getSize(qr), scale = QR_PX / n, off = (QR_PX - n * scale) / 2;
+        int n = qrcodegen_getSize(qr), scale = side / n, off = (side - n * scale) / 2;
         for (int y = 0; y < n * scale; y++)
             for (int x = 0; x < n * scale; x++)
                 if (qrcodegen_getModule(qr, x / scale, y / scale))
@@ -2772,13 +2776,60 @@ static lv_timer_t *anim_timer;
 static lv_obj_t *anim_qr, *anim_lbl;
 static uint32_t anim_seq;
 static size_t anim_frag;
-#define FRAGMENT_LEN 64   // a 41-module QR at 4 px: see qr_card
+#define FRAGMENT_LEN 30   // SeedSigner's size: a 33-module QR, 5 px on the card, 6 px full screen
+
+// Tap the QR: it fills the screen's width on black (33 modules at 6 px in a 3-module
+// light border); tap again to go back.
+constexpr int QR_FULL = 204;
+static lv_obj_t *qr_full, *qr_full_canvas;
+
+static void qr_full_close_cb(lv_event_t *) {
+    lv_obj_delete(qr_full);
+}
+
+static void qr_full_deleted_cb(lv_event_t *) {
+    qr_full = qr_full_canvas = nullptr;
+}
+
+static void qr_full_open_cb(lv_event_t *) {
+    if (qr_full) return;
+    qr_full = lv_obj_create(lv_screen_active());
+    lv_obj_remove_style_all(qr_full);
+    lv_obj_set_size(qr_full, W, H);
+    lv_obj_set_pos(qr_full, 0, 0);
+    lv_obj_set_style_bg_color(qr_full, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(qr_full, LV_OPA_COVER, 0);
+    lv_obj_add_flag(qr_full, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(qr_full, qr_full_close_cb, LV_EVENT_CLICKED, nullptr);
+    lv_obj_add_event_cb(qr_full, qr_full_deleted_cb, LV_EVENT_DELETE, nullptr);
+    lv_obj_t *sq = lv_obj_create(qr_full);   // the light quiet zone around it
+    lv_obj_remove_style_all(sq);
+    lv_obj_set_size(sq, W, W);
+    lv_obj_set_style_bg_color(sq, QR_LIGHT, 0);
+    lv_obj_set_style_bg_opa(sq, LV_OPA_COVER, 0);
+    lv_obj_center(sq);
+    lv_obj_remove_flag(sq, LV_OBJ_FLAG_CLICKABLE);
+    static uint8_t buf_data[LV_DRAW_BUF_SIZE(QR_FULL, QR_FULL, LV_COLOR_FORMAT_I1)];
+    static lv_draw_buf_t buf;
+    qr_full_canvas = qr_canvas(sq, &buf, buf_data, sizeof(buf_data), QR_FULL);
+    lv_obj_remove_flag(qr_full_canvas, LV_OBJ_FLAG_CLICKABLE);
+}
+
+void ui_qr_full_screen() {
+    if (qr_full) lv_obj_delete(qr_full);
+    else qr_full_open_cb(nullptr);
+}
 
 static void anim_tick(lv_timer_t *) {
     static char part[400];
     anim_seq++;
     size_t n = ur_encode_part(signed_buf, signed_len, anim_frag, anim_seq, part, sizeof(part));
     if (n) qr_set(anim_qr, part);
+    if (n && qr_full_canvas) qr_set(qr_full_canvas, part);
+    // Frames last 250 and 350 ms in turn, 300 on average: a wallet that samples
+    // at a fixed period (Sparrow: every 200 ms) can't lock in step with them
+    // and keep catching the change from one frame to the next.
+    if (anim_timer) lv_timer_set_period(anim_timer, anim_seq & 1 ? 250 : 350);
     size_t count = ur_part_count(signed_len, anim_frag);
     if (count > 1)
         lv_label_set_text_fmt(anim_lbl, "Scan with your wallet  \xC2\xB7  %u/%u", unsigned((anim_seq - 1) % count + 1),
@@ -2795,20 +2846,30 @@ static void signed_done_cb(lv_event_t *) {
 
 static void build_psbt_signed() {
     lv_obj_t *scr = screen();
-    topbar(scr, "Signed", nullptr, ICON_CHECK, GREEN, GREEN_DIM);
-    qr_card(scr, BAR, &anim_qr);
+    lv_obj_t *bar = topbar(scr, "Signed", nullptr);
+    // Full screen: the button in the bar's right corner, or a tap on the QR.
+    lv_obj_t *fb = lv_button_create(bar);
+    lv_obj_remove_style_all(fb);
+    lv_obj_set_size(fb, 44, 44);
+    lv_obj_align(fb, LV_ALIGN_RIGHT_MID, -4, 2);
+    lv_obj_set_ext_click_area(fb, 12);
+    lv_obj_add_event_cb(fb, qr_full_open_cb, LV_EVENT_CLICKED, nullptr);
+    lv_obj_center(text(fb, ICON_MAXIMIZE, &icons_17, TEXT_2));
+    lv_obj_t *qc = qr_card(scr, BAR, &anim_qr);
+    lv_obj_add_flag(qc, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(qc, qr_full_open_cb, LV_EVENT_CLICKED, nullptr);
     // What to do, and which frame of an animated QR is showing.
     anim_lbl = text(scr, "Scan with your wallet", &inter_15, TEXT);
     lv_obj_align(anim_lbl, LV_ALIGN_TOP_MID, 0, BAR + QR_CARD + 4);
-    place_bottom(btn_primary(scr, "Back to wallet", signed_done_cb));
+    place_bottom(btn_primary(scr, "Done", signed_done_cb));
     show(scr);
-    // Larger fragments (a denser QR) only for a PSBT past what 64-byte ones carry.
+    // Larger fragments (a denser QR) only for a PSBT past what 30-byte ones carry.
     anim_frag = FRAGMENT_LEN;
     while (ur_part_count(signed_len, anim_frag) > UR_MAX_FRAGMENTS) anim_frag++;
     anim_seq = 0;
     anim_tick(nullptr);
     if (anim_timer) lv_timer_delete(anim_timer);
-    anim_timer = lv_timer_create(anim_tick, 200, nullptr);
+    anim_timer = lv_timer_create(anim_tick, 300, nullptr);
 }
 
 // ---------------------------------------------------------------- verify address
@@ -2955,7 +3016,7 @@ static bool backup_screen(UiScreen s) {
 // Drag down from the top edge, on any screen: a panel with a brightness slider
 // slides over it. Tap below it or drag it back up to close. RAM only, like
 // everything else: full brightness again after unplugging.
-constexpr int BRIGHT_MIN = 10;     // never so dark the screen is lost
+constexpr int BRIGHT_MIN = 1;      // low enough that a webcam doesn't overexpose a QR in a dim room
 constexpr int BRIGHT_EDGE = 24;    // a drag must start this close to the top
 constexpr int BRIGHT_PULL = 32;    // and come down this far
 constexpr int BRIGHT_H = 92;
@@ -2970,19 +3031,32 @@ static lv_obj_t *saver;   // the screensaver, see below
 static bool bright_closing;
 static lv_point_t pull_from;
 static lv_timer_t *pull_timer;
+// The screensaver's level (or the setting, if lower), and the least the open
+// brightness panel shows itself at: a setting too dark to see in daylight can
+// always be undone, and takes effect when the panel closes.
+constexpr int BRIGHT_SEEN = 10;
 
-// A QR screen keeps its dimming, scaled with the setting; the screensaver
-// goes to the lowest the setting allows.
 static void apply_backlight() {
-    if (saver) return platform_backlight(BRIGHT_MIN);
-    platform_backlight(qr_shown ? LV_MAX(BRIGHT_MIN, brightness * QR_BACKLIGHT / 100) : brightness);
+    if (saver) return platform_backlight(LV_MIN(brightness, BRIGHT_SEEN));
+    platform_backlight(bright_scrim ? LV_MAX(brightness, BRIGHT_SEEN) : brightness);
+}
+
+// The slider is quadratic, so the dim end (where a webcam reads a QR in a dark
+// room) gets a fair share of its length: 1 to 5% is the first fifth.
+static int bright_from_slider(int c) {
+    float t = float(c - BRIGHT_LO) / (BRIGHT_HI - BRIGHT_LO);
+    return BRIGHT_MIN + int(lroundf((100 - BRIGHT_MIN) * t * t));
+}
+
+static int bright_to_slider(int b) {
+    return BRIGHT_LO + int(lroundf(sqrtf(float(b - BRIGHT_MIN) / (100 - BRIGHT_MIN)) * (BRIGHT_HI - BRIGHT_LO)));
 }
 
 static void bright_slider_cb(lv_event_t *e) {
     lv_obj_t *sl = (lv_obj_t *)lv_event_get_target(e);
     int v = lv_slider_get_value(sl), c = LV_CLAMP(BRIGHT_LO, v, BRIGHT_HI);
     if (c != v) lv_slider_set_value(sl, c, LV_ANIM_OFF);
-    brightness = BRIGHT_MIN + (c - BRIGHT_LO) * (100 - BRIGHT_MIN) / (BRIGHT_HI - BRIGHT_LO);
+    brightness = bright_from_slider(c);
     apply_backlight();
 }
 
@@ -2991,6 +3065,7 @@ static void bright_closed(lv_anim_t *) {
     lv_obj_delete(bright_scrim);
     bright_scrim = bright_panel = nullptr;
     bright_closing = false;
+    apply_backlight();
 }
 
 // Dragged back up: close.
@@ -3020,6 +3095,7 @@ void ui_brightness_panel(bool open) {
         return;
     }
     bright_scrim = lv_obj_create(lv_layer_top());
+    apply_backlight();
     lv_obj_remove_style_all(bright_scrim);
     lv_obj_set_size(bright_scrim, W, H);
     lv_obj_set_style_bg_color(bright_scrim, lv_color_black(), 0);
@@ -3046,8 +3122,7 @@ void ui_brightness_panel(bool open) {
     lv_obj_remove_style_all(sl);
     lv_obj_set_size(sl, CW, BRIGHT_SL_H);
     lv_slider_set_range(sl, 0, BRIGHT_SPAN);
-    lv_slider_set_value(sl, BRIGHT_LO + (brightness - BRIGHT_MIN) * (BRIGHT_HI - BRIGHT_LO) / (100 - BRIGHT_MIN),
-                        LV_ANIM_OFF);
+    lv_slider_set_value(sl, bright_to_slider(brightness), LV_ANIM_OFF);
     lv_obj_set_style_bg_color(sl, SURFACE_2, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(sl, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(sl, 14, LV_PART_MAIN);
@@ -3104,7 +3179,7 @@ static void pull_cb(lv_event_t *e) {
 
 // ---------------------------------------------------------------- screensaver
 // A minute untouched on Home or Wallet: the goldfish swims about, with the
-// backlight at its lowest, which also hides the fingerprint. A tap brings the screen back and does nothing else.
+// backlight at BRIGHT_SEEN (or the setting, if lower), which also hides the fingerprint. A tap brings the screen back and does nothing else.
 constexpr uint32_t SAVER_IDLE_MS = 60000;
 constexpr int FISH_W = 84, FISH_H = 48, N_BUBBLES = 8;
 // Where the fish swims (its top-left corner); bubbles go up off the screen.
@@ -3319,7 +3394,6 @@ void ui_goto(UiScreen s) {
     if (!no_seed_yet && !backup_screen(s) && !wallet_has_seed()) s = UI_HOME;
     if (no_seed_yet && wallet_has_seed()) { new_seed_wipe(); s = UI_WALLET; }
     current = s;
-    qr_shown = false;
     switch (s) {
         case UI_HOME: build_home(); break;
         case UI_SCAN_SEED: build_scan(SCAN_SEED); break;
