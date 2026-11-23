@@ -32,7 +32,7 @@
   nav a.link:hover { color: var(--text); background: var(--raised); }
   nav a.link svg { width: 20px; height: 20px; display: block; }
 
-  main { padding-top: 32px; padding-bottom: 72px; }
+  main.wrap { padding-top: 32px; padding-bottom: 96px; }
   .crumb { color: var(--faint); font-size: 15px; font-weight: 500; margin: 0 0 10px; }
   .crumb a { color: inherit; }
   h1 { font-size: clamp(36px, 5.6vw, 52px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; margin: 0; }
@@ -66,10 +66,17 @@
   td:first-child { color: var(--text); font-weight: 600; white-space: nowrap; }
   .print { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; margin-top: 16px; }
   .print img { width: 100%; height: auto; border-radius: 16px; background: var(--raised); display: block; }
-  .print ul { color: var(--muted); padding-left: 20px; margin: 0; max-width: 56ch; }
-  .print li { margin-bottom: 6px; }
-  .print .src { margin-top: 16px; font-size: 15px; }
-  @media (max-width: 760px) { .list, .print { grid-template-columns: 1fr; } .print { gap: 20px; } }
+  .routes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 24px; }
+  .routes section { background: var(--raised); border-radius: 16px; padding: 22px; }
+  .routes h3 { margin-bottom: 10px; }
+  .routes ul { color: var(--muted); padding-left: 20px; margin: 0; font-size: 16px; }
+  .routes li { margin-bottom: 6px; }
+  .routes p { font-size: 16px; }
+  .routes dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 20px; margin: 0; font-size: 16px; }
+  .routes dt { color: var(--muted); }
+  .routes dd { margin: 0; font-weight: 600; }
+  .src { margin-top: 16px; font-size: 15px; }
+  @media (max-width: 760px) { .list, .print, .routes { grid-template-columns: 1fr; } .print { gap: 20px; } }
 </style>
 </head>
 <body>
@@ -132,9 +139,9 @@
       <p>Powers the device and flashes the firmware. A charge-only cable powers it but can't flash it.</p>
     </li>
     <li>
-      <small>Print</small>
+      <small>Print, or order printed</small>
       <h3>The case</h3>
-      <p>One piece, about 37 × 59 × 17 mm. <a href="#case">Files and settings below.</a></p>
+      <p>One piece, about 37 × 59 × 17 mm, on your own printer or from a printing service. <a href="#case">File and settings below.</a></p>
     </li>
   </ul>
 
@@ -165,20 +172,35 @@
       <img src="img/case.png" alt="Drawing of the one-piece printed case" loading="lazy">
     </figure>
     <div>
+      <p>One file, either way. No supports, no screws, no other printed parts.</p>
+      <div class="actions"><a class="action" href="files/case.stl" download>Download STL</a></div>
+    </div>
+  </div>
+
+  <div class="routes">
+    <section>
+      <h3>Print it yourself</h3>
       <ul>
         <li><b>Flat on its back, no supports.</b></li>
         <li><b>PLA works</b>, in whatever colour you like.</li>
         <li>The long walls are only 0.75&nbsp;mm thick, so handle the case gently.</li>
         <li>The board's four standoffs press into the case. How tightly they grip depends on your printer.</li>
       </ul>
-      <div class="actions">
-        <a class="action" href="files/case.stl" download>Download STL</a>
-        <a class="action quiet" href="files/stateless-signer.step" download>STEP, with the board</a>
-      </div>
-      <p class="src">Need to change a dimension? The case is modelled in gcad:
-        <a href="https://github.com/reneaaron/goldfish/tree/main/case">source and measurements on GitHub</a>.</p>
-    </div>
+    </section>
+    <section>
+      <h3>Order it from a 3D printing service</h3>
+      <p>No printer? Upload the STL to a printing service and have the case posted to you.
+         A case has been ordered with these settings:</p>
+      <dl>
+        <dt>Technology</dt><dd>FDM</dd>
+        <dt>Material</dt><dd>PLA</dd>
+        <dt>Infill</dt><dd>25% (the default)</dd>
+        <dt>Layer height</dt><dd>0.16 mm (the default)</dd>
+      </dl>
+    </section>
   </div>
+  <p class="src">Need to change a dimension? The case is modelled in gcad:
+    <a href="https://github.com/reneaaron/goldfish/tree/main/case">source and measurements on GitHub</a>.</p>
 
   <div class="next">
     <p>Got the board? Flash it as it comes, before the camera or the case go on.</p>
