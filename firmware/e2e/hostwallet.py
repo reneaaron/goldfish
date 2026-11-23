@@ -35,9 +35,9 @@ NET = NETWORKS["test"]
 class Seed:
     """A seed the wallet app (or a test's other cosigner) holds itself."""
 
-    def __init__(self, mnemonic):
+    def __init__(self, mnemonic, passphrase=""):
         self.mnemonic = mnemonic
-        self.root = bip32.HDKey.from_seed(bip39.mnemonic_to_seed(mnemonic))
+        self.root = bip32.HDKey.from_seed(bip39.mnemonic_to_seed(mnemonic, passphrase))
         self.fingerprint = self.root.my_fingerprint.hex()
 
     def key(self, path):

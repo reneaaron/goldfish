@@ -182,3 +182,39 @@ def test_child_seed_from_the_keypad(dev):
     dev.tap("3")
     dev.tap("OK")
     assert dev.screen == "BACKUP_WARNING", dev.text()
+
+
+def test_passphrase_gives_its_own_wallet(dev):
+    """A BIP-39 passphrase typed on the signer gives the wallet any other
+    BIP-39 wallet derives from the same words and passphrase, signs for it,
+    and leaving it empty goes back to the seed alone."""
+    load_by_words(dev, MNEMONIC)
+    dev.tap("Wallet options")
+    dev.tap("Passphrase")
+    dev.key("ABC")
+    for letter in "TREZOR":
+        dev.key(letter)
+    dev.key("OK")
+    assert dev.screen == "WALLET", dev.text()
+    assert "PASSPHRASE" in dev.text()
+    with_pass = Seed(MNEMONIC, "TREZOR")
+    assert with_pass.fingerprint != Seed(MNEMONIC).fingerprint
+    assert fingerprint_on_screen(dev) == with_pass.fingerprint
+
+    fingerprint, path, key = connect_wallet(dev)
+    assert (fingerprint, path) == (with_pass.fingerprint, "84h/1h/0h")
+    assert key == with_pass.key("84h/1h/0h")
+    wallet = Wallet.singlesig(key)
+    psbt = wallet.create_psbt([wallet.fund(0, 50_000)], [(stranger_address(), 40_000)], fee=500, change_index=0)
+    dev.tap("Scan QR")
+    dev.scan(psbt.to_base64())
+    assert dev.screen == "PSBT_OVERVIEW", dev.text()
+    signed, _ = review_and_sign(dev)
+    wallet.combine(psbt, signed)
+    assert wallet.signers(psbt) == {with_pass.fingerprint}
+
+    dev.tap("Wallet options")
+    dev.tap("Passphrase")
+    dev.key("OK")                     # empty: back to the seed alone
+    assert dev.screen == "WALLET", dev.text()
+    assert fingerprint_on_screen(dev) == Seed(MNEMONIC).fingerprint
