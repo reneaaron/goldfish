@@ -32,7 +32,26 @@ jobs:
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
       - run: uv tool install platformio==6.1.19
       # No cache: nothing an earlier run left in ~/.platformio goes into a release.
+      # PlatformIO checks no hash for packages it downloads by URL, so fetch those
+      # here, check them against toolchain.sha256, and put them where PlatformIO
+      # looks first (its download cache, keyed by sha1 of the URL): it installs
+      # these exact bytes instead of downloading again.
+      - name: Fetch the toolchain, checked against toolchain.sha256
+        run: |
+          dl=~/.platformio/.cache/downloads && mkdir -p "$dl"
+          while read -r sum url; do
+            file="$dl/$(printf %s "$url" | sha1sum | cut -c1-40)"
+            curl -fsSL -o "$file" "$url"
+            echo "$sum  $file" | sha256sum -c
+          done < <(grep -v '^#' toolchain.sha256)
       - run: pio run
+      - name: Check every package fetched by URL was one checked above
+        run: |
+          for f in ~/.platformio/packages/*/.piopm; do
+            url=$(jq -r '.spec.uri // empty' "$f")
+            case "$url" in http*.git*|"") continue ;; esac
+            grep -q "  $url\$" toolchain.sha256 || { echo "Not in toolchain.sha256: $url"; exit 1; }
+          done
       - name: Check the version the firmware shows
         run: |
           shown=$(sed -n 's/#define FW_VERSION "\(.*\)"/\1/p' include/version.h)

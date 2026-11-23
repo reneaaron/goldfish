@@ -1,0 +1,7 @@
+# SHA-256 of the toolchain archives the board build downloads (Linux x86_64),
+# from the URLs hardcoded in the pinned platform's platform.py. PlatformIO
+# checks no hash for URL packages; release.yml does, against this file.
+# After bumping the platform, update these from the new URLs.
+c61d50abd186f5e222fb6003ac1c3d657f4716a408d2efe4316020709714ff68  https://github.com/earlephilhower/pico-quick-toolchain/releases/download/5.0.0/x86_64-linux-gnu.arm-none-eabi-78c24be.260719.tar.gz
+98faaffe3efdaa8f2133463cee49b06033e41dcff5c75e547615873e20257b8c  https://github.com/earlephilhower/pico-quick-toolchain/releases/download/5.0.0/x86_64-linux-gnu.pioasm-98a542c1.260719.tar.gz
+06d25f7b203b382a5d79da3f6d4cb202aeef482edededbe86981c61b123437f4  https://github.com/earlephilhower/pico-quick-toolchain/releases/download/5.0.0/x86_64-linux-gnu.picotool-6f6458d.260719.tar.gz

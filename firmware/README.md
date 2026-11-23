@@ -245,6 +245,9 @@ The build is reproducible: the same commit gives a byte-identical
 `firmware.uf2`, whatever the checkout path or home directory. The platform,
 Arduino core, toolchain, LVGL and libwally are all pinned in `platformio.ini`,
 and `-ffile-prefix-map` keeps the PlatformIO packages path out of the binary.
+The toolchain archives come from URLs in the pinned platform, and PlatformIO
+checks no hash for those; the release workflow checks them against
+[`toolchain.sha256`](toolchain.sha256) before building.
 Each release tag (`v0.1.0`) gets a GitHub release, built by
 `.github/workflows/release.yml` on a clean runner: `firmware.uf2`, its
 `SHA256SUMS`, and a build provenance attestation that ties the file to that
