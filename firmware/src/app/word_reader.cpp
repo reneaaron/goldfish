@@ -34,8 +34,10 @@ static int16_t *buf_a, *buf_b;
 bool word_reader_init() {
     if (buf_a && buf_b) return true;
     word_reader_free();
-    buf_a = (int16_t *)malloc(sizeof(int16_t) * BUF_A);
+    // the larger first: after the camera's band the heap can be split (on a board,
+    // 92 KB free as 60 + 32), where the smaller taken first leaves no room for it
     buf_b = (int16_t *)malloc(sizeof(int16_t) * BUF_B);
+    buf_a = (int16_t *)malloc(sizeof(int16_t) * BUF_A);
     if (!buf_a || !buf_b) { word_reader_free(); return false; }
     return true;
 }
@@ -328,6 +330,12 @@ struct Decoder {
     Child kids[MAX_DEPTH + 1][26];
     float best, second;
     int word;
+    // the `want` best words, best first (want >= 2), and the bar a prefix must
+    // reach to be followed: the want-th best score so far
+    int want, nk;
+    int topw[WR_TOPK];
+    float tops[WR_TOPK];
+    float cut;
 };
 static_assert(sizeof(Decoder) <= sizeof(int16_t) * BUF_A, "decoder doesn't fit in buf_a");
 
@@ -366,19 +374,30 @@ static float ending(const Decoder *dc, int d) {
     return a > b ? a : b;
 }
 
+static inline bool ahead(float sa, int wa, float sb, int wb) { return sa > sb || (sa == sb && wa < wb); }
+
+// Keeps the `want` best words, best first (ties: lower index first, as in list order).
 static void offer(Decoder *dc, int w, float sc) {
-    if (sc > dc->best || (sc == dc->best && w < dc->word)) {
-        dc->second = dc->best;
-        dc->best = sc;
-        dc->word = w;
-    } else if (sc > dc->second) dc->second = sc;
+    if (dc->nk == dc->want && !ahead(sc, w, dc->tops[dc->want - 1], dc->topw[dc->want - 1])) return;
+    int i = dc->nk < dc->want ? dc->nk++ : dc->want - 1;
+    while (i > 0 && ahead(sc, w, dc->tops[i - 1], dc->topw[i - 1])) {
+        dc->tops[i] = dc->tops[i - 1];
+        dc->topw[i] = dc->topw[i - 1];
+        i--;
+    }
+    dc->tops[i] = sc;
+    dc->topw[i] = w;
+    dc->best = dc->tops[0];
+    dc->word = dc->topw[0];
+    dc->second = dc->nk > 1 ? dc->tops[1] : NO_SCORE;
+    dc->cut = dc->nk == dc->want ? dc->tops[dc->want - 1] : NO_SCORE;
 }
 
 // Words [lo, hi) of the list share their first d letters, whose states are in
 // dc at depth d; sc4: their 4-letter score once d >= 4 (one word is left by then).
 static void walk(Decoder *dc, int lo, int hi, int d, float sc4) {
     if (d == 4) sc4 = ending(dc, 4);
-    if (d >= 1 && (d < 4 || sc4 + SLACK < dc->second) && bound(dc, d) + SLACK < dc->second) return;
+    if (d >= 1 && (d < 4 || sc4 + SLACK < dc->cut) && bound(dc, d) + SLACK < dc->cut) return;
     if (dc->allowed) {
         int w = lo;
         while (w < hi && !dc->allowed(w)) w++;
@@ -417,17 +436,15 @@ static void walk(Decoder *dc, int lo, int hi, int d, float sc4) {
             }
     }
     for (int k = 0; k < n; k++) {
-        if (n > 1 && kids[k].ub + SLACK < dc->second && (d < 4 || sc4 + SLACK < dc->second)) break;   // sorted: none after either
+        if (n > 1 && kids[k].ub + SLACK < dc->cut && (d < 4 || sc4 + SLACK < dc->cut)) break;   // sorted: none after either
         const char *s = seed_word(kids[k].lo);
         extend(dc, d + 1, s[d] - 'a' + 1, d >= 1 && s[d] != s[d - 1]);
         walk(dc, kids[k].lo, kids[k].hi, d + 1, sc4);
     }
 }
 
-void word_reader_decode(const float *logp, bool (*allowed)(int), WordResult *out) {
-    out->word = -1;
-    out->margin = 0;
-    if (!buf_a) return;
+// The `want` (2..WR_TOPK) best words into words/scores, best first; returns how many.
+static int decode_top(const float *logp, bool (*allowed)(int), int want, int *words, float *scores) {
     Decoder &dc = *(Decoder *)buf_a;
     dc.logp = logp;
     dc.allowed = allowed;
@@ -455,12 +472,37 @@ void word_reader_decode(const float *logp, bool (*allowed)(int), WordResult *out
         dc.blank[0][t] = v + logp[t * WR_C];
         dc.let[0][t] = NO_SCORE;
     }
-    dc.best = dc.second = NO_SCORE;
+    dc.best = dc.second = dc.cut = NO_SCORE;
     dc.word = -1;
+    dc.want = want;
+    dc.nk = 0;
     walk(&dc, 0, 2048, 0, 0);
-    out->word = dc.word;
-    out->margin = dc.best - dc.second;
+    int n = dc.nk;
+    for (int i = 0; i < n; i++) words[i] = dc.topw[i], scores[i] = dc.tops[i];
     secure_zero(&dc, sizeof(dc));
+    return n;
+}
+
+void word_reader_decode(const float *logp, bool (*allowed)(int), WordResult *out) {
+    out->word = -1;
+    out->margin = 0;
+    if (!buf_a) return;
+    int w[2];
+    float sc[2];
+    int n = decode_top(logp, allowed, 2, w, sc);
+    if (n >= 1) out->word = w[0];
+    if (n >= 1) out->margin = sc[0] - (n == 2 ? sc[1] : NO_SCORE);
+}
+
+int word_reader_top(const uint8_t *strip, bool (*allowed)(int), int k, int *words, float *scores) {
+    if (!buf_a) return 0;
+    if (k < 2) k = 2;
+    if (k > WR_TOPK) k = WR_TOPK;
+    float *logp = (float *)buf_b;
+    word_reader_logp(strip, logp, nullptr);
+    int n = decode_top(logp, allowed, k, words, scores);
+    secure_zero(logp, sizeof(float) * WR_T * WR_C);
+    return n;
 }
 
 bool word_reader_read(const uint8_t *strip, bool (*allowed)(int), WordResult *out) {

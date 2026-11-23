@@ -10,6 +10,7 @@
 static const uint8_t *img;
 static int W, H, gw, gh;
 static uint8_t *bg;   // paper brightness per BLK x BLK block
+static uint8_t *on_page;   // per block: 1 where the page is (not the desk or table around it)
 static int paper_ref;  // the picture's paper brightness: what "dark" and "much darker" are relative to
 
 static void paper_levels() {
@@ -51,12 +52,108 @@ static void paper_reference() {
     paper_ref = v;
 }
 
+// The page: the largest connected area of blocks about as bright as the paper
+// (a desk's wood grain or a cloth around it would otherwise read as rows of
+// ink), widened by one block so writing at its edge stays in. If that area is
+// small (a page broken up by shadow), every paper-bright block counts.
+static bool find_page() {
+    int n = gw * gh;
+    on_page = (uint8_t *)calloc(n, 1);
+    int16_t *queue = (int16_t *)malloc(sizeof(int16_t) * 2 * n);
+    uint8_t *comp = (uint8_t *)calloc(n, 1);   // 0 unseen, 1 seen, 2 the best area so far
+    if (!on_page || !queue || !comp) { free(queue); free(comp); return false; }
+    int bright_min = paper_ref * 7 / 10, best = 0, bright = 0;
+    for (int i = 0; i < n; i++) bright += bg[i] >= bright_min;
+    for (int start = 0; start < n; start++) {
+        if (comp[start] || bg[start] < bright_min) continue;
+        int head = 0, tail = 0, size = 0;
+        queue[tail++] = int16_t(start % gw), queue[tail++] = int16_t(start / gw);
+        comp[start] = 3;   // this area, while it's being filled
+        while (head < tail) {
+            int bx = queue[head++], by = queue[head++];
+            size++;
+            const int dx[4] = {1, -1, 0, 0}, dy[4] = {0, 0, 1, -1};
+            for (int k = 0; k < 4; k++) {
+                int nx = bx + dx[k], ny = by + dy[k];
+                if (nx < 0 || ny < 0 || nx >= gw || ny >= gh) continue;
+                int j = ny * gw + nx;
+                if (comp[j] || bg[j] < bright_min) continue;
+                comp[j] = 3;
+                if (tail < 2 * n) queue[tail++] = int16_t(nx), queue[tail++] = int16_t(ny);
+            }
+        }
+        for (int i = 0; i < n; i++)
+            if (comp[i] == 3) comp[i] = size > best ? 2 : 1;
+            else if (comp[i] == 2 && size > best) comp[i] = 1;
+        if (size > best) best = size;
+    }
+    bool whole = best * 5 < bright;   // no single area: keep every bright block
+    for (int by = 0; by < gh; by++)
+        for (int bx = 0; bx < gw; bx++) {
+            bool in = false;
+            for (int y = by - 1; y <= by + 1 && !in; y++)
+                for (int x = bx - 1; x <= bx + 1 && !in; x++)
+                    if (x >= 0 && y >= 0 && x < gw && y < gh)
+                        in = whole ? bg[y * gw + x] >= bright_min : comp[y * gw + x] == 2;
+            on_page[by * gw + bx] = in;
+        }
+    free(queue);
+    secure_zero(comp, n);
+    free(comp);
+    return true;
+}
+
+// How much darker than its paper ink must be, in 256ths of the paper's
+// brightness, per block: a fifth (51), or less where the darkest strokes
+// nearby (the block and the 8 around it) are faint, so pale pencil counts as
+// ink even on a page with darker print: 35% of how dark those strokes are,
+// but at least 20 (8%).
+static uint8_t *ink_frac;
+
+static bool ink_contrast() {
+    int n = gw * gh;
+    uint8_t *strong = (uint8_t *)calloc(n, 1);
+    ink_frac = (uint8_t *)malloc(n);
+    if (!strong || !ink_frac) { free(strong); return false; }
+    for (int y = 0; y < H; y++)
+        for (int x = 0; x < W; x++) {
+            int b = (y / BLK) * gw + x / BLK;
+            if (!on_page[b]) continue;
+            int p = paper_at(x, y);
+            if (p <= paper_ref * 3 / 10) continue;
+            int c = (p - img[y * W + x]) * 256 / p;
+            if (c > strong[b]) strong[b] = uint8_t(c > 255 ? 255 : c);
+        }
+    // the paper's own noise: most blocks hold no writing, so their median
+    static uint16_t hist[256];   // not on the stack: the board's is small
+    memset(hist, 0, sizeof(hist));
+    int np = 0;
+    for (int i = 0; i < n; i++) if (on_page[i]) hist[strong[i]]++, np++;
+    int noise = 0;
+    for (int seen = 0; noise < 255 && (seen += hist[noise]) <= np / 2; noise++) {}
+    for (int by = 0; by < gh; by++)
+        for (int bx = 0; bx < gw; bx++) {
+            int m = 0;
+            for (int y = by - 1; y <= by + 1; y++)
+                for (int x = bx - 1; x <= bx + 1; x++)
+                    if (x >= 0 && y >= 0 && x < gw && y < gh && strong[y * gw + x] > m) m = strong[y * gw + x];
+            // strokes that don't stand out from the paper's noise keep the strict bar
+            int f = m >= 3 * noise + 24 && m >= 48 ? m * 35 / 100 : 51;
+            ink_frac[by * gw + bx] = uint8_t(f > 51 ? 51 : f < 20 ? 20 : f);
+        }
+    free(strong);
+    return true;
+}
+
 // Ink: clearly darker than the paper around it (pencil included), where
 // there is paper (not the desk around it). At ordinary light (paper about
-// 200) that's paper above 60 and ink 20 below it.
+// 200) and a dark pen that's paper above 60 and ink 40 below it.
 static inline bool ink(int x, int y) {
+    int b = (y / BLK) * gw + x / BLK;
+    if (!on_page[b]) return false;
     int p = paper_at(x, y);
-    int d = p / 5 > paper_ref / 10 ? p / 5 : paper_ref / 10;
+    int f = ink_frac[b];
+    int d = p > paper_ref / 2 ? p * f / 256 : paper_ref * f / 512;
     return p > paper_ref * 3 / 10 && img[y * W + x] < p - d;
 }
 
@@ -157,6 +254,12 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
     if (!bg) return false;
     paper_levels();
     paper_reference();
+    if (!find_page() || !ink_contrast()) {
+        free(on_page); on_page = nullptr;
+        free(ink_frac); ink_frac = nullptr;
+        secure_zero(bg, gw * gh); free(bg); bg = nullptr;
+        return false;
+    }
 
     float a = find_tilt(), c = cosf(a), s = sinf(a);
     page->cos_a = c; page->sin_a = s;
@@ -443,6 +546,8 @@ done:
     runs = nullptr; blobs = letters = nullptr; lpar = nullptr;
     if (map) { secure_zero(map, (size_t)stride * nv); free(map); }
     if (bg) { secure_zero(bg, gw * gh); free(bg); bg = nullptr; }
+    if (on_page) { free(on_page); on_page = nullptr; }
+    if (ink_frac) { free(ink_frac); ink_frac = nullptr; }
     return ok;
 }
 
