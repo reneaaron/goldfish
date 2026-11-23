@@ -5,6 +5,7 @@
 #include <wally_core.h>
 #include <wally_bip32.h>
 #include "../../src/app/wallet.h"
+#include "../fixtures/bip39_vectors.h"
 
 static SeedEntropy zero_entropy_12() {
     SeedEntropy e;
@@ -120,9 +121,8 @@ void test_passphrase() {
     TEST_ASSERT_EQUAL_STRING("73c5da0a", fp);
 }
 
-// 24 words: all-zero 32-byte entropy = "abandon x23 art". The root key with
-// passphrase TREZOR is from Trezor's vectors.json; the fingerprint and zpub
-// without one were worked out by embit.
+// 24 words: all-zero 32-byte entropy = "abandon x23 art". BIP-84's vectors
+// are 12 words only, so the fingerprint and zpub were worked out by embit.
 void test_24_words() {
     SeedEntropy e;
     memset(&e, 0, sizeof(e));
@@ -137,15 +137,26 @@ void test_24_words() {
     TEST_ASSERT_EQUAL_STRING(
         "[5436d724/84h/0h/0h]zpub6qTBTNftBzVTjgVcSUw7vW5N1KQbV93Jnrw314RHGkCkSx4vk6nEWH1MJfReXi2WThvuDRiRpyT7cDoakEcZMQ1iZPgfJgQrcVMR4aJWh6S",
         out);
-
-    TEST_ASSERT_TRUE(wallet_set_passphrase("TREZOR"));
-    char *xprv = nullptr;
-    TEST_ASSERT_EQUAL(WALLY_OK, bip32_key_to_base58(wallet_root(), BIP32_FLAG_KEY_PRIVATE, &xprv));
-    TEST_ASSERT_EQUAL_STRING(
-        "xprv9s21ZrQH143K32qBagUJAMU2LsHg3ka7jqMcV98Y7gVeVyNStwYS3U7yVVoDZ4btbRNf4h6ibWpY22iRmXq35qgLs79f312g2kj5539ebPM",
-        xprv);
-    wally_free_string(xprv);
     wallet_wipe();
+}
+
+// Every 12- and 24-word BIP-39 vector: the entropy, loaded with the
+// passphrase TREZOR, gives the vector's root key.
+void test_bip39_vectors() {
+    for (int i = 0; i < BIP39_VECTOR_COUNT; i++) {
+        const Bip39Vector &v = BIP39_VECTORS[i];
+        SeedEntropy e;
+        memset(&e, 0, sizeof(e));
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_hex_to_bytes(v.entropy_hex, e.bytes, sizeof(e.bytes), &e.len));
+        TEST_ASSERT_TRUE(wallet_load(e));
+        TEST_ASSERT_EQUAL(e.len == 16 ? 12 : 24, wallet_word_count());
+        TEST_ASSERT_TRUE(wallet_set_passphrase("TREZOR"));
+        char *xprv = nullptr;
+        TEST_ASSERT_EQUAL(WALLY_OK, bip32_key_to_base58(wallet_root(), BIP32_FLAG_KEY_PRIVATE, &xprv));
+        TEST_ASSERT_EQUAL_STRING_MESSAGE(v.xprv, xprv, v.entropy_hex);
+        wally_free_string(xprv);
+        wallet_wipe();
+    }
 }
 
 // The exported key follows the passphrase: same path, the passphrase's root.
@@ -177,6 +188,7 @@ int main() {
     RUN_TEST(test_wipe);
     RUN_TEST(test_passphrase);
     RUN_TEST(test_24_words);
+    RUN_TEST(test_bip39_vectors);
     RUN_TEST(test_passphrase_export);
     return UNITY_END();
 }

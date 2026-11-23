@@ -268,7 +268,10 @@ pio test -e test
   and the BIP39 vector with passphrase `TREZOR` (root key, fingerprint `b4e3f5ed`),
   removed again and wiped with the seed; with the passphrase, the zpub and vpub
   worked out by embit; a 24-word seed (`abandon` x23 `art`): fingerprint and
-  zpub by embit, and the BIP39 vector's root key with passphrase `TREZOR`
+  zpub by embit
+- BIP39: every 12- and 24-word vector in Trezor's `vectors.json` (16): the
+  entropy shows the vector's words, typing the words gives the entropy back,
+  and with passphrase `TREZOR` it loads the vector's root key
 - UR: SeedSigner's 29-part `crypto-psbt` vector, plus an encode/decode round trip
   and a decode from the encoder's fountain parts alone or with every other fragment missing,
   parts whose header would overrun the decoder's buffer (sequence 0,
@@ -290,7 +293,7 @@ pio test -e test
   transaction, extra redeem or witness scripts, and a multisig witness script
   that isn't the descriptor's; and a bogus signature of ours already in the
   PSBT, which signing refuses to hand out
-- Verify address: BIP84 first receive/change addresses, URIs and their
+- Verify address: BIP84's three addresses (receive 0 and 1, change 0), URIs and their
   amounts, testnet, foreign addresses, and a different seed loaded afterwards;
   multisig receive and change addresses, with and without the descriptor
 - Amounts: BIP177 and legacy BTC formatting from ₿0 to the 21M cap
