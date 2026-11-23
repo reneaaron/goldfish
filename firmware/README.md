@@ -74,7 +74,7 @@ word, only words with a valid checksum. The seed loads right away.
 Experimental: Scan seed also reads a handwritten backup (the camera button next
 to the word field opens it too), on any paper (plain, ruled, a printed card; one or more
 columns; numbered or not). A SeedQR is read as soon as it is in view. For written
-words, fit the page in view and hold still: after about a second with no QR
+words, fit the page in view and hold still: after about 1.5 seconds with no QR
 finder pattern in view and at least 8 words found on the preview (checked at
 most twice a second), the device
 takes one picture and finds the words (`src/app/page_reader.cpp`: the paper's
