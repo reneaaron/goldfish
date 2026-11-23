@@ -105,7 +105,7 @@ jobs:
           if [ -d "$RUNNER_TEMP/screens" ]; then cp "$RUNNER_TEMP/screens/"*.png site/img/screens/; fi
           cp flasher/index.html site/flasher/
           cp cards/index.html site/cards/
-          # parts/files and start/img are symlinks too (case/exports, firmware/docs/screens)
+          # parts/files is a symlink too (case/exports); start/ uses the landing page's img/screens
           cp -rL parts assemble start site/
           cp -r "$RUNNER_TEMP/try" site/try && rm -rf site/try/obj
           cp "$RUNNER_TEMP/fw/firmware.uf2" "$RUNNER_TEMP/fw/firmware.json" site/flasher/

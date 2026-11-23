@@ -62,7 +62,8 @@
   td:first-child { color: var(--text); font-weight: 600; white-space: nowrap; }
   .print { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; margin-top: 16px; }
   .case3d { position: relative; aspect-ratio: 4 / 3; border-radius: 16px; overflow: hidden; background: var(--raised); }
-  .case3d img, .case3d canvas { width: 100%; height: 100%; object-fit: cover; display: block; touch-action: none; }
+  .case3d img, .case3d canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .case3d canvas { touch-action: none; }
   .view3d { position: absolute; right: 12px; bottom: 12px; height: 40px; padding: 0 16px; border: 0; border-radius: 10px;
             background: var(--text); color: var(--bg); font: 600 15px var(--sans); cursor: pointer; }
   .case3d .hint { position: absolute; left: 14px; bottom: 10px; margin: 0; font-size: 13px; color: var(--faint); pointer-events: none; }
@@ -239,13 +240,29 @@
   </div>
 </main>
 
-<script type="importmap">{"imports": {"three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<!-- integrity: browsers that check import map hashes refuse a changed file from jsDelivr.
+     Recompute them (sha384, base64) when bumping the version. -->
+<script type="importmap">{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  },
+  "integrity": {
+    "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js": "sha384-61S/Nu32S3E5+n+KpCOTb2eRYps6fVKm+9Gz1QBvSePFthb46f063Aa/qe/lykFZ",
+    "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/STLLoader.js": "sha384-iUykpV7CnAlHYQ2KS0JYVxQcsk6JdCjM1k3R0BuPqwd5p2g2A8HioqUrteJrWZKo",
+    "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js": "sha384-qlO/ZugKPxAQUAvTlQoo0QECzxJIJySZmCF/DHdb2Xn/hHndFwX/vfUAC9Hbk6LP"
+  }
+}</script>
 <script type="module">
   // The 3D view of case.stl. three.js (from jsDelivr) and the STL load only on "View in 3D":
   // until then the page requests neither.
   const fig = document.getElementById('case3d'), btn = document.getElementById('view3d');
   btn.addEventListener('click', async () => {
+    const probe = document.createElement('canvas');
+    if (!(probe.getContext('webgl2') || probe.getContext('webgl'))) {
+      btn.disabled = true; btn.textContent = 'This browser can’t show 3D';
+      return;
+    }
     btn.disabled = true; btn.textContent = 'Loading…';
     try {
       const THREE = await import('three');
@@ -282,7 +299,9 @@
         cam.aspect = fig.clientWidth / fig.clientHeight; cam.updateProjectionMatrix();
       };
       size(); new ResizeObserver(size).observe(fig);
-      renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, cam); });
+      // Draw only while the view is on screen, so it doesn't keep the GPU busy further down the page.
+      const draw = () => { controls.update(); renderer.render(scene, cam); };
+      new IntersectionObserver(([e]) => renderer.setAnimationLoop(e.isIntersecting ? draw : null)).observe(fig);
     } catch (e) {
       btn.disabled = false; btn.textContent = 'Couldn’t load the 3D view. Try again';
     }
