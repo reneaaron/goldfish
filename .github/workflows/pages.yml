@@ -1,7 +1,8 @@
 name: Website
 
 # Publishes the project website on GitHub Pages:
-#   /          landing/ (the Goldfish landing page, with its screens and renders)
+#   /          landing/ (the Goldfish landing page, with its screens and renders;
+#              the screens retaken from the latest release, so they show its tag)
 #   /flasher/  flasher/index.html plus firmware.uf2 and firmware.json
 #   /cards/    cards/index.html (blank backup cards to print)
 #   /try/      try/index.html plus the firmware built for the browser (firmware/web),
@@ -50,6 +51,7 @@ jobs:
         run: pio pkg install -e sim && make -C web -j"$(nproc)" && mv .pio/build/web "$RUNNER_TEMP/try"
         working-directory: firmware
       - name: Firmware to offer
+        id: firmware
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -63,6 +65,7 @@ jobs:
             gh attestation verify "$fw/firmware.uf2" --repo "$GITHUB_REPOSITORY" \
               --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" --source-ref "refs/tags/$tag"
             version=$tag commit=$(git rev-list -n1 "$tag")
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
           else
             (cd firmware && pio run)
             cp firmware/.pio/build/rp2350_touch_lcd_2/firmware.uf2 "$fw/"
@@ -70,11 +73,33 @@ jobs:
             version=$(sed -n 's/#define FW_VERSION "\(.*\)"/\1/p' firmware/include/version.h) commit=$GITHUB_SHA
           fi
           jq -n --arg version "$version" --arg commit "$commit" '{$version, $commit}' > "$fw/firmware.json"
+      # The landing page's screens, taken from the release on offer, so the home
+      # screen shows its tag (version.py) rather than the commit the PNGs in the
+      # repo were made at. Only screens the repo already has are replaced.
+      - name: Screens from the release
+        if: steps.firmware.outputs.tag != ''
+        env:
+          TAG: ${{ steps.firmware.outputs.tag }}
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq libx11-dev
+          rel="$RUNNER_TEMP/release" shots="$RUNNER_TEMP/shots" && mkdir -p "$shots" "$RUNNER_TEMP/screens"
+          git worktree add --detach "$rel" "$TAG"
+          (cd "$rel/firmware" && pio run -e sim && SIM_SHOTS="$shots" .pio/build/sim/program)
+          uv run --with pillow==13.0.0 python -I - "$shots" firmware/docs/screens "$RUNNER_TEMP/screens" <<'EOF'
+          import os, sys
+          from PIL import Image
+          shots, ref, out = sys.argv[1:]
+          for f in os.listdir(ref):
+              ppm = os.path.join(shots, f.removesuffix(".png") + ".ppm")
+              if f.endswith(".png") and os.path.exists(ppm):
+                  Image.open(ppm).save(os.path.join(out, f))
+          EOF
       - name: Assemble site
         run: |
           mkdir -p site/flasher site/cards
           # landing/img/{screens,renders} are symlinks into the repo: copy what they point to
           cp -rL landing/. site/
+          if [ -d "$RUNNER_TEMP/screens" ]; then cp "$RUNNER_TEMP/screens/"*.png site/img/screens/; fi
           cp flasher/index.html site/flasher/
           cp cards/index.html site/cards/
           cp -r "$RUNNER_TEMP/try" site/try && rm -rf site/try/obj
