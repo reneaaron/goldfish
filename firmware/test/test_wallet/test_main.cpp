@@ -120,6 +120,54 @@ void test_passphrase() {
     TEST_ASSERT_EQUAL_STRING("73c5da0a", fp);
 }
 
+// 24 words: all-zero 32-byte entropy = "abandon x23 art". The root key with
+// passphrase TREZOR is from Trezor's vectors.json; the fingerprint and zpub
+// without one were worked out by embit.
+void test_24_words() {
+    SeedEntropy e;
+    memset(&e, 0, sizeof(e));
+    e.len = 32;
+    TEST_ASSERT_TRUE(wallet_load(e));
+    TEST_ASSERT_EQUAL(24, wallet_word_count());
+    char fp[9];
+    wallet_fingerprint_hex(fp);
+    TEST_ASSERT_EQUAL_STRING("5436d724", fp);
+    char out[200];
+    TEST_ASSERT_GREATER_THAN(0, wallet_export_xpub(out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING(
+        "[5436d724/84h/0h/0h]zpub6qTBTNftBzVTjgVcSUw7vW5N1KQbV93Jnrw314RHGkCkSx4vk6nEWH1MJfReXi2WThvuDRiRpyT7cDoakEcZMQ1iZPgfJgQrcVMR4aJWh6S",
+        out);
+
+    TEST_ASSERT_TRUE(wallet_set_passphrase("TREZOR"));
+    char *xprv = nullptr;
+    TEST_ASSERT_EQUAL(WALLY_OK, bip32_key_to_base58(wallet_root(), BIP32_FLAG_KEY_PRIVATE, &xprv));
+    TEST_ASSERT_EQUAL_STRING(
+        "xprv9s21ZrQH143K32qBagUJAMU2LsHg3ka7jqMcV98Y7gVeVyNStwYS3U7yVVoDZ4btbRNf4h6ibWpY22iRmXq35qgLs79f312g2kj5539ebPM",
+        xprv);
+    wally_free_string(xprv);
+    wallet_wipe();
+}
+
+// The exported key follows the passphrase: same path, the passphrase's root.
+// Expected values worked out by embit.
+void test_passphrase_export() {
+    TEST_ASSERT_TRUE(wallet_load(zero_entropy_12()));
+    TEST_ASSERT_TRUE(wallet_set_passphrase("TREZOR"));
+    char out[200];
+    TEST_ASSERT_GREATER_THAN(0, wallet_export_xpub(out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING(
+        "[b4e3f5ed/84h/0h/0h]zpub6rXDN3yuixCtvAyzKn3uWLDr8qXKEQ2orduEL5AAysdHZmuPVUL2vbMQDEhp8L9hRsgM8J8idDNPdZjrob8R5e7x7UoYXVdfjDG96TLa7La",
+        out);
+    wallet_set_testnet(true);
+    size_t n = wallet_export_xpub(out, sizeof(out));
+    wallet_set_testnet(false);
+    TEST_ASSERT_GREATER_THAN(0, n);
+    TEST_ASSERT_EQUAL_STRING(
+        "[b4e3f5ed/84h/1h/0h]vpub5Y1FMRorHhCpQ7SksCWpqf8HLtMibo6yE4kyGHGys7aHxvrdtTJne1Jdi4FtdLJ9B9Jm2z8cNgKa7Xtvjoa9ap6XEd7C4KLuDE69ca86npL",
+        out);
+    wallet_wipe();
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_fingerprint);
@@ -128,5 +176,7 @@ int main() {
     RUN_TEST(test_multisig_keys);
     RUN_TEST(test_wipe);
     RUN_TEST(test_passphrase);
+    RUN_TEST(test_24_words);
+    RUN_TEST(test_passphrase_export);
     return UNITY_END();
 }

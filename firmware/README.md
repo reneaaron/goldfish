@@ -266,7 +266,9 @@ pio test -e test
 - Key derivation: the BIP84 test vector (fingerprint `73c5da0a`, zpub, testnet vpub),
   the same seed's BIP-48 multisig keys (Zpub, testnet Vpub) worked out by embit,
   and the BIP39 vector with passphrase `TREZOR` (root key, fingerprint `b4e3f5ed`),
-  removed again and wiped with the seed
+  removed again and wiped with the seed; with the passphrase, the zpub and vpub
+  worked out by embit; a 24-word seed (`abandon` x23 `art`): fingerprint and
+  zpub by embit, and the BIP39 vector's root key with passphrase `TREZOR`
 - UR: SeedSigner's 29-part `crypto-psbt` vector, plus an encode/decode round trip
   and a decode from the encoder's fountain parts alone or with every other fragment missing,
   parts whose header would overrun the decoder's buffer (sequence 0,
@@ -333,7 +335,9 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
   linked from the xpub QR, a receive address verified, a transaction with
   change reviewed and signed; a 24-word seed typed in; SeedQR Standard and Compact; the QR card check;
   an animated PSBT joined mid-cycle (fountain parts only) both ways and a base64 frame;
-  another seed's transaction, another wallet's address, and fake change
+  another seed's transaction, another wallet's address, and fake change;
+  a passphrase typed on the keyboard giving the key and signatures embit
+  derives from the same words and passphrase, and removed again
 - Multisig: Connect wallet's four keys (single-sig and multisig, mainnet and
   testnet) against embit; a 2-of-3 around the linked multisig key, refused until its descriptor is
   scanned and confirmed, then signed and finalized with a cosigner; every
