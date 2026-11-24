@@ -77,19 +77,35 @@ static size_t find_claims(const struct wally_map *keypaths, const uint8_t fp[4],
     return n;
 }
 
-// Why an input has no claim of ours: a wallet app that has our key without its
-// origin (a bare xpub) leaves the key path out, or writes fingerprint 00000000.
-// Any other fingerprint is another seed's.
+// Why an input has no claim of ours. A wallet app that has our key without its
+// origin (a bare xpub) leaves the key path out or writes fingerprint 00000000:
+// that is the cause when a zeroed entry's path derives our key, or when no
+// entry names any other seed. Otherwise the input is another seed's.
 static PsbtError why_not_ours(const struct wally_map *keypaths) {
     static const uint8_t none[4] = {0, 0, 0, 0};
-    if (keypaths->num_items == 0) return PSBT_NO_FINGERPRINT;
+    bool all_zero = true;
     for (size_t k = 0; k < keypaths->num_items; k++) {
         uint8_t their[4];
-        if (wally_map_keypath_get_item_fingerprint(keypaths, k, their, sizeof(their)) == WALLY_OK &&
-            memcmp(their, none, 4) == 0)
-            return PSBT_NO_FINGERPRINT;
+        uint32_t path[MAX_PATH_LEN];
+        size_t path_len = 0;
+        if (wally_map_keypath_get_item_fingerprint(keypaths, k, their, sizeof(their)) != WALLY_OK ||
+            memcmp(their, none, 4) != 0) {
+            all_zero = false;
+            continue;
+        }
+        const struct wally_map_item &item = keypaths->items[k];
+        if (item.key_len != EC_PUBLIC_KEY_LEN ||
+            wally_map_keypath_get_item_path(keypaths, k, path, MAX_PATH_LEN, &path_len) != WALLY_OK ||
+            path_len > MAX_PATH_LEN)
+            continue;
+        struct ext_key key;
+        bool ours = bip32_key_from_parent_path(wallet_root(), path, path_len,
+                                               BIP32_FLAG_KEY_PRIVATE | BIP32_FLAG_SKIP_HASH, &key) == WALLY_OK &&
+                    memcmp(key.pub_key, item.key, EC_PUBLIC_KEY_LEN) == 0;
+        secure_zero(&key, sizeof(key));
+        if (ours) return PSBT_NO_FINGERPRINT;
     }
-    return PSBT_NOT_OUR_SEED;
+    return all_zero ? PSBT_NO_FINGERPRINT : PSBT_NOT_OUR_SEED;
 }
 
 static void format_path(const Claim &c, char *out, size_t cap) {

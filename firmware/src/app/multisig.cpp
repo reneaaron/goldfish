@@ -345,7 +345,8 @@ MsResult multisig_load_ur_output(const uint8_t *cbor, size_t len) {
     for (uint64_t i = 0; i < n; i++) {
         UrKey k;
         if (!ur_hdkey(&c, &k)) return MS_BAD;
-        if (!k.has_fp || !k.path_len) return MS_NO_ORIGIN;
+        if (!k.has_fp) return MS_NO_ORIGIN;
+        if (!k.path_len) return MS_UNSUPPORTED;      // a fingerprint, but no path to find our key at
         bool testnet = k.testnet || (k.path_len >= 2 && k.path[1] == (BIP32_INITIAL_HARDENED_CHILD | 1));
         // The xpub, as BIP32 serializes it.
         uint8_t ser[BIP32_SERIALIZED_LEN], *p = ser;

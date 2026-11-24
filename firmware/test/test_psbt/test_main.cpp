@@ -530,6 +530,20 @@ void test_missing_fingerprint_told_apart() {
     edit_psbt(zero_our_fingerprints);
     TEST_ASSERT_EQUAL(PSBT_NO_FINGERPRINT, psbt_load(raw, raw_len, &r));
     TEST_ASSERT_EQUAL(0, psbt_sign());
+
+    // Another wallet's input, one of whose cosigners is zeroed: ours isn't
+    // among its keys, so it's "different wallet", not "missing fingerprint".
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_base64_to_bytes(MS_PSBT, 0, raw, sizeof(raw), &raw_len));
+    edit_psbt([](struct wally_psbt *p) {
+        uint8_t fp[4];
+        wallet_fingerprint(fp);
+        for (size_t k = 0; k < p->inputs[0].keypaths.num_items; k++) {
+            uint8_t *v = p->inputs[0].keypaths.items[k].value;
+            if (memcmp(v, fp, 4) == 0) memset(v, 0xee, 4);               // ours: someone else's now
+            else if (memcmp(v, "\x03\xcd\x0a\x2b", 4) == 0) memset(v, 0, 4);
+        }
+    });
+    TEST_ASSERT_EQUAL(PSBT_NOT_OUR_SEED, psbt_load(raw, raw_len, &r));
     psbt_clear();
 }
 

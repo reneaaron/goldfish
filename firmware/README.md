@@ -204,10 +204,10 @@ one spent or disagrees with the witness UTXO, and a redeem script (or a witness
 script on a single-sig input) are refused as invalid. More than 8 outputs are
 refused too, since review couldn't show them all, and so is a sighash other
 than ALL, which would leave outputs or inputs out of the signature. When no key path of an input
-is ours, the screen tells two causes apart: another seed's fingerprint ("for a
-different wallet"), or fingerprint `00000000` / no key path at all, which is
-what wallet apps write when they hold the key as a bare xpub without its
-origin; that one asks to add the key again from Connect wallet, which gives
+is ours, the screen tells two causes apart: another seed's ("for a different
+wallet"), or our key with fingerprint `00000000` (its path derives our key) or
+no fingerprint or key path at all, which is what wallet apps write when they
+hold the key as a bare xpub without its origin; that one asks to add the key again from Connect wallet, which gives
 `[fingerprint/path]`. Either way nothing is signed. After signing, every
 signature of ours is checked against the reviewed amounts and our own scripts,
 and nothing is shown if one doesn't match.

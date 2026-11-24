@@ -201,6 +201,12 @@ def test_wallets_we_are_not_in_are_refused(dev):
     zeroed = SIGNER.key(BIP48).replace(SIGNER.fingerprint, "00000000")
     dev.scan(Wallet.multisig(2, [zeroed] + [c.key(BIP48) for c in COSIGNERS[:2]]).descriptor())
     assert dev.screen == "SCAN" and "Key fingerprint missing" in dev.text()
+    # The same as a crypto-output UR: a key's origin without its fingerprint,
+    # and one with a fingerprint but no path (nothing to find our key at).
+    dev.scan(ur_single(*two_of_three().descriptor_ur(no_fingerprint=(1,))))
+    assert dev.screen == "SCAN" and "Key fingerprint missing" in dev.text(), dev.text()
+    dev.scan(ur_single(*two_of_three().descriptor_ur(no_path=(1,))))
+    assert dev.screen == "SCAN" and "Not supported yet" in dev.text(), dev.text()
     # A typo: the checksum catches it.
     good = two_of_three().descriptor()
     dev.scan(good.replace("sortedmulti(2", "sortedmulti(1"))
