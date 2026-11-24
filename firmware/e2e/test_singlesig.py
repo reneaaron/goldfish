@@ -42,7 +42,7 @@ def test_new_seed_to_signed_transaction(dev):
     dev.tap("Written down")
     assert dev.screen == "BACKUP_WORDS"   # not before the list was scrolled to its end
     for _ in range(3):
-        dev.cmd("drag 120 230 120 50")   # up the list, above the button
+        dev.scroll_down()
         dev.wait(500)
     dev.tap("Written down")
     mnemonic = " ".join(words)
