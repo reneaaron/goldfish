@@ -44,6 +44,8 @@ void test_review_matches_seedsigner() {
     TEST_ASSERT_EQUAL_UINT64(24857, r.spend);     // SeedSigner: spend_amount
     TEST_ASSERT_EQUAL_UINT64(0, r.change);
     TEST_ASSERT_EQUAL_UINT64(143, r.fee);
+    TEST_ASSERT_EQUAL_UINT32(2, r.fee_rate);       // 143 / 141 vB (two P2WPKH outputs), rounded up
+    TEST_ASSERT_EQUAL(FEE_OK, r.fee_level);
     TEST_ASSERT_EQUAL(2, r.n_outputs);
 }
 
@@ -81,6 +83,44 @@ void test_wrong_seed_rejected() {
     TEST_ASSERT_TRUE(wallet_load(e));
     PsbtReview r;
     TEST_ASSERT_EQUAL(PSBT_NOT_OUR_SEED, psbt_load(raw, raw_len, &r));
+}
+
+void test_fee_rate() {
+    TEST_ASSERT_EQUAL_UINT32(0, psbt_fee_rate(0, 141));
+    TEST_ASSERT_EQUAL_UINT32(1, psbt_fee_rate(141, 141));
+    TEST_ASSERT_EQUAL_UINT32(2, psbt_fee_rate(142, 141));           // rounds up
+    TEST_ASSERT_EQUAL_UINT32(10, psbt_fee_rate(2090, 209));
+    TEST_ASSERT_EQUAL_UINT32(68, psbt_input_vsize(0, 0));           // P2WPKH
+    TEST_ASSERT_EQUAL_UINT32(105, psbt_input_vsize(2, 3));          // 41 + (2 + 146 + 1 + 105) / 4, rounded up
+    TEST_ASSERT_EQUAL_UINT32(445, psbt_input_vsize(15, 15));        // 513-byte script: 3-byte length
+}
+
+// A consolidation into a change address is judged against the change, not 0.
+void test_fee_base() {
+    PsbtReview r = {};
+    r.change = 5000;
+    TEST_ASSERT_EQUAL_UINT64(5000, psbt_fee_base(r));
+    TEST_ASSERT_EQUAL(FEE_OK, psbt_fee_level(200, psbt_fee_base(r), 1));
+    r.self = 3000;
+    TEST_ASSERT_EQUAL_UINT64(3000, psbt_fee_base(r));
+    r.spend = 1000;
+    TEST_ASSERT_EQUAL_UINT64(1000, psbt_fee_base(r));
+}
+
+void test_fee_level() {
+    // By share of the amount
+    TEST_ASSERT_EQUAL(FEE_OK, psbt_fee_level(0, 0, 0));
+    TEST_ASSERT_EQUAL(FEE_OK, psbt_fee_level(143, 24857, 1));
+    TEST_ASSERT_EQUAL(FEE_OK, psbt_fee_level(9999, 100000, 5));
+    TEST_ASSERT_EQUAL(FEE_HIGH, psbt_fee_level(10000, 100000, 5));          // exactly 10%
+    TEST_ASSERT_EQUAL(FEE_HIGH, psbt_fee_level(49999, 100000, 5));
+    TEST_ASSERT_EQUAL(FEE_VERY_HIGH, psbt_fee_level(50000, 100000, 5));     // exactly 50%
+    TEST_ASSERT_EQUAL(FEE_VERY_HIGH, psbt_fee_level(1, 0, 1));              // fee, nothing sent
+    // By rate, when the amount is big enough to hide the fee
+    TEST_ASSERT_EQUAL(FEE_OK, psbt_fee_level(7000, 100000000, 49));
+    TEST_ASSERT_EQUAL(FEE_HIGH, psbt_fee_level(7100, 100000000, 50));
+    TEST_ASSERT_EQUAL(FEE_HIGH, psbt_fee_level(70000, 100000000, 499));
+    TEST_ASSERT_EQUAL(FEE_VERY_HIGH, psbt_fee_level(70500, 100000000, 500));
 }
 
 void test_garbage_rejected() {
@@ -332,6 +372,7 @@ void test_multisig_review() {
     TEST_ASSERT_EQUAL_UINT64(100000, r.self);
     TEST_ASSERT_EQUAL_UINT64(250000, r.spend);
     TEST_ASSERT_EQUAL_UINT64(1000, r.fee);
+    TEST_ASSERT_EQUAL_UINT32(5, r.fee_rate);   // ~240 vB: a 2-of-3 input is 105 vB, not P2WPKH's 68
     TEST_ASSERT_EQUAL(3, r.n_outputs);
     TEST_ASSERT_TRUE(r.outputs[0].is_change);
     TEST_ASSERT_EQUAL_STRING(MS_ADDR_CHANGE_4, r.outputs[0].address);
@@ -659,5 +700,8 @@ int main() {
     RUN_TEST(test_multisig_wrong_witness_script);
     RUN_TEST(test_second_unverified_claim_rejected);
     RUN_TEST(test_bogus_existing_signature_not_signed);
+    RUN_TEST(test_fee_rate);
+    RUN_TEST(test_fee_level);
+    RUN_TEST(test_fee_base);
     return UNITY_END();
 }

@@ -165,6 +165,29 @@ static bool witness_script_matches(size_t i, const Claim &c) {
            m == n && memcmp(ours, theirs, n) == 0;
 }
 
+uint64_t psbt_fee_base(const PsbtReview &r) {
+    return r.spend ? r.spend : r.self ? r.self : r.change;
+}
+
+FeeLevel psbt_fee_level(uint64_t fee, uint64_t sent, uint32_t rate) {
+    if (fee == 0) return FEE_OK;
+    if (fee * 2 >= sent || rate >= 500) return FEE_VERY_HIGH;
+    if (fee * 10 >= sent || rate >= 50) return FEE_HIGH;
+    return FEE_OK;
+}
+
+uint32_t psbt_input_vsize(int m, int n) {
+    if (!m) return 68;                                   // 41 + (1 + 73 + 34) / 4
+    uint32_t script = 34 * uint32_t(n) + 3;              // OP_m <33-byte key>*n OP_n OP_CHECKMULTISIG
+    uint32_t wu = 1 + 1 + 73 * uint32_t(m) + (script < 253 ? 1 : 3) + script;   // count, dummy, sigs, script
+    return 41 + (wu + 3) / 4;
+}
+
+uint32_t psbt_fee_rate(uint64_t fee, uint64_t vsize) {
+    uint64_t r = (fee + vsize - 1) / vsize;
+    return r > UINT32_MAX ? UINT32_MAX : uint32_t(r);
+}
+
 PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
     psbt_clear();
     memset(r, 0, sizeof(*r));
@@ -245,7 +268,7 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
     if (psbt->num_outputs == 0) return r->error = PSBT_PARSE_FAILED;
     if (psbt->num_outputs > PSBT_MAX_OUTPUTS) return r->error = PSBT_UNSUPPORTED;
     r->n_outputs = int(psbt->num_outputs);
-    uint64_t out_total = 0;
+    uint64_t out_total = 0, out_vsize = 0;
     for (size_t i = 0; i < psbt->num_outputs; i++) {
         PsbtOutput &o = r->outputs[i];
         const struct wally_psbt_output &m = psbt->outputs[i];
@@ -254,6 +277,7 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
         const size_t script_len = v0 ? psbt->tx->outputs[i].script_len : m.script_len;
         o.amount = v0 ? psbt->tx->outputs[i].satoshi : m.amount;
         out_total += o.amount;
+        out_vsize += 8 + (script_len < 253 ? 1 : 3) + script_len;
         format_address(script, script_len, r->testnet, o.address, sizeof(o.address));
 
         Claim claims[MAX_CLAIMS];
@@ -283,6 +307,8 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
     if (out_total > r->input_total) return r->error = PSBT_PARSE_FAILED;
     r->fee = r->input_total - out_total;
     reviewed_ok = r->error == PSBT_OK;
+    r->fee_rate = psbt_fee_rate(r->fee, 11 + uint64_t(r->n_inputs) * psbt_input_vsize(r->ms_m, r->ms_n) + out_vsize);
+    r->fee_level = psbt_fee_level(r->fee, psbt_fee_base(*r), r->fee_rate);
     return r->error;
 }
 
