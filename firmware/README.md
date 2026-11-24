@@ -453,7 +453,9 @@ seed there.
 ## Layout
 
 - `src/app`: UI, SeedQR, wallet and QR scanning, shared by both targets
-- `src/board`: display (SPI), touch (I2C), camera (OV5640, PIO) and `setup()`/`loop()`
+- `src/board`: display (SPI), touch (I2C), IMU (QMI8658, I2C; only to turn the
+  screen 180° when the board is held upside down), camera (OV5640, PIO) and
+  `setup()`/`loop()`
 - `src/sim`: X11 window, mouse input and the image-file camera
 - `src/web`: canvas, pointer and page-fed camera for the browser simulator (`web/Makefile`)
 - `test`: unit tests (native)
@@ -496,6 +498,10 @@ computer, when a seed is loaded.
   or red/blue swapped, adjust `0x21`/`0x36` in `src/board/display.cpp`).
 - Buttons react where you touch. If touches are mirrored or swapped, fix the
   mapping in `src/board/touch.cpp` (marked TODO).
+- Turn the board upside down: after about a third of a second the screen
+  turns 180° and touches still land on what's under your finger; lying flat
+  keeps the current way up. If it shows upside down when held upright, or
+  doesn't turn, fix `UP_AXIS`/`UP_SIGN` in `src/board/imu.cpp` (marked TODO).
 - The scan screen shows the camera image. If it stays black, the line under
   it says why: `Chip id 0x…, not 0x5640` (camera not found or not an OV5640)
   or `No image within 1s` (no pixel clock or sync). If the image is

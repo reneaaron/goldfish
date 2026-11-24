@@ -76,10 +76,30 @@ static void set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
     cmd(0x2C);
 }
 
+static bool flipped;
+
+void display_set_flipped(bool f) {
+    if (f == flipped) return;
+    flipped = f;
+    lv_obj_invalidate(lv_screen_active());
+}
+
+bool display_flipped() { return flipped; }
+
 static void flush_cb(lv_display_t *disp, const lv_area_t *a, uint8_t *px) {
     uint32_t n = lv_area_get_size(a);
     lv_draw_sw_rgb565_swap(px, n);     // panel wants big-endian RGB565
-    set_window(a->x1, a->y1, a->x2, a->y2);
+    if (flipped) {
+        // Turning a packed block by 180° is reversing its pixels; the block
+        // itself moves to the mirrored spot on the panel.
+        uint16_t *p = (uint16_t *)px;
+        for (uint32_t i = 0, j = n - 1; i < j; i++, j--) {
+            uint16_t t = p[i]; p[i] = p[j]; p[j] = t;
+        }
+        set_window(LCD_W - 1 - a->x2, LCD_H - 1 - a->y2, LCD_W - 1 - a->x1, LCD_H - 1 - a->y1);
+    } else {
+        set_window(a->x1, a->y1, a->x2, a->y2);
+    }
     data(px, n * 2);
     lv_display_flush_ready(disp);
 }
