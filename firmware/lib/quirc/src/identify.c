@@ -29,6 +29,18 @@
  * Linear algebra routines
  */
 
+/* Computed points (perspective_map, line_intersect) stay within +/- this:
+ * differences of two fit 15 bits and products of two differences 29, so the
+ * int arithmetic on them can't overflow.
+ */
+#define QUIRC_COORD_LIMIT 8192
+
+static int clamp_coord(int v)
+{
+	return v < -QUIRC_COORD_LIMIT ? -QUIRC_COORD_LIMIT :
+	       v > QUIRC_COORD_LIMIT ? QUIRC_COORD_LIMIT : v;
+}
+
 static int line_intersect(const struct quirc_point *p0,
 			  const struct quirc_point *p1,
 			  const struct quirc_point *q0,
@@ -60,8 +72,11 @@ static int line_intersect(const struct quirc_point *p0,
 	if (!det)
 		return 0;
 
-	r->x = (d * e - b * f) / det;
-	r->y = (-c * e + a * f) / det;
+	/* Nearly parallel lines (det of +/-1) put the intersection far
+	 * outside the image, where products of it overflow later.
+	 */
+	r->x = clamp_coord((d * e - b * f) / det);
+	r->y = clamp_coord((-c * e + a * f) / det);
 
 	return 1;
 }
@@ -96,12 +111,6 @@ static void perspective_setup(quirc_float_t *c,
 	c[7] = (-x2*y3 + x1*y3 + x3*y2 + x0*(y1-y2) - x3*y1 + (x2-x1)*y0) *
 		hden;
 }
-
-/* Mapped points stay within +/- this: differences of two fit 15 bits and
- * products of two differences 29, so the int arithmetic on them can't
- * overflow.
- */
-#define QUIRC_COORD_LIMIT 8192
 
 static void perspective_map(const quirc_float_t *c,
 			    quirc_float_t u, quirc_float_t v, struct quirc_point *ret)
