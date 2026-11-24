@@ -127,15 +127,17 @@ like the others, not forced to fit the checksum, since a checksum that doesn't
 match is how a misread word further up shows; if it doesn't fit (or couldn't be
 read) while all other words are known, its screen offers the word that does
 fit, read again from its picture among only those. Scan seed has a "Written
-words instead?" link for anyone who points the QR scanner at paper. On 384
-words in 18 phone and web photos (demo seeds) at 1000 pixels: 67% read, 4
-wrong (letter-box cards and tiny photos), the rest left to fix; real text that isn't a seed word is sometimes read
-as one. The simulator does as the board does, the image file fitted into 240x180
-and 480x360. The board finds them on what its
+words instead?" link for anyone who points the QR scanner at paper. The
+reader's own test (`handwriting/`, 384 words in 18 phone and web photos of demo
+seeds, at 1000 pixels) reads 67%, 4 wrong (letter-box cards and tiny photos),
+the rest left to fix; real text that isn't a seed word is sometimes read as
+one. The device sees a page at much less than that (below), and reads fewer:
+the simulator, which does as the board does (the image file fitted into
+240x180 and 480x360), reads 15 of the 24 words on its demo page. The board finds them on what its
 preview shows (the middle 240x180 of each frame; the rows above and below were
 never on screen), then switches the camera to 480x640 and takes that view in
-bands of rows (it can't hold a whole one), as few as fit in about
-96 KB, keeping only each word's strip; the strips go where the first picture
+bands of rows (it can't hold a whole one), as few as fit in the heap (up to
+96 KB), keeping only each word's strip; the strips go where the first picture
 was. On the board this is untested: the band capture, its timing and the
 reading speed are unmeasured.
 

@@ -1881,6 +1881,8 @@ static void page_tick(lv_timer_t *t) {
         return;
     }
     if (read_i < ncands) {
+        // preview_image() took the reader's memory back: say so, not a list of unread words
+        if (!word_reader_holds(preview_buf)) { page_fail("Reading stopped", "Hold still and try again"); return; }
         WordResult r;
         cands[read_i].ok = word_reader_read(page_strip_buf, nullptr, &r);
         cands[read_i].word = int16_t(r.word);

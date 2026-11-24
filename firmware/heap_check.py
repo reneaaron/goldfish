@@ -12,8 +12,13 @@ Import("env")  # noqa: F821
 
 
 def budget(name):
-    text = open(os.path.join(env["PROJECT_DIR"], "include", "heap_budget.h")).read()  # noqa: F821
-    return int(re.search(r"#define %s \((\d+) \* 1024\)" % name, text).group(1)) * 1024
+    """The value of a #define in include/heap_budget.h: bytes, or (N * 1024)."""
+    path = os.path.join(env["PROJECT_DIR"], "include", "heap_budget.h")  # noqa: F821
+    m = re.search(r"^#define %s\s+\(?\s*(\d+)\s*(?:\*\s*(\d+)\s*)?\)?\s*$" % name, open(path).read(), re.M)
+    if not m:
+        print("Error: %s in %s isn't a number of bytes or (N * 1024)" % (name, path))
+        env.Exit(1)  # noqa: F821
+    return int(m.group(1)) * int(m.group(2) or 1)
 
 
 def check(target, source, env):

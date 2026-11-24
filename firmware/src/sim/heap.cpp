@@ -95,8 +95,9 @@ extern "C" void *__wrap_realloc(void *p, size_t n) {
     Hdr *h = (Hdr *)p - 1;
     size_t want = round_up(n);
     if (want <= h->size) { split(h, want); return p; }   // shrink in place, the rest freed
-    merge_next(h);                                        // grow in place if the next block is free
-    if (want <= h->size) { split(h, want); return p; }
+    size_t room = h->size;                                // grow in place if the free blocks after it make room
+    for (Hdr *b = next(h); in_arena_hdr(b) && !b->used && room < want; b = next(b)) room += sizeof(Hdr) + b->size;
+    if (want <= room) { merge_next(h); split(h, want); return p; }   // (else h stays as it was)
     void *q = __wrap_malloc(n);
     if (!q) return nullptr;
     memcpy(q, p, h->size);
