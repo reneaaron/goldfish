@@ -133,6 +133,19 @@ void test_unsupported() {
     TEST_ASSERT_FALSE(multisig_loaded());
 }
 
+// Keys without [fingerprint/path]: refused, with their own reason. Ours with
+// fingerprint 00000000 can't be found; a cosigner's is no problem.
+void test_no_origin() {
+    std::string d = no_checksum();
+    std::string bare = d;
+    size_t at = bare.find("[03cd0a2b/48h/1h/0h/2h]");
+    bare.erase(at, strlen("[03cd0a2b/48h/1h/0h/2h]"));
+    TEST_ASSERT_EQUAL(MS_NO_ORIGIN, load(bare));
+    TEST_ASSERT_EQUAL(MS_NO_ORIGIN, load(replace_all(d, "[0fb882ff/", "[00000000/")));
+    TEST_ASSERT_FALSE(multisig_loaded());
+    TEST_ASSERT_EQUAL(MS_OK, load(replace_all(d, "[03cd0a2b/", "[00000000/")));
+}
+
 void test_not_ours() {
     SeedEntropy e;
     memset(&e, 0, sizeof(e));
@@ -220,6 +233,7 @@ int main() {
     RUN_TEST(test_bad_checksum);
     RUN_TEST(test_not_descriptor);
     RUN_TEST(test_unsupported);
+    RUN_TEST(test_no_origin);
     RUN_TEST(test_not_ours);
     RUN_TEST(test_our_fingerprint_on_another_key);
     RUN_TEST(test_same_key_twice);

@@ -17,7 +17,8 @@ enum MsResult {
     MS_OK = 0,
     MS_NOT_DESCRIPTOR,    // not an output descriptor at all
     MS_BAD,               // a descriptor, but malformed or its checksum is wrong
-    MS_UNSUPPORTED,       // valid, but not wsh(sortedmulti(...)) with key origins
+    MS_UNSUPPORTED,       // valid, but not wsh(sortedmulti(...))
+    MS_NO_ORIGIN,         // a key without [fingerprint/path], or with fingerprint 00000000
     MS_NOT_OURS,          // the loaded seed is not one of its keys
 };
 

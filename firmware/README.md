@@ -70,7 +70,8 @@ The seed lives in RAM only: Forget seed or unplugging removes it.
    (average and slowest).
    A PSBT can be up to 8 KB, about 15 inputs of a 2-of-3 multisig or 10 of
    a 3-of-5 (fewer when the wallet app adds the full previous transactions);
-   a bigger one says "Transaction too big".
+   a bigger one is refused as soon as its first part is read, with what to do:
+   select fewer coins in the wallet app to split it into smaller transactions.
 
 Brightness: on any screen, drag down from the top edge for a panel with a
 brightness slider (1 to 100%, finer at the dim end); tap below it or drag it
@@ -200,7 +201,13 @@ gives for our fingerprint (BIP84 paths for single-sig); a multisig input's
 witness script must also be the descriptor's. A transaction without outputs,
 an input that is already finalized, a full previous transaction that isn't the
 one spent or disagrees with the witness UTXO, and a redeem script (or a witness
-script on a single-sig input) are refused as invalid. After signing, every
+script on a single-sig input) are refused as invalid. More than 8 outputs are
+refused too, since review couldn't show them all. When no key path of an input
+is ours, the screen tells two causes apart: another seed's fingerprint ("for a
+different wallet"), or fingerprint `00000000` / no key path at all, which is
+what wallet apps write when they hold the key as a bare xpub without its
+origin; that one asks to add the key again from Connect wallet, which gives
+`[fingerprint/path]`. Either way nothing is signed. After signing, every
 signature of ours is checked against the reviewed amounts and our own scripts,
 and nothing is shown if one doesn't match.
 High fees are flagged, as
@@ -237,6 +244,9 @@ can name any cosigner keys next to ours:
 - The descriptor is kept in RAM only and belongs to the key it was checked
   with: it isn't used with another seed or another passphrase, and wiping the
   seed or unplugging drops it, so it is scanned again next time
+- A descriptor whose keys lack `[fingerprint/path]`, or whose fingerprints
+  are `00000000` where ours should be, says "Key fingerprint missing": the
+  wallet app has to add the keys again with their origin
 
 Not supported: `multi` (unsorted), `sh(wsh(...))` and `sh(...)` multisig,
 taproot, miniscript, keys without an origin, Specter's and Coldcard's wallet
@@ -313,14 +323,17 @@ pio test -e test
 - Multisig descriptor: SeedSigner's native segwit 2-of-3 test wallet, with
   addresses and a witness script worked out by embit; the three spellings of
   the chains, a `crypto-output` UR made with urtypes (also cut short at every
-  byte) and one shown by Sparrow 2.5.2 (keys without children), bad checksum, unsupported forms, a seed that isn't a cosigner, our
+  byte) and one shown by Sparrow 2.5.2 (keys without children), bad checksum, unsupported forms, keys without origin or with fingerprint
+  `00000000`, a seed that isn't a cosigner, our
   fingerprint on someone else's key, and a changed passphrase
 - Multisig PSBT: that wallet's test input with change, a self-transfer and a
   payment; our signature checked against the transaction and against the hash
   embit signed; a cosigner's signature kept; no descriptor, a 3-of-3 of the
   same keys, and change that pays another script
 - PSBT review: SeedSigner's single-sig testnet vector (₿25,000 in, ₿24,857 out,
-  ₿143 fee), signing, wrong seed and garbage input; inputs refused for an input
+  ₿143 fee), signing, wrong seed and garbage input; inputs with fingerprint
+  `00000000` or no key path told apart from another seed's (single-sig and
+  multisig); more than 8 outputs; inputs refused for an input
   script that isn't our key's, a second unverified key path with our
   fingerprint, no outputs, a finalized input, a mismatched previous
   transaction, extra redeem or witness scripts, and a multisig witness script
@@ -372,16 +385,19 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
   change reviewed and signed; a 24-word seed typed in; SeedQR Standard and Compact; the QR card check;
   an animated PSBT joined mid-cycle (fountain parts only) both ways and a base64 frame; the signed QR read in full screen;
   another seed's transaction, another wallet's address, and fake change;
+  a transaction whose key has fingerprint `00000000` or no key path; 9 outputs;
   a passphrase typed on the keyboard giving the key and signatures embit
   derives from the same words and passphrase, and removed again
 - Multisig: Connect wallet's four keys (single-sig and multisig, mainnet and
   testnet) against embit; a 2-of-3 around the linked multisig key, refused until its descriptor is
   scanned and confirmed, then signed and finalized with a cosigner; every
   spelling of the descriptor at both scanners; a 3-of-5 after a cosigner has
-  signed; wallets the seed isn't in, a forged fingerprint, `multi`, a wrong
+  signed; wallets the seed isn't in, a forged fingerprint, `multi`, keys
+  without origin or with fingerprint `00000000`, a wrong
   checksum; change to another multisig; the descriptor gone after a wipe;
   a 15-input transaction through a camera that reads each frame twice and
-  misses three in four; a 20-input one, past 8 KB, refused as too big
+  misses three in four; a 20-input one, past 8 KB, refused as too big with
+  what to do
 - Brightness: the panel opens from a drag at the top edge (also one that
   starts on the back button, which isn't pressed), not from one further down,
   and closes from a tap below it (which doesn't reach the screen under it) or

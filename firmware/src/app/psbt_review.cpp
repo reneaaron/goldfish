@@ -32,7 +32,10 @@ const char *psbt_error_text(PsbtError e) {
         case PSBT_OK: return "";
         case PSBT_PARSE_FAILED: return "This isn't a valid transaction. Export it again from your wallet.";
         case PSBT_NOT_OUR_SEED: return "This transaction is for a different wallet. Scan the seed QR it belongs to.";
+        case PSBT_NO_FINGERPRINT: return "Your wallet app has your key without its fingerprint. Add it again from Connect wallet.";
         case PSBT_UNSUPPORTED: return "Only native SegWit wallets are supported for now, single-key or multisig.";
+        case PSBT_TOO_MANY_OUTPUTS: return "It has over 8 outputs, too many for this screen. Pay fewer addresses at once.";
+        case PSBT_TOO_BIG: return "It's over 8 KB. Select fewer coins in your wallet app to split it into smaller ones.";
         case PSBT_MISSING_AMOUNTS: return "Your wallet left out the input amounts, so the fee can't be checked.";
         case PSBT_SUSPICIOUS: return "An address claims to be your change but isn't. The transaction may have been tampered with.";
         case PSBT_NEEDS_DESCRIPTOR: return "A multisig transaction needs its wallet's descriptor QR.";
@@ -71,6 +74,21 @@ static size_t find_claims(const struct wally_map *keypaths, const uint8_t fp[4],
         n++;
     }
     return n;
+}
+
+// Why an input has no claim of ours: a wallet app that has our key without its
+// origin (a bare xpub) leaves the key path out, or writes fingerprint 00000000.
+// Any other fingerprint is another seed's.
+static PsbtError why_not_ours(const struct wally_map *keypaths) {
+    static const uint8_t none[4] = {0, 0, 0, 0};
+    if (keypaths->num_items == 0) return PSBT_NO_FINGERPRINT;
+    for (size_t k = 0; k < keypaths->num_items; k++) {
+        uint8_t their[4];
+        if (wally_map_keypath_get_item_fingerprint(keypaths, k, their, sizeof(their)) == WALLY_OK &&
+            memcmp(their, none, 4) == 0)
+            return PSBT_NO_FINGERPRINT;
+    }
+    return PSBT_NOT_OUR_SEED;
 }
 
 static void format_path(const Claim &c, char *out, size_t cap) {
@@ -212,7 +230,7 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
         const struct wally_psbt_input &in = psbt->inputs[i];
         Claim claims[MAX_CLAIMS];
         const size_t n_claims = find_claims(&in.keypaths, fp, claims);
-        if (n_claims == 0) return r->error = PSBT_NOT_OUR_SEED;
+        if (n_claims == 0) return r->error = why_not_ours(&in.keypaths);
         if (n_claims > MAX_CLAIMS) return r->error = PSBT_PARSE_FAILED;
         if (claims[0].path_len >= 2) r->testnet = (claims[0].path[1] & 0x7FFFFFFF) == 1;
 
@@ -266,7 +284,7 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
 
     // Outputs: a transaction without any isn't valid, and can't be signed.
     if (psbt->num_outputs == 0) return r->error = PSBT_PARSE_FAILED;
-    if (psbt->num_outputs > PSBT_MAX_OUTPUTS) return r->error = PSBT_UNSUPPORTED;
+    if (psbt->num_outputs > PSBT_MAX_OUTPUTS) return r->error = PSBT_TOO_MANY_OUTPUTS;
     r->n_outputs = int(psbt->num_outputs);
     uint64_t out_total = 0, out_vsize = 0;
     for (size_t i = 0; i < psbt->num_outputs; i++) {

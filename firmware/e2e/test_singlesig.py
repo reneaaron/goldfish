@@ -131,9 +131,38 @@ def test_transaction_of_another_seed_is_refused(dev):
     dev.tap("Scan QR")
     dev.scan_animated(psbt_parts(psbt))
     assert dev.screen == "PSBT_ERROR"
-    assert "Can't sign this" in dev.text()
+    assert "Can't sign this" in dev.text() and "different wallet" in dev.text()
     dev.tap("Back to wallet")
     assert dev.screen == "WALLET"
+
+
+def test_key_without_fingerprint_is_explained(dev):
+    """A wallet app that has the key as a bare xpub writes fingerprint
+    00000000 (or no key path): refused, but the screen says why and what to do,
+    instead of "different wallet"."""
+    load_by_words(dev, MNEMONIC)
+    bare = Wallet.singlesig(Seed(MNEMONIC).key("84h/1h/0h").replace(Seed(MNEMONIC).fingerprint, "00000000"))
+    psbt = bare.create_psbt([bare.fund(0, 50_000)], [(stranger_address(), 20_000)], fee=300)
+    dev.tap("Scan QR")
+    dev.scan_animated(psbt_parts(psbt))
+    assert dev.screen == "PSBT_ERROR", dev.text()
+    assert "without its fingerprint" in dev.text() and "Connect wallet" in dev.text()
+    dev.tap("Back to wallet")
+
+    for scope in psbt.inputs:
+        scope.bip32_derivations.clear()
+    dev.tap("Scan QR")
+    dev.scan_animated(psbt_parts(psbt))
+    assert dev.screen == "PSBT_ERROR" and "without its fingerprint" in dev.text(), dev.text()
+
+
+def test_too_many_outputs_says_so(dev):
+    wallet = linked_wallet(dev)
+    psbt = wallet.create_psbt([wallet.fund(0, 500_000)], [(stranger_address(i), 10_000) for i in range(9)], fee=500)
+    dev.tap("Scan QR")
+    dev.scan_animated(psbt_parts(psbt))
+    assert dev.screen == "PSBT_ERROR", dev.text()
+    assert "over 8 outputs" in dev.text()
 
 
 def test_fake_change_blocks_signing(dev):
