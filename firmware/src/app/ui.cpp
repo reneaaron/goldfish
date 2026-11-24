@@ -2915,7 +2915,7 @@ static void build_psbt_sign() {
     }
     if (review.fee_level != FEE_OK) {
         char warn[64];
-        fee_warning(warn, sizeof(warn), send);
+        fee_warning(warn, sizeof(warn), psbt_fee_base(review));
         lv_obj_t *w = text(scr, warn, &inter_13, very_high ? RED : AMBER);
         lv_obj_align_to(w, c, LV_ALIGN_OUT_BOTTOM_MID, 0, 10);
     }

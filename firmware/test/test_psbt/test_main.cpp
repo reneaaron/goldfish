@@ -44,7 +44,7 @@ void test_review_matches_seedsigner() {
     TEST_ASSERT_EQUAL_UINT64(24857, r.spend);     // SeedSigner: spend_amount
     TEST_ASSERT_EQUAL_UINT64(0, r.change);
     TEST_ASSERT_EQUAL_UINT64(143, r.fee);
-    TEST_ASSERT_EQUAL_UINT32(2, r.fee_rate);       // 143 / 141 vB, rounded up
+    TEST_ASSERT_EQUAL_UINT32(2, r.fee_rate);       // 143 / 141 vB (two P2WPKH outputs), rounded up
     TEST_ASSERT_EQUAL(FEE_OK, r.fee_level);
     TEST_ASSERT_EQUAL(2, r.n_outputs);
 }
@@ -86,10 +86,25 @@ void test_wrong_seed_rejected() {
 }
 
 void test_fee_rate() {
-    TEST_ASSERT_EQUAL_UINT32(0, psbt_fee_rate(0, 1, 2));
-    TEST_ASSERT_EQUAL_UINT32(1, psbt_fee_rate(141, 1, 2));          // 11 + 68 + 62 = 141 vB
-    TEST_ASSERT_EQUAL_UINT32(2, psbt_fee_rate(142, 1, 2));          // rounds up
-    TEST_ASSERT_EQUAL_UINT32(10, psbt_fee_rate(2090, 2, 2));        // 209 vB
+    TEST_ASSERT_EQUAL_UINT32(0, psbt_fee_rate(0, 141));
+    TEST_ASSERT_EQUAL_UINT32(1, psbt_fee_rate(141, 141));
+    TEST_ASSERT_EQUAL_UINT32(2, psbt_fee_rate(142, 141));           // rounds up
+    TEST_ASSERT_EQUAL_UINT32(10, psbt_fee_rate(2090, 209));
+    TEST_ASSERT_EQUAL_UINT32(68, psbt_input_vsize(0, 0));           // P2WPKH
+    TEST_ASSERT_EQUAL_UINT32(105, psbt_input_vsize(2, 3));          // 41 + (2 + 146 + 1 + 105) / 4, rounded up
+    TEST_ASSERT_EQUAL_UINT32(445, psbt_input_vsize(15, 15));        // 513-byte script: 3-byte length
+}
+
+// A consolidation into a change address is judged against the change, not 0.
+void test_fee_base() {
+    PsbtReview r = {};
+    r.change = 5000;
+    TEST_ASSERT_EQUAL_UINT64(5000, psbt_fee_base(r));
+    TEST_ASSERT_EQUAL(FEE_OK, psbt_fee_level(200, psbt_fee_base(r), 1));
+    r.self = 3000;
+    TEST_ASSERT_EQUAL_UINT64(3000, psbt_fee_base(r));
+    r.spend = 1000;
+    TEST_ASSERT_EQUAL_UINT64(1000, psbt_fee_base(r));
 }
 
 void test_fee_level() {
@@ -357,6 +372,7 @@ void test_multisig_review() {
     TEST_ASSERT_EQUAL_UINT64(100000, r.self);
     TEST_ASSERT_EQUAL_UINT64(250000, r.spend);
     TEST_ASSERT_EQUAL_UINT64(1000, r.fee);
+    TEST_ASSERT_EQUAL_UINT32(5, r.fee_rate);   // ~240 vB: a 2-of-3 input is 105 vB, not P2WPKH's 68
     TEST_ASSERT_EQUAL(3, r.n_outputs);
     TEST_ASSERT_TRUE(r.outputs[0].is_change);
     TEST_ASSERT_EQUAL_STRING(MS_ADDR_CHANGE_4, r.outputs[0].address);
@@ -686,5 +702,6 @@ int main() {
     RUN_TEST(test_bogus_existing_signature_not_signed);
     RUN_TEST(test_fee_rate);
     RUN_TEST(test_fee_level);
+    RUN_TEST(test_fee_base);
     return UNITY_END();
 }

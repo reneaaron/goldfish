@@ -74,6 +74,11 @@ const char *psbt_error_text(PsbtError e);
 // A very high fee is also how a tampered PSBT would siphon funds. Neither
 // level blocks signing: sweeping dust can legitimately cost that much.
 FeeLevel psbt_fee_level(uint64_t fee, uint64_t sent, uint32_t rate);
-// Fee rate in ₿/vB, rounded up, for P2WPKH inputs and outputs assumed P2WPKH
-// (taproot outputs are 12 vB larger, so the rate errs a little high).
-uint32_t psbt_fee_rate(uint64_t fee, int n_inputs, int n_outputs);
+// What a fee is judged against: sent to others, else to our own receive
+// addresses, else to change (a consolidation into a change address).
+uint64_t psbt_fee_base(const PsbtReview &r);
+// Signed size of one input in vB: P2WPKH when m is 0, else wsh(sortedmulti)
+// m-of-n. Signatures are counted at 72 bytes, so the size errs a little high.
+uint32_t psbt_input_vsize(int m, int n);
+// Fee rate in ₿/vB for a transaction of `vsize` vB, rounded up.
+uint32_t psbt_fee_rate(uint64_t fee, uint64_t vsize);
