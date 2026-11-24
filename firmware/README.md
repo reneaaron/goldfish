@@ -149,8 +149,19 @@ against the wallet app. An empty passphrase removes it. The
 device keeps only the derived key, not the passphrase; both go with Forget seed
 or unplugging. Signing, Verify address, Connect wallet and Child seed
 then all use the passphrase wallet. Back up as QR still writes the seed alone:
-the passphrase is never part of a backup. Characters outside ASCII and a
-passphrase QR aren't supported.
+the passphrase is never part of the seed's card. Characters outside ASCII aren't
+supported.
+
+The keyboard's QR key makes a passphrase card the way a seed's card is made:
+with up to 32 characters typed, it shows them as a byte-mode QR (ECC L, 21×21
+up to 17 characters, 25×25 up to 32, the same blank cards as a SeedQR), one
+5×5 part at a time, and the card check is required: the passphrase only applies
+once the card scans back the same. With the field empty, the QR key scans a
+passphrase card (any QR of printable ASCII, up to 64 characters) into the
+field, to check and confirm with OK. Scan seed tells a passphrase card apart
+from a Compact SeedQR of the same length (16 or 32 bytes) by it being all
+printable ASCII, which random entropy is only about once in 10⁷; such a seed
+still loads from its words or a Standard SeedQR.
 
 New seed is a tool: it makes a 12-word seed and its backup, but
 doesn't load it. To use the seed, load it like any other (Scan QR or Enter
@@ -373,7 +384,9 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
   an animated PSBT joined mid-cycle (fountain parts only) both ways and a base64 frame; the signed QR read in full screen;
   another seed's transaction, another wallet's address, and fake change;
   a passphrase typed on the keyboard giving the key and signatures embit
-  derives from the same words and passphrase, and removed again
+  derives from the same words and passphrase, and removed again; a passphrase card
+  made, refused with another passphrase, checked and applied, then scanned into the
+  field; a 16-character passphrase card at Scan seed
 - Multisig: Connect wallet's four keys (single-sig and multisig, mainnet and
   testnet) against embit; a 2-of-3 around the linked multisig key, refused until its descriptor is
   scanned and confirmed, then signed and finalized with a cosigner; every

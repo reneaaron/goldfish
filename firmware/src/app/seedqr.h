@@ -16,6 +16,8 @@ enum SeedQrResult {
     SEEDQR_NOT_SEEDQR,      // wrong length or characters: probably some other QR
     SEEDQR_BAD_WORD_INDEX,  // a 4-digit group above 2047
     SEEDQR_BAD_CHECKSUM,    // Standard SeedQR whose last word doesn't match
+    SEEDQR_TEXT,            // 16/32 bytes, all printable ASCII: a passphrase card, not
+                            // Compact entropy (random bytes are that only ~1 in 10^7)
 };
 
 struct SeedEntropy {

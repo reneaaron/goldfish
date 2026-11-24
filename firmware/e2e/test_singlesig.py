@@ -307,6 +307,68 @@ def test_passphrase_gives_its_own_wallet(dev):
     assert fingerprint_on_screen(dev) == Seed(MNEMONIC).fingerprint
 
 
+def type_passphrase(dev, text):
+    for c in text:
+        if c.isupper() and not dev.has_key(c):
+            dev.key("ABC")
+        elif c.islower() and not dev.has_key(c):
+            dev.key("abc")
+        dev.key("space" if c == " " else c)
+
+
+def test_passphrase_card_is_copied_checked_and_scanned(dev):
+    """A passphrase typed on the signer becomes a card like a seed's QR card:
+    it only applies once the card scans back, and a passphrase card scanned
+    from the empty field fills it in. Neither scanner takes it for a seed."""
+    with_pass = Seed(MNEMONIC, "TREZOR")
+    load_by_words(dev, MNEMONIC)
+    dev.tap("Wallet options")
+    dev.tap("Passphrase")
+    type_passphrase(dev, "TREZOR")
+    dev.key("{QR}")
+    assert dev.screen == "BACKUP_WARNING", dev.text()
+    dev.tap("I understand")
+    card = dev.read_qr(raw=True)
+    assert card == b"TREZOR"
+    dev.tap("Start copying")
+    while "Check card" not in dev.texts():
+        dev.tap("Next")
+    assert "Done" not in dev.texts()           # the only copy: checking is required
+    dev.tap("Check card")
+    dev.scan("TREZOR!")
+    assert dev.screen == "BACKUP_SCAN" and "Wrong card" in dev.text()
+    dev.scan("TREZOR")
+    dev.wait_for(lambda: dev.screen == "WALLET")
+    assert "Card checked" in dev.text() and "PASSPHRASE" in dev.text()
+    assert fingerprint_on_screen(dev) == with_pass.fingerprint
+
+    # Back to the seed alone, then the card scanned into the empty field.
+    dev.tap("Wallet options")
+    dev.tap("Passphrase")
+    dev.key("OK")
+    assert fingerprint_on_screen(dev) == Seed(MNEMONIC).fingerprint
+    dev.tap("Wallet options")
+    dev.tap("Passphrase")
+    dev.key("{QR}")
+    assert dev.screen == "PASSPHRASE_SCAN", dev.text()
+    dev.scan(seedqr(MNEMONIC, compact=True))
+    assert "That's a seed" in dev.text()
+    dev.scan("TREZOR")
+    assert dev.screen == "PASSPHRASE", dev.text()
+    assert "Read from the card" in dev.text()
+    dev.key("OK")
+    assert dev.screen == "WALLET", dev.text()
+    assert fingerprint_on_screen(dev) == with_pass.fingerprint
+
+
+def test_passphrase_card_of_16_is_not_a_seed(dev):
+    """16 characters are as long as a Compact SeedQR: Scan seed still says
+    it's a passphrase card instead of loading some other seed."""
+    dev.tap("Scan")
+    dev.scan("correct horse ba")
+    assert dev.screen == "SCAN_SEED" and "passphrase card" in dev.text()
+
+
 def test_passphrase_layer_keys_type_nothing(dev):
     """A layer key swaps the keys under the finger on touch-down; lifting the
     finger then types nothing, whatever key now sits where it was."""

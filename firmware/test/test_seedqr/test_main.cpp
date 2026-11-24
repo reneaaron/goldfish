@@ -65,6 +65,14 @@ void test_bad_index() {
     TEST_ASSERT_EQUAL(SEEDQR_BAD_WORD_INDEX, seedqr_decode((const uint8_t *)s, 48, &e));
 }
 
+// A passphrase card of 16 or 32 characters isn't taken for Compact entropy.
+void test_text_is_not_compact() {
+    SeedEntropy e;
+    TEST_ASSERT_EQUAL(SEEDQR_TEXT, seedqr_decode((const uint8_t *)"correct horse ba", 16, &e));
+    TEST_ASSERT_EQUAL(0, e.len);
+    TEST_ASSERT_EQUAL(SEEDQR_TEXT, seedqr_decode((const uint8_t *)"0123456789012345", 16, &e));
+}
+
 void test_not_seedqr() {
     const char *url = "https://example.com";
     SeedEntropy e;
@@ -79,5 +87,6 @@ int main() {
     RUN_TEST(test_bad_checksum);
     RUN_TEST(test_bad_index);
     RUN_TEST(test_not_seedqr);
+    RUN_TEST(test_text_is_not_compact);
     return UNITY_END();
 }
