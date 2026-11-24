@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build the fuzzers with GCC + ASan/UBSan and the coverage driver in driver.cpp.
 # Needs libwally fetched once:  (cd .. && pio pkg install -e test)
-# Usage: fuzz/build.sh            -> fuzz/out/fuzz_{psbt,ur,seedqr,address,qr}
+# Usage: fuzz/build.sh            -> fuzz/out/fuzz_{psbt,ur,seedqr,address,qr,multisig}
 set -euo pipefail
 cd "$(dirname "$0")"
 FW=..
@@ -12,7 +12,7 @@ mkdir -p $OUT/obj
 
 CXX=${CXX:-g++}
 CC=${CC:-gcc}
-SAN="-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer"
+SAN="-fsanitize=address,undefined,float-cast-overflow -fno-sanitize-recover=undefined,float-cast-overflow -fno-omit-frame-pointer"
 COV="-fsanitize-coverage=trace-pc"
 INC="-I$FW/include -I$WALLY/include -I$FW/src/app -I$FW/lib/quirc/src"
 DEF="-DWALLY_ABI_NO_ELEMENTS"
@@ -61,3 +61,4 @@ link fuzz_ur      fuzz_ur.cpp
 link fuzz_seedqr  fuzz_seedqr.cpp  "$ur"
 link fuzz_address fuzz_address.cpp "$ur"
 link fuzz_qr      fuzz_qr.cpp      "$ur"
+link fuzz_multisig fuzz_multisig.cpp "$ur"

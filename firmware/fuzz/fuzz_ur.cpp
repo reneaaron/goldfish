@@ -61,6 +61,8 @@ static void mode_roundtrip(const uint8_t *d, size_t n) {
     size_t frag = 10 + d[0] % 200;
     uint8_t order_seed = d[1];
     d += 2; n -= 2;
+    // the CBOR byte string (up to 3 head bytes here) must fit the decoder
+    if (n + 3 > UR_MAX_MESSAGE) return;
     size_t count = ur_part_count(n, frag);
     if (count == 0 || count > UR_MAX_FRAGMENTS) return;
     std::vector<uint32_t> order(count);

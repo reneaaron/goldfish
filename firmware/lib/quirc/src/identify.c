@@ -97,12 +97,29 @@ static void perspective_setup(quirc_float_t *c,
 		hden;
 }
 
+/* Mapped points stay within +/- this: differences of two fit 15 bits and
+ * products of two differences 29, so the int arithmetic on them can't
+ * overflow.
+ */
+#define QUIRC_COORD_LIMIT 8192
+
 static void perspective_map(const quirc_float_t *c,
 			    quirc_float_t u, quirc_float_t v, struct quirc_point *ret)
 {
 	quirc_float_t den = (quirc_float_t)1 / (c[6]*u + c[7]*v + (quirc_float_t)1.0);
 	quirc_float_t x = (c[0]*u + c[1]*v + c[2]) * den;
 	quirc_float_t y = (c[3]*u + c[4]*v + c[5]) * den;
+
+	/* A degenerate transform (near-zero denominator, from a crafted
+	 * image) gives huge, infinite or NaN coordinates: converting those to
+	 * int is undefined, and products of them overflow later (size
+	 * estimates, orientation tests). Clamp far outside any image instead;
+	 * NaN goes to -QUIRC_COORD_LIMIT.
+	 */
+	if (!(x > -QUIRC_COORD_LIMIT)) x = -QUIRC_COORD_LIMIT;
+	if (!(x < QUIRC_COORD_LIMIT)) x = QUIRC_COORD_LIMIT;
+	if (!(y > -QUIRC_COORD_LIMIT)) y = -QUIRC_COORD_LIMIT;
+	if (!(y < QUIRC_COORD_LIMIT)) y = QUIRC_COORD_LIMIT;
 
 	ret->x = (int) rint(x);
 	ret->y = (int) rint(y);
@@ -613,7 +630,7 @@ static void find_alignment_pattern(struct quirc *q, int index)
 	 * radius at the image size.
 	 */
 	const int max_step = (q->w > q->h ? q->w : q->h) + 1;
-	while (step_size * step_size < size_estimate * 100 && step_size <= max_step) {
+	while (step_size * step_size / 100 < size_estimate && step_size <= max_step) {
 		static const int dx_map[] = {1, 0, -1, 0};
 		static const int dy_map[] = {0, -1, 0, 1};
 		int i;
@@ -773,7 +790,7 @@ static int fitness_all(const struct quirc *q, int index)
 {
 	const struct quirc_grid *qr = &q->grids[index];
 	int version = (qr->grid_size - 17) / 4;
-	const struct quirc_version_info *info = &quirc_version_db[version];
+	const struct quirc_version_info *info;
 	int score = 0;
 	int i, j;
 	int ap_count;
@@ -793,6 +810,7 @@ static int fitness_all(const struct quirc *q, int index)
 
 	if (version < 0 || version > QUIRC_MAX_VERSION)
 		return score;
+	info = &quirc_version_db[version];   /* only once version is in range */
 
 	/* Check alignment patterns */
 	ap_count = 0;
