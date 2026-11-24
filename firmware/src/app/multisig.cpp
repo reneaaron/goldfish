@@ -112,11 +112,18 @@ static MsResult inspect(const struct wally_descriptor *d, MsInfo *out, uint32_t 
     uint8_t fp[4];
     wallet_fingerprint(fp);
     char *seen[MS_MAX_KEYS] = {nullptr};
+    static const uint8_t none[4] = {0, 0, 0, 0};
+    bool zero_fp = false, fp_seen = false;   // a key with fingerprint 00000000 / with ours
     MsResult r = MS_OK;
     for (size_t i = 0; i < keys && r == MS_OK; i++) {
         char *child = nullptr;
-        if (wally_descriptor_get_key_origin_fingerprint(d, i, out->fingerprint[i], 4) != WALLY_OK ||
-            wally_descriptor_get_key_child_path_str(d, i, &child) != WALLY_OK ||
+        if (wally_descriptor_get_key_origin_fingerprint(d, i, out->fingerprint[i], 4) != WALLY_OK) {
+            r = MS_NO_ORIGIN;    // a bare xpub: the wallet app doesn't know whose key it is
+            break;
+        }
+        if (memcmp(out->fingerprint[i], none, 4) == 0) zero_fp = true;
+        if (memcmp(out->fingerprint[i], fp, 4) == 0) fp_seen = true;
+        if (wally_descriptor_get_key_child_path_str(d, i, &child) != WALLY_OK ||
             strcmp(child[0] == '/' ? child + 1 : child, "<0;1>/*") != 0 ||
             wally_descriptor_get_key(d, i, &seen[i]) != WALLY_OK)
             r = MS_UNSUPPORTED;
@@ -135,7 +142,9 @@ static MsResult inspect(const struct wally_descriptor *d, MsInfo *out, uint32_t 
     }
     for (char *s : seen)
         if (s) wally_free_string(s);
-    if (r == MS_OK && out->ours < 0) r = MS_NOT_OURS;
+    // Not found, and our fingerprint is nowhere: likely ours is the key whose
+    // origin the wallet app doesn't know.
+    if (r == MS_OK && out->ours < 0) r = zero_fp && !fp_seen ? MS_NO_ORIGIN : MS_NOT_OURS;
     return r;
 }
 
@@ -336,7 +345,8 @@ MsResult multisig_load_ur_output(const uint8_t *cbor, size_t len) {
     for (uint64_t i = 0; i < n; i++) {
         UrKey k;
         if (!ur_hdkey(&c, &k)) return MS_BAD;
-        if (!k.has_fp || !k.path_len) return MS_UNSUPPORTED;
+        if (!k.has_fp) return MS_NO_ORIGIN;
+        if (!k.path_len) return MS_UNSUPPORTED;      // a fingerprint, but no path to find our key at
         bool testnet = k.testnet || (k.path_len >= 2 && k.path[1] == (BIP32_INITIAL_HARDENED_CHILD | 1));
         // The xpub, as BIP32 serializes it.
         uint8_t ser[BIP32_SERIALIZED_LEN], *p = ser;

@@ -412,6 +412,8 @@ static void descriptor_result(MsResult r) {
         ui_goto(UI_MULTISIG);
     } else if (r == MS_NOT_OURS) {
         scan_status("Wrong descriptor", "This seed isn't one of its keys", AMBER);
+    } else if (r == MS_NO_ORIGIN) {
+        scan_status("Key fingerprint missing", "Re-add keys with fingerprints", AMBER);
     } else if (r == MS_UNSUPPORTED) {
         scan_status("Not supported yet", "Only wsh(sortedmulti) multisig", AMBER);
     } else {
@@ -446,8 +448,16 @@ static void handle_ur(QrPayload &p) {
         lv_bar_set_value(scan_bar, ur_decoder_percent(&ur_dec), LV_ANIM_ON);
     } else if (r == UR_WRONG_TYPE) {
         scan_status("Nothing to sign or verify", "Show a transaction or an address", AMBER);
+    } else if (r == UR_TOO_BIG && starts_with_ci(p, "ur:crypto-psbt")) {
+        // No use scanning on: say why on the error screen, with room for what to do.
+        scan_stop();
+        psbt_clear();
+        memset(&review, 0, sizeof(review));
+        review.error = PSBT_TOO_BIG;
+        ur_decoder_reset(&ur_dec);
+        ui_goto(UI_PSBT_ERROR);
     } else if (r == UR_TOO_BIG) {
-        scan_status("Transaction too big", "Spend fewer coins at once", AMBER);
+        scan_status("Too big", "This QR holds more than 8 KB", AMBER);
     }
 }
 
@@ -2862,7 +2872,7 @@ bool ui_swipe_sign() {
     if (psbt_sign() <= 0) { review.error = PSBT_PARSE_FAILED; ui_goto(UI_PSBT_ERROR); return false; }
     signed_len = psbt_serialize(signed_buf, sizeof(signed_buf));
     psbt_clear();
-    if (!signed_len) { review.error = PSBT_UNSUPPORTED; ui_goto(UI_PSBT_ERROR); return false; }
+    if (!signed_len) { review.error = PSBT_TOO_BIG; ui_goto(UI_PSBT_ERROR); return false; }
     ui_goto(UI_PSBT_SIGNED);
     return true;
 }

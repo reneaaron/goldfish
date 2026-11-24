@@ -193,6 +193,20 @@ def test_wallets_we_are_not_in_are_refused(dev):
     # Not sortedmulti.
     dev.scan(two_of_three().descriptor().split("#")[0].replace("sortedmulti", "multi"))
     assert dev.screen == "SCAN" and "Not supported yet" in dev.text()
+    # A cosigner key without [fingerprint/path], as a wallet app has a bare xpub.
+    bare = COSIGNERS[0].key(BIP48).split("]")[1]
+    dev.scan(Wallet.multisig(2, [SIGNER.key(BIP48), bare, COSIGNERS[1].key(BIP48)]).descriptor())
+    assert dev.screen == "SCAN" and "Key fingerprint missing" in dev.text()
+    # Ours with fingerprint 00000000: the signer can't find itself in it.
+    zeroed = SIGNER.key(BIP48).replace(SIGNER.fingerprint, "00000000")
+    dev.scan(Wallet.multisig(2, [zeroed] + [c.key(BIP48) for c in COSIGNERS[:2]]).descriptor())
+    assert dev.screen == "SCAN" and "Key fingerprint missing" in dev.text()
+    # The same as a crypto-output UR: a key's origin without its fingerprint,
+    # and one with a fingerprint but no path (nothing to find our key at).
+    dev.scan(ur_single(*two_of_three().descriptor_ur(no_fingerprint=(1,))))
+    assert dev.screen == "SCAN" and "Key fingerprint missing" in dev.text(), dev.text()
+    dev.scan(ur_single(*two_of_three().descriptor_ur(no_path=(1,))))
+    assert dev.screen == "SCAN" and "Not supported yet" in dev.text(), dev.text()
     # A typo: the checksum catches it.
     good = two_of_three().descriptor()
     dev.scan(good.replace("sortedmulti(2", "sortedmulti(1"))
@@ -271,7 +285,7 @@ def test_big_transaction_through_a_bad_camera(dev):
 
 def test_too_big_transaction_says_so(dev):
     """Past 8 KB the signer can't take a transaction, and tells the user
-    instead of showing nothing."""
+    how to split it instead of showing nothing."""
     wallet = two_of_three()
     psbt = wallet.create_psbt([wallet.fund(i, 100_000) for i in range(20)], [(STRANGER, 1_000_000)], fee=3_000)
     assert len(psbt.serialize()) > 8192
@@ -282,4 +296,7 @@ def test_too_big_transaction_says_so(dev):
     parts = psbt_parts(psbt)
     for _ in range(3):
         dev.scan(next(parts), ms=200)
-    assert dev.screen == "SCAN" and "Transaction too big" in dev.text(), dev.text()
+    assert dev.screen == "PSBT_ERROR", dev.text()
+    assert "over 8 KB" in dev.text() and "fewer coins" in dev.text()
+    dev.tap("Back to wallet")
+    assert dev.screen == "WALLET"

@@ -258,7 +258,7 @@ void test_other_sighash_rejected() {
     edit_psbt([](struct wally_psbt *p) {
         TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_set_input_sighash(p, 0, WALLY_SIGHASH_NONE));
     });
-    TEST_ASSERT_EQUAL(PSBT_UNSUPPORTED, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(PSBT_SIGHASH, psbt_load(raw, raw_len, &r));
     TEST_ASSERT_EQUAL(0, psbt_sign());
 
     setUp();
@@ -266,7 +266,7 @@ void test_other_sighash_rejected() {
         TEST_ASSERT_EQUAL(WALLY_OK,
                           wally_psbt_set_input_sighash(p, 0, WALLY_SIGHASH_ALL | WALLY_SIGHASH_ANYONECANPAY));
     });
-    TEST_ASSERT_EQUAL(PSBT_UNSUPPORTED, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(PSBT_SIGHASH, psbt_load(raw, raw_len, &r));
 
     setUp();                                      // ALL, spelled out, is fine
     edit_psbt([](struct wally_psbt *p) {
@@ -498,6 +498,94 @@ void test_single_sig_with_descriptor_loaded() {
     psbt_clear();
 }
 
+// A wallet app that has our key as a bare xpub, without its origin, writes
+// fingerprint 00000000 or no key path at all. Still refused, but told apart
+// from another seed's transaction so the user knows to re-add the key.
+static void zero_our_fingerprints(struct wally_psbt *p) {
+    uint8_t fp[4];
+    wallet_fingerprint(fp);
+    for (size_t i = 0; i < p->num_inputs; i++)
+        for (size_t k = 0; k < p->inputs[i].keypaths.num_items; k++) {
+            uint8_t *v = p->inputs[i].keypaths.items[k].value;
+            if (memcmp(v, fp, 4) == 0) memset(v, 0, 4);
+        }
+}
+
+void test_missing_fingerprint_told_apart() {
+    load_seed(SINGLESIG_MNEMONIC);
+    edit_psbt(zero_our_fingerprints);
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_NO_FINGERPRINT, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(0, psbt_sign());
+
+    setUp();                                      // no key path at all
+    edit_psbt([](struct wally_psbt *p) { wally_map_clear(&p->inputs[0].keypaths); });
+    TEST_ASSERT_EQUAL(PSBT_NO_FINGERPRINT, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(0, psbt_sign());
+
+    // Multisig: the cosigners' fingerprints are there, ours is zeroed.
+    load_seed(MS_MNEMONIC);
+    TEST_ASSERT_EQUAL(MS_OK, multisig_load(MS_DESCRIPTOR, strlen(MS_DESCRIPTOR)));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_base64_to_bytes(MS_PSBT, 0, raw, sizeof(raw), &raw_len));
+    edit_psbt(zero_our_fingerprints);
+    TEST_ASSERT_EQUAL(PSBT_NO_FINGERPRINT, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(0, psbt_sign());
+
+    // Another wallet's input, one of whose cosigners is zeroed: ours isn't
+    // among its keys, so it's "different wallet", not "missing fingerprint".
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_base64_to_bytes(MS_PSBT, 0, raw, sizeof(raw), &raw_len));
+    edit_psbt([](struct wally_psbt *p) {
+        uint8_t fp[4];
+        wallet_fingerprint(fp);
+        for (size_t k = 0; k < p->inputs[0].keypaths.num_items; k++) {
+            uint8_t *v = p->inputs[0].keypaths.items[k].value;
+            if (memcmp(v, fp, 4) == 0) memset(v, 0xee, 4);               // ours: someone else's now
+            else if (memcmp(v, "\x03\xcd\x0a\x2b", 4) == 0) memset(v, 0, 4);
+        }
+    });
+    TEST_ASSERT_EQUAL(PSBT_NOT_OUR_SEED, psbt_load(raw, raw_len, &r));
+    psbt_clear();
+}
+
+// Past PSBT_MAX_OUTPUTS the review can't list every output: refused, with its
+// own reason (not "unsupported wallet").
+void test_too_many_outputs_rejected() {
+    load_seed(SINGLESIG_MNEMONIC);
+    edit_psbt([](struct wally_psbt *p) {
+        static const uint8_t script[22] = {0x00, 20, 0x33};
+        struct wally_tx_output o;
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_output_init(1, script, sizeof(script), &o));
+        // Pay one more output than fits, taken from the first one's amount.
+        while (p->num_outputs <= PSBT_MAX_OUTPUTS) {
+            p->tx->outputs[0].satoshi -= 1;
+            TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_add_tx_output_at(p, uint32_t(p->num_outputs), 0, &o));
+        }
+    });
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_TOO_MANY_OUTPUTS, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(0, psbt_sign());
+
+    setUp();                                      // exactly PSBT_MAX_OUTPUTS is fine
+    edit_psbt([](struct wally_psbt *p) {
+        static const uint8_t script[22] = {0x00, 20, 0x33};
+        struct wally_tx_output o;
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_output_init(1, script, sizeof(script), &o));
+        while (p->num_outputs < PSBT_MAX_OUTPUTS) {
+            p->tx->outputs[0].satoshi -= 1;
+            TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_add_tx_output_at(p, uint32_t(p->num_outputs), 0, &o));
+        }
+    });
+    TEST_ASSERT_EQUAL(PSBT_OK, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(PSBT_MAX_OUTPUTS, r.n_outputs);
+    psbt_clear();
+}
+
+// Every error has its own text: none falls through to an empty screen.
+void test_error_texts() {
+    for (int e = PSBT_PARSE_FAILED; e <= PSBT_WRONG_WALLET; e++)
+        TEST_ASSERT_GREATER_THAN(20, strlen(psbt_error_text(PsbtError(e))));
+}
+
 // Our fingerprint, path and real pubkey on an input whose script pays someone
 // else: not our coin, so the whole transaction is refused (not signed).
 void test_input_with_foreign_script_rejected() {
@@ -693,6 +781,9 @@ int main() {
     RUN_TEST(test_multisig_wrong_wallet);
     RUN_TEST(test_single_sig_with_descriptor_loaded);
     RUN_TEST(test_input_with_foreign_script_rejected);
+    RUN_TEST(test_missing_fingerprint_told_apart);
+    RUN_TEST(test_too_many_outputs_rejected);
+    RUN_TEST(test_error_texts);
     RUN_TEST(test_no_outputs_rejected);
     RUN_TEST(test_finalized_input_rejected);
     RUN_TEST(test_mismatched_previous_tx_rejected);

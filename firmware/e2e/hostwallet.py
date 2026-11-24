@@ -127,18 +127,20 @@ class Wallet:
             text = text.replace("/<0;1>/*", "/{0,1}/*")
         return add_checksum(text) if checksum else text
 
-    def descriptor_ur(self):
+    def descriptor_ur(self, no_fingerprint=(), no_path=()):
         """crypto-output (BCR-2020-010) for a sortedmulti wallet, as Sparrow shows it.
-        Returns (UR type, CBOR) for ur_single() or ur_parts()."""
+        Keys at the indexes in `no_fingerprint` / `no_path` leave that part of
+        their origin out. Returns (UR type, CBOR) for ur_single() or ur_parts()."""
         assert self.desc.is_basic_multisig and self.desc.is_sorted
         keys = []
-        for k in self.desc.keys:
-            path = [PathComponent(i & 0x7FFFFFFF, i >= 0x80000000) for i in k.origin.derivation]
+        for n, k in enumerate(self.desc.keys):
+            path = [] if n in no_path else [PathComponent(i & 0x7FFFFFFF, i >= 0x80000000) for i in k.origin.derivation]
+            fingerprint = None if n in no_fingerprint else k.origin.fingerprint
             keys.append(HDKey({
                 "key": k.key.key.sec(),
                 "chain_code": k.key.chain_code,
                 "use_info": CoinInfo(None, 1),   # testnet
-                "origin": Keypath(path, k.origin.fingerprint, len(path)),
+                "origin": Keypath(path, fingerprint, len(path)),
                 "children": Keypath([PathComponent(0, False), PathComponent(None, False)], None, None),
                 "parent_fingerprint": k.key.fingerprint,
             }))
