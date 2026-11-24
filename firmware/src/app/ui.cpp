@@ -2913,13 +2913,6 @@ static void build_psbt_sign() {
         lv_obj_set_style_border_color(c, RED, 0);
         lv_obj_set_style_border_width(c, 2, 0);
     }
-    if (review.fee_level != FEE_OK) {
-        char warn[64];
-        fee_warning(warn, sizeof(warn), psbt_fee_base(review));
-        lv_obj_t *w = text(scr, warn, &inter_13, very_high ? RED : AMBER);
-        lv_obj_align_to(w, c, LV_ALIGN_OUT_BOTTOM_MID, 0, 10);
-    }
-
     lv_obj_t *sl = lv_slider_create(scr);
     lv_obj_remove_style_all(sl);
     lv_obj_set_size(sl, CW, 56);
@@ -2944,8 +2937,22 @@ static void build_psbt_sign() {
     swipe_hint = text(sl, "Slide to sign", &inter_15, TEXT_2);
     lv_obj_align(swipe_hint, LV_ALIGN_CENTER, 14, 0);
 
-    lv_obj_align(text(scr, "This only signs. Your wallet sends it.", &inter_13, TEXT_3),
-                 LV_ALIGN_BOTTOM_MID, 0, -M);
+    lv_obj_t *foot = text(scr, "This only signs. Your wallet sends it.", &inter_13, TEXT_3);
+    lv_obj_align(foot, LV_ALIGN_BOTTOM_MID, 0, -M);
+
+    // The fee note goes under the card; when long amounts stacked under their
+    // labels leave no room above the slider, it takes the footer's line instead.
+    if (review.fee_level != FEE_OK) {
+        char warn[64];
+        fee_warning(warn, sizeof(warn), psbt_fee_base(review));
+        lv_obj_t *w = text(scr, warn, &inter_13, very_high ? RED : AMBER);
+        lv_obj_align_to(w, c, LV_ALIGN_OUT_BOTTOM_MID, 0, 10);
+        lv_obj_update_layout(scr);
+        if (lv_obj_get_y2(w) + 8 > lv_obj_get_y(sl)) {
+            lv_obj_delete(foot);
+            lv_obj_align(w, LV_ALIGN_BOTTOM_MID, 0, -M);
+        }
+    }
     show(scr);
 }
 
