@@ -7,7 +7,7 @@
 // Decodes single and multi-part URs, including fountain-coded (mixed) parts,
 // and encodes a PSBT as a cycling sequence of single-fragment parts.
 
-#define UR_MAX_MESSAGE 8192      // largest CBOR message we accept
+#define UR_MAX_MESSAGE 16384     // largest CBOR message we accept
 #define UR_MAX_FRAGMENTS 128
 
 enum UrResult {
@@ -54,6 +54,11 @@ int ur_decoder_percent(const UrDecoder *d);
 // error (including more than UR_MAX_FRAGMENTS fragments).
 size_t ur_encode_part(const uint8_t *data, size_t len, size_t fragment_len,
                       uint32_t seq, char *out, size_t cap);
+// The same, with the message's checksum (ur_checksum) worked out once by a
+// caller that encodes part after part of one PSBT.
+size_t ur_encode_part(const uint8_t *data, size_t len, size_t fragment_len,
+                      uint32_t seq, uint32_t checksum, char *out, size_t cap);
+uint32_t ur_checksum(const uint8_t *data, size_t len);
 size_t ur_part_count(size_t len, size_t fragment_len);
 
 // Minimal CBOR reader, shared with the crypto-output decoder (multisig.cpp).

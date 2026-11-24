@@ -22,9 +22,12 @@ MNEMONIC = " ".join(bip39.WORDLIST[int(SEEDQR[i:i + 4])] for i in range(0, len(S
 STRANGER = Seed("zoo " * 11 + "wrong")
 
 # Sparrow's QRDensity: max UR fragment length in bytes
-DENSITIES = {"Low": 80, "Medium": 400, "High": 1000}
+DENSITIES = {"Low": 80, "Medium": 400, "High": 1000, "128 B (not in Sparrow)": 128}
 # (inputs, payments): Sparrow's own PSBTs carry the full previous transactions too
-SIZES = {"1 in, 1 out": (1, 1), "2 in, 3 out": (2, 3), "4 in, 8 out": (4, 8)}
+SIZES = {"1 in, 1 out": (1, 1), "2 in, 3 out": (2, 3), "4 in, 8 out": (4, 8),
+         # the limits: 16 outputs (15 payments and change); at Low, 128 fragments of 80 bytes;
+         # and the most the heap signs (past that, "Too big for this signer")
+         "1 in, 15 out": (1, 15), "max at Low: 45 in, 1 out": (45, 1), "max: 65 in, 1 out": (65, 1)}
 
 
 def svg(text):
@@ -42,7 +45,7 @@ def psbts():
     for name, (n_in, n_out) in SIZES.items():
         coins = [wallet.fund(i, 500_000) for i in range(n_in)]
         pays = [(stranger.address(i), 20_000) for i in range(n_out)]
-        yield name, wallet.create_psbt(coins, pays, fee=1_000)
+        yield name, wallet.create_psbt(coins, pays, fee=200 * n_in + 50 * n_out)
 
 
 def main():
@@ -61,7 +64,7 @@ def main():
             seq = first.split("/")[1]
             n = int(seq.split("-")[1]) if "-" in seq else 1
             # Sparrow shows the pure parts, then fountain-coded ones without end: loop a stretch of both
-            parts = [first] + [next(gen) for _ in range(0 if n == 1 else 3 * n + 5)]
+            parts = [first] + [next(gen) for _ in range(0 if n == 1 else min(3 * n + 5, 2 * n))]
             data["psbts"][name]["densities"][dname] = {"parts": n, "frames": [svg(p) for p in parts],
                                                        "chars": len(first)}
     with open(out, "w") as f:
@@ -94,8 +97,8 @@ small{color:#777}
 const D=__DATA__;
 const $=id=>document.getElementById(id);
 for(const k in D.psbts)$('size').add(new Option(k+' ('+D.psbts[k].bytes+' B)',k));
-for(const k of ['Low','Medium','High'])$('dens').add(new Option(k,k));
-$('dens').value='Medium';
+for(const k in D.psbts[Object.keys(D.psbts)[0]].densities)$('dens').add(new Option(k,k));
+$('dens').value='Low';
 let i=0,timer=null,paused=false;
 function cur(){return D.psbts[$('size').value].densities[$('dens').value]}
 function show(){
@@ -105,8 +108,13 @@ function show(){
   $('info').textContent=(c.parts>1?'part '+(i+1)+' of a loop of '+c.frames.length+', '+c.parts+' fragments':'one static part')+', '+c.chars+' characters';
   i++;
 }
-function restart(){clearInterval(timer);i=0;show();if(!paused)timer=setInterval(show,+$('ms').value||200)}
+// each frame lasts 75-125% of ms/frame: at a steady rate a camera that samples at its own steady
+// rate locks in step with the frames and misses the same ones on every pass
+function tick(){show();const ms=+$('ms').value||200;timer=setTimeout(tick,ms*(0.75+Math.random()/2))}
+function restart(){clearTimeout(timer);i=0;if(paused)show();else tick()}
 document.querySelectorAll('select,input[name=what],#ms').forEach(e=>e.onchange=restart);
+// picking a size or density means the PSBT, not the seed
+$('size').onchange=$('dens').onchange=()=>{document.querySelector('[value=psbt]').checked=true;restart()};
 $('px').oninput=()=>document.body.style.setProperty('--s',$('px').value+'px');
 $('pause').onclick=()=>{paused=!paused;$('pause').textContent=paused?'Play':'Pause';restart()};
 restart();

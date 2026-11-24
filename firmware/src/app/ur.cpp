@@ -1,4 +1,5 @@
 #include "ur.h"
+#include "qrscan.h"
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
@@ -38,14 +39,16 @@ static void build_minimal() {
     lut_ready = true;
 }
 
-static uint32_t crc32(const uint8_t *d, size_t n) {
-    uint32_t c = 0xFFFFFFFFu;
+// CRC32 in pieces: start at 0xFFFFFFFF, flip the bits at the end.
+static uint32_t crc32_add(uint32_t c, const uint8_t *d, size_t n) {
     for (size_t i = 0; i < n; i++) {
         c ^= d[i];
         for (int k = 0; k < 8; k++) c = (c >> 1) ^ (0xEDB88320u & (0u - (c & 1)));
     }
-    return ~c;
+    return c;
 }
+
+static uint32_t crc32(const uint8_t *d, size_t n) { return ~crc32_add(0xFFFFFFFFu, d, n); }
 
 // Minimal bytewords -> bytes, checks and strips the trailing CRC32.
 static bool bytewords_decode(const char *s, size_t n, uint8_t *out, size_t cap, size_t *outlen) {
@@ -288,7 +291,9 @@ UrResult ur_decoder_add(UrDecoder *d, const char *text, size_t len, const uint8_
     if (type < 0) return UR_WRONG_TYPE;
     p = slash + 1;
 
-    static uint8_t buf[UR_MAX_MESSAGE + 64];
+    // One QR's worth: bytewords take two characters a byte. A multi-part
+    // fragment is far smaller.
+    static uint8_t buf[sizeof(QrPayload::data) / 2];
     size_t n;
     const char *slash2 = (const char *)memchr(p, '/', size_t(end - p));
     if (!slash2) {
@@ -349,19 +354,31 @@ size_t ur_part_count(size_t len, size_t fragment_len) {
     return (msg + fragment_len - 1) / fragment_len;
 }
 
+// The message is a CBOR byte string: its head, then `data`, read in place.
+uint32_t ur_checksum(const uint8_t *data, size_t len) {
+    uint8_t head[9];
+    size_t head_len = size_t(cbor_put(head, 2, len) - head);
+    return ~crc32_add(crc32_add(0xFFFFFFFFu, head, head_len), data, len);
+}
+
 size_t ur_encode_part(const uint8_t *data, size_t len, size_t fragment_len, uint32_t seq, char *out, size_t cap) {
+    return ur_encode_part(data, len, fragment_len, seq, ur_checksum(data, len), out, cap);
+}
+
+size_t ur_encode_part(const uint8_t *data, size_t len, size_t fragment_len, uint32_t seq, uint32_t checksum,
+                      char *out, size_t cap) {
     if (fragment_len == 0 || fragment_len > 256) return 0;
-    static uint8_t msg[UR_MAX_MESSAGE + 16];
-    uint8_t *m = cbor_put(msg, 2, len);
-    if (size_t(m - msg) + len > sizeof(msg)) return 0;
-    memcpy(m, data, len);
-    size_t msg_len = size_t(m - msg) + len;
+    uint8_t head[9];
+    size_t head_len = size_t(cbor_put(head, 2, len) - head);
+    size_t msg_len = head_len + len;
     size_t count = (msg_len + fragment_len - 1) / fragment_len;
-    uint32_t checksum = crc32(msg, msg_len);
+    uint8_t part[300];
 
     if (count == 1) {
+        memcpy(part, head, head_len);
+        memcpy(part + head_len, data, len);
         int h = snprintf(out, cap, "UR:CRYPTO-PSBT/");
-        size_t w = bytewords_encode(msg, msg_len, out + h, cap - size_t(h));
+        size_t w = bytewords_encode(part, msg_len, out + h, cap - size_t(h));
         return w ? size_t(h) + w : 0;
     }
 
@@ -371,7 +388,6 @@ size_t ur_encode_part(const uint8_t *data, size_t len, size_t fragment_len, uint
     // frame doesn't wait for it to come round again.
     uint8_t idx[UR_MAX_FRAGMENTS];
     size_t deg = choose_fragments(seq, uint32_t(count), checksum, idx);
-    uint8_t part[300];
     uint8_t *p = cbor_put(part, 4, 5);
     p = cbor_put(p, 0, seq);
     p = cbor_put(p, 0, count);
@@ -382,7 +398,10 @@ size_t ur_encode_part(const uint8_t *data, size_t len, size_t fragment_len, uint
     for (size_t k = 0; k < deg; k++) {
         size_t start = idx[k] * fragment_len;
         size_t take = msg_len - start < fragment_len ? msg_len - start : fragment_len;
-        for (size_t i = 0; i < take; i++) p[i] ^= msg[start + i];
+        for (size_t i = 0; i < take; i++) {
+            size_t at = start + i;
+            p[i] ^= at < head_len ? head[at] : data[at - head_len];
+        }
     }
     p += fragment_len;
 
