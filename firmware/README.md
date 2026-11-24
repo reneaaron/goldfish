@@ -203,6 +203,12 @@ one spent or disagrees with the witness UTXO, and a redeem script (or a witness
 script on a single-sig input) are refused as invalid. After signing, every
 signature of ours is checked against the reviewed amounts and our own scripts,
 and nothing is shown if one doesn't match.
+High fees are flagged, as
+[bitcoin.design](https://bitcoin.design/guide/daily-spending-wallet/sending/)
+asks, by share of the amount sent and by rate (the thresholds are ours).
+10% of the amount or 50 ₿/vB shows the fee in amber with a note on Confirm;
+50% or 500 ₿/vB turns the fee, total, card and slider red. Neither blocks
+signing, since sweeping dust can legitimately cost that much.
 Native segwit only, single-sig or multisig, mainnet or testnet (from the PSBT's
 derivation paths, or the multisig descriptor's keys). BBQr input isn't supported yet.
 

@@ -2746,6 +2746,24 @@ static int recipient_count() {
     return n;
 }
 
+static lv_color_t fee_color(lv_color_t normal) {
+    return review.fee_level == FEE_VERY_HIGH ? RED : review.fee_level == FEE_HIGH ? AMBER : normal;
+}
+
+// What tripped the fee level: its share of the amount if that did, else the rate.
+static void fee_warning(char *out, size_t cap, uint64_t send) {
+    const char *pre = review.fee_level == FEE_VERY_HIGH ? ICON_WARNING "  Fee is" : "High fee:";
+    uint64_t share = review.fee_level == FEE_VERY_HIGH ? 2 : 10;
+    if (!send) snprintf(out, cap, "%s more than the amount", pre);
+    else if (review.fee * share >= send)
+        snprintf(out, cap, "%s %llu%% of the amount", pre, (unsigned long long)(review.fee * 100 / send));
+    else {
+        char rate[24];
+        fmt_btc(review.fee_rate, rate, sizeof(rate));
+        snprintf(out, cap, "%s %s/vB", review.fee_level == FEE_VERY_HIGH ? ICON_WARNING "  Fee rate is" : "High fee rate:", rate);
+    }
+}
+
 static void build_psbt_overview() {
     lv_obj_t *scr = screen();
     if (review.ms_m) {   // from the multisig wallet: "2 OF 3"
@@ -2772,7 +2790,7 @@ static void build_psbt_overview() {
     fmt_btc(review.change, chg, sizeof(chg));
     const KvRow rows[] = {
         {nrec == 1 ? "Recipient" : "Recipients", rec, TEXT, false},
-        {"Fee", fee, TEXT, true},
+        {"Fee", fee, fee_color(TEXT), true},
         {"Change", review.change ? chg : "None", review.change ? GREEN : TEXT_3, true},
     };
     kv_card(scroll_area(scr, BAR + 92), rows, 3);
@@ -2885,11 +2903,22 @@ static void build_psbt_sign() {
     fmt_btc(send + review.fee, vals[2], sizeof(vals[2]));
     const KvRow rows[] = {
         {review.spend ? "Send" : "Move", vals[0], TEXT, false},
-        {"Fee", vals[1], TEXT_2, false},
-        {"Total", vals[2], ACCENT, true},
+        {"Fee", vals[1], fee_color(TEXT_2), false},
+        {"Total", vals[2], review.fee_level == FEE_VERY_HIGH ? RED : ACCENT, true},
     };
     lv_obj_t *c = kv_card(scr, rows, 3, &mono_16);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, top);
+    bool very_high = review.fee_level == FEE_VERY_HIGH;
+    if (very_high) {
+        lv_obj_set_style_border_color(c, RED, 0);
+        lv_obj_set_style_border_width(c, 2, 0);
+    }
+    if (review.fee_level != FEE_OK) {
+        char warn[64];
+        fee_warning(warn, sizeof(warn), send);
+        lv_obj_t *w = text(scr, warn, &inter_13, very_high ? RED : AMBER);
+        lv_obj_align_to(w, c, LV_ALIGN_OUT_BOTTOM_MID, 0, 10);
+    }
 
     lv_obj_t *sl = lv_slider_create(scr);
     lv_obj_remove_style_all(sl);
@@ -2899,10 +2928,10 @@ static void build_psbt_sign() {
     lv_obj_set_style_bg_opa(sl, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(sl, 28, LV_PART_MAIN);
     lv_obj_set_style_pad_hor(sl, 28, LV_PART_MAIN);          // knob stays inside the track
-    lv_obj_set_style_bg_color(sl, ACCENT_DIM, LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(sl, very_high ? RED_DIM : ACCENT_DIM, LV_PART_INDICATOR);
     lv_obj_set_style_bg_opa(sl, LV_OPA_COVER, LV_PART_INDICATOR);
     lv_obj_set_style_radius(sl, 28, LV_PART_INDICATOR);
-    lv_obj_set_style_bg_color(sl, ACCENT, LV_PART_KNOB);
+    lv_obj_set_style_bg_color(sl, very_high ? RED : ACCENT, LV_PART_KNOB);
     lv_obj_set_style_bg_opa(sl, LV_OPA_COVER, LV_PART_KNOB);
     lv_obj_set_style_radius(sl, LV_RADIUS_CIRCLE, LV_PART_KNOB);
     lv_obj_set_style_pad_all(sl, -4, LV_PART_KNOB);

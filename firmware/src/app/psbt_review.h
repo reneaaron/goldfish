@@ -34,6 +34,8 @@ enum PsbtError {
     PSBT_WRONG_WALLET,      // multisig inputs that aren't the loaded descriptor's
 };
 
+enum FeeLevel { FEE_OK = 0, FEE_HIGH, FEE_VERY_HIGH };
+
 struct PsbtReview {
     PsbtError error;
     bool testnet;
@@ -44,6 +46,8 @@ struct PsbtReview {
     uint64_t self;           // to our own receive addresses
     uint64_t change;
     uint64_t fee;
+    uint32_t fee_rate;       // ₿/vB, estimated (see psbt_fee_rate)
+    FeeLevel fee_level;
     int n_outputs;
     PsbtOutput outputs[PSBT_MAX_OUTPUTS];
 };
@@ -59,3 +63,17 @@ size_t psbt_serialize(uint8_t *out, size_t cap);
 void psbt_clear();
 
 const char *psbt_error_text(PsbtError e);
+
+// Fee levels, flagged on review as bitcoin.design asks. A fee is judged both
+// against what's being sent (to others, or to yourself when nothing goes out)
+// and by its rate, so neither a small send nor a big one hides it:
+//   high:      10% of the amount, or 50 ₿/vB (paid only in fee spikes)
+//   very high: 50% of the amount, or 500 ₿/vB (only the worst spikes)
+// The device can't see the mempool, so the rate bars sit well above normal
+// fees; small sends are caught by their share of the amount instead.
+// A very high fee is also how a tampered PSBT would siphon funds. Neither
+// level blocks signing: sweeping dust can legitimately cost that much.
+FeeLevel psbt_fee_level(uint64_t fee, uint64_t sent, uint32_t rate);
+// Fee rate in ₿/vB, rounded up, for P2WPKH inputs and outputs assumed P2WPKH
+// (taproot outputs are 12 vB larger, so the rate errs a little high).
+uint32_t psbt_fee_rate(uint64_t fee, int n_inputs, int n_outputs);
