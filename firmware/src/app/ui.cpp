@@ -28,6 +28,7 @@ using namespace th;
 
 static UiScreen current = UI_HOME;
 static bool fresh_backup;                // Seed loaded screen follows a checked backup
+static bool fresh_pass_card;             // Wallet follows a checked passphrase card
 
 static void show(lv_obj_t *scr) { lv_screen_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_IN, 120, 0, true); }
 static void go_cb(lv_event_t *e) { ui_goto((UiScreen)(intptr_t)lv_event_get_user_data(e)); }
@@ -321,7 +322,7 @@ static lv_obj_t *scan_stats;
 static uint32_t st_t0, st_frames, st_codes, st_ms, st_max;
 static lv_timer_t *scan_timer;
 // SCAN_SEED: a SeedQR, read as soon as it is seen, or written words, read once the camera holds still on them
-enum ScanMode { SCAN_SEED, SCAN_WALLET, SCAN_CONFIRM };
+enum ScanMode { SCAN_SEED, SCAN_WALLET, SCAN_CONFIRM, SCAN_PASS };
 static ScanMode scan_mode;
 static AddressCheck check;
 static int qr_w, qr_h;
@@ -396,6 +397,7 @@ static void handle_seed_payload(QrPayload &p) {
     }
     seedqr_wipe(&e);
     if (r == SEEDQR_BAD_CHECKSUM || r == SEEDQR_BAD_WORD_INDEX) scan_status("Damaged QR", "The checksum is wrong", RED);
+    else if (r == SEEDQR_TEXT) scan_status("That's a passphrase card", "Load your seed first", AMBER);
     else if (is_psbt) scan_status("That's a transaction", "Load your seed first", AMBER);
     else scan_status("No seed found", "This QR doesn't hold a seed", AMBER);
 }
@@ -487,13 +489,15 @@ static void handle_wallet_payload(QrPayload &p) {
     if (r == ADDR_NEEDS_DESCRIPTOR) { scan_status("Multisig address", "Scan the descriptor first", AMBER); return; }
 
     SeedEntropy e;
-    bool seed = seedqr_decode(p.data, p.len, &e) == SEEDQR_OK;
+    SeedQrResult sr = seedqr_decode(p.data, p.len, &e);
     seedqr_wipe(&e);
-    if (seed) scan_status("That's a seed", "A seed is already loaded", AMBER);
+    if (sr == SEEDQR_OK) scan_status("That's a seed", "A seed is already loaded", AMBER);
+    else if (sr == SEEDQR_TEXT) scan_status("That's a passphrase card", "Scan it from Passphrase", AMBER);
     else scan_status("Nothing to sign or verify", "Show a transaction or an address", AMBER);
 }
 
 static void handle_confirm_payload(QrPayload &p);
+static void handle_pass_payload(QrPayload &p);
 static bool page_probe(const uint8_t *frame, int w, int h);
 
 // True once the view has held still on what looks like written words.
@@ -558,6 +562,7 @@ static void scan_tick(lv_timer_t *) {
     }
     if (scan_mode == SCAN_SEED) handle_seed_payload(p);
     else if (scan_mode == SCAN_WALLET) handle_wallet_payload(p);
+    else if (scan_mode == SCAN_PASS) handle_pass_payload(p);
     else handle_confirm_payload(p);
     memset(&p, 0, sizeof(p));
 }
@@ -575,7 +580,10 @@ static void scan_back_cb(lv_event_t *) {
     }
     scan_stop();
     ur_decoder_reset(&ur_dec);
-    ui_goto(scan_mode == SCAN_SEED ? UI_HOME : scan_mode == SCAN_CONFIRM ? UI_BACKUP_BLOCK : UI_WALLET);
+    ui_goto(scan_mode == SCAN_SEED      ? UI_HOME
+            : scan_mode == SCAN_CONFIRM ? UI_BACKUP_BLOCK
+            : scan_mode == SCAN_PASS    ? UI_PASSPHRASE
+                                        : UI_WALLET);
 }
 
 // Viewfinder corner brackets around the target area of the preview.
@@ -620,12 +628,12 @@ static void build_scan(ScanMode mode) {
     bool seed = mode == SCAN_SEED;
     if (mode == SCAN_WALLET) ur_decoder_reset(&ur_dec);
     lv_obj_t *scr = screen();
-    static const char *titles[] = {"Scan seed", "Scan", "Check card"};
+    static const char *titles[] = {"Scan seed", "Scan", "Check card", "Passphrase card"};
     // The title says what is scanned; one line says what to do. The second
     // line stays empty until there is something to report, except on Scan
     // seed: there it says how words are read (nothing to tap), until a status.
     // The wallet's scanner says what it takes instead, until a status.
-    static const char *prompts[] = {"QR code or written words", "", "Let's check it matches"};
+    static const char *prompts[] = {"QR code or written words", "", "Let's check it matches", "Show the card"};
     topbar(scr, titles[mode], scan_back_cb);
     preview_image(scr);
     st_t0 = lv_tick_get();
@@ -700,10 +708,11 @@ static void build_wallet() {
     lv_obj_t *scr = screen();
     bool pass = wallet_has_passphrase();
     const MsInfo *ms = multisig_info();   // a multisig wallet is loaded for this seed
-    const char *note = fresh_backup ? (pass ? "Backup checked. The card has no passphrase."
-                                            : "Backup checked. Write the fingerprint on your card.")
-                                    : nullptr;
-    fresh_backup = false;
+    const char *note = fresh_pass_card ? "Card checked. Keep it apart from the seed."
+                       : fresh_backup ? (pass ? "Backup checked. The card has no passphrase."
+                                              : "Backup checked. Write the fingerprint on your card.")
+                                      : nullptr;
+    fresh_backup = fresh_pass_card = false;
     // Chips and a backup note together don't fit under the logo: drop it.
     int y = (pass || ms) && note ? -44 : 0;
     if (!y) {
@@ -753,34 +762,39 @@ static void build_wallet() {
 // typed. The text lives in pass_buf until OK or until the screen is left
 // (ui_goto wipes it); after that only the derived key remains.
 constexpr int PASS_MAX = 64, PASS_COLS = 18;   // 4 lines of mono_16 in the field
+// A passphrase card is a byte-mode QR, ECC L, like a Compact SeedQR: up to 17
+// characters fit the 21x21 card, up to 32 the 25x25 one.
+constexpr int PASS_CARD_MAX = 32;
+static bool pass_scanned;                      // pass_buf came from a card, not typed yet
 static char pass_buf[PASS_MAX + 1];
 static char txt_pass[PASS_MAX + 8];            // as shown: line breaks and the cursor
 static bool pass_hidden;
 static int pass_layer;                         // index into pass_maps
 static lv_obj_t *pass_field, *pass_note, *pass_kb, *pass_toggle;
-static const char *const pass_maps[4][36] = {
+static const char *const pass_maps[4][37] = {
     {"q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "\n",
      "a", "s", "d", "f", "g", "h", "j", "k", "l", "\n",
      "z", "x", "c", "v", "b", "n", "m", "Del", "\n",
-     "ABC", "123", "space", "OK", ""},
+     "ABC", "123", ICON_QR, "space", "OK", ""},
     {"Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "\n",
      "A", "S", "D", "F", "G", "H", "J", "K", "L", "\n",
      "Z", "X", "C", "V", "B", "N", "M", "Del", "\n",
-     "abc", "123", "space", "OK", ""},
+     "abc", "123", ICON_QR, "space", "OK", ""},
     {"1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "\n",
      "-", "/", ":", ";", "(", ")", "$", "&", "@", "\"", "\n",
      ".", ",", "?", "!", "'", "#", "_", "Del", "\n",
-     "abc", "#+=", "space", "OK", ""},
+     "abc", "#+=", ICON_QR, "space", "OK", ""},
     {"[", "]", "{", "}", "<", ">", "\n",
      "%", "^", "*", "+", "=", "\n",
      "|", "\\", "~", "`", "Del", "\n",
-     "abc", "123", "space", "OK", ""},
+     "abc", "123", ICON_QR, "space", "OK", ""},
 };
 
 static void pass_wipe() {
     secure_zero(pass_buf, sizeof(pass_buf));
     secure_zero(txt_pass, sizeof(txt_pass));
     pass_layer = 0;                            // pass_hidden stays as the user set it
+    pass_scanned = false;
 }
 
 static void pass_refresh() {
@@ -793,7 +807,7 @@ static void pass_refresh() {
     lv_label_set_text_static(pass_field, txt_pass);
     // Bottom line of the field: what an empty passphrase does, or that it's full.
     if (n == PASS_MAX) lv_label_set_text_fmt(pass_note, "%d max", PASS_MAX);
-    else lv_label_set_text(pass_note, n ? "" : wallet_has_passphrase() ? "Leave empty to remove it"
+    else lv_label_set_text(pass_note, n ? (pass_scanned ? "Read from the card" : "") : wallet_has_passphrase() ? "Leave empty to remove it"
                                                                         : "Letters, digits and symbols");
     lv_obj_align(pass_note, n ? LV_ALIGN_BOTTOM_RIGHT : LV_ALIGN_BOTTOM_LEFT, 0, 0);
     lv_label_set_text(lv_obj_get_child(pass_toggle, 0), pass_hidden ? "Show" : "Hide");
@@ -807,7 +821,7 @@ static void pass_set_layer(int layer) {
     // primary button. Only Del repeats while held: a repeating letter would add
     // characters unnoticed, and a repeating layer key would flip layers.
     // Single characters get the popover (KB_CHAR).
-    static lv_buttonmatrix_ctrl_t ctrl[36];
+    static lv_buttonmatrix_ctrl_t ctrl[37];
     int b = 0;
     for (int i = 0; map[i][0]; i++) {
         if (!strcmp(map[i], "\n")) continue;
@@ -820,9 +834,22 @@ static void pass_set_layer(int layer) {
     lv_buttonmatrix_set_ctrl_map(pass_kb, ctrl);
 }
 
+static void pass_card_start();
+
 void ui_passphrase_key(const char *k) {
     if (ui_current() != UI_PASSPHRASE) return;
     size_t n = strlen(pass_buf);
+    // The QR key: scan a passphrase card into the empty field, or make a card
+    // of the passphrase typed (applied once the card is checked).
+    if (!strcmp(k, ICON_QR)) {
+        if (!n) { ui_goto(UI_PASSPHRASE_SCAN); return; }
+        if (n <= size_t(PASS_CARD_MAX)) { pass_card_start(); return; }
+        pass_refresh();
+        lv_label_set_text_fmt(pass_note, "Too long for a card: %d max", PASS_CARD_MAX);
+        lv_obj_align(pass_note, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+        return;
+    }
+    pass_scanned = false;
     if (!strcmp(k, "OK")) {
         if (!n && !wallet_has_passphrase()) { ui_goto(UI_WALLET); return; }   // nothing to change
         lv_label_set_text_static(pass_field, "Deriving key" "\xE2\x80\xA6");
@@ -1106,6 +1133,9 @@ static uint8_t qr_buf[qrcodegen_BUFFER_LEN_FOR_VERSION(2)];   // the pending see
 static int qr_n;                         // modules per side, 0: none
 static int block_i;
 static bool backup_existing;             // backing up the loaded seed, not a new one
+// The card flow is making a passphrase card: pending holds the passphrase's
+// characters (len 1..PASS_CARD_MAX), not entropy. Applied once the card checks.
+static bool pass_card;
 static bool drawing;                     // Draw words: n-1 words by hand, then coins for the last
 static bool final_flips;                 // the coin screen is collecting the last word's bits
 static bool card_checked;                // Seed ready follows a checked card
@@ -1211,7 +1241,7 @@ static void new_seed_wipe() {
     secure_zero(txt_sugg, sizeof(txt_sugg));
     secure_zero(txt_tail, sizeof(txt_tail));
     entropy_n = word_n = qr_n = block_i = 0;
-    backup_existing = drawing = final_flips = card_checked = child_seed = false;
+    backup_existing = drawing = final_flips = card_checked = child_seed = pass_card = false;
     backup_cancel = UI_NEW_SEED;
 }
 
@@ -1239,8 +1269,34 @@ void ui_backup_loaded() {
     ui_goto(UI_BACKUP_WARNING);
 }
 static void backup_existing_cb(lv_event_t *) { ui_backup_loaded(); }
+
+// The passphrase typed (pass_buf) onto a card: the same flow as a seed's card.
+static void pass_card_start() {
+    new_seed_wipe();
+    size_t n = strlen(pass_buf);
+    memcpy(pending.bytes, pass_buf, n);
+    pending.len = n;
+    pass_card = true;
+    backup_cancel = UI_PASSPHRASE;
+    ui_goto(UI_BACKUP_WARNING);   // wipes pass_buf; pending has it
+}
+// Back to the keyboard from a passphrase card, with the passphrase still typed.
+static void pass_card_back() {
+    char pass[PASS_CARD_MAX + 1];
+    memcpy(pass, pending.bytes, pending.len);
+    pass[pending.len] = 0;
+    new_seed_wipe();
+    ui_goto(UI_PASSPHRASE);
+    memcpy(pass_buf, pass, sizeof(pass));   // pass_buf is longer
+    secure_zero(pass, sizeof(pass));
+    pass_refresh();
+}
+
 // Leaving the card flow: back to the wallet, or for a new seed, to Seed ready.
-static void backup_exit_cb(lv_event_t *) { ui_goto(backup_existing ? UI_WALLET_OPTIONS : UI_SEED_READY); }
+static void backup_exit_cb(lv_event_t *) {
+    if (pass_card) { pass_card_back(); return; }
+    ui_goto(backup_existing ? UI_WALLET_OPTIONS : UI_SEED_READY);
+}
 
 static void build_new_seed() {
     lv_obj_t *scr = screen();
@@ -2280,11 +2336,13 @@ static bool backup_make_qr() {
     secure_zero(tmp, sizeof(tmp));
     secure_zero(seg_buf, sizeof(seg_buf));
     qr_n = ok ? qrcodegen_getSize(qr_buf) : 0;
-    return ok && qr_n == (new_words == 24 ? 25 : 21);
+    int want = pass_card ? (pending.len <= 17 ? 21 : 25) : new_words == 24 ? 25 : 21;
+    return ok && qr_n == want;
 }
 
 // Cancel/Discard: wipe the seed and go back to where the flow started.
 static void backup_cancel_cb(lv_event_t *) {
+    if (pass_card) { pass_card_back(); return; }
     UiScreen to = backup_cancel;
     new_seed_wipe();
     ui_goto(to);
@@ -2294,12 +2352,13 @@ static void build_backup_warning() {
     lv_obj_t *scr = screen();
     lv_obj_align(icon_badge(scr, ICON_WARNING, AMBER, AMBER_DIM, 64), LV_ALIGN_TOP_MID, 0, 36);
     lv_obj_align(text(scr, "Keep it offline", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 118);
-    lv_obj_align(para(scr, backup_existing ? "Your seed QR is your private key. Never photograph it or scan it with a phone."
-                                           : "Your words are your private key. Never photograph them or type them into a phone."),
+    lv_obj_align(para(scr, pass_card         ? "Never photograph this card. Keep it apart from your seed: together they open the wallet."
+                           : backup_existing ? "Your seed QR is your private key. Never photograph it or scan it with a phone."
+                                             : "Your words are your private key. Never photograph them or type them into a phone."),
                  LV_ALIGN_TOP_MID, 0, 154);
-    bottom_pair(btn_ghost(scr, backup_existing ? "Cancel" : "Discard",
-                          backup_cancel_cb, nullptr, TEXT),
-                btn_primary(scr, "I understand", go_cb, GO(backup_existing ? UI_BACKUP_QR : UI_BACKUP_WORDS)));
+    bool qr_next = backup_existing || pass_card;
+    bottom_pair(btn_ghost(scr, qr_next ? "Cancel" : "Discard", backup_cancel_cb, nullptr, TEXT),
+                btn_primary(scr, "I understand", go_cb, GO(qr_next ? UI_BACKUP_QR : UI_BACKUP_WORDS)));
     show(scr);
 }
 
@@ -2417,14 +2476,14 @@ static void build_backup_qr() {
     if (!backup_make_qr()) {
         lv_obj_align(icon_badge(scr, ICON_WARNING, RED, RED_DIM, 64), LV_ALIGN_TOP_MID, 0, 44);
         lv_obj_align(text(scr, "No QR code", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 126);
-        lv_obj_align(para(scr, backup_existing ? "The QR code couldn't be made. Nothing was backed up."
-                                               : "The QR code couldn't be made. Your written words are the backup."),
+        lv_obj_align(para(scr, backup_existing || pass_card ? "The QR code couldn't be made. Nothing was backed up."
+                                                            : "The QR code couldn't be made. Your written words are the backup."),
                      LV_ALIGN_TOP_MID, 0, 162);
         place_bottom(btn_primary(scr, "Continue", backup_exit_cb));
         show(scr);
         return;
     }
-    topbar(scr, "Back up", to_warning_cb);
+    topbar(scr, pass_card ? "Passphrase card" : "Back up", to_warning_cb);
     const int cell = 180 / qr_n;
     whole_view = {0, 0, qr_n, qr_n, cell, false, 0, 0, qr_n, qr_n};
     lv_obj_t *c = white_card(scr, qr_n * cell + 17, qr_n * cell + 17);
@@ -2515,7 +2574,8 @@ static void build_backup_block() {
     lv_obj_add_event_cb(scr, block_gesture_cb, LV_EVENT_GESTURE, nullptr);
     bool last = block_i + 1 == n;
     // The seed is already backed up elsewhere (wallet, or the written words), so checking is optional.
-    lv_obj_t *secondary = last ? btn_ghost(scr, "Done", backup_exit_cb, nullptr, TEXT)
+    // A passphrase card is the only copy: it has to be checked (that also applies it).
+    lv_obj_t *secondary = last && !pass_card ? btn_ghost(scr, "Done", backup_exit_cb, nullptr, TEXT)
                                                   : btn_ghost(scr, ICON_LEFT, block_prev_cb, nullptr, TEXT);
     bottom_pair(secondary, btn_primary(scr, last ? "Check card" : "Next part", block_next_cb));
     show(scr);
@@ -2614,7 +2674,38 @@ static void build_seed_ready() {
     lv_timer_set_repeat_count(ready_timer, 1);
 }
 
+static bool printable_text(const uint8_t *d, size_t n) {
+    for (size_t i = 0; i < n; i++)
+        if (d[i] < 0x20 || d[i] > 0x7E) return false;
+    return n > 0;
+}
+
+// The card checked: apply the passphrase it holds, like OK on the keyboard.
+static void pass_card_confirm(QrPayload &p) {
+    bool same = p.len == pending.len && memcmp(p.data, pending.bytes, p.len) == 0;
+    bool text = printable_text(p.data, p.len);
+    memset(&p, 0, sizeof(p));
+    if (!same) {
+        if (text) scan_status("Wrong card", "It holds another passphrase", RED);
+        else scan_status("No passphrase found", "Some squares look off", AMBER);
+        return;
+    }
+    scan_stop();
+    scan_status("Deriving key" "\xE2\x80\xA6", "This takes a few seconds", TEXT);
+    lv_refr_now(nullptr);
+    char pass[PASS_CARD_MAX + 1];
+    memcpy(pass, pending.bytes, pending.len);
+    pass[pending.len] = 0;
+    bool ok = wallet_set_passphrase(pass);
+    secure_zero(pass, sizeof(pass));
+    if (!ok) { pass_card_back(); return; }
+    new_seed_wipe();
+    fresh_pass_card = true;
+    ui_goto(UI_WALLET);
+}
+
 static void handle_confirm_payload(QrPayload &p) {
+    if (pass_card) { pass_card_confirm(p); return; }
     SeedEntropy e;
     SeedQrResult r = seedqr_decode(p.data, p.len, &e);
     memset(&p, 0, sizeof(p));
@@ -2636,6 +2727,30 @@ static void handle_confirm_payload(QrPayload &p) {
     if (r == SEEDQR_OK) scan_status("Wrong seed", "This card has another seed", RED);
     else if (r == SEEDQR_BAD_CHECKSUM || r == SEEDQR_BAD_WORD_INDEX) scan_status("Damaged QR", "Check the squares again", RED);
     else scan_status("No seed found", "Some squares look off", AMBER);
+}
+
+// Passphrase card, scanned from the empty passphrase field: the text goes
+// into the field to check, then OK applies it like a typed one.
+static void handle_pass_payload(QrPayload &p) {
+    SeedEntropy e;
+    SeedQrResult r = seedqr_decode(p.data, p.len, &e);
+    seedqr_wipe(&e);
+    if (r == SEEDQR_OK) {   // checked first: a Standard SeedQR is printable too
+        memset(&p, 0, sizeof(p));
+        scan_status("That's a seed", "Show the passphrase card", AMBER);
+        return;
+    }
+    if (!printable_text(p.data, p.len) || p.len > size_t(PASS_MAX)) {
+        memset(&p, 0, sizeof(p));
+        scan_status("No passphrase found", "Letters, digits and symbols only", AMBER);
+        return;
+    }
+    scan_stop();
+    memcpy(pass_buf, p.data, p.len);
+    pass_buf[p.len] = 0;
+    memset(&p, 0, sizeof(p));
+    pass_scanned = true;
+    ui_goto(UI_PASSPHRASE);   // keeps pass_buf
 }
 
 // ---------------------------------------------------------------- BIP-85 child seed
@@ -3560,7 +3675,8 @@ void ui_goto(UiScreen s) {
     // (Words found shows preview_buf: the photo, kept there; scanning stopped before it)
     // Reading words keeps the camera on: a camera just woken gave blank frames, and the
     // sharp picture comes right after the still (the reading step stops it).
-    if (s != UI_SCAN_SEED && s != UI_SCAN && s != UI_BACKUP_SCAN && s != UI_PAGE_FOUND) scan_stop(s != UI_PAGE_READING);
+    if (s != UI_SCAN_SEED && s != UI_SCAN && s != UI_BACKUP_SCAN && s != UI_PASSPHRASE_SCAN && s != UI_PAGE_FOUND)
+        scan_stop(s != UI_PAGE_READING);
     if (s != UI_PASSPHRASE) pass_wipe();
     if (s != UI_EXPORT_XPUB) key_details = false;
     // A scanned descriptor that wasn't confirmed on its screen is never used.
@@ -3586,6 +3702,7 @@ void ui_goto(UiScreen s) {
         case UI_PASSPHRASE: build_passphrase(); break;
         case UI_WALLET_OPTIONS: build_wallet_options(); break;
         case UI_SCAN: build_scan(SCAN_WALLET); break;
+        case UI_PASSPHRASE_SCAN: build_scan(SCAN_PASS); break;
         case UI_VERIFY_RESULT: build_verify(); break;
         case UI_EXPORT_XPUB: build_export_xpub(); break;
         case UI_NETWORK: build_network(); break;

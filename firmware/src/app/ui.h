@@ -10,6 +10,9 @@
 //        address -> searching -> verified / not from this seed
 //   Wallet -> Wallet options -> Connect wallet | Back up as QR | Passphrase | Child seed | Wipe
 //   Passphrase (optional, BIP-39) -> keyboard -> Wallet with the passphrase's fingerprint
+//        QR key, field empty: scan a passphrase card into the field (then OK)
+//        QR key, 1..32 typed: the seed's card flow for the passphrase (warning,
+//        whole QR, each block, card check required) -> applied -> Wallet
 //   Connect wallet: the key's QR; tap it for fingerprint, path and the whole
 //        key; "For a multisig wallet" switches to the BIP-48 key, RAM only
 //   Wallet options -> Network (Mainnet / Testnet) for that key, RAM only
@@ -37,6 +40,7 @@ enum UiScreen {
     UI_SCAN_SEED,        // a SeedQR, or written words once held still
     UI_WALLET,           // home once a seed is loaded: fingerprint, Scan QR, Wallet options
     UI_PASSPHRASE,       // BIP-39 passphrase keyboard, from Wallet options
+    UI_PASSPHRASE_SCAN,  // a passphrase card, into the empty passphrase field
     UI_WALLET_OPTIONS,
     UI_SCAN,             // a transaction to sign or an address to verify (or a descriptor)
     UI_EXPORT_XPUB,
@@ -115,5 +119,6 @@ void ui_page_use_guess();      // tap it
 void ui_child_digit(int k);           // a keypad digit 0-9, or -1 for Del
 const char *ui_child_number();        // the child number as typed
 // A key of the passphrase keyboard, by its label: one character, or "space",
-// "Del", "abc", "ABC", "123", "#+=", "OK" (derive the key, back to Wallet).
+// "Del", "abc", "ABC", "123", "#+=", "OK" (derive the key, back to Wallet),
+// ICON_QR (scan a passphrase card, or make one of the passphrase typed).
 void ui_passphrase_key(const char *key);

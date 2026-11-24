@@ -52,6 +52,9 @@ SeedQrResult seedqr_decode(const uint8_t *data, size_t len, SeedEntropy *out) {
     // Compact SeedQR is raw bytes. A 16/32 byte payload of digits is ambiguous in
     // theory; SeedSigner treats byte-mode payloads of these lengths as Compact.
     if (len == 16 || len == 32) {
+        bool text = true;
+        for (size_t i = 0; i < len; i++) text &= data[i] >= 0x20 && data[i] <= 0x7E;
+        if (text) return SEEDQR_TEXT;
         memcpy(out->bytes, data, len);
         out->len = len;
         return SEEDQR_OK;
