@@ -302,3 +302,14 @@ def test_passphrase_gives_its_own_wallet(dev):
     dev.key("OK")                     # empty: back to the seed alone
     assert dev.screen == "WALLET", dev.text()
     assert fingerprint_on_screen(dev) == Seed(MNEMONIC).fingerprint
+
+
+def test_passphrase_layer_keys_type_nothing(dev):
+    """A layer key swaps the keys under the finger on touch-down; lifting the
+    finger then types nothing, whatever key now sits where it was."""
+    load_by_words(dev, MNEMONIC)
+    dev.tap("Wallet options")
+    dev.tap("Passphrase")
+    for k in ["123", "#+=", "123", "#+=", "abc"]:
+        dev.key(k)
+    assert next(t for t in dev.texts() if t.endswith("_")) == "_"

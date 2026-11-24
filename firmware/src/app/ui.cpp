@@ -149,6 +149,7 @@ constexpr int KB_CALL_OFF = 24;   // px above the keyboard
 static bool kb_sliding;           // a key callback during the pick-up isn't a key press
 static bool kb_follow;            // this press began on a character key (or on none)
 static uint32_t kb_held = KB_NONE, kb_before = KB_NONE, kb_since;
+static const char *const *kb_landed_map;   // the keys when the finger landed
 
 static bool kb_is_char(lv_obj_t *kb, uint32_t b) {
     return b != KB_NONE && lv_buttonmatrix_has_button_ctrl(kb, b, LV_BUTTONMATRIX_CTRL_POPOVER);
@@ -160,7 +161,11 @@ static void kb_touch_cb(lv_event_t *e) {
     lv_event_code_t code = lv_event_get_code(e);
     uint32_t b = lv_buttonmatrix_get_selected_button(kb);
     if (code == LV_EVENT_PRESSED) {
-        kb_follow = b == KB_NONE || kb_is_char(kb, b);   // Del, OK and the layer keys stay as LVGL has them
+        // A layer key has swapped the keys under the finger; LVGL still holds
+        // its index, which can be a character (or past the end) in the new map.
+        bool swapped = lv_buttonmatrix_get_map(kb) != kb_landed_map;
+        if (swapped) lv_buttonmatrix_set_selected_button(kb, b = KB_NONE);
+        kb_follow = !swapped && (b == KB_NONE || kb_is_char(kb, b));   // Del, OK and the layer keys stay as LVGL has them
         kb_held = kb_before = b;
     } else if (code == LV_EVENT_PRESSING && kb_follow) {
         lv_point_t p;
@@ -188,6 +193,11 @@ static void kb_touch_cb(lv_event_t *e) {
     b = lv_obj_has_state(kb, LV_STATE_PRESSED) ? lv_buttonmatrix_get_selected_button(kb) : KB_NONE;
     if (b != shown) lv_obj_invalidate(kb);
     shown = b;
+}
+
+// Before LVGL acts on the key the finger lands on.
+static void kb_land_cb(lv_event_t *e) {
+    if (!kb_sliding) kb_landed_map = lv_buttonmatrix_get_map(lv_event_get_target_obj(e));
 }
 
 // Before LVGL types the held key on release.
@@ -251,7 +261,8 @@ static void kb_style(lv_obj_t *kb) {
     lv_obj_add_event_cb(kb, kb_touch_cb, LV_EVENT_PRESSING, nullptr);
     lv_obj_add_event_cb(kb, kb_touch_cb, LV_EVENT_RELEASED, nullptr);
     lv_obj_add_event_cb(kb, kb_touch_cb, LV_EVENT_PRESS_LOST, nullptr);
-    lv_obj_add_event_cb(kb, kb_lift_cb, lv_event_code_t(LV_EVENT_RELEASED | LV_EVENT_PREPROCESS), nullptr);
+    lv_obj_add_event_cb(kb, kb_land_cb, lv_event_code_t(LV_EVENT_PRESSED | LV_EVENT_PREPROCESS), nullptr);
+    lv_obj_add_event_cb(kb, kb_lift_cb,lv_event_code_t(LV_EVENT_RELEASED | LV_EVENT_PREPROCESS), nullptr);
     lv_obj_remove_flag(kb, LV_OBJ_FLAG_SCROLLABLE);   // a slide over the keys is not a scroll
     lv_obj_add_flag(kb, LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);
     lv_obj_add_event_cb(kb, kb_draw_cb, LV_EVENT_DRAW_TASK_ADDED, nullptr);
