@@ -13,6 +13,7 @@ board's four M2 standoffs press into sockets in the posts, where crush ribs
 ## Files
 
 - `parts/case.gcad`: the case
+- `parts/goldfish.svg`, `parts/goldfish-pupil.svg`: the goldfish mark, sunk 0.4 mm into the back under the lens, as on the card sleeve (`ls`, `deb`, `my`)
 - `parts/board.gcad`: stand-in model of the board and camera, for fit checks
 - `stateless-signer.gasm`: case + board, with an interference check
 - `exports/`: STL for printing, STEP of the whole assembly
