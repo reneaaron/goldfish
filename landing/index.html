@@ -172,6 +172,20 @@
   .cta.below { display: none; }   /* phones: the button goes after the cards, not between heading and intro */
   .build ~ .photo { margin-top: 16px; aspect-ratio: 16 / 7; object-position: 50% 42%; }
 
+  /* ---- questions: a disclosure list */
+  .faq { max-width: 760px; margin-top: 40px; border-top: 1px solid var(--line); }
+  .faq details { border-bottom: 1px solid var(--line); }
+  .faq summary {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
+    padding: 18px 0; font-weight: 600; font-size: 18px; cursor: pointer; list-style: none;
+  }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; flex: none; color: var(--accent); font-size: 24px; font-weight: 500; line-height: 1; }
+  .faq details[open] summary::after { content: "−"; }
+  .faq summary:hover { color: var(--accent); }
+  .faq details p { color: var(--muted); font-size: 16px; max-width: 64ch; padding-bottom: 20px; }
+  .faq details p a { color: var(--accent); text-underline-offset: 3px; }
+
   footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--faint); font-size: 14px; }
   footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
   footer a:hover { color: var(--text); }
@@ -235,6 +249,7 @@
     <a class="link wide" href="#how">How it works</a>
     <a class="link" href="try/">Try it</a>
     <a class="link wide" href="#build">Build one</a>
+    <a class="link wide" href="#faq">FAQ</a>
     <a class="link" href="https://github.com/reneaaron/goldfish" aria-label="GitHub">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49l-.01-1.9c-2.78.62-3.37-1.21-3.37-1.21-.46-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.9 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05A9.36 9.36 0 0 1 12 6.96c.85 0 1.71.12 2.51.34 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9l-.01 2.82c0 .27.18.59.69.49A10.03 10.03 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/></svg>
     </a>
@@ -387,6 +402,51 @@
       </div>
       <a class="cta below" href="parts/">Open the build guide →</a>
       <img class="photo" src="img/renders/06_lineup.png" alt="Render: four signers in graphite, white and orange cases showing different screens" loading="lazy">
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap">
+      <h2>Questions</h2>
+      <p class="lede">Mostly about trust. The longer answers are in <a href="https://github.com/reneaaron/goldfish/blob/main/SECURITY.md">SECURITY.md</a>.</p>
+      <div class="faq">
+        <details>
+          <summary>Can data leak over the USB cable?</summary>
+          <p>The firmware has no USB stack, so while it runs the cable only powers it and a computer doesn't see it. The chip's built-in bootloader stays reachable over USB whatever the firmware does, so power it from a charger or a power bank, not a computer, while a seed is loaded. Update firmware is the one time it talks over USB: you choose it on the home screen, with no seed loaded, and the board restarts as a USB drive.</p>
+        </details>
+        <details>
+          <summary>Does it have Wi-Fi or Bluetooth?</summary>
+          <p>No. The board has no radio hardware at all, so there is nothing to remove or switch off.</p>
+        </details>
+        <details>
+          <summary>What stays in memory, and when is it gone?</summary>
+          <p>The seed, the key derived from a passphrase (never the passphrase itself), a multisig wallet's descriptor and your Connect wallet settings. They live in memory only and nothing is written to flash. Forget seed clears them, and so does unplugging.</p>
+        </details>
+        <details>
+          <summary>Can I trust a pre-built or pre-flashed one?</summary>
+          <p>Don't trust the firmware it came with. The board's bootloader takes any firmware file without checking a signature, so you can't tell from the outside what it runs. Flash it yourself from the <a href="flasher/">flasher</a> before you load a seed, or better, buy the board and build one yourself.</p>
+        </details>
+        <details>
+          <summary>How do I check the firmware I'm installing?</summary>
+          <p>Each <a href="https://github.com/reneaaron/goldfish/releases">GitHub release</a> has <code>firmware.uf2</code>, its <code>SHA256SUMS</code> and a build provenance attestation. This site checks both before the flasher offers the file, and the flasher shows the file's SHA-256, worked out in your browser. The page and the file come from the same place, though, so compare that hash with the release, run <code>gh attestation verify</code>, or build the release yourself: the build is reproducible.</p>
+        </details>
+        <details>
+          <summary>Is it air-gapped?</summary>
+          <p>Not strictly: it's powered over USB. In normal use no data crosses the cable, because the firmware has no USB stack and the board has no radio. Everything goes in through the camera and out on the screen.</p>
+        </details>
+        <details>
+          <summary>Has it been audited? Is it safe for real funds?</summary>
+          <p>No to both. The code hasn't been reviewed or audited, and it doesn't use the chip's secure boot. Goldfish is early: it works on a real board, but don't use it for real funds yet.</p>
+        </details>
+        <details>
+          <summary>Can I try my real seed in the browser version?</summary>
+          <p>No. The <a href="try/">browser version</a> is a demo running on your computer, and a browser tab is not a device that forgets. Use the test seed it comes with.</p>
+        </details>
+        <details>
+          <summary>How do I report a security issue?</summary>
+          <p>Privately, through <a href="https://github.com/reneaaron/goldfish/security/advisories/new">GitHub's private vulnerability reporting</a>, not in a public issue.</p>
+        </details>
+      </div>
     </div>
   </section>
 </main>
