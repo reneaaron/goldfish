@@ -5,7 +5,7 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 SECS=${1:-600}; shift || true
-NAMES=${*:-psbt ur seedqr address qr}
+NAMES=${*:-psbt ur seedqr address qr multisig}
 mkdir -p crashes out
 
 run() {
@@ -13,8 +13,8 @@ run() {
     mkdir -p corpus/$name crashes/$name
     while [ "$(date +%s)" -lt "$end" ]; do
         local left=$(( end - $(date +%s) ))
-        ASAN_OPTIONS=detect_leaks=0:abort_on_error=1:symbolize=1 \
-            ./out/fuzz_$name corpus/$name -t "$left" -seed $((RANDOM + i)) >>out/$name.log 2>&1
+        ASAN_OPTIONS=detect_leaks=0:abort_on_error=1:symbolize=1 UBSAN_OPTIONS=abort_on_error=1:print_stacktrace=1 \
+            ./out/fuzz_$name corpus/$name -t "$left" -max_len 16384 -seed $((RANDOM + i)) >>out/$name.log 2>&1
         for c in corpus/$name/crash-*; do [ -e "$c" ] && mv "$c" crashes/$name/; done
         i=$((i + 1))
     done
