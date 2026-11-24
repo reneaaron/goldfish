@@ -57,6 +57,19 @@ ONLY=a SAMPLES=64 PCT=50 blender -b -P marketing/renders/scenes.py
 | `out/12_backup_closeup.png` | Seed loaded, next to the SeedQR card it was scanned from |
 | `out/13_backup_copy.png` | Copying the seed onto the paper SeedQR card, part by part |
 
+`renders/metal.py` renders the steel backup for the `/metal/` page
+(`out/15_metal_stack.png`): the device showing the words, nine stamped M8
+washers on a bolt and three loose ones (twelve in all), and the printed box with its lid off. Real
+part sizes; the stamped words are the screenshot seed's. `CPU=1` when the GPU is
+busy. The box is the [Knurled Blockmit Stackbox](https://makerworld.com/en/models/196485)
+by Printer_Gobrrr (CC BY-NC-SA), its body shortened to 45 mm for 12 washers
+(`hardware/stackbox_12.scad`);
+`renders/assets/stackbox_*.stl` are decimated copies.
+
+```bash
+blender -b -P marketing/renders/metal.py
+```
+
 The laptop shows a generic wallet window (`renders/assets/laptop_screen.png`,
 drawn for these renders), not any real app's interface. The SeedQR card
 (`renders/assets/seedqr_card.png`, drawn by `make_seedqr_card.py`) is the real

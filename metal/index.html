@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Steel backup · Goldfish</title>
+<meta name="description" content="Stamp a 12-word seed into stainless steel washers on a bolt, from parts any hardware store has: M8 washers, a bolt, a nut and 6 mm letter punches.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Crect x='8' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='11' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='20' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='26' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='2' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='20' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='23' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='20' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='26' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='8' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='11' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='5' y='11' width='9' height='9' fill='%2314222B'/%3E%3Crect x='6' y='12' width='7' height='7' fill='%23FFFFFF'/%3E%3Crect x='8' y='14' width='3' height='3' fill='%2314222B'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rethink+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Follows the landing page's brand (landing/index.html), same as parts/. */
+  :root {
+    --bg: #FFFFFF; --raised: #EDF2F4; --rule: #D9E2E6;
+    --text: #14222B; --muted: #5A6B75; --faint: #75858E; --accent: #C2501A;
+    --amber: #A16207; --amber-dim: #F5E6C4;
+    --sans: "Rethink Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+  a { color: var(--accent); }
+
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+  nav { display: flex; align-items: center; gap: 4px; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 700; letter-spacing: -0.01em;
+           color: inherit; text-decoration: none; margin-right: auto; }
+  .brand svg { width: 40px; height: 23px; }
+  nav a.link { color: var(--muted); font-size: 15px; font-weight: 500; text-decoration: none; padding: 8px 12px; border-radius: 8px; }
+  nav a.link:hover { color: var(--text); background: var(--raised); }
+  nav a.link.try { background: var(--text); color: var(--bg); font-weight: 600; margin-left: 8px; }
+  nav a.link.try:hover { opacity: .88; }
+  nav a.link svg { width: 20px; height: 20px; display: block; }
+
+  main.wrap { padding-top: 32px; padding-bottom: 96px; }
+  h1 { font-size: clamp(36px, 5.6vw, 52px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; margin: 0; }
+  .lede { color: var(--muted); max-width: 58ch; margin: 14px 0 0; }
+  h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; margin: 56px 0 8px; }
+  h3 { font-size: 18px; font-weight: 600; margin: 0; }
+  p { color: var(--muted); max-width: 62ch; margin: 0 0 12px; }
+  b { color: var(--text); font-weight: 600; }
+  code { font-family: var(--mono); font-size: .9em; color: var(--text); }
+  @media (max-width: 640px) { nav a.link.wide { display: none; } h2 { margin-top: 40px; font-size: 24px; } }
+
+  .hero { margin: 32px 0 0; border-radius: 16px; overflow: hidden; background: var(--raised); }
+  .hero img { width: 100%; display: block; aspect-ratio: 16 / 9; object-fit: cover; }
+  ul.need, ol.do { margin: 8px 0 0; padding: 0; list-style: none; max-width: 62ch; }
+  ul.need li, ol.do li { color: var(--muted); padding: 14px 0; border-bottom: 1px solid var(--rule); }
+  ul.need span { display: block; color: var(--faint); font-size: 15px; }
+  ol.do { counter-reset: n; }
+  ol.do li { counter-increment: n; position: relative; padding-left: 42px; }
+  ol.do li::before { content: counter(n); position: absolute; left: 0; top: 12px; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+                     background: var(--text); color: var(--bg); font-size: 14px; font-weight: 600; }
+  .total { margin: 14px 0 0; }
+  h3.opt { margin: 28px 0 0; font-size: 15px; color: var(--faint); font-weight: 500; }
+  .small { font-size: 15px; margin-top: 24px; }
+  .foot { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between;
+          margin-top: 56px; padding-top: 28px; border-top: 1px solid var(--rule); }
+  .foot .back { color: var(--muted); font-weight: 500; text-decoration: none; }
+  .foot .back:hover { color: var(--text); }
+  .foot .fwd { display: inline-flex; align-items: center; height: 48px; padding: 0 20px; border-radius: 12px;
+               background: var(--text); color: var(--bg); font-size: 16px; font-weight: 600; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<header class="wrap">
+  <nav>
+    <a class="brand" href="../">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 94 54" aria-hidden="true">
+        <rect x="20" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="30" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="10" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="10" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="60" y="10" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="80" y="10" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="0" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="60" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="70" y="20" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="30" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="30" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="60" y="30" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="80" y="30" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="20" y="40" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="30" y="40" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="40" y="40" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="50" y="40" width="9" height="9" rx="2" fill="#FF7A2F"/>
+        <rect x="10" y="10" width="29" height="29" rx="3" fill="#14222B"/>
+        <rect x="15" y="15" width="19" height="19" rx="1.5" fill="#FFFFFF"/>
+        <rect x="20" y="20" width="9" height="9" rx="1" fill="#14222B"/>
+      </svg>
+      goldfish
+    </a>
+    <a class="link wide" href="../#how">How it works</a>
+    <a class="link wide" href="../#build">Build one</a>
+    <a class="link try" href="../try/">Try it</a>
+    <a class="link" href="https://github.com/reneaaron/goldfish" aria-label="GitHub">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49l-.01-1.9c-2.78.62-3.37-1.21-3.37-1.21-.46-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.9 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05A9.36 9.36 0 0 1 12 6.96c.85 0 1.71.12 2.51.34 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9l-.01 2.82c0 .27.18.59.69.49A10.03 10.03 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/></svg>
+    </a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <h1>Back up in steel</h1>
+  <p class="lede">Twelve steel washers, one word hammered into each, on a bolt.
+     Stainless steel melts at about 1,400&nbsp;°C; paper burns.</p>
+
+  <figure class="hero">
+    <img src="../img/renders/15_metal_stack.png" alt="Render: a Goldfish showing the 12 words, nine stainless washers on a bolt, three more stamped with a word each, and the printed box">
+  </figure>
+
+  <h2>You need</h2>
+  <ul class="need">
+    <li><b>12 stainless washers</b> M8 × 24&nbsp;mm (DIN 9021), an <b>M8 × 35 bolt</b> and a <b>nut</b><span>about $5, any hardware store</span></li>
+    <li><b>6&nbsp;mm letter and number punches</b><span>about $35, once</span></li>
+    <li><b>A hammer</b></li>
+  </ul>
+  <p class="total">About <b>$40</b> in all. Each further backup: about $5.</p>
+
+  <h3 class="opt">Optional, printed</h3>
+  <ul class="need">
+    <li><b>A stamping jig</b> holds the washer and lines up the letters.
+      <a href="https://www.printables.com/model/855641-parametric-washer-stamping-jig">Parametric Washer Stamping Jig</a>
+      (made for M8 × 24 washers and 6&nbsp;mm punches)<span>Print it solid: it takes hammer blows</span></li>
+    <li><b>A screw-top box</b> that fits the 12-washer bolt:
+      <a href="files/stackbox_12_body.stl" download>body</a> and <a href="files/stackbox_12_lid.stl" download>lid</a>.
+      Shortened from Printer_Gobrrr's <a href="https://makerworld.com/en/models/196485-knurled-blockmit-stackbox">Knurled Blockmit Stackbox</a> (CC BY-NC-SA)<span>Fine layers (0.15&nbsp;mm or less), 4 walls. Plastic hides it; the steel is what survives a fire</span></li>
+  </ul>
+
+  <h2>Do</h2>
+  <ol class="do">
+    <li>Stamp each word's number and first four letters: <code>01 UNVE</code> for <i>unveil</i>.</li>
+    <li>Put the washers on the bolt in order. Nut on, tight.</li>
+    <li>Check: on Goldfish tap <b>Enter words</b> and type the letters from each washer.</li>
+  </ol>
+
+  <p class="small">Ask for stainless A4 or A2, not zinc-plated. Practise on a spare washer first.</p>
+
+  <div class="foot">
+    <a class="back" href="../cards/">← Paper backup cards</a>
+    <a class="fwd" href="../start/">First use →</a>
+  </div>
+</main>
+
+</body>
+</html>
