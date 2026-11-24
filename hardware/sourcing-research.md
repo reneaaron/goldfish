@@ -15,8 +15,8 @@ the current one fails.
 | Main board | RP2350-Touch-LCD-2-C, $19.99 with OV5640 ($14.99 without) | Pi Zero v1.3: $5 list price, really ~$11–26 |
 | Display | built in | Waveshare 1.3" 240×240 HAT, ~$14–16 |
 | Camera | included in -C | OV5647 Zero camera, ~$10–15 |
-| microSD | not needed | ~$5 |
-| Total (no case) | ~$20 | ~$40–60 |
+| microSD | not needed | ~$10–20 (cheapest 32 GB ~$9–11, SanDisk/PNY ~$15–20) |
+| Total (no case) | ~$20 | ~$45–75 |
 | Soldering | none | header pins on the Zero v1.3, unless bought pre-soldered |
 
 ### Availability
@@ -28,7 +28,7 @@ the current one fails.
 | Stock | in stock at Waveshare and OpenELAB | patchy: several resellers sold out, some cap orders |
 | If a part is missing | hard to swap: firmware is tied to this board | easy to swap (other Pi models, any OV5647 camera), but 3–4 parts from several shops |
 
-Summary: our board is about half the price, one part, no soldering. Its
+Summary: our board is under half the price, one part, no soldering. Its
 weak spot is supply: one vendor, one SKU, no lifetime guarantee. The Pi
 Zero is guaranteed and sold by many shops but often out of stock.
 
@@ -101,6 +101,7 @@ What this means:
 - [PiShop: Pi Zero](https://www.pishop.us/product/raspberry-pi-zero/)
 - [Raspberry Pi lifecycle](https://raspberry.tips/en/raspberrypi-infos/raspberry-pi-prices-lifecycle)
 - [SeedSigner hardware](https://seedsigner.com/hardware)
+- microSD prices: [BasketPrice](https://www.basketprice.com/sale/microsd-card), [Storage Price Tracker](https://storagepricetracker.com/ItemDetails/MicroSD/B0H6K393TQ), [Walmart](https://www.walmart.com/c/kp/micro-sd-32-cards), [Staples](https://www.staples.com/32GB-microSD-Memory-Cards/cat_CL142162/8mtjb-8mx01)
 - [Waveshare 1.3" LCD HAT](https://www.waveshare.com/product/raspberry-pi/displays/1.3inch-lcd-hat.htm)
 - [Kern](https://github.com/cyb650/Kern), [Crux](https://github.com/pythcoiner/Crux)
 - [Krux parts list](https://selfcustody.github.io/krux/parts/)
