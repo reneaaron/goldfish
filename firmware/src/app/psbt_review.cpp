@@ -34,6 +34,7 @@ const char *psbt_error_text(PsbtError e) {
         case PSBT_NOT_OUR_SEED: return "This transaction is for a different wallet. Scan the seed QR it belongs to.";
         case PSBT_NO_FINGERPRINT: return "Your wallet app has your key without its fingerprint. Add it again from Connect wallet.";
         case PSBT_UNSUPPORTED: return "Only native SegWit wallets are supported for now, single-key or multisig.";
+        case PSBT_SIGHASH: return "It asks for a sighash other than ALL. Use the default in your wallet app.";
         case PSBT_TOO_MANY_OUTPUTS: return "It has over 8 outputs, too many for this screen. Pay fewer addresses at once.";
         case PSBT_TOO_BIG: return "It's over 8 KB. Select fewer coins in your wallet app to split it into smaller ones.";
         case PSBT_MISSING_AMOUNTS: return "Your wallet left out the input amounts, so the fee can't be checked.";
@@ -236,7 +237,7 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
 
         // Anything but ALL leaves outputs or other inputs out of the signature,
         // so what is shown here would not be what gets signed.
-        if (in.sighash != 0 && in.sighash != WALLY_SIGHASH_ALL) return r->error = PSBT_UNSUPPORTED;
+        if (in.sighash != 0 && in.sighash != WALLY_SIGHASH_ALL) return r->error = PSBT_SIGHASH;
 
         // A finalized input keeps no partial signatures when serialized, so
         // the signed QR would carry nothing from us.

@@ -258,7 +258,7 @@ void test_other_sighash_rejected() {
     edit_psbt([](struct wally_psbt *p) {
         TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_set_input_sighash(p, 0, WALLY_SIGHASH_NONE));
     });
-    TEST_ASSERT_EQUAL(PSBT_UNSUPPORTED, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(PSBT_SIGHASH, psbt_load(raw, raw_len, &r));
     TEST_ASSERT_EQUAL(0, psbt_sign());
 
     setUp();
@@ -266,7 +266,7 @@ void test_other_sighash_rejected() {
         TEST_ASSERT_EQUAL(WALLY_OK,
                           wally_psbt_set_input_sighash(p, 0, WALLY_SIGHASH_ALL | WALLY_SIGHASH_ANYONECANPAY));
     });
-    TEST_ASSERT_EQUAL(PSBT_UNSUPPORTED, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(PSBT_SIGHASH, psbt_load(raw, raw_len, &r));
 
     setUp();                                      // ALL, spelled out, is fine
     edit_psbt([](struct wally_psbt *p) {

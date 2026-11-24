@@ -165,6 +165,18 @@ def test_too_many_outputs_says_so(dev):
     assert "over 8 outputs" in dev.text()
 
 
+def test_other_sighash_says_so(dev):
+    """SIGHASH_NONE would leave the outputs unsigned: refused, and the screen
+    names the sighash instead of "native SegWit only"."""
+    wallet = linked_wallet(dev)
+    psbt = wallet.create_psbt([wallet.fund(0, 90_000)], [(stranger_address(), 10_000)], fee=500)
+    psbt.inputs[0].sighash_type = 2   # SIGHASH_NONE
+    dev.tap("Scan QR")
+    dev.scan_animated(psbt_parts(psbt))
+    assert dev.screen == "PSBT_ERROR", dev.text()
+    assert "sighash other than ALL" in dev.text()
+
+
 def test_fake_change_blocks_signing(dev):
     """Change that claims to be ours but pays another script: the classic
     attack by a compromised wallet app. The signer must refuse."""

@@ -29,6 +29,7 @@ enum PsbtError {
     PSBT_NOT_OUR_SEED,      // inputs signed by a different fingerprint
     PSBT_NO_FINGERPRINT,    // inputs without key origin, or with fingerprint 00000000
     PSBT_UNSUPPORTED,       // not native segwit single-sig or multisig
+    PSBT_SIGHASH,           // an input asks for a sighash other than ALL
     PSBT_TOO_MANY_OUTPUTS,  // more than PSBT_MAX_OUTPUTS outputs
     PSBT_TOO_BIG,           // past UR_MAX_MESSAGE, set by the scanner (or the signed PSBT doesn't fit)
     PSBT_MISSING_AMOUNTS,   // inputs without witness UTXO: fee unknown

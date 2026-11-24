@@ -202,7 +202,8 @@ witness script must also be the descriptor's. A transaction without outputs,
 an input that is already finalized, a full previous transaction that isn't the
 one spent or disagrees with the witness UTXO, and a redeem script (or a witness
 script on a single-sig input) are refused as invalid. More than 8 outputs are
-refused too, since review couldn't show them all. When no key path of an input
+refused too, since review couldn't show them all, and so is a sighash other
+than ALL, which would leave outputs or inputs out of the signature. When no key path of an input
 is ours, the screen tells two causes apart: another seed's fingerprint ("for a
 different wallet"), or fingerprint `00000000` / no key path at all, which is
 what wallet apps write when they hold the key as a bare xpub without its
@@ -386,6 +387,7 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
   an animated PSBT joined mid-cycle (fountain parts only) both ways and a base64 frame; the signed QR read in full screen;
   another seed's transaction, another wallet's address, and fake change;
   a transaction whose key has fingerprint `00000000` or no key path; 9 outputs;
+  SIGHASH_NONE;
   a passphrase typed on the keyboard giving the key and signatures embit
   derives from the same words and passphrase, and removed again
 - Multisig: Connect wallet's four keys (single-sig and multisig, mainnet and
