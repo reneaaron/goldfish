@@ -282,17 +282,17 @@
       <p class="lede">Everything goes in through the camera and out through the screen. Tap through it.</p>
       <div class="demo">
         <ol class="steps" id="steps">
-          <li><button data-shot="2_scan_waiting"><strong>Scan your seed</strong><span>Hold your SeedQR up to the camera. Or type your words.</span></button></li>
-          <li><button data-shot="3_seed_loaded"><strong>Match the fingerprint</strong><span>The device shows which seed it loaded, so you can check it against your wallet app.</span></button></li>
-          <li><button data-shot="7_psbt_overview"><strong>Scan the transaction</strong><span>Your wallet app shows it as a QR. The device reads the amount, the fee and the change.</span></button></li>
-          <li><button data-shot="8_psbt_output_1"><strong>Check every address</strong><span>One screen per recipient. Change only counts as change if your seed really owns it.</span></button></li>
-          <li><button data-shot="10_psbt_sign"><strong>Slide to sign</strong><span>The device only signs. Your wallet app sends.</span></button></li>
-          <li><button data-shot="11_psbt_signed"><strong>Scan it back</strong><span>The signed transaction comes out as a QR for your wallet app.</span></button></li>
+          <li><button data-shot="2_scan.webp"><strong>Scan your seed</strong><span>Hold your SeedQR up to the camera. Or type your words.</span></button></li>
+          <li><button data-shot="3_seed_loaded.png"><strong>Match the fingerprint</strong><span>The device shows which seed it loaded, so you can check it against your wallet app.</span></button></li>
+          <li><button data-shot="7_psbt_overview.png"><strong>Scan the transaction</strong><span>Your wallet app shows it as a QR. The device reads the amount, the fee and the change.</span></button></li>
+          <li><button data-shot="8_psbt_output_1.png"><strong>Check every address</strong><span>One screen per recipient. Change only counts as change if your seed really owns it.</span></button></li>
+          <li><button data-shot="10_psbt_sign.png"><strong>Slide to sign</strong><span>The device only signs. Your wallet app sends.</span></button></li>
+          <li><button data-shot="11_psbt_signed.png"><strong>Scan it back</strong><span>The signed transaction comes out as a QR for your wallet app.</span></button></li>
           <li><button data-shot=""><strong>Unplug</strong><span>The seed was only in memory. Now it's gone.</span></button></li>
         </ol>
         <div class="stage" id="stage">
           <button class="device" id="demo-device" aria-label="Next step">
-            <div class="glass"><img id="shot" src="img/screens/2_scan_waiting.png" alt="The device's screen at this step"></div>
+            <div class="glass"><img id="shot" src="img/screens/2_scan.webp" alt="The device's screen at this step"></div>
           </button>
           <svg class="cable" viewBox="0 0 46 120" aria-hidden="true">
             <rect x="11" y="0" width="24" height="10" rx="2.5" fill="#9AA3A8"/>
@@ -410,13 +410,13 @@ function show(i) {
   buttons.forEach((b, n) => n === i ? b.setAttribute('aria-current', 'step') : b.removeAttribute('aria-current'));
   const name = buttons[i].dataset.shot;
   stage.classList.toggle('off', !name);
-  if (name) shot.src = 'img/screens/' + name + '.png';
+  if (name) shot.src = 'img/screens/' + name;
   hint.textContent = name ? 'Tap the device for the next step' : 'Tap to plug it back in';
 }
 
 buttons.forEach((b, i) => b.addEventListener('click', () => show(i)));
 document.getElementById('demo-device').addEventListener('click', () => show((at + 1) % buttons.length));
-buttons.forEach((b) => { if (b.dataset.shot) new Image().src = 'img/screens/' + b.dataset.shot + '.png'; });
+buttons.forEach((b) => { if (b.dataset.shot) new Image().src = 'img/screens/' + b.dataset.shot; });
 show(0);
 </script>
 </body>

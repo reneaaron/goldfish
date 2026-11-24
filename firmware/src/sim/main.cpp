@@ -106,6 +106,47 @@ static bool cam_show_matrix(const uint8_t *qr) {
     return true;
 }
 
+// Script helper: a SeedQR card on a dark desk, `dx` pixels right of centre,
+// for the scan clip (docs/screens/2_scan.webp). The clip ends on the whole
+// code in view, so the code's format information (the strips beside the
+// finders) is blanked: it looks the same but never reads.
+static bool cam_show_card(const char *path, int dx) {
+    int w, h, n;
+    uint8_t *img = stbi_load(path, &w, &h, &n, 1);
+    if (!img) return false;
+    int x0 = w, x1 = -1, y0 = h;
+    for (int y = 0; y < h; y++)
+        for (int x = 0; x < w; x++)
+            if (img[y * w + x] < 128) { x0 = x < x0 ? x : x0; x1 = x > x1 ? x : x1; y0 = y < y0 ? y : y0; }
+    int fw = 0;
+    while (x0 + fw < w && img[y0 * w + x0 + fw] < 128) fw++;   // the top-left finder: 7 modules
+    int span = x1 - x0 + 1, mods = fw ? (7 * span + fw / 2) / fw : 0;
+    auto blank = [&](int r, int c) {
+        for (int y = y0 + r * span / mods; y < y0 + (r + 1) * span / mods; y++)
+            for (int x = x0 + c * span / mods; x < x0 + (c + 1) * span / mods; x++) img[y * w + x] = 255;
+    };
+    for (int i = 0; mods >= 21 && i < 9; i++) {
+        if (i != 6) { blank(8, i); blank(i, 8); }   // beside the top-left finder (6: timing)
+        if (i < 8) blank(8, mods - 1 - i);          // under the top-right finder
+        if (i < 7) blank(mods - 1 - i, 8);          // beside the bottom-left finder
+    }
+    const int side = 180, card = side + 24;
+    int cx = (CAM_W - card) / 2 + dx, cy = (CAM_H - card) / 2;
+    memset(cam_frame, 50, sizeof(cam_frame));
+    for (int y = 0; y < card; y++)
+        for (int x = 0; x < card; x++) {
+            int fx = cx + x, fy = cy + y;
+            if (fx < 0 || fx >= CAM_W || fy < 0 || fy >= CAM_H) continue;
+            int ix = x - 12, iy = y - 12;
+            bool in = ix >= 0 && ix < side && iy >= 0 && iy < side;
+            cam_frame[fy * CAM_W + fx] = in ? img[(iy * h / side) * w + ix * w / side] : 255;
+        }
+    stbi_image_free(img);
+    cam_ok = true;
+    cam_override = true;
+    return true;
+}
+
 const uint8_t *platform_camera_frame(int *width, int *height) {
     if (cam_override) { *width = CAM_W; *height = CAM_H; return cam_ok ? cam_frame : nullptr; }
     struct stat st;
@@ -240,6 +281,25 @@ static int run_shots(const char *dir) {
     ui_goto(UI_UPDATE); pump(300); save(dir, "1b_update");
     ui_goto(UI_SCAN_SEED);
     pump(300); save(dir, "2_scan_waiting");
+    // The scan clip, one frame per 100 ms (2_scan_clip_NN, made into 2_scan.webp):
+    // the empty desk, then a SeedQR card sliding in until it is whole in view.
+    {
+        const char *card = "sim/samples/vector4_standard_12word.png";
+        int f = 0;
+        char name[32];
+        auto frame = [&](int dx) {
+            if (!cam_show_card(card, dx)) return false;
+            pump(100);
+            snprintf(name, sizeof(name), "2_scan_clip_%02d", f++);
+            save(dir, name);
+            return true;
+        };
+        for (int i = 0; i < 6; i++) if (!frame(400)) { fprintf(stderr, "no %s\n", card); return 1; }
+        for (int i = 20; i >= 0; i--) frame(260 * i * i / 400);   // eases in
+        for (int i = 0; i < 15; i++) frame(0);                      // held in view
+        if (ui_current() != UI_SCAN_SEED) { fprintf(stderr, "the clip's card was read\n"); return 1; }
+        cam_override = false;
+    }
     setenv("SIM_CAMERA", "sim/samples/vector4_standard_12word.png", 1);
     for (int i = 0; i < 100 && ui_current() == UI_SCAN_SEED; i++) pump(50);
     if (ui_current() != UI_WALLET) { fprintf(stderr, "SeedQR was not decoded\n"); return 1; }
