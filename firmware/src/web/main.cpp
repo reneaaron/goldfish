@@ -3,8 +3,8 @@
 //
 // Camera: the page hands over one grayscale picture at a time (the sample the
 // user picked) through web_camera_buffer / web_camera_set.
-// From it, exactly like the desktop simulator's image file: the live frame is
-// that picture fitted into 320x240, the still is it box-filtered down.
+// From it, exactly like the desktop simulator's image file (src/sim/fit.h):
+// the board's 240x180 view, and twice that for the sharper bands.
 #include <lvgl.h>
 #include <emscripten.h>
 #include <math.h>
@@ -12,10 +12,11 @@
 #include <string.h>
 #include "../app/qrscan.h"
 #include "../app/ui.h"
+#include "../sim/fit.h"
 
 // ------------------------------------------------------------ camera
-#define CAM_W 320
-#define CAM_H 240
+#define CAM_W FIT_W
+#define CAM_H FIT_H
 static uint8_t cam_frame[CAM_W * CAM_H];
 static uint8_t *src;          // the page's picture, src_w x src_h, 8-bit gray
 static int src_w, src_h;
@@ -51,12 +52,7 @@ EMSCRIPTEN_KEEPALIVE void web_camera_clear() {
 const uint8_t *platform_camera_frame(int *width, int *height) {
     if (!src_ok) return nullptr;
     if (frame_stale) {
-        memset(cam_frame, 128, sizeof(cam_frame));
-        float s = fminf((float)CAM_W / src_w, (float)CAM_H / src_h);
-        int dw = int(src_w * s), dh = int(src_h * s), ox = (CAM_W - dw) / 2, oy = (CAM_H - dh) / 2;
-        for (int y = 0; y < dh; y++)
-            for (int x = 0; x < dw; x++)
-                cam_frame[(oy + y) * CAM_W + ox + x] = src[int(y / s) * src_w + int(x / s)];
+        fit(src, src_w, src_h, cam_frame, CAM_W, CAM_H);
         frame_stale = false;
     }
     *width = CAM_W;
@@ -73,40 +69,23 @@ void platform_backlight(int) {}   // the canvas has no backlight
 // The board reboots into its USB drive to take new firmware; here, start over.
 void platform_reboot_to_bootloader() { EM_ASM({ if (Module.onReboot) Module.onReboot(); }); }
 
-// A still: the picture box-filtered down to at most 1000 pixels on its longer
-// side (the sharper picture platform_camera_band cuts from), and that halved
-// (CAM_ZOOM) for the still itself. Same as src/sim/main.cpp.
+// A still: the board's sizes, as in src/sim/main.cpp.
 static uint8_t *still, *zoomed;
 static int still_w, still_h;
 
 uint8_t *platform_camera_still(int *width, int *height, size_t *room) {
     platform_camera_still_free();
     if (!src_ok) return nullptr;
-    const int w = src_w, h = src_h;
-    int f = 1;
-    while ((w + f - 1) / f > 1000 || (h + f - 1) / f > 1000) f++;
-    still_w = w / f / CAM_ZOOM; still_h = h / f / CAM_ZOOM;
+    still_w = CAM_W; still_h = CAM_H;
     const int zw = still_w * CAM_ZOOM, zh = still_h * CAM_ZOOM;
     zoomed = (uint8_t *)malloc((size_t)zw * zh);
-    still = (uint8_t *)malloc((size_t)still_w * still_h);
-    for (int y = 0; zoomed && y < zh; y++)
-        for (int x = 0; x < zw; x++) {
-            int sum = 0;
-            for (int j = 0; j < f; j++)
-                for (int i = 0; i < f; i++) sum += src[(y * f + j) * w + x * f + i];
-            zoomed[y * zw + x] = uint8_t(sum / (f * f));
-        }
-    for (int y = 0; zoomed && still && y < still_h; y++)
-        for (int x = 0; x < still_w; x++) {
-            int sum = 0;
-            for (int j = 0; j < CAM_ZOOM; j++)
-                for (int i = 0; i < CAM_ZOOM; i++) sum += zoomed[(y * CAM_ZOOM + j) * zw + x * CAM_ZOOM + i];
-            still[y * still_w + x] = uint8_t(sum / (CAM_ZOOM * CAM_ZOOM));
-        }
+    still = (uint8_t *)calloc(2, (size_t)still_w * still_h);   // the board lends both frame slots
     if (!zoomed || !still) { platform_camera_still_free(); return nullptr; }
+    fit(src, src_w, src_h, zoomed, zw, zh);
+    fit_still(zoomed, still, still_w, still_h, CAM_ZOOM);
     *width = still_w;
     *height = still_h;
-    *room = (size_t)still_w * still_h;
+    *room = (size_t)still_w * still_h * 2;
     return still;
 }
 
@@ -118,7 +97,7 @@ bool platform_camera_band(int y0, int rows, uint8_t *buf) {
 }
 
 void platform_camera_still_free() {
-    if (still) { memset(still, 0, (size_t)still_w * still_h); free(still); }
+    if (still) { memset(still, 0, (size_t)still_w * still_h * 2); free(still); }
     if (zoomed) { memset(zoomed, 0, (size_t)still_w * still_h * CAM_ZOOM * CAM_ZOOM); free(zoomed); }
     still = zoomed = nullptr;
 }

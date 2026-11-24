@@ -29,24 +29,30 @@ static_assert(WM_H == WR_H && WM_W == WR_W && WM_T == WR_T && WM_C == WR_C, "wor
 #define BUF_B LAYER(WM_B1_CO, 16, 96)
 static_assert(BUF_A >= LAYER(1, 32, 192) && BUF_A >= STEPS(WM_B4_CO) && BUF_B >= LAYER(WM_B3_CO, 4, 48),
               "buffers too small");
+static_assert(sizeof(int16_t) * BUF_A <= WR_LEND_BYTES, "WR_LEND_BYTES too small");
 static int16_t *buf_a, *buf_b;
+static bool a_lent;   // buf_a is the caller's memory, not the heap's
 
-bool word_reader_init() {
+bool word_reader_init(void *lend) {
     if (buf_a && buf_b) return true;
     word_reader_free();
     // the larger first: after the camera's band the heap can be split (on a board,
     // 92 KB free as 60 + 32), where the smaller taken first leaves no room for it
     buf_b = (int16_t *)malloc(sizeof(int16_t) * BUF_B);
-    buf_a = (int16_t *)malloc(sizeof(int16_t) * BUF_A);
+    a_lent = lend != nullptr;
+    buf_a = a_lent ? (int16_t *)lend : (int16_t *)malloc(sizeof(int16_t) * BUF_A);
     if (!buf_a || !buf_b) { word_reader_free(); return false; }
     return true;
 }
 
 void word_reader_free() {
-    if (buf_a) { secure_zero(buf_a, sizeof(int16_t) * BUF_A); free(buf_a); }
+    if (buf_a) { secure_zero(buf_a, sizeof(int16_t) * BUF_A); if (!a_lent) free(buf_a); }
     if (buf_b) { secure_zero(buf_b, sizeof(int16_t) * BUF_B); free(buf_b); }
     buf_a = buf_b = nullptr;
+    a_lent = false;
 }
+
+bool word_reader_holds(const void *lend) { return a_lent && buf_a == lend; }
 
 // ---------------------------------------------------------------- input
 static int64_t floor_div(int64_t n, int64_t d) {   // d > 0

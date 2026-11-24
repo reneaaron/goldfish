@@ -306,7 +306,11 @@ static void build_home() {
 // ---------------------------------------------------------------- scanning
 #define PREV_W 240
 #define PREV_H 180
-static uint8_t preview_buf[PREV_W * PREV_H];
+// Also lent to the word reader while words are read (nothing shows it then;
+// preview_image() takes it back): the board's heap can't hold all of the
+// reader's buffers.
+alignas(4) static uint8_t preview_buf[PREV_W * PREV_H];
+static_assert(sizeof(preview_buf) >= WR_LEND_BYTES, "the word reader's loan doesn't fit");
 static lv_image_dsc_t preview_dsc;
 static lv_obj_t *preview_img, *scan_msg, *scan_sub, *scan_bar;
 static lv_obj_t *scan_hints;   // what the wallet scanner takes, until a status
@@ -593,8 +597,11 @@ static void corners(lv_obj_t *parent, int cx, int cy, int cw, int ch) {
     }
 }
 
-// preview_buf on screen, under the top bar.
+// preview_buf on screen, under the top bar. A screen that shows it takes it
+// back from the word reader (reads fail until it's set up again), so the
+// picture is never the reader's working memory.
 static void preview_image(lv_obj_t *scr) {
+    if (word_reader_holds(preview_buf)) word_reader_free();
     preview_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
     preview_dsc.header.cf = LV_COLOR_FORMAT_L8;
     preview_dsc.header.w = PREV_W;
@@ -1793,6 +1800,10 @@ static void page_fail(const char *msg, const char *sub) {
 // Does the camera's frame look like written words? Only how many are found
 // counts; the page itself is found again from the still.
 static bool page_probe(const uint8_t *frame, int w, int h) {
+    // The QR scanner's buffers make room for the page finder's (the heap holds
+    // one or the other); the next frame sets the scanner up again.
+    qrscan_free();
+    qr_w = qr_h = 0;
     bool ok = page_find(frame, w, h, &page);
     int found = 0;
     for (int i = 0; ok && i < page.n; i++) found += !page.words[i].guessed;
@@ -1896,7 +1907,8 @@ static void page_reading_back_cb(lv_event_t *) {
 
 bool ui_page_found_read() {
     if (ui_current() != UI_PAGE_FOUND || !ncands || page_err) return false;
-    if (!word_reader_init()) { page_oom("Reader"); return false; }
+    lv_obj_add_flag(preview_img, LV_OBJ_FLAG_HIDDEN);   // the reader takes preview_buf; the fade still draws this screen
+    if (!word_reader_init(preview_buf)) { page_oom("Reader"); return false; }
     page_cut = false;
     ui_goto(UI_PAGE_READING);
     return true;
@@ -2169,7 +2181,7 @@ static int page_last_suggestion(const Slot &sl) {
     if (sl.word >= 0 && page_last_allowed(sl.word)) return -1;   // it fits already
     WordResult r;
     int w = -1;
-    if (word_reader_init()) {
+    if (word_reader_init(preview_buf)) {   // idle here: no screen shows it
         word_reader_read(page_strip_buf, page_last_allowed, &r);
         w = r.word;
         word_reader_free();
