@@ -1106,11 +1106,10 @@ static bool child_seed;                  // pending is a BIP-85 child of the loa
 static UiScreen backup_cancel = UI_NEW_SEED;   // where Cancel/Discard on the warning goes
 static bool child_failed;                // the last Continue couldn't derive a child
 static char child_num[11] = "0";         // child number; reset when a length is picked, not by new_seed_wipe
-static int words_page;                   // Write down words: 4 per page
 // Seed material shown on screen. lv_label_set_text would copy it into the LVGL
 // heap, which is freed without wiping; these labels point at static buffers
 // (lv_label_set_text_static) that new_seed_wipe() zeroes.
-static char txt_words[4][12], txt_field[16], txt_sugg[2][12], txt_tail[40];
+static char txt_words[24][12], txt_field[16], txt_sugg[2][12], txt_tail[40];
 
 // ---------------------------------------------------------------- written page
 // Written words on Scan seed: one still of the written backup (platform_camera_still), its
@@ -1204,7 +1203,7 @@ static void new_seed_wipe() {
     secure_zero(txt_field, sizeof(txt_field));
     secure_zero(txt_sugg, sizeof(txt_sugg));
     secure_zero(txt_tail, sizeof(txt_tail));
-    entropy_n = word_n = qr_n = block_i = words_page = 0;
+    entropy_n = word_n = qr_n = block_i = 0;
     backup_existing = drawing = final_flips = card_checked = child_seed = false;
     backup_cancel = UI_NEW_SEED;
 }
@@ -2509,55 +2508,56 @@ static void build_backup_block() {
 }
 
 // ---------------------------------------------------------------- write down words
-static int words_pages() { return new_words / 4; }
+// All the words on one list. "Written down" only works once the list has been
+// scrolled to its end, so no word is skipped.
+static lv_obj_t *words_done_btn;
 
-static void words_next_cb(lv_event_t *) {
-    if (words_page + 1 < words_pages()) { words_page++; ui_goto(UI_BACKUP_WORDS); }
-    else ui_goto(UI_BACKUP_CHOICE);
-}
-static void words_prev_cb(lv_event_t *) {
-    if (words_page > 0) { words_page--; ui_goto(UI_BACKUP_WORDS); }
-    else ui_goto(UI_BACKUP_WARNING);
+static void words_done_cb(lv_event_t *) { ui_goto(UI_BACKUP_CHOICE); }
+static void backup_words_back_cb(lv_event_t *) { ui_goto(UI_BACKUP_WARNING); }
+static void to_words_cb(lv_event_t *) { ui_goto(UI_BACKUP_WORDS); }
+
+static void words_scroll_cb(lv_event_t *e) {
+    if (lv_obj_get_scroll_bottom((lv_obj_t *)lv_event_get_target(e)) <= 2)
+        lv_obj_remove_state(words_done_btn, LV_STATE_DISABLED);
 }
 
 static void build_backup_words() {
     lv_obj_t *scr = screen();
     char title[32];
-    snprintf(title, sizeof(title), "Words %d-%d of %d", words_page * 4 + 1, words_page * 4 + 4, new_words);
-    topbar(scr, title, words_prev_cb);
+    snprintf(title, sizeof(title), "Your %d words", new_words);
+    topbar(scr, title, backup_words_back_cb);
     uint16_t idx[24];
     seed_word_indexes(pending, idx);
-    lv_obj_t *c = card(scr, CW, 4 * 44 + 16);
-    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 4);
-    for (int i = 0; i < 4; i++) {
-        int w = words_page * 4 + i;
+    lv_obj_t *list = scroll_area(scr, BAR + 4);
+    lv_obj_t *c = card(list, CW, new_words * 44 + 16);
+    lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
+    for (int w = 0; w < new_words; w++) {
         char num[12];
         snprintf(num, sizeof(num), "%d", w + 1);
         lv_obj_t *n = text(c, num, &inter_15, TEXT_3, LV_TEXT_ALIGN_RIGHT);
         lv_obj_set_width(n, 26);
-        lv_obj_align(n, LV_ALIGN_TOP_LEFT, 0, i * 44 + 8);
+        lv_obj_align(n, LV_ALIGN_TOP_LEFT, 0, w * 44 + 8);
         bool last = w == new_words - 1;
-        snprintf(txt_words[i], sizeof(txt_words[i]), "%s", seed_word(idx[w]));
+        snprintf(txt_words[w], sizeof(txt_words[w]), "%s", seed_word(idx[w]));
         lv_obj_t *t = text(c, "", &mono_22, last && drawing ? ACCENT : TEXT, LV_TEXT_ALIGN_LEFT);
-        lv_label_set_text_static(t, txt_words[i]);
-        lv_obj_align(t, LV_ALIGN_TOP_LEFT, 40, i * 44 + 2);
-        if (i) divider(c, i * 44 - 6);
+        lv_label_set_text_static(t, txt_words[w]);
+        lv_obj_align(t, LV_ALIGN_TOP_LEFT, 40, w * 44 + 2);
+        if (w) divider(c, w * 44 - 6);
     }
     secure_zero(idx, sizeof(idx));
-    bool last = words_page + 1 == words_pages();
-    bottom_pair(btn_ghost(scr, ICON_LEFT, words_prev_cb, nullptr, TEXT),
-                btn_primary(scr, last ? "Written down" : "Next", words_next_cb));
+    words_done_btn = btn_primary(scr, "Written down", words_done_cb);
+    place_bottom(words_done_btn);
+    lv_obj_add_state(words_done_btn, LV_STATE_DISABLED);
+    lv_obj_set_style_bg_opa(words_done_btn, LV_OPA_30, LV_STATE_DISABLED);
+    lv_obj_add_event_cb(list, words_scroll_cb, LV_EVENT_SCROLL, nullptr);
+    lv_obj_update_layout(list);
+    lv_obj_send_event(list, LV_EVENT_SCROLL, nullptr);   // a list that fits needs no scrolling
     show(scr);
-}
-
-static void to_last_words_cb(lv_event_t *) {
-    words_page = words_pages() - 1;
-    ui_goto(UI_BACKUP_WORDS);
 }
 
 static void build_backup_choice() {
     lv_obj_t *scr = screen();
-    topbar(scr, "QR code", to_last_words_cb);
+    topbar(scr, "QR code", to_words_cb);
     lv_obj_align(icon_badge(scr, ICON_QR, ACCENT, ACCENT_DIM, 64), LV_ALIGN_TOP_MID, 0, BAR + 8);
     lv_obj_align(text(scr, "Back up as QR?", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 86);
     lv_obj_align(para(scr, "Copy it square by square, then load the seed by scanning instead of typing.", &inter_13,
