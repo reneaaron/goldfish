@@ -162,7 +162,8 @@ comes from the user and can be re-checked offline.
   coin for each of the 7 free bits of the last word. The
   flips are the bits themselves, so the last word can be checked by hand.
 
-Then an offline warning, the words 4 per page to write down, and an
+Then an offline warning, the words to write down on one scrolling list ("Written down" works once
+it has been scrolled to its end), and an
 optional QR card: a Compact SeedQR (21×21 for 12 words, 25×25 for 24)
 shown whole, then copied one part (5×5 squares) at a time, labelled with column letters
 and row numbers like the card's grid (21×21 splits 5+5+5+6, so no thin

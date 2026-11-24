@@ -53,7 +53,7 @@ enum UiScreen {
     UI_ENTROPY_COINS,
     UI_ENTER_WORDS,      // one screen per word
     UI_BACKUP_WARNING,
-    UI_BACKUP_WORDS,     // 4 words per page, new seeds only
+    UI_BACKUP_WORDS,     // all the words on one scrolling list
     UI_BACKUP_CHOICE,    // add a QR card, or skip
     UI_BACKUP_QR,        // the whole SeedQR
     UI_BACKUP_BLOCK,     // one 5x5 block per screen

@@ -37,11 +37,14 @@ def test_new_seed_to_signed_transaction(dev):
         dev.tap_icon("DICE_" + roll)
     assert "Keep it offline" in dev.text()
     dev.tap("I understand")
-    words = []
-    while dev.screen == "BACKUP_WORDS":
-        texts = dev.texts()
-        words += [texts[i + 1] for i, t in enumerate(texts) if t.isdigit()]
-        dev.tap("Next" if "Next" in texts else "Written down")
+    texts = dev.texts()   # all the words on one list, scrolled or not
+    words = [texts[i + 1] for i, t in enumerate(texts) if t.isdigit()]
+    dev.tap("Written down")
+    assert dev.screen == "BACKUP_WORDS"   # not before the list was scrolled to its end
+    for _ in range(3):
+        dev.scroll_down()
+        dev.wait(500)
+    dev.tap("Written down")
     mnemonic = " ".join(words)
     assert len(words) == 12 and bip39.mnemonic_is_valid(mnemonic)
     dev.tap("Skip")   # no QR card
