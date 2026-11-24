@@ -1,5 +1,6 @@
 """Steel backup render for the /metal/ page: stamped stainless washers on an M8
-bolt next to a Goldfish showing the words.
+bolt next to a Goldfish showing the words: 9 on the bolt and 3 loose, so the
+scene holds the 12 a backup needs.
 
 Sizes are the real parts (DIN 9021 M8 washer 8.4 x 24 x 2 mm, M8 x 35 bolt,
 6 mm stamps). The washers carry the words the simulator's screenshot seed shows
@@ -119,7 +120,8 @@ def stamp_text(number, word, seed):
 
     def letter(ch, a, rot):
         cu = bpy.data.curves.new("ch", 'FONT'); cu.body = ch
-        cu.font = bpy.data.fonts.load(FONT, check_existing=True)
+        if os.path.exists(FONT):           # else Blender's own font (zeros less clean)
+            cu.font = bpy.data.fonts.load(FONT, check_existing=True)
         cu.size = STAMP_H / 0.73          # cap height of DejaVu ~0.73 em
         cu.align_x = 'CENTER'; cu.align_y = 'CENTER'
         cu.extrude = 0.04                  # no bevel: DejaVu Bold's overlapping outlines break it
@@ -219,7 +221,7 @@ def stackbox(part, loc, rot, color):
 
 # ---------- the shot ----------
 device("dev_a", BONE, "18_backup_words", (-4.6, 1.6, UP), (0, 0, math.radians(14)))
-stack("stack", 12, (0.6, 1.4, 0), math.radians(-18))
+stack("stack", 9, (0.6, 1.4, 0), math.radians(-18))
 for i, (txt, x, y, r) in enumerate([(("01", "UNVE"), 0.4, -1.9, -8), (("02", "NICE"), 3.2, -1.2, 23), (("03", "PICT"), 6.0, -0.4, -30)]):
     w = washer(f"loose{i}", *txt, seed=i)
     w.location = (x, y, 0.001)
