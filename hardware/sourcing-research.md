@@ -3,7 +3,7 @@
 Snapshot from November 2026, taken from web listings; prices rechecked
 24 November 2026. Waveshare's own pages, Amazon and Newegg block automated reads, so
 their figures come from search results. Prices and stock
-change; nothing here was ordered or checked live. The question: can people
+change; nothing here was ordered. The question: can people
 around the world get the hardware easily, compared with SeedSigner's
 Pi Zero v1.3 build, and which second board could we port to if supply of
 the current one fails.
