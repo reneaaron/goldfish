@@ -96,13 +96,18 @@ jobs:
               ppm = os.path.join(shots, f.removesuffix(".png") + ".ppm")
               if f.endswith(".png") and os.path.exists(ppm):
                   Image.open(ppm).save(os.path.join(out, f))
+              # A clip (2_scan.webp): its frames are <name>_clip_NN.ppm, 100 ms each
+              frames = sorted(p for p in os.listdir(shots) if p.startswith(f.removesuffix(".webp") + "_clip_"))
+              if f.endswith(".webp") and frames:
+                  fr = [Image.open(os.path.join(shots, p)).convert("RGB") for p in frames]
+                  fr[0].save(os.path.join(out, f), save_all=True, append_images=fr[1:], duration=100, loop=0, lossless=True, method=6)
           EOF
       - name: Assemble site
         run: |
           mkdir -p site/flasher site/cards
           # landing/img/{screens,renders} are symlinks into the repo: copy what they point to
           cp -rL landing/. site/
-          if [ -d "$RUNNER_TEMP/screens" ]; then cp "$RUNNER_TEMP/screens/"*.png site/img/screens/; fi
+          if [ -d "$RUNNER_TEMP/screens" ]; then cp "$RUNNER_TEMP/screens/"* site/img/screens/; fi
           cp flasher/index.html site/flasher/
           cp cards/index.html site/cards/
           # parts/files is a symlink too (case/exports); start/ uses the landing page's img/screens
