@@ -35,12 +35,17 @@ LDFLAGS := $(OPT) -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=16MB -sSTACK_SIZE=1MB
            -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU16 -sFILESYSTEM=0
 
 .PHONY: all clean
-all: $(OUT)/signer.js $(OUT)/index.html $(OUT)/img/handwritten_page_thumb.jpg samples
+all: $(OUT)/signer.js $(OUT)/index.html $(OUT)/brand.css $(OUT)/img/handwritten_page_thumb.jpg samples
 
 $(OUT)/signer.js: $(OBJS)
 	$(CXX) $(LDFLAGS) $^ -o $@
 
 $(OUT)/index.html: $(FW)/../try/index.html
+	@mkdir -p $(@D)
+	cp $< $@
+
+# the case colours, shared with the landing page
+$(OUT)/brand.css: $(FW)/../landing/brand.css
 	@mkdir -p $(@D)
 	cp $< $@
 

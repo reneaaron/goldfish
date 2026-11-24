@@ -194,9 +194,12 @@ scene.view_settings.view_transform = 'AgX'
 scene.view_settings.look = 'AgX - Medium High Contrast'
 
 
-GRAPHITE = (0.03, 0.03, 0.028, 1)
-SIGNAL = (0.78, 0.30, 0.04, 1)
-BONE = (0.70, 0.68, 0.63, 1)
+# Case colours: the hex values live in landing/brand.css; these are linear. Blue is
+# boosted to keep its saturation under AgX; the others are the plain conversion.
+GRAPHITE = (0.03, 0.03, 0.028, 1)   # #303030
+SIGNAL = (1.0, 0.195, 0.028, 1)   # #FF7A2F, plain linear: AgX softens it, on purpose
+BONE = (0.70, 0.68, 0.63, 1)   # #DAD7D0
+BLUE = (0.001, 0.118, 0.735, 1)   # renders near #0A7ED0, sampled from a printed case (boosted)
 UP = -ZB + 0.001       # face up, back on the floor
 DOWN = ZT + 0.001      # face down, glass on the floor
 

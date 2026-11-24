@@ -10,8 +10,11 @@ modules on a 9 × 5 grid, with a QR finder pattern for an eye. The SVGs in
   logo is rasterized from it with `firmware/src/app/images/svg2c.py`)
 - `goldfish-icon.svg` / `goldfish-icon-dark.svg`: app tiles on orange and on ink
 
-Colours: fish orange `#FF7A2F` (the mark only), orange text `#C2501A`, ink
+Colours: fish orange `#FF7A2F` (the mark and the orange case), orange text `#C2501A`, ink
 `#14222B`, grey text `#5A6B75`, paper `#EDF2F4`, border `#D9E2E6`, white.
+Case colours: orange (`#EE8B57` on the site, the fish orange `#FF7A2F` as it looks
+printed; the renders start from `#FF7A2F`), black `#303030`, blue `#0A7ED0`, white
+`#DAD7D0`, defined once in `landing/brand.css` for the site; the renders use the same four.
 The eye must contrast with both the body and the ground. Type: Rethink Sans
 for headings, Inter for device text, JetBrains Mono for numbers.
 
@@ -32,7 +35,7 @@ ONLY=1,3 SAMPLES=64 PCT=50 blender -b -P marketing/renders/render.py    # quick 
 |---|---|
 | `out/01_hero_review.png` | Reviewing a transaction |
 | `out/02_back.png` | Back: camera, USB-C |
-| `out/03_colorways.png` | Three colours across the flow: seed loaded, slide to sign, signed QR |
+| `out/03_colorways.png` | Four colours across the flow: seed loaded, slide to sign, signed QR, address verified |
 | `out/04_edge.png` | USB-C tunnel |
 | `out/05_wallet_topdown.png` | Wallet menu |
 | `out/06_lineup.png` | Four devices: start, new seed, wallet menu, connect wallet |
@@ -78,7 +81,8 @@ SeedSigner's public 12-word test vector, the same seed the
 screens show (fingerprint `0948 d268`). Shared device code lives in
 `renders/device.py`.
 
-Colours are plausible PLA colours, not tested prints. Screens show example
+The blue is sampled from a printed case; the other colours are plausible PLA
+colours, not tested prints. Screens show example
 data from SeedSigner's public test vectors; the transaction is SeedSigner's
 test transaction redone on mainnet (`firmware/sim/make_mainnet_psbt.py`), with a
 made-up coin.
