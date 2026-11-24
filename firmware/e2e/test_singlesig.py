@@ -279,6 +279,8 @@ def test_passphrase_gives_its_own_wallet(dev):
     dev.tap("Wallet options")
     dev.tap("Passphrase")
     dev.key("ABC")
+    # TREZOR is the passphrase of every BIP-39 test vector (Trezor's
+    # vectors.json, which BIP-39 links to), the same one the unit tests use.
     for letter in "TREZOR":
         dev.key(letter)
     dev.key("OK")
