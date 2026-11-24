@@ -37,6 +37,7 @@ signed with Sparrow, on mainnet too. The code hasn't been reviewed or audited.
 | [`hardware/`](hardware) | Parts list and board notes |
 | [`try/`](try) | Try the firmware in a browser: the page around its WebAssembly build |
 | [`cards/`](cards) | Blank SeedQR and word cards for 12-word seeds, to print (open `index.html`, works offline) |
+| [`metal/`](metal) | Guide to stamping a 12-word seed into stainless steel washers on a bolt |
 | [`marketing/`](marketing) | Product renders made from the real case and firmware screens |
 
 ## How it works
