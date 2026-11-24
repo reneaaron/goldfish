@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include "board_pins.h"
+#include "display.h"
 
 // Register map and setup values from Waveshare's CST816D demo driver.
 enum : uint8_t {
@@ -36,8 +37,10 @@ static void read_cb(lv_indev_t *, lv_indev_data_t *data) {
         int32_t y = ((r[3] & 0x0F) << 8) | r[4];
         // TODO: confirm orientation on hardware. The demo maps landscape as
         // (y, 240 - x), which implies the raw axes are native portrait.
-        data->point.x = LV_CLAMP(0, x, LCD_W - 1);
-        data->point.y = LV_CLAMP(0, y, LCD_H - 1);
+        x = LV_CLAMP(0, x, LCD_W - 1);
+        y = LV_CLAMP(0, y, LCD_H - 1);
+        data->point.x = display_flipped() ? LCD_W - 1 - x : x;
+        data->point.y = display_flipped() ? LCD_H - 1 - y : y;
         data->state = LV_INDEV_STATE_PRESSED;
     } else {
         data->state = LV_INDEV_STATE_RELEASED;
