@@ -632,8 +632,8 @@ static void build_scan(ScanMode mode) {
         else lv_obj_add_flag(scan_stats, LV_OBJ_FLAG_HIDDEN);
         if (scan_hints) lv_obj_add_flag(scan_hints, LV_OBJ_FLAG_HIDDEN);   // it would sit under the readout
     }, LV_EVENT_LONG_PRESSED, nullptr);
-    // a seed may be a written page: the whole picture (a QR is read anywhere in it)
-    if (seed) corners(scr, W / 2, BAR + PREV_H / 2, W - 16, PREV_H - 16);
+    // a seed: a square as tall as the preview (a QR, or a written page, is still read anywhere in the picture)
+    if (seed) corners(scr, W / 2, BAR + PREV_H / 2, PREV_H - 16, PREV_H - 16);
     else corners(scr, W / 2, BAR + PREV_H / 2, 150, 150);
     page_armed = !page_retake;
     page_retake = false;
