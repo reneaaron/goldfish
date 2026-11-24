@@ -373,3 +373,17 @@ def test_largest_transactions(dev):
         signed, _ = review_and_sign(dev)
         wallet.combine(psbt, signed)
         assert wallet.signers(psbt) == {Seed(MNEMONIC).fingerprint}
+
+
+def test_out_of_memory_signing_says_too_big(dev):
+    """70 inputs pass review but don't fit the board's heap while signing: the
+    signer says it's too big (and what to do), not that it's invalid."""
+    wallet = linked_wallet(dev)
+    psbt = wallet.create_psbt([wallet.fund(i, 500_000) for i in range(70)], [(stranger_address(), 10_000)], fee=21_000)
+    dev.tap("Scan QR")
+    dev.scan_animated(psbt_parts(psbt, fragment_len=200))
+    dev.tap("Check addresses")
+    while dev.screen == "PSBT_OUTPUT":
+        dev.tap("Next address" if "Next address" in dev.texts() else "Continue")
+    dev.slide()
+    assert dev.screen == "PSBT_ERROR" and "too big" in dev.text() and "fewer coins" in dev.text(), dev.text()

@@ -457,7 +457,7 @@ static void handle_ur(QrPayload &p) {
         ur_decoder_reset(&ur_dec);
         ui_goto(UI_PSBT_ERROR);
     } else if (r == UR_TOO_BIG) {
-        scan_status("Too big", "This QR holds more than 16 KB", AMBER);
+        scan_status("Too big", "More than this signer takes", AMBER);
     }
 }
 
@@ -2867,14 +2867,15 @@ static void build_psbt_output() {
 // The signed PSBT lives in the UR decoder's message: the decoder is done with
 // it once a transaction is loaded (psbt_complete resets it), and is reset
 // again only by the next scan, after Done has wiped the signed PSBT.
-static uint8_t *const signed_buf = ur_dec.message;
+static uint8_t (&signed_buf)[sizeof(ur_dec.message)] = ur_dec.message;
 static size_t signed_len;
+static uint32_t signed_checksum;   // the UR message's, worked out once per signed PSBT
 static lv_obj_t *swipe_hint;
 
 bool ui_swipe_sign() {
     int n = psbt_sign();
     if (n <= 0) { review.error = n < 0 ? PSBT_TOO_BIG : PSBT_PARSE_FAILED; ui_goto(UI_PSBT_ERROR); return false; }
-    signed_len = psbt_serialize(signed_buf, sizeof(ur_dec.message));
+    signed_len = psbt_serialize(signed_buf, sizeof(signed_buf));
     psbt_clear();
     if (!signed_len) { review.error = PSBT_TOO_BIG; ui_goto(UI_PSBT_ERROR); return false; }
     ui_goto(UI_PSBT_SIGNED);
@@ -3025,7 +3026,7 @@ void ui_qr_full_screen() {
 static void anim_tick(lv_timer_t *) {
     static char part[600];   // a 256-byte fragment as bytewords, with its header
     anim_seq++;
-    size_t n = ur_encode_part(signed_buf, signed_len, anim_frag, anim_seq, part, sizeof(part));
+    size_t n = ur_encode_part(signed_buf, signed_len, anim_frag, anim_seq, signed_checksum, part, sizeof(part));
     if (n) qr_set(anim_qr, part);
     if (n && qr_full_canvas) qr_set(qr_full_canvas, part);
     // Frames last 250 and 350 ms in turn, 300 on average: a wallet that samples
@@ -3041,7 +3042,7 @@ static void anim_tick(lv_timer_t *) {
 static void signed_done_cb(lv_event_t *) {
     if (anim_timer) lv_timer_delete(anim_timer);
     anim_timer = nullptr;
-    memset(signed_buf, 0, sizeof(ur_dec.message));
+    memset(signed_buf, 0, sizeof(signed_buf));
     signed_len = 0;
     ui_goto(UI_WALLET);
 }
@@ -3065,9 +3066,11 @@ static void build_psbt_signed() {
     lv_obj_align(anim_lbl, LV_ALIGN_TOP_MID, 0, BAR + QR_CARD + 4);
     place_bottom(btn_primary(scr, "Done", signed_done_cb));
     show(scr);
-    // Larger fragments (a denser QR) only for a PSBT past what 64 frames of 30 bytes carry.
+    // Larger fragments (a denser QR) only for a PSBT past what 64 frames of 30 bytes
+    // carry; past 64 of 256 bytes (the most a part takes), more frames instead.
     anim_frag = FRAGMENT_LEN;
-    while (ur_part_count(signed_len, anim_frag) > SIGNED_MAX_FRAMES) anim_frag++;
+    while (ur_part_count(signed_len, anim_frag) > SIGNED_MAX_FRAMES && anim_frag < 256) anim_frag++;
+    signed_checksum = ur_checksum(signed_buf, signed_len);
     anim_seq = 0;
     anim_tick(nullptr);
     if (anim_timer) lv_timer_delete(anim_timer);

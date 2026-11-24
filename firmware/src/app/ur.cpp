@@ -1,4 +1,5 @@
 #include "ur.h"
+#include "qrscan.h"
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
@@ -290,9 +291,9 @@ UrResult ur_decoder_add(UrDecoder *d, const char *text, size_t len, const uint8_
     if (type < 0) return UR_WRONG_TYPE;
     p = slash + 1;
 
-    // One QR's worth: bytewords take two characters a byte, and a scanned QR
-    // holds at most 3072 (QrPayload). A multi-part fragment is far smaller.
-    static uint8_t buf[3072 / 2];
+    // One QR's worth: bytewords take two characters a byte. A multi-part
+    // fragment is far smaller.
+    static uint8_t buf[sizeof(QrPayload::data) / 2];
     size_t n;
     const char *slash2 = (const char *)memchr(p, '/', size_t(end - p));
     if (!slash2) {
@@ -353,14 +354,24 @@ size_t ur_part_count(size_t len, size_t fragment_len) {
     return (msg + fragment_len - 1) / fragment_len;
 }
 
+// The message is a CBOR byte string: its head, then `data`, read in place.
+uint32_t ur_checksum(const uint8_t *data, size_t len) {
+    uint8_t head[9];
+    size_t head_len = size_t(cbor_put(head, 2, len) - head);
+    return ~crc32_add(crc32_add(0xFFFFFFFFu, head, head_len), data, len);
+}
+
 size_t ur_encode_part(const uint8_t *data, size_t len, size_t fragment_len, uint32_t seq, char *out, size_t cap) {
+    return ur_encode_part(data, len, fragment_len, seq, ur_checksum(data, len), out, cap);
+}
+
+size_t ur_encode_part(const uint8_t *data, size_t len, size_t fragment_len, uint32_t seq, uint32_t checksum,
+                      char *out, size_t cap) {
     if (fragment_len == 0 || fragment_len > 256) return 0;
-    // The message is a CBOR byte string: its head, then `data`, read in place.
     uint8_t head[9];
     size_t head_len = size_t(cbor_put(head, 2, len) - head);
     size_t msg_len = head_len + len;
     size_t count = (msg_len + fragment_len - 1) / fragment_len;
-    uint32_t checksum = ~crc32_add(crc32_add(0xFFFFFFFFu, head, head_len), data, len);
     uint8_t part[300];
 
     if (count == 1) {

@@ -370,14 +370,18 @@ static int inputs_signed_by_us() {
 // not from scripts the PSBT carries. This catches any way a PSBT can get
 // libwally to sign something other than what was shown, including ones review
 // doesn't know about. Called before the UTXOs and key paths are trimmed.
-static bool signatures_match_review() {
+// *err gets libwally's error when the check itself fails (WALLY_ENOMEM: out of memory).
+static bool signatures_match_review(int *err) {
     uint8_t fp[4];
     wallet_fingerprint(fp);
     struct wally_psbt *v0 = nullptr;     // PSBT v2 has no global tx: use a v0 copy
     const struct wally_tx *tx = psbt->tx;
     if (psbt->version != WALLY_PSBT_VERSION_0) {
-        if (wally_psbt_clone_alloc(psbt, 0, &v0) != WALLY_OK || wally_psbt_set_version(v0, 0, WALLY_PSBT_VERSION_0) != WALLY_OK) {
+        int e = wally_psbt_clone_alloc(psbt, 0, &v0);
+        if (e == WALLY_OK) e = wally_psbt_set_version(v0, 0, WALLY_PSBT_VERSION_0);
+        if (e != WALLY_OK) {
             if (v0) wally_psbt_free(v0);
+            *err = e;
             return false;
         }
         tx = v0->tx;
@@ -423,7 +427,7 @@ int psbt_sign() {
     if (!psbt || !reviewed_ok || !wallet_has_seed()) return 0;
     if (signed_inputs) return signed_inputs;      // the key paths are gone: nothing more to sign
     int ret = wally_psbt_sign_bip32(psbt, wallet_root(), EC_FLAG_GRIND_R);
-    if (ret != WALLY_OK || !signatures_match_review()) {
+    if (ret != WALLY_OK || !signatures_match_review(&ret)) {
         psbt_clear();                    // never hand out a signature over anything else
         return ret == WALLY_ENOMEM ? -1 : 0;
     }

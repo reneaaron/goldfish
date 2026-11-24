@@ -394,7 +394,7 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
   SIGHASH_NONE;
   a passphrase typed on the keyboard giving the key and signatures embit
   derives from the same words and passphrase, and removed again; the largest
-  transactions the heap signs (60 inputs; 16 outputs)
+  transactions the heap signs (60 inputs; 16 outputs), and 70 inputs refused as too big while signing
 - Multisig: Connect wallet's four keys (single-sig and multisig, mainnet and
   testnet) against embit; a 2-of-3 around the linked multisig key, refused until its descriptor is
   scanned and confirmed, then signed and finalized with a cosigner; every

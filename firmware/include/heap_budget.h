@@ -1,7 +1,10 @@
 #pragma once
 // The heap the app may count on: on the board, what's left of its 512 KB RAM
 // after the static data, less what the Arduino core and newlib keep.
-// Measured on a board: 78-80 KB free at Read in Scan seed, of 88.7 KB.
+// Measured on a board with 8 KB PSBT buffers: 78-80 KB free at Read in Scan
+// seed, of 88.7 KB. One 16 KB buffer instead of five 8 KB ones (2026-11-24)
+// leaves 109,860 bytes; 92 KB is that less the core and a 5 KB margin, worked
+// out, not yet measured on a board.
 //
 // The simulator gives the app exactly APP_HEAP_BYTES (src/sim/heap.cpp), so a
 // step that doesn't fit fails there too. The board build checks that its heap
