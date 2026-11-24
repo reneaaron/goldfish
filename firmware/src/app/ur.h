@@ -7,7 +7,7 @@
 // Decodes single and multi-part URs, including fountain-coded (mixed) parts,
 // and encodes a PSBT as a cycling sequence of single-fragment parts.
 
-#define UR_MAX_MESSAGE 8192      // largest CBOR message we accept
+#define UR_MAX_MESSAGE 16384     // largest CBOR message we accept
 #define UR_MAX_FRAGMENTS 128
 
 enum UrResult {

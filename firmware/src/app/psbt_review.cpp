@@ -35,8 +35,8 @@ const char *psbt_error_text(PsbtError e) {
         case PSBT_NO_FINGERPRINT: return "Your wallet app has your key without its fingerprint. Add it again from Connect wallet.";
         case PSBT_UNSUPPORTED: return "Only native SegWit wallets are supported for now, single-key or multisig.";
         case PSBT_SIGHASH: return "It asks for a sighash other than ALL. Use the default in your wallet app.";
-        case PSBT_TOO_MANY_OUTPUTS: return "It has over 8 outputs, too many for this screen. Pay fewer addresses at once.";
-        case PSBT_TOO_BIG: return "It's over 8 KB. Select fewer coins in your wallet app to split it into smaller ones.";
+        case PSBT_TOO_MANY_OUTPUTS: return "It has over 16 outputs, too many for this screen. Pay fewer addresses at once.";
+        case PSBT_TOO_BIG: return "It's too big for this signer. Select fewer coins in your wallet app to split it into smaller ones.";
         case PSBT_MISSING_AMOUNTS: return "Your wallet left out the input amounts, so the fee can't be checked.";
         case PSBT_SUSPICIOUS: return "An address claims to be your change but isn't. The transaction may have been tampered with.";
         case PSBT_NEEDS_DESCRIPTOR: return "A multisig transaction needs its wallet's descriptor QR.";
@@ -228,9 +228,10 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
     memset(r, 0, sizeof(*r));
     if (!wallet_has_seed()) return r->error = PSBT_NOT_OUR_SEED;
 
-    if (wally_psbt_from_bytes(data, len, WALLY_PSBT_PARSE_FLAG_COMPLETE, &psbt) != WALLY_OK) {
+    int ret = wally_psbt_from_bytes(data, len, WALLY_PSBT_PARSE_FLAG_COMPLETE, &psbt);
+    if (ret != WALLY_OK) {
         psbt = nullptr;
-        return r->error = PSBT_PARSE_FAILED;
+        return r->error = ret == WALLY_ENOMEM ? PSBT_TOO_BIG : PSBT_PARSE_FAILED;
     }
     const bool v0 = psbt->version == WALLY_PSBT_VERSION_0;
     if (v0 && !psbt->tx) return r->error = PSBT_PARSE_FAILED;
@@ -421,9 +422,10 @@ static bool signatures_match_review() {
 int psbt_sign() {
     if (!psbt || !reviewed_ok || !wallet_has_seed()) return 0;
     if (signed_inputs) return signed_inputs;      // the key paths are gone: nothing more to sign
-    if (wally_psbt_sign_bip32(psbt, wallet_root(), EC_FLAG_GRIND_R) != WALLY_OK || !signatures_match_review()) {
+    int ret = wally_psbt_sign_bip32(psbt, wallet_root(), EC_FLAG_GRIND_R);
+    if (ret != WALLY_OK || !signatures_match_review()) {
         psbt_clear();                    // never hand out a signature over anything else
-        return 0;
+        return ret == WALLY_ENOMEM ? -1 : 0;
     }
     int n = inputs_signed_by_us();
     if (n > 0) {

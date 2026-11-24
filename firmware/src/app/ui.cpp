@@ -457,7 +457,7 @@ static void handle_ur(QrPayload &p) {
         ur_decoder_reset(&ur_dec);
         ui_goto(UI_PSBT_ERROR);
     } else if (r == UR_TOO_BIG) {
-        scan_status("Too big", "This QR holds more than 8 KB", AMBER);
+        scan_status("Too big", "This QR holds more than 16 KB", AMBER);
     }
 }
 
@@ -465,7 +465,7 @@ static void handle_ur(QrPayload &p) {
 // multisig descriptor. Each is told apart by its own format, so the order only
 // decides which message a QR that is none of them gets.
 static void handle_wallet_payload(QrPayload &p) {
-    static uint8_t raw[UR_MAX_MESSAGE];
+    static uint8_t raw[sizeof(QrPayload::data) * 3 / 4];   // one QR of base64
     if (starts_with_ci(p, "ur:")) { handle_ur(p); return; }
     if (starts_with_ci(p, "cHNidP")) {
         // libwally wants a C string without line breaks: drop whitespace in place.
@@ -2864,13 +2864,17 @@ static void build_psbt_output() {
 }
 
 // ---------------------------------------------------------------- sign
-static uint8_t signed_buf[UR_MAX_MESSAGE];
+// The signed PSBT lives in the UR decoder's message: the decoder is done with
+// it once a transaction is loaded (psbt_complete resets it), and is reset
+// again only by the next scan, after Done has wiped the signed PSBT.
+static uint8_t *const signed_buf = ur_dec.message;
 static size_t signed_len;
 static lv_obj_t *swipe_hint;
 
 bool ui_swipe_sign() {
-    if (psbt_sign() <= 0) { review.error = PSBT_PARSE_FAILED; ui_goto(UI_PSBT_ERROR); return false; }
-    signed_len = psbt_serialize(signed_buf, sizeof(signed_buf));
+    int n = psbt_sign();
+    if (n <= 0) { review.error = n < 0 ? PSBT_TOO_BIG : PSBT_PARSE_FAILED; ui_goto(UI_PSBT_ERROR); return false; }
+    signed_len = psbt_serialize(signed_buf, sizeof(ur_dec.message));
     psbt_clear();
     if (!signed_len) { review.error = PSBT_TOO_BIG; ui_goto(UI_PSBT_ERROR); return false; }
     ui_goto(UI_PSBT_SIGNED);
@@ -2972,6 +2976,9 @@ static lv_obj_t *anim_qr, *anim_lbl;
 static uint32_t anim_seq;
 static size_t anim_frag;
 #define FRAGMENT_LEN 30   // SeedSigner's size: a 33-module QR, 5 px on the card, 6 px full screen
+// A webcam reading the screen decodes only some frames (Sparrow about 1.3 a
+// second of the 3.3 shown), so a big PSBT goes faster in fewer, denser frames.
+#define SIGNED_MAX_FRAMES 64
 
 // Tap the QR: it fills the screen's width on black (33 modules at 6 px in a 3-module
 // light border); tap again to go back.
@@ -3016,7 +3023,7 @@ void ui_qr_full_screen() {
 }
 
 static void anim_tick(lv_timer_t *) {
-    static char part[400];
+    static char part[600];   // a 256-byte fragment as bytewords, with its header
     anim_seq++;
     size_t n = ur_encode_part(signed_buf, signed_len, anim_frag, anim_seq, part, sizeof(part));
     if (n) qr_set(anim_qr, part);
@@ -3034,7 +3041,7 @@ static void anim_tick(lv_timer_t *) {
 static void signed_done_cb(lv_event_t *) {
     if (anim_timer) lv_timer_delete(anim_timer);
     anim_timer = nullptr;
-    memset(signed_buf, 0, sizeof(signed_buf));
+    memset(signed_buf, 0, sizeof(ur_dec.message));
     signed_len = 0;
     ui_goto(UI_WALLET);
 }
@@ -3058,9 +3065,9 @@ static void build_psbt_signed() {
     lv_obj_align(anim_lbl, LV_ALIGN_TOP_MID, 0, BAR + QR_CARD + 4);
     place_bottom(btn_primary(scr, "Done", signed_done_cb));
     show(scr);
-    // Larger fragments (a denser QR) only for a PSBT past what 30-byte ones carry.
+    // Larger fragments (a denser QR) only for a PSBT past what 64 frames of 30 bytes carry.
     anim_frag = FRAGMENT_LEN;
-    while (ur_part_count(signed_len, anim_frag) > UR_MAX_FRAGMENTS) anim_frag++;
+    while (ur_part_count(signed_len, anim_frag) > SIGNED_MAX_FRAMES) anim_frag++;
     anim_seq = 0;
     anim_tick(nullptr);
     if (anim_timer) lv_timer_delete(anim_timer);

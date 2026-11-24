@@ -12,7 +12,7 @@
 // cosigner keys it likes next to ours, so inputs and change are checked
 // against the scripts the descriptor derives, never the PSBT's own.
 
-#define PSBT_MAX_OUTPUTS 8
+#define PSBT_MAX_OUTPUTS 16
 
 struct PsbtOutput {
     char address[96];
@@ -31,7 +31,7 @@ enum PsbtError {
     PSBT_UNSUPPORTED,       // not native segwit single-sig or multisig
     PSBT_SIGHASH,           // an input asks for a sighash other than ALL
     PSBT_TOO_MANY_OUTPUTS,  // more than PSBT_MAX_OUTPUTS outputs
-    PSBT_TOO_BIG,           // past UR_MAX_MESSAGE, set by the scanner (or the signed PSBT doesn't fit)
+    PSBT_TOO_BIG,           // past UR_MAX_MESSAGE (set by the scanner), or more than the heap holds
     PSBT_MISSING_AMOUNTS,   // inputs without witness UTXO: fee unknown
     PSBT_SUSPICIOUS,        // a "change" output failed verification
     PSBT_NEEDS_DESCRIPTOR,  // multisig inputs, but no wallet descriptor is loaded
@@ -60,7 +60,8 @@ struct PsbtReview {
 // signing until psbt_clear().
 PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *out);
 // Sign every input we can, if the review passed. Returns the number of inputs
-// that now carry our signature, so 0 means nothing is signed by us.
+// that now carry our signature, so 0 means nothing is signed by us; -1 if
+// signing ran out of memory (nothing is signed then either).
 int psbt_sign();
 // Serialize the (signed) PSBT. Returns bytes written, 0 if it doesn't fit.
 size_t psbt_serialize(uint8_t *out, size_t cap);

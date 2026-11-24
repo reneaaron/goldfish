@@ -158,11 +158,11 @@ def test_key_without_fingerprint_is_explained(dev):
 
 def test_too_many_outputs_says_so(dev):
     wallet = linked_wallet(dev)
-    psbt = wallet.create_psbt([wallet.fund(0, 500_000)], [(stranger_address(i), 10_000) for i in range(9)], fee=500)
+    psbt = wallet.create_psbt([wallet.fund(0, 500_000)], [(stranger_address(i), 10_000) for i in range(17)], fee=500)
     dev.tap("Scan QR")
     dev.scan_animated(psbt_parts(psbt))
     assert dev.screen == "PSBT_ERROR", dev.text()
-    assert "over 8 outputs" in dev.text()
+    assert "over 16 outputs" in dev.text()
 
 
 def test_other_sighash_says_so(dev):
@@ -359,3 +359,17 @@ def test_passphrase_layer_keys_type_nothing(dev):
     for k in ["123", "#+=", "123", "#+=", "abc"]:
         dev.key(k)
     assert next(t for t in dev.texts() if t.endswith("_")) == "_"
+
+
+def test_largest_transactions(dev):
+    """What the board's heap still signs: 60 inputs, and 16 outputs (15
+    payments and change)."""
+    wallet = linked_wallet(dev)
+    for n_in, n_out in [(60, 1), (1, 15)]:
+        psbt = wallet.create_psbt([wallet.fund(i, 500_000) for i in range(n_in)],
+                                  [(stranger_address(j), 10_000) for j in range(n_out)], fee=300 * n_in)
+        dev.tap("Scan QR")
+        dev.scan_animated(psbt_parts(psbt, fragment_len=200))
+        signed, _ = review_and_sign(dev)
+        wallet.combine(psbt, signed)
+        assert wallet.signers(psbt) == {Seed(MNEMONIC).fingerprint}

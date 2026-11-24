@@ -256,7 +256,7 @@ def test_descriptor_goes_with_the_seed(dev):
 
 
 def test_big_transaction_through_a_bad_camera(dev):
-    """15 inputs, close to the most the signer takes (8 KB). The camera reads
+    """15 inputs, about 7 KB. The camera reads
     each frame twice and misses 75% of the animation: the fountain-coded
     parts still complete it (they used to fill up the decoder and stall)."""
     import random
@@ -284,19 +284,19 @@ def test_big_transaction_through_a_bad_camera(dev):
 
 
 def test_too_big_transaction_says_so(dev):
-    """Past 8 KB the signer can't take a transaction, and tells the user
+    """Past 16 KB the signer can't take a transaction, and tells the user
     how to split it instead of showing nothing."""
     wallet = two_of_three()
-    psbt = wallet.create_psbt([wallet.fund(i, 100_000) for i in range(20)], [(STRANGER, 1_000_000)], fee=3_000)
-    assert len(psbt.serialize()) > 8192
+    psbt = wallet.create_psbt([wallet.fund(i, 100_000) for i in range(35)], [(STRANGER, 1_000_000)], fee=3_000)
+    assert len(psbt.serialize()) > 16384
     loaded(dev)
     dev.tap("Scan QR")
     dev.scan(wallet.descriptor())
     dev.tap("Use wallet")
-    parts = psbt_parts(psbt)
+    parts = psbt_parts(psbt, fragment_len=200)   # 86 parts: the size, not the part count, is too big
     for _ in range(3):
         dev.scan(next(parts), ms=200)
     assert dev.screen == "PSBT_ERROR", dev.text()
-    assert "over 8 KB" in dev.text() and "fewer coins" in dev.text()
+    assert "too big" in dev.text() and "fewer coins" in dev.text()
     dev.tap("Back to wallet")
     assert dev.screen == "WALLET"

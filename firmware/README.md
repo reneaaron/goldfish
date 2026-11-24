@@ -68,10 +68,14 @@ The seed lives in RAM only: Forget seed or unplugging removes it.
    aren't accepted. A long press on the camera picture shows the scan speed:
    frames per second, QR codes decoded per second, and quirc's time per frame
    (average and slowest).
-   A PSBT can be up to 8 KB, about 15 inputs of a 2-of-3 multisig or 10 of
-   a 3-of-5 (fewer when the wallet app adds the full previous transactions);
-   a bigger one is refused as soon as its first part is read, with what to do:
-   select fewer coins in the wallet app to split it into smaller transactions.
+   A PSBT can be up to 16 KB in at most 128 fragments, and have up to 16
+   outputs. At Sparrow's Low density (80-byte fragments) that makes about 10 KB:
+   some 45 single-sig inputs, or 20 of a 2-of-3 multisig, with small previous
+   transactions (Sparrow adds them whole, so a big one costs more). With
+   larger fragments the heap signs up to about 65 single-sig inputs, or 30
+   multisig ones. A bigger one is refused, as soon as its first part is read
+   or when the signer runs out of memory, with what to do: select fewer coins
+   in the wallet app to split it into smaller transactions.
 
 Brightness: on any screen, drag down from the top edge for a panel with a
 brightness slider (1 to 100%, finer at the dim end); tap below it or drag it
@@ -201,7 +205,7 @@ gives for our fingerprint (BIP84 paths for single-sig); a multisig input's
 witness script must also be the descriptor's. A transaction without outputs,
 an input that is already finalized, a full previous transaction that isn't the
 one spent or disagrees with the witness UTXO, and a redeem script (or a witness
-script on a single-sig input) are refused as invalid. More than 8 outputs are
+script on a single-sig input) are refused as invalid. More than 16 outputs are
 refused too, since review couldn't show them all, and so is a sighash other
 than ALL, which would leave outputs or inputs out of the signature. When no key path of an input
 is ours, the screen tells two causes apart: another seed's ("for a different
@@ -319,7 +323,7 @@ pio test -e test
 - UR: SeedSigner's 29-part `crypto-psbt` vector, plus an encode/decode round trip
   and a decode from the encoder's fountain parts alone or with every other fragment missing,
   parts whose header would overrun the decoder's buffer (sequence 0,
-  more fragments than the message needs), and a part of a message past 8 KB
+  more fragments than the message needs), and a part of a message past 16 KB
   reported as too big
 - Multisig descriptor: SeedSigner's native segwit 2-of-3 test wallet, with
   addresses and a witness script worked out by embit; the three spellings of
@@ -334,7 +338,7 @@ pio test -e test
 - PSBT review: SeedSigner's single-sig testnet vector (₿25,000 in, ₿24,857 out,
   ₿143 fee), signing, wrong seed and garbage input; inputs with fingerprint
   `00000000` or no key path told apart from another seed's (single-sig and
-  multisig); more than 8 outputs; inputs refused for an input
+  multisig); more than 16 outputs; inputs refused for an input
   script that isn't our key's, a second unverified key path with our
   fingerprint, no outputs, a finalized input, a mismatched previous
   transaction, extra redeem or witness scripts, and a multisig witness script
@@ -389,7 +393,8 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
   a transaction whose key has fingerprint `00000000` or no key path; 9 outputs;
   SIGHASH_NONE;
   a passphrase typed on the keyboard giving the key and signatures embit
-  derives from the same words and passphrase, and removed again
+  derives from the same words and passphrase, and removed again; the largest
+  transactions the heap signs (60 inputs; 16 outputs)
 - Multisig: Connect wallet's four keys (single-sig and multisig, mainnet and
   testnet) against embit; a 2-of-3 around the linked multisig key, refused until its descriptor is
   scanned and confirmed, then signed and finalized with a cosigner; every
@@ -398,7 +403,7 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
   without origin or with fingerprint `00000000`, a wrong
   checksum; change to another multisig; the descriptor gone after a wipe;
   a 15-input transaction through a camera that reads each frame twice and
-  misses three in four; a 20-input one, past 8 KB, refused as too big with
+  misses three in four; a 35-input one, past 16 KB, refused as too big with
   what to do
 - Brightness: the panel opens from a drag at the top edge (also one that
   starts on the back button, which isn't pressed), not from one further down,
