@@ -1,6 +1,8 @@
 # Sourcing research
 
-Snapshot from November 2026, taken from web listings. Prices and stock
+Snapshot from November 2026, taken from web listings; prices rechecked
+24 November 2026. Waveshare's own pages, Amazon and Newegg block automated reads, so
+their figures come from search results. Prices and stock
 change; nothing here was ordered or checked live. The question: can people
 around the world get the hardware easily, compared with SeedSigner's
 Pi Zero v1.3 build, and which second board could we port to if supply of
@@ -12,11 +14,11 @@ the current one fails.
 
 | | This project | SeedSigner |
 |---|---|---|
-| Main board | RP2350-Touch-LCD-2-C, $19.99 with OV5640 ($14.99 without) | Pi Zero v1.3: $5 list price, really ~$11–26 |
-| Display | built in | Waveshare 1.3" 240×240 HAT, ~$14–16 |
-| Camera | included in -C | OV5647 Zero camera, ~$10–15 |
+| Main board | RP2350-Touch-LCD-2-C, $19.99 with OV5640 ($14.99 without) | Pi Zero v1.3: ~$10–16 at official resellers (Adafruit $10, limit 2), ~$20–26 elsewhere |
+| Display | built in | Waveshare 1.3" 240×240 HAT, $13.99 at Waveshare, ~$10–16 at resellers |
+| Camera | included in -C | OV5647 Zero camera, ~$9–20 |
 | microSD | not needed | ~$10–20 (cheapest 32 GB ~$9–11, SanDisk/PNY ~$15–20) |
-| Total (no case) | ~$20 | ~$45–75 |
+| Total (no case) | ~$20 | ~$40–80 |
 | Soldering | none | header pins on the Zero v1.3, unless bought pre-soldered |
 
 ### Availability
@@ -25,7 +27,7 @@ the current one fails.
 |---|---|---|
 | Who makes it | Waveshare only (Spotpear sells the same board) | Raspberry Pi |
 | Production guarantee | none published; launched ~2025 | until at least January 2030 |
-| Stock | in stock at Waveshare and OpenELAB | patchy: several resellers sold out, some cap orders |
+| Stock | in stock at OpenELAB and The Pi Hut (base board) | sold out at Adafruit, The Pi Hut, Pimoroni and BerryBase on 24 November 2026; Adafruit caps orders at 2 |
 | If a part is missing | hard to swap: firmware is tied to this board | easy to swap (other Pi models, any OV5647 camera), but 3–4 parts from several shops |
 
 Summary: our board is under half the price, one part, no soldering. Its
@@ -41,9 +43,9 @@ The P4 has none, but most P4 display boards add an ESP32-C6 radio chip.
 | Board | Price | Radio | Fit | Porting effort |
 |---|---|---|---|---|
 | Waveshare ESP32-S3-Touch-LCD-2-C | $21.99 with OV5640 ($16.99 without) | yes, in the chip | same 2" 240×320 screen, same ST7789 display and CST816D touch chips, same OV5640 bundle, 8MB PSRAM; case fit not checked | low: `src/app` carries over, new display/touch/camera/main |
-| M5Stack CoreS3 | ~$60 | yes, in the chip | 2" touch screen, 0.3MP (VGA) camera | medium |
-| Waveshare ESP32-P4-WiFi6-Touch-LCD-3.5 | $37.99 with OV5647 | yes, ESP32-C6 on the board | 320×480, one board | medium |
-| Waveshare ESP32-P4-Pico + 5-DSI-TOUCH-A + OV5647 | ~$11 + $37 + ~$10–15 ≈ $60 | none | 5" 720×1280, 3 parts plus cable and 5V wiring | medium to high: new screen sizes, MIPI drivers on ESP-IDF |
+| M5Stack CoreS3 | $54.51 | yes, in the chip | 2" touch screen, 0.3MP (VGA) camera | medium |
+| Waveshare ESP32-P4-WiFi6-Touch-LCD-3.5 | $39.99 with OV5647 (search snippet; page not loaded) | yes, ESP32-C6 on the board | 320×480, one board | medium |
+| Waveshare ESP32-P4-Pico + 5-DSI-TOUCH-A + OV5647 | ~$11 + ~$35–37 + ~$10–15 ≈ $55–65 | none | 5" 720×1280, 3 parts plus cable and 5V wiring | medium to high: new screen sizes, MIPI drivers on ESP-IDF |
 
 Prior art: [Kern](https://github.com/cyb650/Kern) is a C signer in the style
 of Krux that already runs on these P4 boards, including the radio-less
@@ -57,8 +59,8 @@ fit.
 
 | Rank | Option | Score | Where to buy | Weak spots |
 |---|---|---|---|---|
-| 1 | M5Stack CoreS3 | 4/5 | Mouser in about 30 countries, the M5Stack store, Amazon | ~$60, radio, VGA camera; Mouser stock of a few hundred |
-| 2 | RP2350-Touch-LCD-2-C (current) | 3/5 | Waveshare direct (worldwide), Amazon US, Newegg, OpenELAB (EU), Little Bird (AU), Switch Science (JP), Fruugo | Pi Hut UK has the base board only, sold out; not on Mouser or DigiKey; no reseller found in India or Brazil |
+| 1 | M5Stack CoreS3 | 4/5 | Mouser in about 30 countries, the M5Stack store, Amazon | ~$55, radio, VGA camera; Mouser stock of a few hundred |
+| 2 | RP2350-Touch-LCD-2-C (current) | 3/5 | Waveshare direct (worldwide), Amazon US, Newegg, OpenELAB (EU), Little Bird (AU), Switch Science (JP), Fruugo | Pi Hut UK has the base board only (£14.50, in stock); not on Mouser or DigiKey; no reseller found in India or Brazil |
 | 2 | ESP32-S3-Touch-LCD-2-C | 3/5 | same Waveshare network; Pi Hut UK in stock at £17.10 | not on Mouser or DigiKey; same single vendor |
 | — | SeedSigner on Pi Zero v1.3 (reference) | 3/5 | official Raspberry Pi resellers in most countries | stock-outs, order limits, several parts |
 | 4 | ESP32-P4-WiFi6-Touch-LCD-3.5 | 2/5 | Waveshare direct | no resellers confirmed; newer product |
