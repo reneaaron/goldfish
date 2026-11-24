@@ -37,13 +37,18 @@ def _clean(raw):
     return raw.replace("\\n", "\n").strip()
 
 
-def qr_image(payload, camera=(320, 240)):
-    """A QR code as a wallet app shows it, sized to fill the camera's view."""
+def qr_image(payload, camera=(240, 180)):
+    """A QR code as a wallet app shows it, sized to fill the camera's view
+    (the board's 240x180). A dense one is framed tight, part of its quiet zone
+    out of view, so its modules are still 2 pixels wide, as a user would hold it."""
     qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_L, border=4, box_size=1)
     qr.add_data(payload)
     qr.make(fit=True)
-    side = qr.modules_count + 8
-    qr.box_size = max(1, min(camera) // side)
+    qr.border = max(1, min(4, (min(camera) // 2 - qr.modules_count) // 2))
+    side = qr.modules_count + 2 * qr.border
+    qr.box_size = min(camera) // side
+    if qr.box_size < 2:   # 1-pixel modules, fitted to the view: unreadable, as on the board
+        raise ValueError(f"{len(payload)} characters make a {qr.modules_count}-module QR, too dense for a {camera} view")
     return qr.make_image().convert("L")
 
 

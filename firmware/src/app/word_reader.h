@@ -30,8 +30,13 @@ struct WordResult {
     float margin;   // its score lead over the next best word
 };
 
-bool word_reader_init();    // allocates the network's buffers (~82 KB)
+// The network's buffers: 53.5 KB from the heap, and 29 KB more, from the heap
+// too or, with lend, WR_LEND_BYTES of the caller's idle memory (4-byte aligned,
+// wiped, not freed, by word_reader_free): the board's heap can't hold both.
+#define WR_LEND_BYTES (29 * 1024)
+bool word_reader_init(void *lend = nullptr);
 void word_reader_free();
+bool word_reader_holds(const void *lend);   // initialised with this loan
 
 // allowed: which word indexes may be picked (nullptr = all). True when the
 // best word leads by WR_MIN_MARGIN; out is filled either way.

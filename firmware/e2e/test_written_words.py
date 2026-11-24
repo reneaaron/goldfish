@@ -8,7 +8,7 @@ from PIL import Image
 from device import FIRMWARE
 
 PAGE = FIRMWARE / "sim" / "samples" / "handwritten_page.png"
-GREY = Image.new("L", (320, 240), 128)
+GREY = Image.new("L", (240, 180), 128)
 
 
 def test_written_page_starts_by_itself(dev):
@@ -28,6 +28,18 @@ def test_written_page_starts_by_itself(dev):
     dev.wait(300)
     dev.show_page(PAGE)
     dev.wait_for(lambda: dev.screen == "PAGE_FOUND", ms=5000, what="the words to be found again")
+
+
+def test_written_page_is_read(dev):
+    """Read takes the words to the list, in the board's memory (the simulator
+    has the board's heap: a step that doesn't fit shows "Out of memory")."""
+    dev.tap("Scan")
+    dev.show_page(PAGE)
+    dev.wait_for(lambda: dev.screen == "PAGE_FOUND", ms=5000, what="the words to be found")
+    dev.wait(200)   # past the fade-in
+    dev.tap("Read")
+    assert dev.screen == "PAGE_READING", dev.text()
+    dev.wait_for(lambda: dev.screen == "PAGE_REVIEW", ms=20000, what="the words to be read")
 
 
 def test_qr_held_still_does_not_read_words(dev):

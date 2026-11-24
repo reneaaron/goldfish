@@ -31,6 +31,15 @@
 #include "src/widgets/buttonmatrix/lv_buttonmatrix_private.h"   // key positions, for run_control()
 #include "src/misc/lv_area_private.h"
 
+// The simulator's own pictures stay off the app's heap (src/sim/heap.cpp): the
+// board keeps its camera's in static RAM.
+extern "C" void *__real_malloc(size_t);
+extern "C" void __real_free(void *);
+extern "C" void *__real_calloc(size_t, size_t);
+extern "C" void *__real_realloc(void *, size_t);
+#define STBI_MALLOC(n) __real_malloc(n)
+#define STBI_FREE(p) __real_free(p)
+#define STBI_REALLOC(p, n) __real_realloc(p, n)
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
@@ -48,9 +57,12 @@ static uint32_t now_ms() {
 }
 
 // ------------------------------------------------------------ fake camera
-// 320x240 grayscale like the OV5640 will deliver; the image is fitted inside.
-#define CAM_W 320
-#define CAM_H 240
+// 240x180 grayscale, what the board's camera gives the app (the middle of its
+// 240x320); the image is fitted inside. Smaller would be kinder to the app's
+// heap than the board is, larger would fail where the board doesn't.
+#include "fit.h"
+#define CAM_W FIT_W
+#define CAM_H FIT_H
 static uint8_t cam_frame[CAM_W * CAM_H];
 static bool cam_ok;
 static time_t cam_mtime;
@@ -65,12 +77,7 @@ static void cam_load(const char *path) {
     uint8_t *img = stbi_load(path, &w, &h, &n, 1);
     cam_ok = img != nullptr;
     if (!img) return;
-    memset(cam_frame, 128, sizeof(cam_frame));
-    float s = fminf((float)CAM_W / w, (float)CAM_H / h);
-    int dw = int(w * s), dh = int(h * s), ox = (CAM_W - dw) / 2, oy = (CAM_H - dh) / 2;
-    for (int y = 0; y < dh; y++)
-        for (int x = 0; x < dw; x++)
-            cam_frame[(oy + y) * CAM_W + ox + x] = img[int(y / s) * w + int(x / s)];
+    fit(img, w, h, cam_frame, CAM_W, CAM_H);
     stbi_image_free(img);
 }
 
@@ -81,7 +88,8 @@ static void cam_show_qr(const char *text) {
     if (!qrcodegen_encodeText(text, tmp, qr, qrcodegen_Ecc_LOW, qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX,
                               qrcodegen_Mask_AUTO, true))
         return;
-    int n = qrcodegen_getSize(qr), scale = 200 / (n + 8);
+    int n = qrcodegen_getSize(qr), scale = LV_MAX(1, (CAM_H - 8) / n);   // the frame is light all round: its quiet zone
+    if (scale < 2) fprintf(stderr, "[sim] a %d-module QR is too dense for the %dx%d view\n", n, CAM_W, CAM_H);
     int ox = (CAM_W - n * scale) / 2, oy = (CAM_H - n * scale) / 2;
     memset(cam_frame, 235, sizeof(cam_frame));
     for (int y = 0; y < n * scale; y++)
@@ -95,7 +103,8 @@ static void cam_show_qr(const char *text) {
 // draws on its backup screens (ui_backup_qr), so the check covers that encoding.
 static bool cam_show_matrix(const uint8_t *qr) {
     if (!qr) return false;
-    int n = qrcodegen_getSize(qr), scale = 200 / (n + 8);
+    int n = qrcodegen_getSize(qr), scale = LV_MAX(1, (CAM_H - 8) / n);   // the frame is light all round: its quiet zone
+    if (scale < 2) fprintf(stderr, "[sim] a %d-module QR is too dense for the %dx%d view\n", n, CAM_W, CAM_H);
     int ox = (CAM_W - n * scale) / 2, oy = (CAM_H - n * scale) / 2;
     memset(cam_frame, 235, sizeof(cam_frame));
     for (int y = 0; y < n * scale; y++)
@@ -174,9 +183,10 @@ void platform_backlight(int) {}   // the window has no backlight
 // The board vanishes from the screen and comes back as a drive; here, just quit.
 void platform_reboot_to_bootloader() { fprintf(stderr, "[sim] reboot to bootloader\n"); exit(0); }
 
-// A still: the camera image file, box-filtered down to at most 1000 pixels on
-// its longer side (the sharper picture platform_camera_band cuts from), and
-// that halved (CAM_ZOOM) for the still itself.
+// A still: the camera's view (the image fitted into CAM_W x CAM_H, as the
+// frame), and the same view CAM_ZOOM times as large, the sharper picture
+// platform_camera_band cuts from: the board's sizes, so the app's memory use
+// matches.
 static uint8_t *still, *zoomed;
 static int still_w, still_h;
 
@@ -186,31 +196,19 @@ uint8_t *platform_camera_still(int *width, int *height, size_t *room) {
     int w, h, n;
     uint8_t *img = stbi_load(cam_path(), &w, &h, &n, 1);
     if (!img) return nullptr;
-    int f = 1;
-    while ((w + f - 1) / f > 1000 || (h + f - 1) / f > 1000) f++;
-    still_w = w / f / CAM_ZOOM; still_h = h / f / CAM_ZOOM;
+    still_w = CAM_W; still_h = CAM_H;
     const int zw = still_w * CAM_ZOOM, zh = still_h * CAM_ZOOM;
-    zoomed = (uint8_t *)malloc((size_t)zw * zh);
-    still = (uint8_t *)malloc((size_t)still_w * still_h);
-    for (int y = 0; zoomed && y < zh; y++)
-        for (int x = 0; x < zw; x++) {
-            int sum = 0;
-            for (int j = 0; j < f; j++)
-                for (int i = 0; i < f; i++) sum += img[(y * f + j) * w + x * f + i];
-            zoomed[y * zw + x] = uint8_t(sum / (f * f));
-        }
-    for (int y = 0; zoomed && still && y < still_h; y++)
-        for (int x = 0; x < still_w; x++) {
-            int sum = 0;
-            for (int j = 0; j < CAM_ZOOM; j++)
-                for (int i = 0; i < CAM_ZOOM; i++) sum += zoomed[(y * CAM_ZOOM + j) * zw + x * CAM_ZOOM + i];
-            still[y * still_w + x] = uint8_t(sum / (CAM_ZOOM * CAM_ZOOM));
-        }
+    zoomed = (uint8_t *)__real_malloc((size_t)zw * zh);
+    still = (uint8_t *)__real_calloc(2, (size_t)still_w * still_h);   // the board lends both frame slots
+    if (zoomed && still) {
+        fit(img, w, h, zoomed, zw, zh);
+        fit_still(zoomed, still, still_w, still_h, CAM_ZOOM);
+    }
     stbi_image_free(img);
     if (!zoomed || !still) { platform_camera_still_free(); return nullptr; }
     *width = still_w;
     *height = still_h;
-    *room = (size_t)still_w * still_h;
+    *room = (size_t)still_w * still_h * 2;
     return still;
 }
 
@@ -222,8 +220,8 @@ bool platform_camera_band(int y0, int rows, uint8_t *buf) {
 }
 
 void platform_camera_still_free() {
-    if (still) { memset(still, 0, (size_t)still_w * still_h); free(still); }
-    if (zoomed) { memset(zoomed, 0, (size_t)still_w * still_h * CAM_ZOOM * CAM_ZOOM); free(zoomed); }
+    if (still) { memset(still, 0, (size_t)still_w * still_h * 2); __real_free(still); }
+    if (zoomed) { memset(zoomed, 0, (size_t)still_w * still_h * CAM_ZOOM * CAM_ZOOM); __real_free(zoomed); }
     still = zoomed = nullptr;
 }
 

@@ -127,15 +127,17 @@ like the others, not forced to fit the checksum, since a checksum that doesn't
 match is how a misread word further up shows; if it doesn't fit (or couldn't be
 read) while all other words are known, its screen offers the word that does
 fit, read again from its picture among only those. Scan seed has a "Written
-words instead?" link for anyone who points the QR scanner at paper. On 384
-words in 18 phone and web photos (demo seeds) at 1000 pixels: 67% read, 4
-wrong (letter-box cards and tiny photos), the rest left to fix; real text that isn't a seed word is sometimes read
-as one. The simulator finds the words on the camera image file at up to 500
-pixels and cuts them from it at up to 1000. The board finds them on what its
+words instead?" link for anyone who points the QR scanner at paper. The
+reader's own test (`handwriting/`, 384 words in 18 phone and web photos of demo
+seeds, at 1000 pixels) reads 67%, 4 wrong (letter-box cards and tiny photos),
+the rest left to fix; real text that isn't a seed word is sometimes read as
+one. The device sees a page at much less than that (below), and reads fewer:
+the simulator, which does as the board does (the image file fitted into
+240x180 and 480x360), reads 15 of the 24 words on its demo page. The board finds them on what its
 preview shows (the middle 240x180 of each frame; the rows above and below were
 never on screen), then switches the camera to 480x640 and takes that view in
-bands of rows (it can't hold a whole one), as few as fit in about
-96 KB, keeping only each word's strip; the strips go where the first picture
+bands of rows (it can't hold a whole one), as few as fit in the heap (up to
+96 KB), keeping only each word's strip; the strips go where the first picture
 was. On the board this is untested: the band capture, its timing and the
 reading speed are unmeasured.
 
@@ -400,7 +402,8 @@ pio run -e sim && .pio/build/sim/program
 ```
 
 Camera: the simulator "sees" the image at `sim/camera.png` (or
-`$SIM_CAMERA`), reloaded when the file changes. With the scan screen open:
+`$SIM_CAMERA`), reloaded when the file changes, fitted into the board's
+240x180 view. With the scan screen open:
 
 ```bash
 cp sim/samples/vector4_standard_12word.png sim/camera.png
@@ -418,8 +421,15 @@ Screenshots of the whole flow, no window:
 SIM_SHOTS=docs/screens .pio/build/sim/program
 ```
 
-The simulator doesn't model the hardware: SPI timing, the PIO camera,
-the 520KB RAM limit and secure boot only show up on the real board.
+Memory: the simulator gives the app the board's heap, `APP_HEAP_BYTES` in
+`include/heap_budget.h` (`src/sim/heap.cpp`, linked over malloc), so a step
+that doesn't fit says "Out of memory" there too, and the e2e tests catch it.
+The board build fails when its static data leaves less heap than that
+(`heap_check.py`). The browser simulator shares the camera sizes
+(`src/sim/fit.h`) but not the heap limit.
+
+The simulator doesn't model the rest of the hardware: SPI timing, the PIO
+camera and secure boot only show up on the real board.
 
 ## Browser simulator
 
