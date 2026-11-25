@@ -1,5 +1,5 @@
 /* Goldfish case colours: the four colours the case is shown in. This file is the source
-   for the site's CSS device drawings (landing/, and try/ via firmware/web/Makefile).
+   for the site's CSS device drawings (landing/).
    The Blender renders use the same four in marketing/renders/device.py, as linear values
    (blue boosted to keep its saturation under AgX). */
 :root {

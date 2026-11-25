@@ -2690,8 +2690,8 @@ static void build_backup_warning() {
     lv_obj_t *scr = screen();
     lv_obj_align(icon_badge(scr, ICON_WARNING, AMBER, AMBER_DIM, 64), LV_ALIGN_TOP_MID, 0, 36);
     lv_obj_align(text(scr, "Keep it offline", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 118);
-    lv_obj_align(para(scr, backup_existing ? "Your seed QR is your private key. Never photograph it or scan it with a phone."
-                                           : "Your words are your private key. Never photograph them or type them into a phone."),
+    lv_obj_align(para(scr, backup_existing ? "Anyone with this QR can take your bitcoin.\nNever photograph it or scan it anywhere else."
+                                           : "Anyone with these words can take your bitcoin.\nNever photograph them or type them anywhere else."),
                  LV_ALIGN_TOP_MID, 0, 154);
     bottom_pair(btn_ghost(scr, backup_existing ? "Cancel" : "Discard",
                           backup_cancel_cb, nullptr, TEXT),
@@ -3000,9 +3000,9 @@ static void build_seed_ready() {
     lv_obj_align(text(scr, title, &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 92);
     lv_obj_t *fp;
     lv_obj_align(fingerprint_pill(scr, "\xE2\x80\xA6", &fp), LV_ALIGN_TOP_MID, 0, 136);
-    char note[64];
-    if (child_seed) snprintf(note, sizeof(note), "Write it and #%s on your backup. Load the child like any seed.", child_num);
-    else snprintf(note, sizeof(note), "Write it on your backup.");
+    char note[96];
+    if (child_seed) snprintf(note, sizeof(note), "Note #%s and this fingerprint with your main seed's backup.", child_num);
+    else snprintf(note, sizeof(note), "Write this fingerprint on your backup. The seed is forgotten when you tap Done.");
     lv_obj_align(para(scr, note, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, 180);
     place_bottom(btn_primary(scr, "Done", to_home_cb));
     show(scr);

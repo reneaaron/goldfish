@@ -1,5 +1,5 @@
 // Browser simulator: the app compiled to WebAssembly (web/Makefile), drawn on
-// a <canvas> by try/index.html. Pointer = touch.
+// a <canvas> by try/sim.js, in the landing page's hero. Pointer = touch.
 //
 // Camera: the page hands over one grayscale picture at a time (the sample the
 // user picked) through web_camera_buffer / web_camera_set.
@@ -97,7 +97,8 @@ static const uint8_t *camera_frame(int *width, int *height) {
     return cam_frame;
 }
 
-const char *platform_camera_error() { return src_ok ? nullptr : "Pick a picture beside the device"; }
+// No picture yet isn't an error: the page beside the device asks for one.
+const char *platform_camera_error() { return nullptr; }
 
 void platform_camera_stop() { EM_ASM({ if (Module.onCameraStop) Module.onCameraStop(); }); }
 
@@ -184,6 +185,10 @@ static void touch_read(lv_indev_t *, lv_indev_data_t *data) {
 static uint32_t now_ms() { return (uint32_t)emscripten_get_now(); }
 
 static void loop() { lv_timer_handler(); }
+
+// The cable comes out: nothing runs any more. The page then zeroes all of this
+// instance's memory and drops it; plugging back in starts a new one.
+extern "C" EMSCRIPTEN_KEEPALIVE void web_unplug() { emscripten_cancel_main_loop(); }
 
 int main() {
     lv_init();
