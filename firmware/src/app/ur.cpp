@@ -131,7 +131,12 @@ static uint64_t xo_next(Xoshiro *x) {
     return r;
 }
 
-static double xo_double(Xoshiro *x) { return double(xo_next(x)) / (double(UINT64_MAX) + 1.0); }
+// As the reference encoder, but the top ~1024 values round to exactly 1.0
+// there, and an index of n would read and shift past the tables: kept below 1.
+static double xo_double(Xoshiro *x) {
+    const double r = double(xo_next(x)) / (double(UINT64_MAX) + 1.0);
+    return r < 1.0 ? r : 0x1.fffffffffffffp-1;
+}
 static uint64_t xo_int(Xoshiro *x, uint64_t lo, uint64_t hi) {
     return uint64_t(xo_double(x) * double(hi - lo + 1)) + lo;
 }
