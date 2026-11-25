@@ -159,8 +159,10 @@ passphrase QR aren't supported.
 
 New seed is a tool: it makes a 12-word seed and its backup, but
 doesn't load it. To use the seed, load it like any other (Scan QR or Enter
-words). The device has no RNG of any kind, not even in tests: every bit
-comes from the user and can be re-checked offline.
+words). Dice, coins and drawn words use no RNG of any kind, not even in
+tests: every bit comes from the user and can be re-checked offline. On this
+device is the one exception, a separate method that is never mixed into the
+other three (below).
 
 - Dice: 50 rolls; coins: 128 flips (heads = 1). The input
   string is hashed with SHA256, same as SeedSigner and bitcoiner.guide/seed,
@@ -168,6 +170,34 @@ comes from the user and can be re-checked offline.
 - Draw words: e.g. from a box. Type the first 11 words, then flip a
   coin for each of the 7 free bits of the last word. The
   flips are the bits themselves, so the last word can be checked by hand.
+- On this device (`device_entropy.h`): the words come from the device itself,
+  and you can't check them. Its own warning comes first ("Skip the dice?": the
+  device will pick your words, and unlike dice there's no way to confirm it
+  picked them fairly) and shows every time. Four sources, always all four
+  and in this order: the RP2350's TRNG (its normal mode, with the hardware's
+  von Neumann corrector, repetition and autocorrelation checks; any error flag
+  stops it), the camera's sensor noise (how 32x32 sampled pixels change from
+  frame to frame), the QMI8658 while you shake the device, and a scribble on
+  the screen. Chip, camera and motion must each reach 192 bits or more on
+  their own (256, 256 and 192: a 128-bit seed plus NIST SP 800-90C's 64-bit
+  margin), counted far below what the samples carry and only for noise: 1 bit
+  per 4 TRNG bytes; for the camera, 1 bit per 16 sampled pixels whose change,
+  less the frame's mean change (auto-exposure, flicker), is small (1 to 12)
+  and goes up about as often as down, at most 24 a frame and none for the
+  first 3 frames; for motion, half a bit per sample that is off the line
+  through the last two on at least 3 axes (the sensor's jitter, not the
+  hand's swing). The scribble needs 64 points that moved; it is hashed in but
+  not counted on for strength. Health checks: a dead, repeating or biased
+  TRNG, a camera picture that doesn't change, one motion axis stuck for 32
+  samples; anything failing ends it with "No seed made". Each step you
+  take part in (camera, shaking, scribble) stays up at least 3 seconds,
+  collecting more all the while, then moves on by itself. Every sample is
+  hashed into a 32-byte pool as it arrives, `pool = SHA256(pool || source ||
+  length || SHA256(sample))`, and the 12 words' entropy is the first 16 bytes
+  of `SHA256(pool || "seed")`. Health checks find a broken source, not one
+  built to look random; that is what the warning is for. In the simulator and
+  the browser the host's random source stands in for the TRNG, the motion
+  sensor and the camera's noise.
 
 Then an offline warning, the words to write down on one scrolling list ("Written down" works once
 it has been scrolled to its end), and an
@@ -348,6 +378,17 @@ pio test -e test
   amounts, testnet, foreign addresses, and a different seed loaded afterwards;
   multisig receive and change addresses, with and without the descriptor
 - Amounts: BIP177 and legacy BTC formatting from ₿0 to the 21M cap
+- On this device: a full run from fixed samples gives the seed that
+  `test/test_device_entropy/make_vector.py` works out in Python; one touch
+  point changed changes it; sources only in order, each moving on only once
+  it has its minimum (it may take more first); nothing before every source is
+  done; the TRNG's health checks (all zeros, a repeated word,
+  biased bits, the same chunk twice); no camera credit for a picture that
+  doesn't change or is too dark, for auto-exposure brightening every pixel,
+  a scene panning past, or changes that only go one way; no motion credit for
+  smooth movement with jitter on two axes, half a bit a sample with jitter on
+  all; one motion axis stuck ends it; no touch credit for a finger that
+  doesn't move
 - BIP-85: the spec's 12 and 24-word BIP39 vectors, child number bounds, and
   the child's fingerprint matching the same seed loaded
 - Word reader: the integer network bit for bit against `handwriting/export_words.py`,
@@ -411,6 +452,9 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
   a drag back up
 - Written words: a handwritten page held still on Scan seed is read without a
   tap, and Retake waits for the view to change; a QR held still isn't
+- On this device: the warning comes first and Back makes nothing; a run makes
+  12 valid words, and a second run other words; leaving halfway and coming
+  back shows the warning again
 
 The simulator runs headless for this (`SIM_CONTROL=1`, commands on stdin, see
 `src/sim/main.cpp`), on a clock that only moves when the test says so. A
@@ -529,6 +573,9 @@ computer, when a seed is loaded.
   it says why: `Chip id 0x…, not 0x5640` (camera not found or not an OV5640)
   or `No image within 1s` (no pixel clock or sync). If the image is
   blurry on an autofocus module, tune `CAM_FOCUS` in `src/board/camera.cpp`.
+- New seed -> On this device runs through all four steps. If it ends with
+  "Chip: …", check the TRNG settings in `src/board/entropy.cpp`; "Motion
+  sensor: can't read it" means no QMI8658 answered at 0x6B or 0x6A.
 
 ## Pin map
 

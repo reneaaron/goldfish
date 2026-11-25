@@ -55,9 +55,16 @@ static void split(Hdr *h, size_t n) {
     merge_next(rest);
 }
 
+// While set, malloc takes the real heap: for the X11 window's own buffers,
+// which LVGL's statically linked driver allocates (a 240x320 32-bit image is
+// bigger than the whole arena). The board keeps its display in static RAM.
+static bool outside;
+void sim_heap_outside(bool on) { outside = on; }
+
 static size_t round_up(size_t n) { return n ? (n + ALIGN - 1) / ALIGN * ALIGN : ALIGN; }
 
 extern "C" void *__wrap_malloc(size_t n) {
+    if (outside) return __real_malloc(n);
     if (!ready) init();
     if (n > sizeof(arena)) return nullptr;
     n = round_up(n);

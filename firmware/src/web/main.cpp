@@ -10,8 +10,10 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include "../app/qrscan.h"
 #include "../app/ui.h"
+#include "../app/device_entropy.h"
 #include "../sim/fit.h"
 
 // ------------------------------------------------------------ camera
@@ -49,7 +51,42 @@ EMSCRIPTEN_KEEPALIVE void web_camera_clear() {
 
 }   // extern "C"
 
+// ------------------------------------------------------------ Generate on device
+// No TRNG, motion sensor or sensor noise in a browser: the browser's random
+// source (getentropy -> crypto.getRandomValues) stands in for all three. Not
+// this device's hardware; the board's are in src/board/entropy.cpp.
+bool platform_trng(uint8_t *out, size_t n) {
+    for (size_t got = 0; got < n; got += 256)
+        if (getentropy(out + got, n - got < 256 ? n - got : 256) != 0) return false;
+    return true;
+}
+
+bool platform_motion(int16_t out[6]) { return platform_trng((uint8_t *)out, 12); }
+
+// While Generate on device reads the camera: the picture (mid-grey if there is
+// none) with a little noise added, as a sensor would have.
+static uint8_t noisy_frame[CAM_W * CAM_H];
+static const uint8_t *noisy(const uint8_t *f) {
+    static uint8_t r[CAM_W * CAM_H];
+    if (!platform_trng(r, sizeof(r))) return nullptr;
+    for (int i = 0; i < CAM_W * CAM_H; i++) {
+        int v = (f ? f[i] : 128) + (r[i] & 7) - 3;
+        noisy_frame[i] = uint8_t(v < 0 ? 0 : v > 255 ? 255 : v);
+    }
+    memset(r, 0, sizeof(r));
+    return noisy_frame;
+}
+
+static const uint8_t *camera_frame(int *width, int *height);
 const uint8_t *platform_camera_frame(int *width, int *height) {
+    const uint8_t *f = camera_frame(width, height);
+    if (ui_current() != UI_ENTROPY_DEVICE) return f;
+    *width = CAM_W;
+    *height = CAM_H;
+    return noisy(f);
+}
+
+static const uint8_t *camera_frame(int *width, int *height) {
     if (!src_ok) return nullptr;
     if (frame_stale) {
         fit(src, src_w, src_h, cam_frame, CAM_W, CAM_H);

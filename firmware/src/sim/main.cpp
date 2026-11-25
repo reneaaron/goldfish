@@ -12,6 +12,7 @@
 // Remote control for the end-to-end tests in e2e/ (no window):
 //   SIM_CONTROL=1 .pio/build/sim/program      commands on stdin, see run_control()
 #include <lvgl.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -19,11 +20,13 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/random.h>
 #include "../app/qrscan.h"
 #include "../app/ui.h"
 #include "../app/wallet.h"
 #include "../app/address_verify.h"
 #include "../app/seed_create.h"
+#include "../app/device_entropy.h"
 #include "../app/ur.h"
 #include <wally_core.h>
 #include "../../test/fixtures/multisig_vectors.h"   // SeedSigner's public 2-of-3 test wallet
@@ -156,7 +159,45 @@ static bool cam_show_card(const char *path, int dx) {
     return true;
 }
 
+// ------------------------------------------------------------ Generate on device
+// The simulator has no TRNG, motion sensor or sensor noise: the host's random
+// source stands in for all three (getrandom). Random enough, but not this
+// device's hardware; the board's are in src/board/entropy.cpp.
+bool platform_trng(uint8_t *out, size_t n) {
+    for (size_t got = 0; got < n;) {
+        ssize_t r = getrandom(out + got, n - got, 0);
+        if (r <= 0) return false;
+        got += size_t(r);
+    }
+    return true;
+}
+
+bool platform_motion(int16_t out[6]) { return platform_trng((uint8_t *)out, 12); }
+
+// While Generate on device reads the camera: the picture (mid-grey if there is
+// none) with a little noise added, as a sensor would have.
+static uint8_t noisy_frame[CAM_W * CAM_H];
+static const uint8_t *noisy(const uint8_t *f) {
+    static uint8_t r[CAM_W * CAM_H];
+    if (!platform_trng(r, sizeof(r))) return nullptr;
+    for (int i = 0; i < CAM_W * CAM_H; i++) {
+        int v = (f ? f[i] : 128) + (r[i] & 7) - 3;
+        noisy_frame[i] = uint8_t(v < 0 ? 0 : v > 255 ? 255 : v);
+    }
+    memset(r, 0, sizeof(r));
+    return noisy_frame;
+}
+
+static const uint8_t *camera_frame(int *width, int *height);
 const uint8_t *platform_camera_frame(int *width, int *height) {
+    const uint8_t *f = camera_frame(width, height);
+    if (ui_current() != UI_ENTROPY_DEVICE) return f;
+    *width = CAM_W;
+    *height = CAM_H;
+    return noisy(f);
+}
+
+static const uint8_t *camera_frame(int *width, int *height) {
     if (cam_override) { *width = CAM_W; *height = CAM_H; return cam_ok ? cam_frame : nullptr; }
     struct stat st;
     if (stat(cam_path(), &st) == 0) {
@@ -381,6 +422,27 @@ static int run_shots(const char *dir) {
     ui_seed_entry(UI_ENTROPY_COINS, 12);
     for (int i = 0; i < 37; i++) ui_entropy_input("1101"[i % 4]);
     pump(300); save(dir, "24_coins");
+
+    // On this device: its warning, then the chip, camera and shaking by
+    // themselves (the host's random source in the simulator), then the scribble.
+    ui_seed_entry(UI_NEW_SEED, 12);
+    ui_goto(UI_DEVICE_WARNING); pump(300); save(dir, "24b_device_warning");
+    ui_device_start();
+    // Chip, camera and shaking run by themselves, each up for a few seconds.
+    for (int i = 0; i < 400 && device_entropy_stage() != DS_TOUCH && !device_entropy_error(); i++) pump(30);
+    if (device_entropy_stage() != DS_TOUCH) { fprintf(stderr, "on-device sources failed: %s\n", device_entropy_error()); return 1; }
+    pump(300);
+    // A scribble: a few strokes of a wobbly curve.
+    auto stroke = [](int k, int n) {
+        for (int i = 0; i < n; i++)
+            ui_device_scribble(int(120 + 85 * sinf((i + 17 * k) * 0.21f) * cosf(i * 0.05f + k)),
+                               int(240 + 52 * sinf((i + 9 * k) * 0.33f + k)));
+    };
+    stroke(0, 25); stroke(1, 15);
+    pump(300); save(dir, "24c_device_scribble");
+    for (int k = 2; k < 40 && ui_current() == UI_ENTROPY_DEVICE; k++) { stroke(k, 20); pump(200); }
+    if (ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "on this device did not make a seed\n"); return 1; }
+    ui_goto(UI_HOME);
 
     // Draw words: 11 by hand, the last word's 7 bits from coin flips. The
     // expected last word, "prize", was computed in Python.
@@ -770,8 +832,12 @@ int main() {
     if (const char *dir = getenv("SIM_SHOTS")) return run_shots(dir);
     if (getenv("SIM_CONTROL")) return run_control();
 
+    // The window's buffers aren't the app's: off the board's heap (src/sim/heap.cpp).
+    void sim_heap_outside(bool on);
+    sim_heap_outside(true);
     lv_display_t *d = lv_x11_window_create("RP2350 signer (sim)", 240, 320);
     lv_x11_inputs_create(d, nullptr);  // the X11 driver hides the system cursor
+    sim_heap_outside(false);
     // Draw a fingertip-sized dot as the cursor instead.
     for (lv_indev_t *in = lv_indev_get_next(nullptr); in; in = lv_indev_get_next(in)) {
         if (lv_indev_get_type(in) != LV_INDEV_TYPE_POINTER) continue;

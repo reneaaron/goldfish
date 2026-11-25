@@ -45,7 +45,9 @@ signed with Sparrow, on mainnet too. The code hasn't been reviewed or audited.
 1. Scan your seed QR (SeedQR, 12 or 24 words). The device shows its
    fingerprint so you can match it with your wallet. Or type your words
    backup. New seed makes a seed from dice rolls, coin flips or words you
-   draw (the last word from coin flips), shows the words to write down and
+   draw (the last word from coin flips), or from the device's
+   own chip, camera, motion sensor and your scribble (words you can't
+   check yourself; it warns you first), shows the words to write down and
    optionally walks you through a paper QR card, square by square. Any
    loaded seed can be backed up as a QR card the same way. Blank cards
    for 12-word seeds to print are in [`cards/`](cards).

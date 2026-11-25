@@ -24,6 +24,7 @@
 //        Remove / Add a word before (keyboard, then back to the list) -> "Matches
 //        my backup" once there are 12/24 words with a valid checksum -> Wallet
 //   Home -> New seed (12 words) -> dice rolls | coin flips | draw words + coins for the last
+//        | on this device: "Skip the dice?" -> chip, camera, shake, scribble (never mixed with the others)
 //        -> offline warning -> write down the words -> QR card? (whole SeedQR,
 //        each block, optional card check) -> Seed ready (not loaded) -> Home
 //   Wallet options -> Back up as QR -> the same card flow, scan optional
@@ -66,6 +67,8 @@ enum UiScreen {
     UI_PAGE_REVIEW,      // the words found, as one list to check against the backup
     UI_PAGE_WORD,        // one of them: its picture; change, remove, or add one before it
     UI_UPDATE,           // restart into the USB bootloader, from the version on Home
+    UI_DEVICE_WARNING,   // before Generate on device: "Skip the dice?"
+    UI_ENTROPY_DEVICE,   // Generate on device: chip, camera, shake, scribble
 };
 
 void ui_build();               // shows the home screen
@@ -96,6 +99,10 @@ void ui_backup_next();         // "Next part"
 // The backup QR as drawn on screen (qrcodegen buffer), nullptr if none. For
 // the simulator, which scans exactly this as the hand-made card.
 const uint8_t *ui_backup_qr();
+// Generate on device: "Skip dice" on its warning, then feed the scribble (the
+// other sources run by themselves). Each step moves on by itself after a few seconds.
+void ui_device_start();
+void ui_device_scribble(int x, int y);
 // "Continue" on the child number screen: derive the BIP-85 child, start its card flow.
 void ui_child_seed(uint32_t index);
 bool ui_page_read();           // read the words on Scan seed now (it also starts by itself): false if there's no picture
