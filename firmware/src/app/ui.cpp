@@ -1296,6 +1296,12 @@ static void build_new_seed() {
 static lv_timer_t *dev_timer;
 static lv_obj_t *dev_bar, *dev_cam, *dev_phone, *dev_ink, *dev_chip, *dev_chip_face, *dev_chip_read;
 static int dev_chip_n;                   // chunks read on this screen
+// The chip's chunk is gathered a piece per tick (a whole chunk at once held the
+// screen up) in the start of preview_buf, idle during this step; dev_chip_fill
+// bytes of it so far.
+#define DEV_CHIP_PIECE 32
+static_assert(DE_CHIP_CHUNK % DEV_CHIP_PIECE == 0, "a chunk is whole pieces");
+static int dev_chip_fill;
 static char dev_chip_txt[24];
 // The Camera step's live view: preview_buf as a smaller picture under the text.
 // Every step: its number, title and a one-line subline, then one picture
@@ -1353,6 +1359,7 @@ static int device_progress(DeviceSource s) {
 
 // The step on screen has enough bits and time: on to the next one (or the words).
 static void device_step_next() {
+    if (dev_shown == DS_CHIP) secure_zero(preview_buf, DE_CHIP_CHUNK);   // a piece of a chunk not yet hashed
     if (dev_shown == DS_CAMERA) {
         platform_camera_stop();
         secure_zero(preview_buf, sizeof(preview_buf));   // the view was part of the seed's input
@@ -1371,15 +1378,19 @@ static void device_tick(lv_timer_t *) {
     if (device_entropy_error()) return;
     DeviceSource s = device_entropy_stage();
     if (s == DS_CHIP) {
-        // One chunk a tick for the whole step, all of it hashed in (one at a
-        // time so the screen keeps drawing: with the hardware's checks on, a
-        // chunk takes a moment).
-        {
-            uint8_t c[DE_CHIP_CHUNK];
-            bool ok = platform_trng(c, sizeof(c));
-            if (!ok) { secure_zero(c, sizeof(c)); device_fail("Chip: can't read its random generator"); return; }
-            ok = device_entropy_chip(c, sizeof(c));
-            secure_zero(c, sizeof(c));
+        // A small piece a tick for the whole step, all of it hashed in: with the
+        // hardware's checks on the chip is slow, and the screen has to keep up.
+        uint8_t *c = preview_buf;
+        if (!platform_trng(c + dev_chip_fill, DEV_CHIP_PIECE)) {
+            secure_zero(c, DE_CHIP_CHUNK);
+            device_fail("Chip: can't read its random generator");
+            return;
+        }
+        dev_chip_fill += DEV_CHIP_PIECE;
+        if (dev_chip_fill == DE_CHIP_CHUNK) {
+            dev_chip_fill = 0;
+            bool ok = device_entropy_chip(c, DE_CHIP_CHUNK);
+            secure_zero(c, DE_CHIP_CHUNK);
             if (!ok) { ui_goto(UI_ENTROPY_DEVICE); return; }
             // The chip blinks with each read and the count goes up. Only how
             // much was read is shown, never what: the bytes are the seed's.
@@ -1403,8 +1414,12 @@ static void device_tick(lv_timer_t *) {
             lv_obj_invalidate(dev_cam);
         }
         if (f && !device_entropy_camera(f, w, h)) { ui_goto(UI_ENTROPY_DEVICE); return; }
-        if (!f && platform_camera_error()) { device_fail("Camera: no picture"); return; }
-        if (lv_tick_elaps(dev_stage_ms) > DEV_CAMERA_TIMEOUT_MS) { device_fail("Camera: its picture doesn't change"); return; }
+        // (a camera error is ridden out, as the scan screen does: the camera
+        // restarts by itself, and the timeout below still ends a dead one)
+        if (lv_tick_elaps(dev_stage_ms) > DEV_CAMERA_TIMEOUT_MS) {
+            device_fail(platform_camera_error() ? "Camera: no picture" : "Camera: its picture doesn't change");
+            return;
+        }
     } else if (s == DS_MOTION) {
         int16_t m[6];
         if (!platform_motion(m)) { device_fail("Motion sensor: can't read it"); return; }
@@ -1470,7 +1485,7 @@ static void scribble_cb(lv_event_t *e) {
 static void build_entropy_device() {
     if (dev_timer) { lv_timer_delete(dev_timer); dev_timer = nullptr; }
     dev_bar = dev_cam = dev_phone = dev_ink = dev_chip = dev_chip_face = dev_chip_read = nullptr;
-    dev_chip_n = 0;
+    dev_chip_n = dev_chip_fill = 0;
     dev_pen_x = -1;
     secure_zero(dev_motion_last, sizeof(dev_motion_last));
     lv_obj_t *scr = screen();
@@ -1570,6 +1585,8 @@ static void build_entropy_device() {
         lv_image_set_src(dev_cam, &dev_cam_dsc);
         lv_obj_center(dev_cam);
     } else if (s == DS_CHIP) {
+        if (word_reader_holds(preview_buf)) word_reader_free();
+        secure_zero(preview_buf, DE_CHIP_CHUNK);
         // A chip with pins on every side and a die in it; it blinks and the die
         // turns as it is read.
         const int cs = 64, cy = DEV_VIS_Y + 58;
