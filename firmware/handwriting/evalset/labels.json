@@ -176,6 +176,10 @@
   "image_url": "https://econoalchemist.github.io/COLDCARD-UltraQuick/Assets/SaveWords2.jpg",
   "style": "caps",
   "background": "Coldcard Wallet Backup Card (grid boxes), photo downscaled from 4032px",
+  "size": [
+   2016,
+   1512
+  ],
   "words": [
    {
     "text": "grass",
@@ -419,6 +423,10 @@
   "image_url": "https://econoalchemist.github.io/Dice-Rolls/assets/IMG_4817.JPG",
   "style": "mixed",
   "background": "ruled notebook paper, photo downscaled from 4032px",
+  "size": [
+   1512,
+   2016
+  ],
   "words": [
    {
     "text": "sugar",
@@ -644,6 +652,10 @@
   "image_url": "https://econoalchemist.github.io/Foundation-Passport/assets/passport99.jpg",
   "style": "caps",
   "background": "ruled spiral notebook paper, photo downscaled from 4032px",
+  "size": [
+   2016,
+   1512
+  ],
   "words": [
    {
     "text": "flip",
@@ -896,6 +908,10 @@
   "image_url": "https://raw.githubusercontent.com/Vayras/bitcoin-vision-site/main/public/samples/recovery-words.jpg",
   "style": "mixed",
   "background": "plain paper (grey, uneven light), downscaled from 2250x3000; test phrase sample of the bitcoin-vision handwriting reader",
+  "size": [
+   1500,
+   2000
+  ],
   "words": [
    {
     "text": "shop",
@@ -1013,6 +1029,10 @@
   "image_url": "https://hodlr1.econoalchemist.com/assets/hodlr_14.jpg",
   "style": "caps",
   "background": "Hodlr One orange recovery sheet, letter boxes (one letter per box), downscaled from 4080px",
+  "size": [
+   2040,
+   1536
+  ],
   "words": [
    {
     "text": "album",
@@ -1094,6 +1114,10 @@
   "image_url": "https://hodlr1.econoalchemist.com/assets/hodlr_19.jpg",
   "style": "caps",
   "background": "Hodlr One orange recovery sheet, letter boxes, downscaled from 4080px",
+  "size": [
+   2040,
+   1536
+  ],
   "words": [
    {
     "text": "rebel",
@@ -1157,6 +1181,10 @@
   "image_url": "https://hodlr1.econoalchemist.com/assets/hodlr_20.jpg",
   "style": "caps",
   "background": "Hodlr One orange recovery sheet, letter boxes, perspective/rotated ~15 deg, downscaled from 4080px",
+  "size": [
+   2040,
+   1536
+  ],
   "words": [
    {
     "text": "find",
@@ -1229,6 +1257,10 @@
   "image_url": "https://bitcoinmagazine.com/wp-content/uploads/2024/11/passphrase-words.jpg",
   "style": "mixed",
   "background": "ruled spiral notebook paper, 4 columns of 24 words (Seed XOR demo parts), downscaled from 4032px",
+  "size": [
+   2016,
+   1512
+  ],
   "words": [
    {
     "text": "brass",
@@ -2093,6 +2125,10 @@
   "image_url": "https://bitcoinmagazine.com/wp-content/uploads/2024/11/seedsigner-bitcoin-wallet-recovery-phrase.jpg",
   "style": "caps",
   "background": "printed SeedSigner-style ruled sheet on plain paper, finger covers word 1, downscaled from 4032px",
+  "size": [
+   2016,
+   1512
+  ],
   "words": [
    {
     "text": "tragic",
@@ -2300,6 +2336,10 @@
   "image_url": "https://bitcoinmagazine.com/wp-content/uploads/2024/11/img_6032.jpg",
   "style": "caps",
   "background": "ruled spiral notebook paper; 4-letter abbreviations of a 12-word demo seed, downscaled from 4032px",
+  "size": [
+   2016,
+   1512
+  ],
   "words": [
    {
     "text": "poss",
@@ -2885,6 +2925,10 @@
   "image_url": "https://raw.githubusercontent.com/penlock-io/bitcoin-vision/main/words/examples/photos/handwritten.png",
   "style": "mixed",
   "background": "plain grey paper, dim light; same test sheet as img05 but a separate photo, downscaled from 3456x4608",
+  "size": [
+   1728,
+   2304
+  ],
   "words": [
    {
     "text": "shop",
