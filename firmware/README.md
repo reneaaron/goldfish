@@ -344,6 +344,11 @@ pio test -e test
   transaction, extra redeem or witness scripts, and a multisig witness script
   that isn't the descriptor's; and a bogus signature of ours already in the
   PSBT, which signing refuses to hand out
+- Nonces: the same seed and PSBT give the same signature byte for byte
+  (single-sig and multisig, also after wiping and loading the seed again; the
+  multisig one is the signature embit gives), and a change of one unit of
+  amount, the locktime, a sequence number or one bit of an address gives
+  another nonce
 - Verify address: BIP84's three addresses (receive 0 and 1, change 0), URIs and their
   amounts, testnet, foreign addresses, and a different seed loaded afterwards;
   multisig receive and change addresses, with and without the descriptor

@@ -435,6 +435,88 @@ void test_multisig_sign() {
     psbt_clear();
 }
 
+// ------------------------------------------------------------ nonces
+// The device has no random number generator, so a signature's nonce can only
+// come from the key and the transaction (RFC 6979, with libwally's low-R
+// grinding, which is deterministic too). That is checkable from outside: a
+// signer that hid data in its nonces could not keep giving the same bytes.
+
+// Our signature on input 0 of the PSBT in `raw`, reviewed and signed from scratch.
+static std::string sign_raw() {
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_OK, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(1, psbt_sign());
+    static uint8_t out[8192];
+    size_t n = psbt_serialize(out, sizeof(out));
+    TEST_ASSERT_GREATER_THAN(0, n);
+    struct wally_psbt *p = nullptr;
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_from_bytes(out, n, 0, &p));
+    TEST_ASSERT_EQUAL(1, p->inputs[0].signatures.num_items);
+    const struct wally_map_item &sig = p->inputs[0].signatures.items[0];
+    std::string der((const char *)sig.value, sig.value_len);
+    wally_psbt_free(p);
+    psbt_clear();
+    return der;
+}
+
+// r of a DER signature (30 len 02 rlen r 02 slen s, then the sighash byte):
+// the x coordinate of the nonce point, so the same r means the same nonce.
+static std::string sig_r(const std::string &der) {
+    TEST_ASSERT_TRUE(der.size() > 4 && der[0] == 0x30 && der[2] == 0x02 && size_t(4 + der[3]) < der.size());
+    return der.substr(4, size_t(der[3]));
+}
+
+// The same seed and PSBT give the same signature, byte for byte, also after
+// the seed was wiped and loaded again.
+void test_signing_is_deterministic() {
+    load_seed(SINGLESIG_MNEMONIC);
+    const std::string first = sign_raw();
+    TEST_ASSERT_TRUE(first == sign_raw());
+    wallet_wipe();
+    load_seed(SINGLESIG_MNEMONIC);
+    TEST_ASSERT_TRUE(first == sign_raw());
+
+    // Multisig: the same, and the very bytes embit's RFC 6979 gives (its r is
+    // already low, so grinding changes nothing).
+    load_multisig(MS_PSBT);
+    const std::string ms = sign_raw();
+    wallet_wipe();
+    multisig_clear();
+    load_multisig(MS_PSBT);
+    TEST_ASSERT_TRUE(ms == sign_raw());
+    uint8_t embit_sig[80];
+    size_t embit_len = 0;
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_hex_to_bytes(MS_SIG, embit_sig, sizeof(embit_sig), &embit_len));
+    TEST_ASSERT_EQUAL(embit_len, ms.size());
+    TEST_ASSERT_EQUAL_MEMORY(embit_sig, ms.data(), embit_len);
+}
+
+// The smallest change to the transaction gives another nonce. Two signatures
+// by one key that share a nonce over different transactions give the key away.
+void test_any_change_gives_another_nonce() {
+    static void (*const edits[])(struct wally_psbt *) = {
+        [](struct wally_psbt *p) { p->tx->outputs[0].satoshi -= 1; },   // one unit less paid, one more in fee
+        [](struct wally_psbt *p) { p->tx->locktime += 1; },
+        [](struct wally_psbt *p) { p->tx->inputs[0].sequence -= 1; },
+        [](struct wally_psbt *p) {                                       // one bit of the address paid (the last output)
+            struct wally_tx_output &o = p->tx->outputs[p->tx->num_outputs - 1];
+            o.script[o.script_len - 1] ^= 1;
+        },
+    };
+    for (int multi = 0; multi < 2; multi++) {
+        std::string seen[1 + sizeof(edits) / sizeof(edits[0])];
+        size_t n = 0;
+        for (size_t e = 0; e <= sizeof(edits) / sizeof(edits[0]); e++) {
+            if (multi) load_multisig(MS_PSBT);
+            else { setUp(); load_seed(SINGLESIG_MNEMONIC); }
+            if (e) edit_psbt(edits[e - 1]);
+            const std::string r = sig_r(sign_raw());
+            for (size_t k = 0; k < n; k++) TEST_ASSERT_TRUE(r != seen[k]);
+            seen[n++] = r;
+        }
+    }
+}
+
 // A cosigner signed first: ours is added, theirs is kept.
 void test_multisig_second_signature() {
     load_multisig(MS_PSBT_COSIGNED);
@@ -776,6 +858,8 @@ int main() {
     RUN_TEST(test_multisig_needs_descriptor);
     RUN_TEST(test_multisig_sign);
     RUN_TEST(test_multisig_second_signature);
+    RUN_TEST(test_signing_is_deterministic);
+    RUN_TEST(test_any_change_gives_another_nonce);
     RUN_TEST(test_multisig_other_cosigner);
     RUN_TEST(test_multisig_fake_change);
     RUN_TEST(test_multisig_wrong_wallet);
