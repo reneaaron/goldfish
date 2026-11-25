@@ -190,8 +190,9 @@ other three (below).
   not counted on for strength. Health checks: a dead, repeating or biased
   TRNG, a camera picture that doesn't change, one motion axis stuck for 32
   samples; anything failing ends it with "No seed made". Each step stays
-  up at least 3 seconds, collecting more all the while (the chip reads one
-  chunk at a time so the screen keeps drawing), then moves on by itself. Every sample is
+  up at least 5 seconds, collecting more all the while (every step keeps
+  reading until it ends; the chip one chunk at a time so the screen keeps
+  drawing), then moves on by itself. Every sample is
   hashed into a 32-byte pool as it arrives, `pool = SHA256(pool || source ||
   length || SHA256(sample))`, and the 12 words' entropy is the first 16 bytes
   of `SHA256(pool || "seed")`. Health checks find a broken source, not one

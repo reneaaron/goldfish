@@ -433,8 +433,8 @@ static int run_shots(const char *dir) {
     ui_seed_entry(UI_NEW_SEED, 12);
     ui_goto(UI_DEVICE_WARNING); pump(300); save(dir, "24b_device_warning");
     ui_device_start();
-    // Chip, camera and shaking run by themselves, each up for a few seconds.
-    for (int i = 0; i < 400 && device_entropy_stage() != DS_TOUCH && !device_entropy_error(); i++) pump(30);
+    // Chip, camera and shaking run by themselves, each up for 5 seconds.
+    for (int i = 0; i < 800 && device_entropy_stage() != DS_TOUCH && !device_entropy_error(); i++) pump(30);
     if (device_entropy_stage() != DS_TOUCH) { fprintf(stderr, "on-device sources failed: %s\n", device_entropy_error()); return 1; }
     pump(300);
     // A scribble: a few strokes of a wobbly curve.

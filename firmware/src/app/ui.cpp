@@ -1304,7 +1304,7 @@ static DeviceSource dev_shown;           // the stage the screen was built for
 static uint32_t dev_stage_ms;
 // Each step stays up at least this long, collecting (and hashing) all the
 // while, then moves on by itself.
-#define DEV_STEP_MS 3000
+#define DEV_STEP_MS 5000
 // The scribble's ink: borrows preview_buf (idle once the camera step is over)
 // as an A8 picture over the box, drawn in the accent colour.
 #define DEV_BOX_Y (BAR + 130)
@@ -1365,9 +1365,10 @@ static void device_tick(lv_timer_t *) {
     if (device_entropy_error()) return;
     DeviceSource s = device_entropy_stage();
     if (s == DS_CHIP) {
-        // One chunk a tick, so the screen keeps drawing (with the hardware's
-        // checks on, a chunk takes a moment); none once it has enough.
-        if (device_entropy_bits(DS_CHIP) < device_entropy_needed(DS_CHIP)) {
+        // One chunk a tick for the whole step, all of it hashed in (one at a
+        // time so the screen keeps drawing: with the hardware's checks on, a
+        // chunk takes a moment).
+        {
             uint8_t c[DE_CHIP_CHUNK];
             bool ok = platform_trng(c, sizeof(c));
             if (!ok) { secure_zero(c, sizeof(c)); device_fail("Chip: can't read its random generator"); return; }

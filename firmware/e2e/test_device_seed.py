@@ -17,12 +17,12 @@ def generate(dev):
     assert dev.screen == "DEVICE_WARNING"
     dev.tap("Skip dice")
     assert dev.screen == "ENTROPY_DEVICE"
-    # Chip, camera and shaking run by themselves, each up for a few seconds.
+    # Chip, camera and shaking run by themselves, each up for 5 seconds.
     assert "The chip" in dev.texts()   # step 1 is on screen too, not over before it's drawn
-    dev.wait_for(lambda: "Camera noise" in dev.texts(), ms=6000)
+    dev.wait_for(lambda: "Camera noise" in dev.texts(), ms=8000)
     dev.wait(2000)
     assert "Camera noise" in dev.texts()   # not over in a flash
-    dev.wait_for(lambda: "Scribble" in dev.texts(), ms=15000, what="camera and shaking to finish")
+    dev.wait_for(lambda: "Scribble" in dev.texts(), ms=20000, what="camera and shaking to finish")
     for i in range(40):
         if dev.screen != "ENTROPY_DEVICE":
             break
@@ -57,7 +57,7 @@ def test_leaving_midway_makes_nothing(dev):
     dev.tap("Create new seed")
     dev.tap("On this device")
     dev.tap("Skip dice")
-    dev.wait_for(lambda: "Shake it" in dev.texts(), ms=10000, what="the camera step to finish")
+    dev.wait_for(lambda: "Shake it" in dev.texts(), ms=15000, what="the camera step to finish")
     dev.wait(200)   # past the fade-in
     dev.back()
     assert dev.screen == "NEW_SEED"
