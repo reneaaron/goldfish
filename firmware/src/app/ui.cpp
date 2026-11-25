@@ -1294,7 +1294,7 @@ static void build_new_seed() {
 // shaking and a scribble, in that order; any failure ends it with no seed.
 #define DEV_CAMERA_TIMEOUT_MS 20000
 static lv_timer_t *dev_timer;
-static lv_obj_t *dev_bar, *dev_cam, *dev_phone, *dev_ink, *dev_chip, *dev_chip_read;
+static lv_obj_t *dev_bar, *dev_cam, *dev_phone, *dev_ink, *dev_chip, *dev_chip_face, *dev_chip_read;
 static int dev_chip_n;                   // chunks read on this screen
 static char dev_chip_txt[24];
 // The Camera step's live view: preview_buf as a smaller picture under the text.
@@ -1381,6 +1381,8 @@ static void device_tick(lv_timer_t *) {
             // much was read is shown, never what: the bytes are the seed's.
             dev_chip_n++;
             if (dev_chip) lv_obj_set_style_border_color(dev_chip, dev_chip_n % 2 ? ACCENT : ACCENT_DIM, 0);
+            static const char *faces[] = {ICON_DICE_1, ICON_DICE_2, ICON_DICE_3, ICON_DICE_4, ICON_DICE_5, ICON_DICE_6};
+            if (dev_chip_face) lv_label_set_text_static(dev_chip_face, faces[dev_chip_n % 6]);   // in turn, not the bytes
             if (dev_chip_read) {
                 int b = dev_chip_n * DE_CHIP_CHUNK;
                 snprintf(dev_chip_txt, sizeof(dev_chip_txt), "%d.%d KB read", b / 1024, b % 1024 * 10 / 1024);
@@ -1463,7 +1465,7 @@ static void scribble_cb(lv_event_t *e) {
 
 static void build_entropy_device() {
     if (dev_timer) { lv_timer_delete(dev_timer); dev_timer = nullptr; }
-    dev_bar = dev_cam = dev_phone = dev_ink = dev_chip = dev_chip_read = nullptr;
+    dev_bar = dev_cam = dev_phone = dev_ink = dev_chip = dev_chip_face = dev_chip_read = nullptr;
     dev_chip_n = 0;
     dev_pen_x = -1;
     secure_zero(dev_motion_last, sizeof(dev_motion_last));
@@ -1505,7 +1507,7 @@ static void build_entropy_device() {
     }
     static const char *title[DS_COUNT] = {"The chip", "Camera noise", "Shake it", "Scribble"};
     static const char *say[DS_COUNT] = {
-        "Reading the chip's own random generator.",
+        "The chip rolls its own dice.",
         "Point the camera at anything with some light.",
         "Shake the device for a few seconds.",
         "Draw in the box with your finger.",
@@ -1557,7 +1559,8 @@ static void build_entropy_device() {
         lv_image_set_src(dev_cam, &dev_cam_dsc);
         lv_obj_align(dev_cam, LV_ALIGN_BOTTOM_MID, 0, -M);
     } else if (s == DS_CHIP) {
-        // A chip with pins on every side; it blinks as it is read.
+        // A chip with pins on every side and a die in it; it blinks and the die
+        // turns as it is read.
         const int cs = 64, cy = BAR + 178;
         for (int side = 0; side < 4; side++)
             for (int k = 0; k < 3; k++) {
@@ -1582,7 +1585,8 @@ static void build_entropy_device() {
         lv_obj_set_style_border_color(dev_chip, ACCENT, 0);
         lv_obj_set_style_border_width(dev_chip, 3, 0);
         lv_obj_align(dev_chip, LV_ALIGN_TOP_MID, 0, cy - cs / 2);
-        lv_obj_center(text(dev_chip, "RNG", &inter_15, TEXT_2));
+        dev_chip_face = text(dev_chip, ICON_DICE_5, &icons_40, ACCENT);   // the chip "rolling dice"
+        lv_obj_center(dev_chip_face);
         dev_chip_read = text(scr, "", &inter_13, TEXT_3);
         lv_obj_align(dev_chip_read, LV_ALIGN_TOP_MID, 0, cy + cs / 2 + 20);
     } else if (s == DS_MOTION) {
