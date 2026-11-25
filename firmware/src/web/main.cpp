@@ -60,7 +60,8 @@ const uint8_t *platform_camera_frame(int *width, int *height) {
     return cam_frame;
 }
 
-const char *platform_camera_error() { return src_ok ? nullptr : "Pick a picture beside the device"; }
+// No picture yet isn't an error: the page beside the device asks for one.
+const char *platform_camera_error() { return nullptr; }
 
 void platform_camera_stop() { EM_ASM({ if (Module.onCameraStop) Module.onCameraStop(); }); }
 

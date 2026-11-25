@@ -35,7 +35,7 @@ LDFLAGS := $(OPT) -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=16MB -sSTACK_SIZE=1MB
            -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU16 -sFILESYSTEM=0
 
 .PHONY: all clean
-all: $(OUT)/signer.js $(OUT)/index.html $(OUT)/brand.css $(OUT)/img/handwritten_page_thumb.jpg samples
+all: $(OUT)/signer.js $(OUT)/index.html $(OUT)/brand.css $(OUT)/img/handwritten_page_thumb.jpg $(OUT)/img/camera_idle.jpg samples
 
 $(OUT)/signer.js: $(OBJS)
 	$(CXX) $(LDFLAGS) $^ -o $@
