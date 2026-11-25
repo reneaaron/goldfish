@@ -343,7 +343,8 @@ pio test -e test
   script that isn't our key's, a second unverified key path with our
   fingerprint, no outputs, a finalized input, a mismatched previous
   transaction, extra redeem or witness scripts, and a multisig witness script
-  that isn't the descriptor's; and a bogus signature of ours already in the
+  that isn't the descriptor's, and inputs under both the mainnet and testnet
+  coin type, in either order; and a bogus signature of ours already in the
   PSBT, which signing refuses to hand out
 - Verify address: BIP84's three addresses (receive 0 and 1, change 0), URIs and their
   amounts, testnet, foreign addresses, and a different seed loaded afterwards;
@@ -412,6 +413,8 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
   a drag back up
 - Written words: a handwritten page held still on Scan seed is read without a
   tap, and Retake waits for the view to change; a QR held still isn't
+- Wiping: the words read from a handwritten page are gone from the
+  simulator's memory once their screens are (`test_wipe.py`, Linux only)
 
 The simulator runs headless for this (`SIM_CONTROL=1`, commands on stdin, see
 `src/sim/main.cpp`), on a clock that only moves when the test says so. A

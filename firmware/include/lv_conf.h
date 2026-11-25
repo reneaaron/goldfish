@@ -4,6 +4,8 @@
 #define LV_COLOR_DEPTH 16
 #define LV_USE_STDLIB_MALLOC LV_STDLIB_BUILTIN
 #define LV_MEM_SIZE (96U * 1024U)   // two screens coexist during transitions
+#define LV_MEM_POOL_INCLUDE "lv_pool.h"   // the app owns the pool, to wipe its free blocks
+#define LV_MEM_POOL_ALLOC lv_app_pool
 #define LV_DEF_REFR_PERIOD 20
 #define LV_USE_OS LV_OS_NONE
 #define LV_USE_LOG 0
