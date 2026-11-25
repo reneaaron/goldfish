@@ -2343,8 +2343,8 @@ static void build_backup_warning() {
     lv_obj_t *scr = screen();
     lv_obj_align(icon_badge(scr, ICON_WARNING, AMBER, AMBER_DIM, 64), LV_ALIGN_TOP_MID, 0, 36);
     lv_obj_align(text(scr, "Keep it offline", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 118);
-    lv_obj_align(para(scr, backup_existing ? "Your seed QR is your private key. Never photograph it or scan it with a phone."
-                                           : "Your words are your private key. Never photograph them or type them into a phone."),
+    lv_obj_align(para(scr, backup_existing ? "Anyone with this QR can take your bitcoin.\nNever photograph it or scan it anywhere else."
+                                           : "Anyone with these words can take your bitcoin.\nNever photograph them or type them anywhere else."),
                  LV_ALIGN_TOP_MID, 0, 154);
     bottom_pair(btn_ghost(scr, backup_existing ? "Cancel" : "Discard",
                           backup_cancel_cb, nullptr, TEXT),
