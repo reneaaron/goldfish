@@ -76,8 +76,8 @@ blender -b -P marketing/renders/metal.py
 ### Turntable (landing hero)
 
 `renders/turntable.py` renders the device standing upright on the home screen,
-turned a full circle in 36 frames, once per case colour (orange, black, light
-grey), on a transparent background; the version in the screen's corner is
+turned a full circle in 36 frames, once per case colour (orange, black, blue,
+white: `landing/brand.css`), on a transparent background; the version in the screen's corner is
 blanked, since the frames outlive the build. `turntable_pack.py` crops them all
 to one box and packs one WebP sheet per colour into `landing/img/turn/`, which
 the landing page's hero scrubs as you drag it. The raw frames

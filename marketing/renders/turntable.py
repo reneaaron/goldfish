@@ -5,14 +5,14 @@ once per case colour. Transparent background; the page adds the shadow.
 Run from the repo root:
     blender -b -P marketing/renders/turntable.py
     uv run --with pillow python marketing/renders/turntable_pack.py   # -> landing/img/turn/
-Options (env): SAMPLES=64, FRAMES=36, COLORS=signal,graphite,bone, ONLY_FRAME=0
+Options (env): SAMPLES=64, FRAMES=36, COLORS=orange,black,blue,white, ONLY_FRAME=0
 """
 import os, sys, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from device import *   # noqa: F401,F403  (bpy scene is reset on import)
 
 FRAMES = int(os.environ.get("FRAMES", 36))
-COLORS = {"signal": SIGNAL, "graphite": GRAPHITE, "bone": BONE}
+COLORS = {"orange": SIGNAL, "black": GRAPHITE, "blue": BLUE, "white": BONE}   # names as in landing/brand.css
 WANT = os.environ.get("COLORS", ",".join(COLORS)).split(",")
 ONLY_FRAME = os.environ.get("ONLY_FRAME")
 TT_OUT = os.path.join(OUT, "turntable")

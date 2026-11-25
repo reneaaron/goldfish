@@ -279,7 +279,7 @@
   <div class="wrap hero">
     <figure class="hero-fig">
       <button type="button" class="turn" id="turn" aria-label="Goldfish, the home screen on its front and the camera on its back. Turn it round">
-        <img id="turn-first" src="img/turn/signal-0.webp" alt="" draggable="false">
+        <img id="turn-first" src="img/turn/orange-0.webp" alt="" draggable="false">
       </button>
       <svg class="notes" viewBox="0 0 760 440" aria-hidden="true">
         <defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto"><path d="M1 1 L8.5 5 L1 9"/></marker></defs>
@@ -296,9 +296,10 @@
         <path class="front" d="M436 424 C 412 422, 398 414, 392 400" marker-end="url(#ah)"/>
       </svg>
       <div class="swatches" role="group" aria-label="Case colour">
-        <button type="button" data-c="signal" aria-pressed="true" aria-label="Orange" style="--sw: #F2A25C"></button>
-        <button type="button" data-c="graphite" aria-pressed="false" aria-label="Black" style="--sw: #2E2E2C"></button>
-        <button type="button" data-c="bone" aria-pressed="false" aria-label="Light grey" style="--sw: #C9C5BC"></button>
+        <button type="button" data-c="orange" aria-pressed="true" aria-label="Orange" style="--sw: var(--case-orange)"></button>
+        <button type="button" data-c="black" aria-pressed="false" aria-label="Black" style="--sw: var(--case-black)"></button>
+        <button type="button" data-c="blue" aria-pressed="false" aria-label="Blue" style="--sw: var(--case-blue)"></button>
+        <button type="button" data-c="white" aria-pressed="false" aria-label="White" style="--sw: var(--case-white)"></button>
         <span>Drag to turn it round</span>
       </div>
       <figcaption><ul class="notes-list"><li>2″ touch screen</li><li>no Wi-Fi, no Bluetooth</li><li>camera on the back</li><li>your seed lives in memory only</li><li>power via USB</li></ul></figcaption>
@@ -510,7 +511,7 @@ show(0);
   const swatches = [...document.querySelectorAll('.swatches button')];
   const still = matchMedia('(prefers-reduced-motion: reduce)');
   const sheets = {};
-  let colour = 'signal', frame = 0, anim = 0;
+  let colour = 'orange', frame = 0, anim = 0;
 
   function load(c) {
     return sheets[c] ||= new Promise((ok, fail) => {
