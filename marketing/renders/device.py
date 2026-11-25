@@ -25,9 +25,9 @@ OUT = os.path.join(HERE, "out")
 os.makedirs(OUT, exist_ok=True)
 
 ZB, ZT = -1.80, 0.0                # case bottom / top of the glass (cm)
-GW, GH, GR, GT, GE = 3.71, 5.88, 0.26, 0.11, 0.10  # cover glass on the case rim, top edge radius
+GW, GH, GR, GT, GE = 3.71, 5.87, 0.26, 0.11, 0.10  # cover glass on the case rim, top edge radius
 SW, SH, SCY = 3.10, 4.12, 0.139    # active display (240x320), centre y
-CAMY, LENSZ = 0.50, -1.505         # lens centre y, front of the lens
+CAMY, LENSZ = 0.48, -1.505         # lens centre y, front of the lens
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
@@ -44,12 +44,12 @@ def mat(name, color, rough=0.5, metal=0.0, coat=0.0):
     return m
 
 
-def rounded_box(name, w, h, d, r, edge, material, parent, loc=(0, 0, 0), top_edge=0):
+def rounded_box(name, w, h, d, r, edge, material, parent, loc=(0, 0, 0), top_edge=0, axis='z'):
     me = bpy.data.meshes.new(name)
     bm = bmesh.new()
     bmesh.ops.create_cube(bm, size=1.0)
     bmesh.ops.scale(bm, vec=(w, h, d), verts=bm.verts)
-    vert_edges = [e for e in bm.edges if abs((e.verts[0].co - e.verts[1].co).normalized().z) > 0.99]
+    vert_edges = [e for e in bm.edges if abs(getattr((e.verts[0].co - e.verts[1].co).normalized(), axis)) > 0.99]
     bmesh.ops.bevel(bm, geom=vert_edges, offset=r, segments=12, affect='EDGES', profile=0.5)
     if top_edge > 0:   # round only the top rim, like 2.5D cover glass
         rim = [e for e in bm.edges if all(abs(v.co.z - d / 2) < 1e-6 for v in e.verts)
@@ -107,23 +107,24 @@ bpy.ops.object.shade_auto_smooth(angle=math.radians(35))
 CASE_SRC.hide_render = True; CASE_SRC.hide_viewport = True
 
 
-USB_FRONT, USB_Z = -2.52, -0.883     # front of the USB-C socket (cm), its centre height
+USB_FRONT, USB_Z = -2.54, -0.883     # front of the USB-C socket (cm), its centre height
 
 
 def usb_receptacle(name, root):
-    """USB-C socket: a steel shell open at the front, dark inside, with the
-    contact tongue in the middle (8.94 x 3.26 mm shell, 0.3 mm sheet)."""
+    """USB-C socket: a steel shell with round ends, open at the front, dark
+    inside, with the contact tongue in the middle (8.94 x 3.26 mm shell,
+    0.3 mm sheet)."""
     shell = rounded_box(name + "_usb", 0.894, 0.735, 0.326, 0.162, 0.0, m_metal, root,
-                        (0, USB_FRONT + 0.3675, USB_Z))
+                        (0, USB_FRONT + 0.3675, USB_Z), axis='y')
     cut = rounded_box(name + "_usbcut", 0.834, 0.62, 0.266, 0.132, 0.0, m_dark, root,
-                      (0, USB_FRONT + 0.30, USB_Z))
+                      (0, USB_FRONT + 0.30, USB_Z), axis='y')
     bm_mod = shell.modifiers.new("open", 'BOOLEAN')
     bm_mod.operation = 'DIFFERENCE'; bm_mod.object = cut; bm_mod.solver = 'EXACT'
     bpy.context.view_layer.objects.active = shell
     bpy.ops.object.modifier_apply(modifier="open")
     bpy.data.objects.remove(cut, do_unlink=True)
-    rounded_box(name + "_usbback", 0.83, 0.02, 0.26, 0.13, 0.0, m_dark, root, (0, USB_FRONT + 0.58, USB_Z))
-    rounded_box(name + "_tongue", 0.67, 0.46, 0.07, 0.03, 0.0, m_dark, root, (0, USB_FRONT + 0.06 + 0.23, USB_Z))
+    rounded_box(name + "_usbback", 0.83, 0.02, 0.26, 0.13, 0.0, m_dark, root, (0, USB_FRONT + 0.58, USB_Z), axis='y')
+    rounded_box(name + "_tongue", 0.67, 0.46, 0.07, 0.03, 0.0, m_dark, root, (0, USB_FRONT + 0.06 + 0.23, USB_Z), axis='y')
     for dz in (0.036, -0.036):
         rounded_box(name + "_pins", 0.58, 0.34, 0.004, 0.0, 0.0, m_gold, root, (0, USB_FRONT + 0.10 + 0.17, USB_Z + dz))
 

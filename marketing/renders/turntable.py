@@ -38,6 +38,9 @@ bg = world.node_tree.nodes["Background"]
 bg.inputs["Color"].default_value = (1, 1, 1, 1)
 bg.inputs["Strength"].default_value = 0.12   # low, so the black glass stays black
 scene.render.film_transparent = True
+# Standard, not the studio shots' AgX: AgX's curve greys the screen's white and
+# washes its orange out, and the page lays the live firmware over the front frame
+scene.view_settings.view_transform = 'Standard'
 
 
 def area(name, loc, size, power, color=(1, 0.98, 0.95)):
@@ -70,8 +73,8 @@ for cname in WANT:
     clear_devices()
     dev = device("dev_" + cname, COLORS[cname], HOME, (0, (ZB - ZT) / 2, 0), (math.pi / 2, 0, 0))
     dev.parent = pivot
-    # a bit brighter than in the studio shots, to read as lit on a white page
-    screen_mat(HOME).node_tree.nodes["Principled BSDF"].inputs["Emission Strength"].default_value = 1.25
+    # with Standard, ~0.9 shows the screenshot's own white (~245), as the live canvas does
+    screen_mat(HOME).node_tree.nodes["Principled BSDF"].inputs["Emission Strength"].default_value = 0.9
     os.makedirs(os.path.join(TT_OUT, cname), exist_ok=True)
     frames = [int(ONLY_FRAME)] if ONLY_FRAME else range(FRAMES)
     for i in frames:

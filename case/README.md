@@ -1,7 +1,7 @@
 # Case
 
 One-piece printed case for the Waveshare RP2350-Touch-LCD-2, modelled in
-[gcad](https://github.com/v0l/gcad). Outside: 37.1 × 58.8 × 16.9 mm, 18 mm with the glass on.
+[gcad](https://github.com/v0l/gcad). Outside: 37.1 × 58.7 × 16.9 mm, 18 mm with the glass on.
 
 ![Case](renders/case.png)
 
@@ -31,7 +31,7 @@ How hard the standoffs grip depends on the print; tune `rw` after a test fit.
 ## Where the dimensions come from
 
 From Waveshare's [outline drawing](https://www.waveshare.com/img/devkit/RP2350-Touch-LCD-2/RP2350-Touch-LCD-2-details-size.jpg):
-glass 37.1 × 58.8 R2.6 × 1.1, PCB 35 × 48.2, M2 standoffs on 29 × 42.2, 7.2 from
+glass 37.1 × 58.8 (measured 58.7, `gh`) R2.6 × 1.1, PCB 35 × 48.2, M2 standoffs on 29 × 42.2, 7.2 from
 glass front to PCB back, 9.7 to the standoff ends, buttons 18.9 apart.
 
 Measured off the photos in that drawing, good to about 0.3 mm:
@@ -45,15 +45,28 @@ Measured off the photos in that drawing, good to about 0.3 mm:
 
 - Header pins end 8.64 mm behind the PCB (standard 2.54 mm header). The case
   leaves 9.2 (`hdr`).
-- The PCB sits 0.2 mm away from the USB end of the glass (`oy`). The photos
-  suggested 0.3 toward it; a print with that hung the glass 0.5 mm past the
-  case at the USB end.
+- The PCB sits centred on the glass along its length (`oy`). The photos
+  suggested 0.3 toward the USB end; a print with that hung the glass 0.5 mm
+  past the case at the USB end. A print at 0.2 away from it hung the glass
+  about 0.2 mm past the far end.
 - The USB-C socket ends about 3.7 mm inside the outer wall, so the plug's
-  shell has to pass through the wall. A block behind the end wall turns the
-  opening into a 13.6 × 8.6 mm tunnel up to the socket (`usbw`, `usbb`,
-  `usbt`, `pd` long), about 1 mm round a measured 11.7 × 6.4 plug body.
+  shell has to pass through the wall. A block behind the end wall, up to the
+  glass and ending at the socket's face (`port`), turns the opening into a
+  closed 13.6 × 8.6 mm tunnel up to the socket (`usbw`, `usbb`, `usbt`, `pd`
+  long), about 1 mm round a measured 11.7 × 6.4 plug body, so the inside of
+  the case doesn't show through it.
   A first print at 12.6 × 6.4 only took the plug with force: FDM holes come
   out undersize.
+- The display's flex cable loops round the end of the LCD module at the USB
+  end, from the glass to about 3.9 mm behind it: about 23.5 mm wide, sticking
+  out about 0.9 mm past the PCB edge (`fw`, `fd`, `fb` in `board.gcad`,
+  measured off Waveshare's drawing against the 35 mm PCB and the socket). A
+  print with the USB block reaching to 0.3 mm from the PCB at full height
+  dented it and lifted the glass at that end. So the block ends at the
+  socket's face down to 0.3 mm below the cable (`cvt`, the tunnel's top), and
+  below that a cover reaches to 0.3 mm from the PCB (`bk`), round the socket
+  with an opening its shape (`sockway`, `hw`, `hr`), open upward for the
+  socket to pass while the board goes in.
 - BOOT and RST stay closed in. Unplugging resets, and the firmware restarts
   into the bootloader from its home screen, so they're only needed for the
   first flash, with the board out of the case. A printed flexing button in

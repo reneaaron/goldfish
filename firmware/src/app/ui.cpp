@@ -1325,7 +1325,8 @@ void ui_entropy_input(char c) {
 }
 
 void ui_entropy_accept() {
-    if (entropy_n != entropy_needed()) return;
+    UiScreen s = ui_current();
+    if ((s != UI_ENTROPY_SUSPECT && s != UI_ENTROPY_DICE && s != UI_ENTROPY_COINS) || entropy_n != entropy_needed()) return;
     bool ok = final_flips   ? seed_final_word(word_idx, new_words, entropy_in, &pending)
               : entropy_dice ? seed_from_dice(entropy_in, entropy_n, new_words, &pending)
                              : seed_from_coins(entropy_in, entropy_n, new_words, &pending);
@@ -2198,6 +2199,7 @@ static void build_page_review() {
 
     // the words in a card, like the menus: rows with a rule between them
     lv_obj_t *list = page_review_list = scroll_area(scr, BAR + 24);
+    lv_obj_set_style_pad_bottom(list, M - 4, 0);   // scrolled to the end: a gap above the button
     int rows = nslots + (nslots < new_words);
     lv_obj_t *box = card(list, CW, rows * 36 + 2);
     lv_obj_set_style_pad_all(box, 0, 0);
@@ -2355,8 +2357,8 @@ static void build_backup_warning() {
     lv_obj_t *scr = screen();
     lv_obj_align(icon_badge(scr, ICON_WARNING, AMBER, AMBER_DIM, 64), LV_ALIGN_TOP_MID, 0, 36);
     lv_obj_align(text(scr, "Keep it offline", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 118);
-    lv_obj_align(para(scr, backup_existing ? "Your seed QR is your private key. Never photograph it or scan it with a phone."
-                                           : "Your words are your private key. Never photograph them or type them into a phone."),
+    lv_obj_align(para(scr, backup_existing ? "Anyone with this QR can take your bitcoin.\nNever photograph it or scan it anywhere else."
+                                           : "Anyone with these words can take your bitcoin.\nNever photograph them or type them anywhere else."),
                  LV_ALIGN_TOP_MID, 0, 154);
     bottom_pair(btn_ghost(scr, backup_existing ? "Cancel" : "Discard",
                           backup_cancel_cb, nullptr, TEXT),
@@ -2604,6 +2606,7 @@ static void build_backup_words() {
     uint16_t idx[24];
     seed_word_indexes(pending, idx);
     lv_obj_t *list = scroll_area(scr, BAR + 4);
+    lv_obj_set_style_pad_bottom(list, M - 4, 0);   // scrolled to the end: a gap above the button
     lv_obj_t *c = card(list, CW, new_words * 44 + 16);
     lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
     for (int w = 0; w < new_words; w++) {
@@ -2611,7 +2614,7 @@ static void build_backup_words() {
         snprintf(num, sizeof(num), "%d", w + 1);
         lv_obj_t *n = text(c, num, &inter_15, TEXT_3, LV_TEXT_ALIGN_RIGHT);
         lv_obj_set_width(n, 26);
-        lv_obj_align(n, LV_ALIGN_TOP_LEFT, 0, w * 44 + 8);
+        lv_obj_align(n, LV_ALIGN_TOP_LEFT, 0, w * 44 + 6);   // on the word's baseline
         bool last = w == new_words - 1;
         snprintf(txt_words[w], sizeof(txt_words[w]), "%s", seed_word(idx[w]));
         lv_obj_t *t = text(c, "", &mono_22, last && drawing ? ACCENT : TEXT, LV_TEXT_ALIGN_LEFT);
@@ -2689,9 +2692,9 @@ static void build_seed_ready() {
     lv_obj_align(text(scr, title, &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 92);
     lv_obj_t *fp;
     lv_obj_align(fingerprint_pill(scr, "\xE2\x80\xA6", &fp), LV_ALIGN_TOP_MID, 0, 136);
-    char note[64];
-    if (child_seed) snprintf(note, sizeof(note), "Write it and #%s on your backup.", child_num);
-    else snprintf(note, sizeof(note), "Write it on your backup.");
+    char note[96];
+    if (child_seed) snprintf(note, sizeof(note), "Note #%s and this fingerprint with your main seed's backup.", child_num);
+    else snprintf(note, sizeof(note), "Write this fingerprint on your backup. The seed is forgotten when you tap Done.");
     lv_obj_align(para(scr, note, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, 180);
     if (child_seed) bottom_pair(btn_ghost(scr, "Done", to_home_cb, nullptr, TEXT), btn_primary(scr, "Use it", child_use_cb));
     else place_bottom(btn_primary(scr, "Done", to_home_cb));
@@ -2994,6 +2997,28 @@ static void swipe_cb(lv_event_t *e) {
     }
 }
 
+// LVGL starts the fill inside the track's padding, which is there to keep the
+// knob in; drawn as is, its round ends sit 28 px in from the track's and at
+// the knob's centre. Widen it by the padding: track's edge to round the knob.
+static void swipe_draw_cb(lv_event_t *e) {
+    lv_draw_task_t *t = lv_event_get_draw_task(e);
+    if (!t) return;                               // an empty fill: the bar still sends the event
+    lv_draw_dsc_base_t *base = (lv_draw_dsc_base_t *)lv_draw_task_get_draw_dsc(t);
+    if (base->part != LV_PART_INDICATOR || lv_draw_task_get_type(t) != LV_DRAW_TASK_TYPE_FILL) return;
+    lv_draw_fill_dsc_t *f = lv_draw_task_get_fill_dsc(t);
+    lv_area_t a;
+    lv_draw_task_get_area(t, &a);                 // from inside the padding to the knob's centre
+    lv_obj_t *sl = lv_event_get_target_obj(e);
+    a.x1 -= lv_obj_get_style_pad_left(sl, LV_PART_MAIN);
+    a.x2 += lv_obj_get_style_pad_right(sl, LV_PART_MAIN);
+    lv_draw_rect_dsc_t r;
+    lv_draw_rect_dsc_init(&r);
+    r.bg_color = f->color;
+    r.radius = f->radius;
+    f->opa = LV_OPA_TRANSP;
+    lv_draw_rect(base->layer, &r, &a);
+}
+
 static void back_to_outputs_cb(lv_event_t *) {
     out_index = review.n_outputs - 1;
     ui_goto(UI_PSBT_OUTPUT);
@@ -3045,6 +3070,8 @@ static void build_psbt_sign() {
     lv_obj_set_style_text_color(sl, lv_color_white(), LV_PART_KNOB);
     lv_obj_add_event_cb(sl, swipe_cb, LV_EVENT_RELEASED, nullptr);
     lv_obj_add_event_cb(sl, swipe_cb, LV_EVENT_VALUE_CHANGED, nullptr);
+    lv_obj_add_flag(sl, LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);
+    lv_obj_add_event_cb(sl, swipe_draw_cb, LV_EVENT_DRAW_TASK_ADDED, nullptr);
     lv_obj_align(sl, LV_ALIGN_BOTTOM_MID, 0, -(M + 26));
     swipe_hint = text(sl, "Slide to sign", &inter_15, TEXT_2);
     lv_obj_align(swipe_hint, LV_ALIGN_CENTER, 14, 0);
