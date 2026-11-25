@@ -2598,7 +2598,7 @@ static void build_backup_words() {
         snprintf(num, sizeof(num), "%d", w + 1);
         lv_obj_t *n = text(c, num, &inter_15, TEXT_3, LV_TEXT_ALIGN_RIGHT);
         lv_obj_set_width(n, 26);
-        lv_obj_align(n, LV_ALIGN_TOP_LEFT, 0, w * 44 + 8);
+        lv_obj_align(n, LV_ALIGN_TOP_LEFT, 0, w * 44 + 6);   // on the word's baseline
         bool last = w == new_words - 1;
         snprintf(txt_words[w], sizeof(txt_words[w]), "%s", seed_word(idx[w]));
         lv_obj_t *t = text(c, "", &mono_22, last && drawing ? ACCENT : TEXT, LV_TEXT_ALIGN_LEFT);
