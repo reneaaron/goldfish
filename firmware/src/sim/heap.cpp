@@ -4,7 +4,8 @@
 // come from one APP_HEAP_BYTES arena, first fit, so running out (or a heap
 // too split for a block) happens here as it would on a board. Libraries
 // loaded at run time (libc's own, X11) keep the real heap; so do the
-// simulator's camera pictures, which the board keeps in static RAM.
+// simulator's camera pictures, which the board keeps in static RAM, and the
+// X11 window's buffers (sim_heap_outside), which the board doesn't have.
 //
 // 64-bit pointers make a few structures larger than on the board: a little
 // stricter, never looser.
@@ -55,9 +56,17 @@ static void split(Hdr *h, size_t n) {
     merge_next(rest);
 }
 
+// While set, malloc takes the real heap: for the X11 window's own buffers
+// (a 240x320x4 image, more than the whole arena), which aren't the app's;
+// the board keeps its display buffer in static RAM. free and realloc pass
+// pointers outside the arena on to the real ones.
+static bool outside;
+void sim_heap_outside(bool on) { outside = on; }
+
 static size_t round_up(size_t n) { return n ? (n + ALIGN - 1) / ALIGN * ALIGN : ALIGN; }
 
 extern "C" void *__wrap_malloc(size_t n) {
+    if (outside) return __real_malloc(n);
     if (!ready) init();
     if (n > sizeof(arena)) return nullptr;
     n = round_up(n);
