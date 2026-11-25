@@ -1312,7 +1312,8 @@ void ui_entropy_input(char c) {
 }
 
 void ui_entropy_accept() {
-    if (entropy_n != entropy_needed()) return;
+    UiScreen s = ui_current();
+    if ((s != UI_ENTROPY_SUSPECT && s != UI_ENTROPY_DICE && s != UI_ENTROPY_COINS) || entropy_n != entropy_needed()) return;
     bool ok = final_flips   ? seed_final_word(word_idx, new_words, entropy_in, &pending)
               : entropy_dice ? seed_from_dice(entropy_in, entropy_n, new_words, &pending)
                              : seed_from_coins(entropy_in, entropy_n, new_words, &pending);

@@ -1,5 +1,6 @@
 #include "entropy_check.h"
 #include <math.h>
+#include <stdint.h>
 
 static const double ALPHA = 0.01;
 
@@ -84,11 +85,12 @@ int entropy_check(const char *s, int n, bool dice) {
     const int faces = dice ? 6 : 2;
     const double q = 1.0 / faces;   // chance a given roll matches a given earlier one
     if (n < 2) return 0;
-    int v[256];
+    uint8_t v[256];   // 0..5: a byte each keeps the stack small (this runs in a UI callback)
     if (n > 256) n = 256;
     for (int i = 0; i < n; i++) {
-        v[i] = dice ? s[i] - '1' : s[i] - '0';
-        if (v[i] < 0 || v[i] >= faces) return 0;   // not ours to judge
+        int d = dice ? s[i] - '1' : s[i] - '0';
+        if (d < 0 || d >= faces) return 0;   // not ours to judge
+        v[i] = uint8_t(d);
     }
     const int tests = dice ? 6 : 4;
     double p[6];
