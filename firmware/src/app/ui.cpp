@@ -1294,7 +1294,9 @@ static void build_new_seed() {
 // shaking and a scribble, in that order; any failure ends it with no seed.
 #define DEV_CAMERA_TIMEOUT_MS 20000
 static lv_timer_t *dev_timer;
-static lv_obj_t *dev_bar, *dev_cam, *dev_phone, *dev_ink;
+static lv_obj_t *dev_bar, *dev_cam, *dev_phone, *dev_ink, *dev_chip, *dev_chip_read;
+static int dev_chip_n;                   // chunks read on this screen
+static char dev_chip_txt[24];
 // The Camera step's live view: preview_buf as a smaller picture under the text.
 #define DEV_CAM_W 180
 #define DEV_CAM_H 135
@@ -1375,6 +1377,15 @@ static void device_tick(lv_timer_t *) {
             ok = device_entropy_chip(c, sizeof(c));
             secure_zero(c, sizeof(c));
             if (!ok) { ui_goto(UI_ENTROPY_DEVICE); return; }
+            // The chip blinks with each read and the count goes up. Only how
+            // much was read is shown, never what: the bytes are the seed's.
+            dev_chip_n++;
+            if (dev_chip) lv_obj_set_style_border_color(dev_chip, dev_chip_n % 2 ? ACCENT : ACCENT_DIM, 0);
+            if (dev_chip_read) {
+                int b = dev_chip_n * DE_CHIP_CHUNK;
+                snprintf(dev_chip_txt, sizeof(dev_chip_txt), "%d.%d KB read", b / 1024, b % 1024 * 10 / 1024);
+                lv_label_set_text_static(dev_chip_read, dev_chip_txt);
+            }
         }
     } else if (s == DS_CAMERA) {
         int w, h;
@@ -1452,7 +1463,8 @@ static void scribble_cb(lv_event_t *e) {
 
 static void build_entropy_device() {
     if (dev_timer) { lv_timer_delete(dev_timer); dev_timer = nullptr; }
-    dev_bar = dev_cam = dev_phone = dev_ink = nullptr;
+    dev_bar = dev_cam = dev_phone = dev_ink = dev_chip = dev_chip_read = nullptr;
+    dev_chip_n = 0;
     dev_pen_x = -1;
     secure_zero(dev_motion_last, sizeof(dev_motion_last));
     lv_obj_t *scr = screen();
@@ -1544,6 +1556,35 @@ static void build_entropy_device() {
         dev_cam = lv_image_create(scr);
         lv_image_set_src(dev_cam, &dev_cam_dsc);
         lv_obj_align(dev_cam, LV_ALIGN_BOTTOM_MID, 0, -M);
+    } else if (s == DS_CHIP) {
+        // A chip with pins on every side; it blinks as it is read.
+        const int cs = 64, cy = BAR + 178;
+        for (int side = 0; side < 4; side++)
+            for (int k = 0; k < 3; k++) {
+                lv_obj_t *pin = lv_obj_create(scr);
+                lv_obj_remove_style_all(pin);
+                bool vert = side < 2;   // pins above and below stand up
+                lv_obj_set_size(pin, vert ? 6 : 12, vert ? 12 : 6);
+                lv_obj_set_style_radius(pin, 2, 0);
+                lv_obj_set_style_bg_color(pin, TEXT_3, 0);
+                lv_obj_set_style_bg_opa(pin, LV_OPA_COVER, 0);
+                int along = (k - 1) * 18;
+                int out = cs / 2 + 6;
+                int dx = vert ? along : (side == 2 ? -out : out), dy = vert ? (side == 0 ? -out : out) : along;
+                lv_obj_align(pin, LV_ALIGN_TOP_MID, dx, cy + dy - (vert ? 6 : 3));
+            }
+        dev_chip = lv_obj_create(scr);
+        lv_obj_remove_style_all(dev_chip);
+        lv_obj_set_size(dev_chip, cs, cs);
+        lv_obj_set_style_radius(dev_chip, 8, 0);
+        lv_obj_set_style_bg_color(dev_chip, SURFACE, 0);
+        lv_obj_set_style_bg_opa(dev_chip, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_color(dev_chip, ACCENT, 0);
+        lv_obj_set_style_border_width(dev_chip, 3, 0);
+        lv_obj_align(dev_chip, LV_ALIGN_TOP_MID, 0, cy - cs / 2);
+        lv_obj_center(text(dev_chip, "RNG", &inter_15, TEXT_2));
+        dev_chip_read = text(scr, "", &inter_13, TEXT_3);
+        lv_obj_align(dev_chip_read, LV_ALIGN_TOP_MID, 0, cy + cs / 2 + 20);
     } else if (s == DS_MOTION) {
         // A device outline in the space below; it jumps with the motion sensor.
         dev_phone = lv_obj_create(scr);
