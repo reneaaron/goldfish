@@ -77,7 +77,7 @@
   /* hero: the device with hand-drawn notes around it */
   .hero-fig { position: relative; width: 760px; max-width: 100%; margin: 0 auto 44px; }
   .hero-fig > .device { margin: 0 auto; }
-  .hero-fig .notes { position: absolute; left: 50%; top: 0; translate: -50% 0; width: 760px; height: 440px; pointer-events: none; overflow: visible; }
+  .hero-fig .notes { position: absolute; left: 50%; top: 42px;   /* below the swatches */ translate: -50% 0; width: 760px; height: 440px; pointer-events: none; overflow: visible; }
   .notes path { fill: none; stroke: var(--accent); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
   .notes text { font: 700 23px Caveat, "Segoe Print", "Comic Sans MS", cursive; fill: var(--accent); }
   .notes-list { display: none; }
@@ -98,11 +98,64 @@
   .turn.ready img { visibility: hidden; }
   .hero-fig .notes text, .hero-fig .notes path { transition: opacity .25s; }
   .hero-fig.away .notes .front { opacity: 0; }   /* turned away: the notes about the front would point at nothing */
-  .swatches { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 46px; font-size: 14px; color: var(--faint); }
+  .swatches { display: flex; align-items: center; justify-content: center; gap: 10px; height: 22px; margin-bottom: 20px; font-size: 14px; color: var(--faint); }
   .swatches button { width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 0; background: var(--sw); cursor: pointer;
     box-shadow: inset 0 0 0 1px rgba(20, 34, 43, .15); }
   .swatches button[aria-pressed="true"] { box-shadow: inset 0 0 0 1px rgba(20, 34, 43, .15), 0 0 0 2px var(--bg), 0 0 0 4px var(--text); }
-  .swatches span { margin-left: 8px; }
+  /* Turned on: the firmware itself (try/sim.js) on a canvas over the front frame's screen */
+  .turn canvas {
+    position: absolute; left: 12.16%; top: 14.08%; width: 75.41%; height: 66.79%; border-radius: 2%;
+    display: none; background: var(--paper); touch-action: none; cursor: pointer;
+  }
+  .hero-fig.on.front .turn canvas { display: block; }
+  .power { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 14px; font-size: 14px; color: var(--faint); }
+  .power > button {
+    height: 34px; padding: 0 14px; border: 1px solid var(--line); border-radius: 99px; background: var(--bg);
+    font: inherit; font-weight: 600; color: var(--text); cursor: pointer;
+  }
+  .power > button { display: inline-flex; align-items: center; gap: 8px; }
+  .power > button svg { width: 16px; height: 16px; }
+  /* Plug it in is the page's way in: a primary button right under the device */
+  .power { margin-top: 46px; }
+  .power > button { height: 46px; padding: 0 22px; border-color: var(--text); background: var(--text); color: var(--bg); font-size: 16px; }
+  .power > button svg { width: 18px; height: 18px; }
+  .power > button:hover { border-color: var(--text); opacity: .88; }
+  .power > button:hover { border-color: var(--muted); }
+  .hero-fig.on .power { display: none; }
+  .hero-fig.on .swatches { visibility: hidden; }   /* keeps its room, so the device doesn't jump */
+  /* Plugged in: two things to try. Picking a picture holds it up to the camera. */
+  .camera { display: none; margin-top: 46px; max-width: 600px; margin-left: auto; margin-right: auto; text-align: left; }
+  .hero-fig.on .camera { display: block; margin-top: 100px; }   /* room for the cable */
+  /* The USB-C cable, drawn like the walk-through's: hidden below the case until
+     "Plug it in" slides its tip into the port, bottom middle of the case. While it's
+     plugged in the device faces you and doesn't turn, as a plugged-in one sits still. */
+  .plug {
+    position: absolute; left: calc(50% - 19.5px); top: calc(96.9% - 8px); width: 39px; height: 102px;   /* the tip is in the port: the body meets the case */
+    pointer-events: none; opacity: 0; translate: 0 40px; transition: translate .6s cubic-bezier(.2, .8, .3, 1), opacity .3s;
+  }
+  .hero-fig.on .plug { opacity: 1; translate: 0 0; }
+  .hero-fig.on .turn { cursor: default; }
+  /* two steps between hairlines; "Camera sees" heads the pictures' column */
+  .tries { list-style: none; margin: 0; padding: 0; }
+  .tries li { display: grid; grid-template-columns: 28px 1fr 200px;   /* one width for the pictures column, so "Camera sees" centres over it */
+    gap: 14px; align-items: center; padding: 14px 0; border-top: 1px solid var(--line); }
+  .tries li:last-child { border-bottom: 1px solid var(--line); }
+  .tries .head { padding: 0 0 6px; border: 0; }
+  .tries .head small { grid-column: 3; justify-self: center; color: var(--faint); font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+  .tries .n { width: 26px; height: 26px; border-radius: 50%; background: var(--raised); color: var(--muted); font-size: 13px; font-weight: 600; display: grid; place-items: center; }
+  .tries h3 { margin: 0; font-size: 15px; font-weight: 600; }
+  .tries p { margin: 0; color: var(--muted); font-size: 13px; }
+  .camera .pics { display: flex; gap: 6px; justify-content: center; }
+  .unplug { display: flex; justify-content: center; margin-top: 16px; }
+  #power-off { display: inline-flex; align-items: center; gap: 6px; }
+  #power-off svg { width: 14px; height: 14px; }   /* centred under "Camera sees" */
+  .camera button {
+    height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 99px; background: var(--bg);
+    font: inherit; font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer;
+  }
+  .camera button:hover { border-color: var(--muted); }
+  .camera button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .camera > small { display: block; margin-top: 12px; text-align: center; color: var(--faint); font-size: 13px; }
   h1 { font-size: clamp(42px, 7.6vw, 72px); letter-spacing: -0.02em; line-height: 1.02; max-width: 12ch; margin: 0 auto; }
   .hero .sub { color: var(--muted); font-size: clamp(17px, 2.2vw, 20px); margin: 20px auto 0; max-width: 34ch; }
   .cta {
@@ -217,7 +270,12 @@
       font: 700 21px Caveat, "Segoe Print", cursive; color: var(--accent); }
     .hero { padding: 32px 0 72px; }
     .turn { height: 340px; }
-    .swatches { margin-top: 20px; }
+    .power, .camera { margin-top: 20px; }
+    .hero-fig.on .camera { margin-top: 84px; }
+    .plug { scale: .84; transform-origin: 50% 0; }
+    .tries li { grid-template-columns: 28px 1fr; row-gap: 10px; }
+    .tries .head { display: none; }   /* stacked, it would head the step, not the pictures */
+    .camera .pics { grid-column: 2; justify-content: flex-start; }
     section { padding: 64px 0; }
     .demo, .split { grid-template-columns: 1fr; gap: 40px; }
     .stage { margin: 0 auto; order: -1; }   /* device above the steps, so a tap on a step shows */
@@ -268,7 +326,7 @@
     </a>
     <a class="link wide" href="#how">How it works</a>
     <a class="link wide" href="#build">Build one</a>
-    <a class="link try" href="try/">Try it</a>
+    <a class="link try" href="#plug">Try it</a>
     <a class="link" href="https://github.com/reneaaron/goldfish" aria-label="GitHub">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49l-.01-1.9c-2.78.62-3.37-1.21-3.37-1.21-.46-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.9 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05A9.36 9.36 0 0 1 12 6.96c.85 0 1.71.12 2.51.34 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9l-.01 2.82c0 .27.18.59.69.49A10.03 10.03 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/></svg>
     </a>
@@ -278,8 +336,21 @@
 <main>
   <div class="wrap hero">
     <figure class="hero-fig">
+      <div class="swatches" role="group" aria-label="Case colour">
+        <button type="button" data-c="orange" aria-pressed="true" aria-label="Orange" style="--sw: var(--case-orange)"></button>
+        <button type="button" data-c="black" aria-pressed="false" aria-label="Black" style="--sw: var(--case-black)"></button>
+        <button type="button" data-c="blue" aria-pressed="false" aria-label="Blue" style="--sw: var(--case-blue)"></button>
+        <button type="button" data-c="white" aria-pressed="false" aria-label="White" style="--sw: var(--case-white)"></button>
+      </div>
       <button type="button" class="turn" id="turn" aria-label="Goldfish, the home screen on its front and the camera on its back. Turn it round">
         <img id="turn-first" src="img/turn/orange-0.webp" alt="" draggable="false">
+        <canvas id="screen" width="240" height="320" aria-label="The device's screen"></canvas>
+        <svg class="plug" viewBox="0 0 46 120" aria-hidden="true">
+          <defs><linearGradient id="cord-fade" x1="0" y1="42" x2="0" y2="120" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#2B3338"/><stop offset="1" stop-color="#2B3338" stop-opacity="0"/></linearGradient></defs>
+          <rect x="6" y="8" width="34" height="34" rx="8" fill="#2B3338"/>
+          <path d="M23 40v80" stroke="url(#cord-fade)" stroke-width="9"/>
+        </svg>
       </button>
       <svg class="notes" viewBox="0 0 760 440" aria-hidden="true">
         <defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto"><path d="M1 1 L8.5 5 L1 9"/></marker></defs>
@@ -289,20 +360,41 @@
         <path class="front" d="M150 274 C 185 290, 212 262, 236 240" marker-end="url(#ah)"/>
         <text x="560" y="88">camera on the back</text>
         <path d="M612 100 C 602 140, 570 156, 526 160" marker-end="url(#ah)"/>
-        <text class="front" x="550" y="254">your seed lives in</text>
-        <text class="front" x="550" y="278">memory only</text>
+        <text class="front" x="550" y="254">your seed is</text>
+        <text class="front" x="550" y="278">never saved</text>
         <path class="front" d="M562 292 C 548 318, 530 312, 506 300" marker-end="url(#ah)"/>
-        <text class="front" x="440" y="432">power via USB</text>
-        <path class="front" d="M436 424 C 412 422, 398 414, 392 400" marker-end="url(#ah)"/>
+        <text class="front" x="462" y="440">power via USB</text>
+        <path class="front" d="M456 432 C 434 430, 420 420, 412 402" marker-end="url(#ah)"/>
       </svg>
-      <div class="swatches" role="group" aria-label="Case colour">
-        <button type="button" data-c="orange" aria-pressed="true" aria-label="Orange" style="--sw: var(--case-orange)"></button>
-        <button type="button" data-c="black" aria-pressed="false" aria-label="Black" style="--sw: var(--case-black)"></button>
-        <button type="button" data-c="blue" aria-pressed="false" aria-label="Blue" style="--sw: var(--case-blue)"></button>
-        <button type="button" data-c="white" aria-pressed="false" aria-label="White" style="--sw: var(--case-white)"></button>
-        <span>Drag to turn it round</span>
+      <div class="power">
+        <button type="button" id="power-on">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2v4M15 2v4M6 6h12v5a6 6 0 0 1-12 0zM12 17v5"/></svg>
+          Plug it in
+        </button>
+        <span>to run the real firmware, here in your browser</span>
       </div>
-      <figcaption><ul class="notes-list"><li>2″ touch screen</li><li>no Wi-Fi, no Bluetooth</li><li>camera on the back</li><li>your seed lives in memory only</li><li>power via USB</li></ul></figcaption>
+      <div class="camera" role="group" aria-label="Things to try">
+        <ol class="tries">
+          <li class="head" aria-hidden="true"><small>Camera sees</small></li>
+          <li><span class="n">1</span><div><h3>Load a seed</h3><p>Tap Scan, then show it</p></div>
+            <div class="pics">
+              <button type="button" aria-pressed="false" data-src="try/samples/handwritten_page_demo.png">Paper backup</button>
+              <button type="button" aria-pressed="false" data-src="try/samples/testseed_height_demise_standard_12word.png">SeedQR</button>
+            </div></li>
+          <li><span class="n">2</span><div><h3>Sign a transaction</h3><p>Tap Scan QR, check it, slide to sign</p></div>
+            <div class="pics">
+              <button type="button" aria-pressed="false" data-src="try/samples/mainpsbt_height_demise_base64.png">Transaction</button>
+            </div></li>
+        </ol>
+        <div class="unplug">
+          <button type="button" id="power-off">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2v4M15 2v4M6 6h12v5a6 6 0 0 1-12 0zM12 17v5"/><path d="M3 3l18 18"/></svg>
+            Unplug to forget
+          </button>
+        </div>
+        <small id="power-status">Starting…</small>
+      </div>
+      <figcaption><ul class="notes-list"><li>2″ touch screen</li><li>no Wi-Fi, no Bluetooth</li><li>camera on the back</li><li>your seed is never saved</li><li>power via USB</li></ul></figcaption>
     </figure>
     <h1>Sign and forget.</h1>
     <p class="sub">Goldfish is a Bitcoin signer that forgets. Scan your seed, sign, unplug. Nothing is saved, so there is nothing left to find.</p>
@@ -312,7 +404,7 @@
     </a>
     <div class="more">
       <a href="#how">How it works</a>
-      <a href="try/">Try it in your browser</a>
+      <a href="#plug">Try it in your browser</a>
       <a href="flasher/">Flash the firmware</a>
       <a href="https://github.com/reneaaron/goldfish">Source on GitHub</a>
     </div>
@@ -345,7 +437,7 @@
           <p class="hint" id="hint">Tap the device for the next step</p>
         </div>
       </div>
-      <p class="tryit">Those were screenshots. <a href="try/">Run the real firmware in your browser →</a></p>
+      <p class="tryit">Those were screenshots. <a href="#plug">Run the real firmware up top →</a></p>
     </div>
   </section>
 
@@ -482,6 +574,7 @@
   </div>
 </footer>
 
+<script src="try/sim.js"></script>
 <script>
 const buttons = [...document.querySelectorAll('#steps button')];
 const stage = document.getElementById('stage');
@@ -524,6 +617,7 @@ show(0);
     const f = ((Math.round(frame) % FRAMES) + FRAMES) % FRAMES;
     turn.style.backgroundPosition = `${(f % COLS) / (COLS - 1) * 100}% ${Math.floor(f / COLS) / (ROWS - 1) * 100}%`;
     fig.classList.toggle('away', f > 2 && f < FRAMES - 2);
+    fig.classList.toggle('front', f === 0);
   }
   async function use(c) {
     const src = await load(c);
@@ -551,8 +645,9 @@ show(0);
   }
 
   let down = null, touched = false;
+  const plugged = () => fig.classList.contains('on');   // plugged in: it stays facing you
   turn.addEventListener('pointerdown', (e) => {
-    if (!turn.classList.contains('ready')) return;
+    if (!turn.classList.contains('ready') || plugged()) return;
     cancelAnimationFrame(anim); touched = true;
     down = { x: e.clientX, frame, moved: false };
     turn.setPointerCapture(e.pointerId);
@@ -567,13 +662,55 @@ show(0);
   turn.addEventListener('pointerup', up);
   turn.addEventListener('pointercancel', () => { down = null; });
   turn.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !plugged()) {
       e.preventDefault(); cancelAnimationFrame(anim);
       frame += e.key === 'ArrowRight' ? 1 : -1; draw();
     }
   });
-  turn.addEventListener('click', (e) => { if (e.detail === 0) flip(); });   // Enter / Space
+  turn.addEventListener('click', (e) => { if (e.detail === 0 && !plugged()) flip(); });   // Enter / Space
   swatches.forEach((b) => b.addEventListener('click', () => use(b.dataset.c)));
+
+  // Plug it in: signer.js and its wasm load now, not with the page. The screen shows
+  // while the device faces you; turning it round still works by dragging the case.
+  // Unplug: the firmware stops and its memory is zeroed; plugging back in boots afresh.
+  const canvas = document.getElementById('screen');
+  const powerOn = document.getElementById('power-on'), powerOff = document.getElementById('power-off');
+  const powerStatus = document.getElementById('power-status');
+  const cams = [...document.querySelectorAll('.camera .pics button[data-src]')];
+  const select = (el) => cams.forEach((c) => c.setAttribute('aria-pressed', String(c === el)));
+  let sim = null, booting = null;
+  canvas.addEventListener('pointerdown', (e) => e.stopPropagation());   // a touch, not a turn
+  cams.forEach((c) => c.addEventListener('click', () => { if (sim) { select(c); sim.show(c.dataset.src); } }));
+  powerOn.addEventListener('click', () => {
+    if (booting) return;
+    fig.classList.add('on');
+    touched = true;
+    use(colour).catch(() => {});
+    spinTo(Math.round(frame / FRAMES) * FRAMES);
+    powerStatus.textContent = 'Starting…';
+    booting = goldfishSim(canvas, {
+      base: 'try/',
+      onCameraStop: () => select(null),
+      onReboot: () => { powerStatus.textContent = 'The device would now restart as a USB drive, to take new firmware.'; },
+    }).then((s) => {
+      sim = s;
+      powerStatus.textContent = 'Demo only: never type a real seed here.';
+    }).catch(() => { powerStatus.textContent = 'This browser could not start the firmware.'; booting = null; });
+  });
+  // Links to #plug (the nav's Try it, other pages, the old /try/ page) plug it in
+  function plugFromLink() {
+    scrollTo({ top: 0, behavior: still.matches ? 'auto' : 'smooth' });
+    if (!fig.classList.contains('on')) powerOn.click();
+  }
+  document.querySelectorAll('a[href="#plug"]').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); plugFromLink(); }));
+  if (location.hash === '#plug') plugFromLink();
+  powerOff.addEventListener('click', async () => {
+    await booting;
+    if (sim) sim.unplug();
+    sim = null; booting = null;
+    select(null);
+    fig.classList.remove('on');
+  });
 
   addEventListener('load', () => {
     // once loaded, a full turn to show it's 3D (unless someone got there first)

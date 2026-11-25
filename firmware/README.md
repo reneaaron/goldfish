@@ -495,16 +495,19 @@ The same `src/app`, compiled to WebAssembly with Emscripten, with `src/web`
 in place of `src/sim`: the screen is a `<canvas>`, the pointer is the touch
 screen, and the camera sees a picture the page hands it (one of a few
 `sim/samples`: the test seed, a transaction for it, and a handwritten page,
-`handwritten_page_demo.png`, that the firmware reads 24 of 24). The page is
-[`try/index.html`](../try/index.html). Needs `emcc` (emsdk 4.0.10).
+`handwritten_page_demo.png`, 12 words that the firmware reads 12 of 12). It runs on the website's hero device
+after "Plug it in" ([`try/sim.js`](../try/sim.js)); Unplug stops it and zeroes its
+memory. Needs `emcc` (emsdk 4.0.10).
 
 ```bash
 pio pkg install -e sim          # once: LVGL and libwally
 make -C web -j                  # -> .pio/build/web
-python3 -m http.server -d .pio/build/web
+mkdir -p /tmp/site && cp -rL ../landing/. /tmp/site && cp -r .pio/build/web /tmp/site/try
+python3 -m http.server -d /tmp/site    # then "Plug it in" on the landing page
 ```
 
-The `Website` workflow (`pages.yml`) builds it from `main` and publishes it at `/try/`.
+The `Website` workflow (`pages.yml`) builds it from `main` and publishes it at `/try/`;
+`/try/` itself only sends old links to the hero.
 It's a demo: a browser tab isn't stateless, and the page says not to use a real
 seed there.
 
