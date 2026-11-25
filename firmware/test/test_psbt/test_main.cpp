@@ -582,7 +582,7 @@ void test_too_many_outputs_rejected() {
 
 // Every error has its own text: none falls through to an empty screen.
 void test_error_texts() {
-    for (int e = PSBT_PARSE_FAILED; e <= PSBT_WRONG_WALLET; e++)
+    for (int e = PSBT_PARSE_FAILED; e <= PSBT_MIXED_NETWORKS; e++)
         TEST_ASSERT_GREATER_THAN(20, strlen(psbt_error_text(PsbtError(e))));
 }
 
@@ -652,7 +652,7 @@ static void two_networks(bool testnet_first) {
     wally_tx_free(tx);
 
     PsbtReview r;
-    TEST_ASSERT_EQUAL(PSBT_UNSUPPORTED, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(PSBT_MIXED_NETWORKS, psbt_load(raw, raw_len, &r));
 }
 
 void test_mixed_networks_rejected() {

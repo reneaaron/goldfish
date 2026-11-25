@@ -41,6 +41,7 @@ const char *psbt_error_text(PsbtError e) {
         case PSBT_SUSPICIOUS: return "An address claims to be your change but isn't. The transaction may have been tampered with.";
         case PSBT_NEEDS_DESCRIPTOR: return "A multisig transaction needs its wallet's descriptor QR.";
         case PSBT_WRONG_WALLET: return "This transaction doesn't spend from the multisig wallet you loaded.";
+        case PSBT_MIXED_NETWORKS: return "It spends mainnet and testnet coins together. Make one transaction per network.";
     }
     return "";
 }
@@ -254,7 +255,7 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
         // input under the other coin type would be shown with the wrong one.
         if (claims[0].path_len >= 2) {
             const bool testnet = (claims[0].path[1] & 0x7FFFFFFF) == 1;
-            if (i && testnet != r->testnet) return r->error = PSBT_UNSUPPORTED;
+            if (i && testnet != r->testnet) return r->error = PSBT_MIXED_NETWORKS;
             r->testnet = testnet;
         }
 

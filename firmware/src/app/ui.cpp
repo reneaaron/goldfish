@@ -3575,9 +3575,8 @@ static void idle_tick(lv_timer_t *) {
     if (lv_display_get_inactive_time(nullptr) >= SAVER_IDLE_MS) ui_screensaver(true);
 }
 
-// After every screen change, once the fade is done and the old screen deleted:
-// what it showed (seed words, passphrase, scan text) is then only in freed
-// LVGL memory and the draw buffers, which this zeroes.
+// After every screen change, once the fade is done: the draw buffers still
+// hold pixels of the old screen (seed words, passphrase), which this zeroes.
 static lv_timer_t *wipe_timer;
 static void wipe_timer_cb(lv_timer_t *) {
     wipe_timer = nullptr;

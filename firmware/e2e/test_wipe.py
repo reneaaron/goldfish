@@ -1,7 +1,7 @@
 """Seed words shown on screen don't stay in the signer's memory once the
-screen is gone: LVGL copies label text into its heap and frees it without
-wiping, so freed blocks are zeroed after each screen change. Reads the
-simulator's memory (Linux only).
+screen is gone: LVGL copies label text into its heap, whose blocks are zeroed
+as they are freed (include/lv_mem_wipe.h). Reads the simulator's memory
+(Linux only).
 
 The page is a public test seed (handwriting/make_page.py). Never real funds.
 """
@@ -36,9 +36,10 @@ def writable_memory(pid):
 
 
 def words_left(dev, words):
-    """Which of `words` are still in memory, each on its own as a C string."""
+    """Which of `words` are still in memory as the end of a C string (what
+    comes before may be a heap header, a space or another word)."""
     mem = writable_memory(dev.proc.pid)
-    return [w for w in words if any(re.search(rb"\0%s\0" % w.encode(), c) for c in mem)]
+    return [w for w in words if any(re.search(rb"%s\0" % w.encode(), c) for c in mem)]
 
 
 def test_written_words_wiped_after_leaving(dev):
@@ -52,7 +53,10 @@ def test_written_words_wiped_after_leaving(dev):
     assert len(shown) >= 6, dev.text()
     assert words_left(dev, shown), "the check finds nothing even while the words are on screen"
 
-    while dev.screen != "HOME":
+    for _ in range(5):
+        if dev.screen == "HOME":
+            break
         dev.back()
-    dev.wait(1000)                      # the fade, the old screen deleted, the wipe after it
+    assert dev.screen == "HOME", dev.text()
+    dev.wait(1000)                      # the fade, and the old screen deleted
     assert words_left(dev, shown) == []
