@@ -84,9 +84,25 @@
 
   /* ---- hero */
   .hero { text-align: center; padding: 24px 0 96px; }
-  .hero-fig { padding-bottom: 46px; }
-  .hero-fig .device img { animation: boot .9s ease-out .15s both; }   /* plugged in: the screen comes on, once */
-  @keyframes boot { from { opacity: 0; } }
+  /* The device turning round: frames of marketing/renders/turntable.py, one sprite
+     sheet per case colour (6 frames a row), scrubbed by dragging. */
+  .turn {
+    --frame-w: 370; --frame-h: 554;   /* one frame of the sheet, px */
+    display: block; position: relative; margin: 0 auto; padding: 0; border: 0; background: none no-repeat;
+    height: 404px; aspect-ratio: var(--frame-w) / var(--frame-h); max-width: 100%;
+    background-size: 600% 600%; cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none;
+    filter: drop-shadow(0 18px 18px rgba(20, 34, 43, .22));
+  }
+  .turn:active { cursor: grabbing; }
+  .turn img { width: 100%; height: 100%; pointer-events: none; }
+  .turn.ready img { visibility: hidden; }
+  .hero-fig .notes text, .hero-fig .notes path { transition: opacity .25s; }
+  .hero-fig.away .notes .front { opacity: 0; }   /* turned away: the notes about the front would point at nothing */
+  .swatches { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 46px; font-size: 14px; color: var(--faint); }
+  .swatches button { width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 0; background: var(--sw); cursor: pointer;
+    box-shadow: inset 0 0 0 1px rgba(20, 34, 43, .15); }
+  .swatches button[aria-pressed="true"] { box-shadow: inset 0 0 0 1px rgba(20, 34, 43, .15), 0 0 0 2px var(--bg), 0 0 0 4px var(--text); }
+  .swatches span { margin-left: 8px; }
   h1 { font-size: clamp(42px, 7.6vw, 72px); letter-spacing: -0.02em; line-height: 1.02; max-width: 12ch; margin: 0 auto; }
   .hero .sub { color: var(--muted); font-size: clamp(17px, 2.2vw, 20px); margin: 20px auto 0; max-width: 34ch; }
   .cta {
@@ -200,6 +216,8 @@
     .notes-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; margin: 16px 0 0; padding: 0; list-style: none;
       font: 700 21px Caveat, "Segoe Print", cursive; color: var(--accent); }
     .hero { padding: 32px 0 72px; }
+    .turn { height: 340px; }
+    .swatches { margin-top: 20px; }
     section { padding: 64px 0; }
     .demo, .split { grid-template-columns: 1fr; gap: 40px; }
     .stage { margin: 0 auto; order: -1; }   /* device above the steps, so a tap on a step shows */
@@ -211,7 +229,6 @@
   }
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
-    .hero-fig .device img { animation: none; }
     .cable, .stage .device img, .cta { transition: none; }
   }
 </style>
@@ -261,21 +278,30 @@
 <main>
   <div class="wrap hero">
     <figure class="hero-fig">
-      <div class="device"><div class="glass"><img src="img/screens/1_home.png" alt="The home screen: goldfish, Sign and forget, with Enter words and Scan QR"></div></div>
+      <button type="button" class="turn" id="turn" aria-label="Goldfish, the home screen on its front and the camera on its back. Turn it round">
+        <img id="turn-first" src="img/turn/orange-0.webp" alt="" draggable="false">
+      </button>
       <svg class="notes" viewBox="0 0 760 440" aria-hidden="true">
         <defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto"><path d="M1 1 L8.5 5 L1 9"/></marker></defs>
-        <text x="44" y="78">2″ touch screen</text>
-        <path d="M120 92 C 150 120, 205 112, 252 130" marker-end="url(#ah)"/>
-        <text x="20" y="262">no Wi-Fi, no Bluetooth</text>
-        <path d="M150 274 C 185 290, 212 262, 236 240" marker-end="url(#ah)"/>
+        <text class="front" x="44" y="78">2″ touch screen</text>
+        <path class="front" d="M120 92 C 150 120, 205 112, 252 130" marker-end="url(#ah)"/>
+        <text class="front" x="20" y="262">no Wi-Fi, no Bluetooth</text>
+        <path class="front" d="M150 274 C 185 290, 212 262, 236 240" marker-end="url(#ah)"/>
         <text x="560" y="88">camera on the back</text>
         <path d="M612 100 C 602 140, 570 156, 526 160" marker-end="url(#ah)"/>
-        <text x="550" y="254">your seed lives in</text>
-        <text x="550" y="278">memory only</text>
-        <path d="M562 292 C 548 318, 530 312, 506 300" marker-end="url(#ah)"/>
-        <text x="440" y="432">power via USB</text>
-        <path d="M436 424 C 412 422, 398 414, 392 400" marker-end="url(#ah)"/>
+        <text class="front" x="550" y="254">your seed lives in</text>
+        <text class="front" x="550" y="278">memory only</text>
+        <path class="front" d="M562 292 C 548 318, 530 312, 506 300" marker-end="url(#ah)"/>
+        <text class="front" x="440" y="432">power via USB</text>
+        <path class="front" d="M436 424 C 412 422, 398 414, 392 400" marker-end="url(#ah)"/>
       </svg>
+      <div class="swatches" role="group" aria-label="Case colour">
+        <button type="button" data-c="orange" aria-pressed="true" aria-label="Orange" style="--sw: var(--case-orange)"></button>
+        <button type="button" data-c="black" aria-pressed="false" aria-label="Black" style="--sw: var(--case-black)"></button>
+        <button type="button" data-c="blue" aria-pressed="false" aria-label="Blue" style="--sw: var(--case-blue)"></button>
+        <button type="button" data-c="white" aria-pressed="false" aria-label="White" style="--sw: var(--case-white)"></button>
+        <span>Drag to turn it round</span>
+      </div>
       <figcaption><ul class="notes-list"><li>2″ touch screen</li><li>no Wi-Fi, no Bluetooth</li><li>camera on the back</li><li>your seed lives in memory only</li><li>power via USB</li></ul></figcaption>
     </figure>
     <h1>Sign and forget.</h1>
@@ -476,6 +502,87 @@ buttons.forEach((b, i) => b.addEventListener('click', () => show(i)));
 document.getElementById('demo-device').addEventListener('click', () => show((at + 1) % buttons.length));
 buttons.forEach((b) => { if (b.dataset.shot) new Image().src = 'img/screens/' + b.dataset.shot; });
 show(0);
+
+// The hero device: drag to turn it, tap to turn it round, swatches for the case colour.
+// The front frame is an <img> for the first paint; the sheet loads after the page.
+(() => {
+  const FRAMES = 36, COLS = 6, ROWS = 6, PX_PER_FRAME = 8;
+  const turn = document.getElementById('turn'), fig = turn.closest('.hero-fig');
+  const swatches = [...document.querySelectorAll('.swatches button')];
+  const still = matchMedia('(prefers-reduced-motion: reduce)');
+  const sheets = {};
+  let colour = 'orange', frame = 0, anim = 0;
+
+  function load(c) {
+    return sheets[c] ||= new Promise((ok, fail) => {
+      const im = new Image();
+      im.onload = () => ok(im.src); im.onerror = fail;
+      im.src = 'img/turn/' + c + '.webp';
+    });
+  }
+  function draw() {
+    const f = ((Math.round(frame) % FRAMES) + FRAMES) % FRAMES;
+    turn.style.backgroundPosition = `${(f % COLS) / (COLS - 1) * 100}% ${Math.floor(f / COLS) / (ROWS - 1) * 100}%`;
+    fig.classList.toggle('away', f > 2 && f < FRAMES - 2);
+  }
+  async function use(c) {
+    const src = await load(c);
+    colour = c;
+    turn.style.backgroundImage = `url(${src})`;
+    turn.classList.add('ready');
+    swatches.forEach((b) => b.setAttribute('aria-pressed', b.dataset.c === c));
+    draw();
+  }
+  function spinTo(target, ms = 650, ease = (k) => 1 - Math.pow(1 - k, 3)) {   // frame by frame
+    cancelAnimationFrame(anim);
+    if (still.matches) { frame = target; draw(); return; }
+    const from = frame, t0 = performance.now();
+    const step = (t) => {
+      const k = Math.min((t - t0) / ms, 1), e = ease(k);
+      frame = from + (target - from) * e; draw();
+      if (k < 1) anim = requestAnimationFrame(step);
+    };
+    anim = requestAnimationFrame(step);
+  }
+  function flip() {
+    const f = ((Math.round(frame) % FRAMES) + FRAMES) % FRAMES;
+    const back = f > FRAMES / 4 && f < FRAMES * 3 / 4;
+    spinTo(frame + (back ? FRAMES - f : FRAMES / 2 - f));
+  }
+
+  let down = null, touched = false;
+  turn.addEventListener('pointerdown', (e) => {
+    if (!turn.classList.contains('ready')) return;
+    cancelAnimationFrame(anim); touched = true;
+    down = { x: e.clientX, frame, moved: false };
+    turn.setPointerCapture(e.pointerId);
+  });
+  turn.addEventListener('pointermove', (e) => {
+    if (!down) return;
+    const dx = e.clientX - down.x;
+    if (Math.abs(dx) > 4) down.moved = true;
+    frame = down.frame + dx / PX_PER_FRAME; draw();
+  });
+  const up = () => { if (down && !down.moved) flip(); down = null; };
+  turn.addEventListener('pointerup', up);
+  turn.addEventListener('pointercancel', () => { down = null; });
+  turn.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault(); cancelAnimationFrame(anim);
+      frame += e.key === 'ArrowRight' ? 1 : -1; draw();
+    }
+  });
+  turn.addEventListener('click', (e) => { if (e.detail === 0) flip(); });   // Enter / Space
+  swatches.forEach((b) => b.addEventListener('click', () => use(b.dataset.c)));
+
+  addEventListener('load', () => {
+    // once loaded, a full turn to show it's 3D (unless someone got there first)
+    use(colour).then(() => {
+      if (!touched) spinTo(frame + FRAMES, 2200, (k) => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+    }).catch(() => {});
+    swatches.forEach((b) => { if (b.dataset.c !== colour) load(b.dataset.c).catch(() => {}); });
+  });
+})();
 </script>
 </body>
 </html>
