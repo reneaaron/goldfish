@@ -326,8 +326,13 @@
     const im = new Image();
     im.src = url;
     try { await im.decode(); } catch { return; }
+    if (url === IDLE && shots.some(s => s.getAttribute('aria-pressed') === 'true')) return;   // a pick came first
     feed(im, im.naturalWidth, im.naturalHeight);
   }
+
+  // With no picture picked, the camera sees a desk, out of focus: a live view, not a black box.
+  const IDLE = 'img/camera_idle.jpg';
+  const idle = () => showImage(IDLE, null);
 
   for (const b of shots) if (b.dataset.src) b.addEventListener('click', () => showImage(b.dataset.src, b));
 
@@ -339,8 +344,8 @@
     onFlush,
     // The device is done looking: take the picture away, as you would a card.
     onCameraStop: () => {
-      select(null);
       M._web_camera_clear();
+      idle();
     },
     onReboot: () => {
       status.textContent = 'The device would now restart as a USB drive, to take new firmware.';
@@ -348,6 +353,7 @@
     },
   };
   Signer(M).then(() => {
+    idle();
     status.textContent = 'Tap the screen to use it';
   }).catch(() => { status.textContent = 'This browser could not start the firmware.'; });
 })();
