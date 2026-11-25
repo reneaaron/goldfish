@@ -360,6 +360,10 @@ static int run_shots(const char *dir) {
     for (int i = 0; i < 23; i++) ui_entropy_input(rolls[i]);
     pump(300); save(dir, "16_dice");
     for (int i = 23; i < 50; i++) ui_entropy_input(rolls[i]);
+    // Counting 1 to 6 over and over is flagged; the vector is used anyway.
+    if (ui_current() != UI_ENTROPY_SUSPECT) { fprintf(stderr, "counted dice were not flagged\n"); return 1; }
+    pump(300); save(dir, "16b_dice_made_up");
+    ui_entropy_accept();
     if (ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "dice did not make a seed\n"); return 1; }
     pump(300); save(dir, "17_backup_warning");
     ui_goto(UI_BACKUP_WORDS);   pump(300); save(dir, "18_backup_words");
