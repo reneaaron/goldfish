@@ -2653,9 +2653,9 @@ static void build_seed_ready() {
     lv_obj_align(text(scr, title, &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 92);
     lv_obj_t *fp;
     lv_obj_align(fingerprint_pill(scr, "\xE2\x80\xA6", &fp), LV_ALIGN_TOP_MID, 0, 136);
-    char note[64];
-    if (child_seed) snprintf(note, sizeof(note), "Write it and #%s on your backup. Load the child like any seed.", child_num);
-    else snprintf(note, sizeof(note), "Write it on your backup.");
+    char note[96];
+    if (child_seed) snprintf(note, sizeof(note), "Note #%s and this fingerprint with your main seed's backup.", child_num);
+    else snprintf(note, sizeof(note), "Write this fingerprint on your backup. The seed is forgotten when you tap Done.");
     lv_obj_align(para(scr, note, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, 180);
     place_bottom(btn_primary(scr, "Done", to_home_cb));
     show(scr);
