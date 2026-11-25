@@ -300,3 +300,22 @@ def test_too_big_transaction_says_so(dev):
     assert "too big" in dev.text() and "fewer coins" in dev.text()
     dev.tap("Back to wallet")
     assert dev.screen == "WALLET"
+
+
+def test_child_seed_leaves_the_multisig_wallet(dev):
+    """Use it on a child seed sets the seed aside, and its multisig wallet
+    with it: the child's Wallet shows no M OF N, only CHILD #n."""
+    wallet = two_of_three()
+    loaded(dev)
+    dev.tap("Scan QR")
+    scan_descriptor(dev, wallet.descriptor(), wallet)
+    dev.tap("Use wallet")
+    dev.back()
+    assert dev.screen == "WALLET" and "2 OF 3" in dev.text(), dev.text()
+    dev.tap("Wallet options")
+    dev.tap("Child seed")
+    dev.tap("3")
+    dev.tap("OK")
+    dev.tap("Use it")
+    assert dev.screen == "WALLET", dev.text()
+    assert "CHILD #3" in dev.text() and "2 OF 3" not in dev.text()

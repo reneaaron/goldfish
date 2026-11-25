@@ -302,32 +302,24 @@ def test_keyboard_types_on_release(dev):
 
 
 def test_child_seed_from_the_keypad(dev):
-    """Child seed: type a number on the keypad and confirm with its OK key,
-    write the child down, then Use it to sign with the child instead."""
+    """Child seed: type a number on the keypad, confirm with its OK key, and
+    Use it to sign with the child: no words shown, nothing to write down."""
     load_by_words(dev, MNEMONIC)
     dev.tap("Wallet options")
     dev.tap("Child seed")
     assert dev.screen == "CHILD_INDEX", dev.text()
     dev.tap("3")
     dev.tap("OK")
-    assert dev.screen == "BACKUP_WARNING", dev.text()
-
-    dev.tap("I understand")
-    texts = dev.texts()
-    words = [texts[i + 1] for i, t in enumerate(texts) if t.isdigit()]
-    for _ in range(3):
-        dev.scroll_down()
-        dev.wait(500)
-    dev.tap("Written down")
-    dev.tap("Skip")   # no QR card
+    assert dev.screen == "CHILD_READY", dev.text()
     # The same child any BIP-85 tool derives from this seed and number.
     child = Seed(bip85.derive_mnemonic(Seed(MNEMONIC).root, 12, 3))
-    assert " ".join(words) == child.mnemonic
+    dev.wait(500)
     assert fingerprint_on_screen(dev) == child.fingerprint
 
     dev.tap("Use it")
     assert dev.screen == "WALLET", dev.text()
     assert fingerprint_on_screen(dev) == child.fingerprint
+    assert "CHILD #3" in dev.text()
     fingerprint, path, key = connect_wallet(dev)
     assert (fingerprint, key) == (child.fingerprint, child.key("84h/1h/0h"))
     wallet = Wallet.singlesig(key)
@@ -338,6 +330,32 @@ def test_child_seed_from_the_keypad(dev):
     signed, _ = review_and_sign(dev)
     wallet.combine(psbt, signed)
     assert wallet.signers(psbt) == {child.fingerprint}
+
+
+def test_child_seed_words_for_another_wallet(dev):
+    """Words on Child #n: the New seed card flow shows the child's words,
+    and its Seed ready still offers Use it."""
+    load_by_words(dev, MNEMONIC)
+    dev.tap("Wallet options")
+    dev.tap("Child seed")
+    dev.tap("3")
+    dev.tap("OK")
+    dev.tap("Words")
+    assert "Keep it offline" in dev.text()
+    dev.tap("I understand")
+    texts = dev.texts()
+    words = [texts[i + 1] for i, t in enumerate(texts) if t.isdigit()]
+    for _ in range(3):
+        dev.scroll_down()
+        dev.wait(500)
+    dev.tap("Written down")
+    dev.tap("Skip")   # no QR card
+    child = Seed(bip85.derive_mnemonic(Seed(MNEMONIC).root, 12, 3))
+    assert " ".join(words) == child.mnemonic
+    assert fingerprint_on_screen(dev) == child.fingerprint
+    dev.tap("Use it")
+    assert dev.screen == "WALLET", dev.text()
+    assert fingerprint_on_screen(dev) == child.fingerprint
 
 
 def test_passphrase_gives_its_own_wallet(dev):

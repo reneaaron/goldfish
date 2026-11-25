@@ -451,7 +451,9 @@ static int run_shots(const char *dir) {
     ui_child_digit(3);
     pump(300); save(dir, "32_child_index");
     ui_child_seed((uint32_t)strtoul(ui_child_number(), nullptr, 10));
-    if (ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "child seed did not start\n"); return 1; }
+    if (ui_current() != UI_CHILD_READY) { fprintf(stderr, "child seed did not start\n"); return 1; }
+    pump(600); save(dir, "32c_child_ready");
+    ui_goto(UI_BACKUP_WARNING);   // Words
     ui_goto(UI_BACKUP_WORDS); pump(300); save(dir, "33_child_words");
     ui_goto(UI_BACKUP_QR);
     ui_goto(UI_BACKUP_BLOCK);
@@ -465,6 +467,7 @@ static int run_shots(const char *dir) {
     ui_child_use();                   // Use it: the child replaces the loaded seed
     wallet_fingerprint_hex(child_fp);
     if (ui_current() != UI_WALLET || !strcmp(parent_fp, child_fp)) { fprintf(stderr, "child not loaded\n"); return 1; }
+    pump(300); save(dir, "34b_child_wallet");
 
     // BIP-39 passphrase: "abandon ... about" with TREZOR (the BIP39 test vector's
     // seed; its fingerprint, b4e3f5ed, was checked against the vector's root key).

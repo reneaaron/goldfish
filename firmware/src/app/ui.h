@@ -30,9 +30,10 @@
 //   Wallet options -> Back up as QR -> the same card flow, scan optional
 //   Home -> tap the version -> Update firmware? -> Restart: the board's ROM
 //        bootloader, a USB drive for firmware.uf2 (only with no seed loaded)
-//   Wallet options -> Child seed (BIP-85): child number -> the New seed
-//        card flow from the warning on (words, QR card?, Seed ready)
-//        -> Use it: the child replaces the loaded seed -> Wallet
+//   Wallet options -> Child seed (BIP-85): child number -> Child #n (its fingerprint)
+//        -> Use it: the child replaces the loaded seed -> Wallet (CHILD #n chip)
+//        -> Words: the New seed card flow from the warning on (words, QR card?,
+//           Seed ready, which offers Use it too)
 
 enum UiScreen {
     UI_HOME,
@@ -63,6 +64,7 @@ enum UiScreen {
     UI_BACKUP_SCAN,      // scan the hand-made card; must hold the same seed
     UI_SEED_READY,       // end of New seed: fingerprint, nothing loaded (a child: Use it)
     UI_CHILD_INDEX,      // BIP-85 child seed: child number keypad, 12 words
+    UI_CHILD_READY,      // the child's fingerprint: Use it, or Words to back it up
     UI_MULTISIG,         // a scanned multisig descriptor, to check before it is used
     UI_PAGE_FOUND,       // the page's photo with the words found boxed: Read or Retake
     UI_PAGE_READING,     // progress while the page's words are read
@@ -101,9 +103,9 @@ void ui_backup_next();         // "Next part"
 // The backup QR as drawn on screen (qrcodegen buffer), nullptr if none. For
 // the simulator, which scans exactly this as the hand-made card.
 const uint8_t *ui_backup_qr();
-// "Continue" on the child number screen: derive the BIP-85 child, start its card flow.
+// "OK" on the child number screen: derive the BIP-85 child, show Child #n.
 void ui_child_seed(uint32_t index);
-// "Use it" on the child's Seed ready: load the child in place of the seed.
+// "Use it" on Child #n (or the child's Seed ready): load the child in place of the seed.
 void ui_child_use();
 bool ui_page_read();           // read the words on Scan seed now (it also starts by itself): false if there's no picture
 bool ui_page_found_read();     // "Read" on Words found: false if nothing was found
