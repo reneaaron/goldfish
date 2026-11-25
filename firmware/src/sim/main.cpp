@@ -37,6 +37,7 @@ extern "C" void *__real_malloc(size_t);
 extern "C" void __real_free(void *);
 extern "C" void *__real_calloc(size_t, size_t);
 extern "C" void *__real_realloc(void *, size_t);
+void sim_heap_outside(bool on);   // the window's buffers, off the app's heap
 #define STBI_MALLOC(n) __real_malloc(n)
 #define STBI_FREE(p) __real_free(p)
 #define STBI_REALLOC(p, n) __real_realloc(p, n)
@@ -770,8 +771,10 @@ int main() {
     if (const char *dir = getenv("SIM_SHOTS")) return run_shots(dir);
     if (getenv("SIM_CONTROL")) return run_control();
 
+    sim_heap_outside(true);   // the window's image is bigger than the board's heap
     lv_display_t *d = lv_x11_window_create("RP2350 signer (sim)", 240, 320);
     lv_x11_inputs_create(d, nullptr);  // the X11 driver hides the system cursor
+    sim_heap_outside(false);
     // Draw a fingertip-sized dot as the cursor instead.
     for (lv_indev_t *in = lv_indev_get_next(nullptr); in; in = lv_indev_get_next(in)) {
         if (lv_indev_get_type(in) != LV_INDEV_TYPE_POINTER) continue;
