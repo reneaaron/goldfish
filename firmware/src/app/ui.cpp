@@ -2935,6 +2935,28 @@ static void swipe_cb(lv_event_t *e) {
     }
 }
 
+// LVGL starts the fill inside the track's padding, which is there to keep the
+// knob in; drawn as is, its round ends sit 28 px in from the track's and at
+// the knob's centre. Widen it by the padding: track's edge to round the knob.
+static void swipe_draw_cb(lv_event_t *e) {
+    lv_draw_task_t *t = lv_event_get_draw_task(e);
+    if (!t) return;                               // an empty fill: the bar still sends the event
+    lv_draw_dsc_base_t *base = (lv_draw_dsc_base_t *)lv_draw_task_get_draw_dsc(t);
+    if (base->part != LV_PART_INDICATOR || lv_draw_task_get_type(t) != LV_DRAW_TASK_TYPE_FILL) return;
+    lv_draw_fill_dsc_t *f = lv_draw_task_get_fill_dsc(t);
+    lv_area_t a;
+    lv_draw_task_get_area(t, &a);                 // from inside the padding to the knob's centre
+    lv_obj_t *sl = lv_event_get_target_obj(e);
+    a.x1 -= lv_obj_get_style_pad_left(sl, LV_PART_MAIN);
+    a.x2 += lv_obj_get_style_pad_right(sl, LV_PART_MAIN);
+    lv_draw_rect_dsc_t r;
+    lv_draw_rect_dsc_init(&r);
+    r.bg_color = f->color;
+    r.radius = f->radius;
+    f->opa = LV_OPA_TRANSP;
+    lv_draw_rect(base->layer, &r, &a);
+}
+
 static void back_to_outputs_cb(lv_event_t *) {
     out_index = review.n_outputs - 1;
     ui_goto(UI_PSBT_OUTPUT);
@@ -2986,6 +3008,8 @@ static void build_psbt_sign() {
     lv_obj_set_style_text_color(sl, lv_color_white(), LV_PART_KNOB);
     lv_obj_add_event_cb(sl, swipe_cb, LV_EVENT_RELEASED, nullptr);
     lv_obj_add_event_cb(sl, swipe_cb, LV_EVENT_VALUE_CHANGED, nullptr);
+    lv_obj_add_flag(sl, LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);
+    lv_obj_add_event_cb(sl, swipe_draw_cb, LV_EVENT_DRAW_TASK_ADDED, nullptr);
     lv_obj_align(sl, LV_ALIGN_BOTTOM_MID, 0, -(M + 26));
     swipe_hint = text(sl, "Slide to sign", &inter_15, TEXT_2);
     lv_obj_align(swipe_hint, LV_ALIGN_CENTER, 14, 0);
