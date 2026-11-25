@@ -1302,8 +1302,8 @@ static lv_image_dsc_t dev_cam_dsc;
 static int16_t dev_motion_last[3];
 static DeviceSource dev_shown;           // the stage the screen was built for
 static uint32_t dev_stage_ms;
-// Each step the user takes part in stays up at least this long, collecting
-// (and hashing) all the while, then moves on by itself.
+// Each step stays up at least this long, collecting (and hashing) all the
+// while, then moves on by itself.
 #define DEV_STEP_MS 3000
 // The scribble's ink: borrows preview_buf (idle once the camera step is over)
 // as an A8 picture over the box, drawn in the accent colour.
@@ -1341,7 +1341,7 @@ static void device_fail(const char *why) {
 // How far the step on screen is: its bits, but never ahead of its minimum time.
 static int device_progress(DeviceSource s) {
     int by_bits = device_entropy_bits(s) * 100 / device_entropy_needed(s);
-    int by_time = s == DS_CHIP ? 100 : int(lv_tick_elaps(dev_stage_ms) * 100 / DEV_STEP_MS);
+    int by_time = int(lv_tick_elaps(dev_stage_ms) * 100 / DEV_STEP_MS);
     return LV_MIN(100, LV_MIN(by_bits, by_time));
 }
 
@@ -1365,8 +1365,10 @@ static void device_tick(lv_timer_t *) {
     if (device_entropy_error()) return;
     DeviceSource s = device_entropy_stage();
     if (s == DS_CHIP) {
-        uint8_t c[DE_CHIP_CHUNK];
-        while (device_entropy_bits(DS_CHIP) < device_entropy_needed(DS_CHIP)) {
+        // One chunk a tick, so the screen keeps drawing (with the hardware's
+        // checks on, a chunk takes a moment); none once it has enough.
+        if (device_entropy_bits(DS_CHIP) < device_entropy_needed(DS_CHIP)) {
+            uint8_t c[DE_CHIP_CHUNK];
             bool ok = platform_trng(c, sizeof(c));
             if (!ok) { secure_zero(c, sizeof(c)); device_fail("Chip: can't read its random generator"); return; }
             ok = device_entropy_chip(c, sizeof(c));

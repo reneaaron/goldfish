@@ -18,7 +18,8 @@ def generate(dev):
     dev.tap("Skip dice")
     assert dev.screen == "ENTROPY_DEVICE"
     # Chip, camera and shaking run by themselves, each up for a few seconds.
-    dev.wait_for(lambda: "Camera noise" in dev.texts(), ms=3000)
+    assert "The chip" in dev.texts()   # step 1 is on screen too, not over before it's drawn
+    dev.wait_for(lambda: "Camera noise" in dev.texts(), ms=6000)
     dev.wait(2000)
     assert "Camera noise" in dev.texts()   # not over in a flash
     dev.wait_for(lambda: "Scribble" in dev.texts(), ms=15000, what="camera and shaking to finish")
