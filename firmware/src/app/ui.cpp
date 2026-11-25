@@ -1518,9 +1518,9 @@ static void build_entropy_device() {
     };
     char step[16];
     snprintf(step, sizeof(step), "STEP %d OF %d", s + 1, DS_COUNT);
-    lv_obj_align(text(scr, step, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, BAR + 22);
-    lv_obj_align(text(scr, title[s], &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 42);
-    lv_obj_align(text(scr, say[s], &inter_15, TEXT_2), LV_ALIGN_TOP_MID, 0, BAR + 76);
+    lv_obj_align(text(scr, step, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, BAR + 14);
+    lv_obj_align(text(scr, title[s], &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 44);
+    lv_obj_align(text(scr, say[s], &inter_15, TEXT_2), LV_ALIGN_TOP_MID, 0, BAR + 74);
     lv_bar_set_value(dev_bar, 0, LV_ANIM_OFF);
     if (s == DS_TOUCH) {
         lv_obj_t *box = card(scr, DEV_INK_W, DEV_INK_H);
