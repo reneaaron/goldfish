@@ -13,7 +13,7 @@ modules on a 9 × 5 grid, with a QR finder pattern for an eye. The SVGs in
 Colours: fish orange `#FF7A2F` (the mark and the orange case), orange text `#C2501A`, ink
 `#14222B`, grey text `#5A6B75`, paper `#EDF2F4`, border `#D9E2E6`, white.
 Case colours: orange (`#EE8B57` on the site, the fish orange `#FF7A2F` as it looks
-printed; the renders start from `#FF7A2F`), black `#303030`, blue `#0A7ED0`, white
+in the renders, which start from `#FF7A2F`), black `#303030`, blue `#0A7ED0`, white
 `#DAD7D0`, defined once in `landing/brand.css` for the site; the renders use the same four.
 The eye must contrast with both the body and the ground. Type: Rethink Sans
 for headings, Inter for device text, JetBrains Mono for numbers.
