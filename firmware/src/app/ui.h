@@ -32,6 +32,7 @@
 //        bootloader, a USB drive for firmware.uf2 (only with no seed loaded)
 //   Wallet options -> Child seed (BIP-85): child number -> the New seed
 //        card flow from the warning on (words, QR card?, Seed ready)
+//        -> Use it: the child replaces the loaded seed -> Wallet
 
 enum UiScreen {
     UI_HOME,
@@ -60,7 +61,7 @@ enum UiScreen {
     UI_BACKUP_QR,        // the whole SeedQR
     UI_BACKUP_BLOCK,     // one 5x5 block per screen
     UI_BACKUP_SCAN,      // scan the hand-made card; must hold the same seed
-    UI_SEED_READY,       // end of New seed: fingerprint, nothing loaded
+    UI_SEED_READY,       // end of New seed: fingerprint, nothing loaded (a child: Use it)
     UI_CHILD_INDEX,      // BIP-85 child seed: child number keypad, 12 words
     UI_MULTISIG,         // a scanned multisig descriptor, to check before it is used
     UI_PAGE_FOUND,       // the page's photo with the words found boxed: Read or Retake
@@ -102,6 +103,8 @@ void ui_backup_next();         // "Next part"
 const uint8_t *ui_backup_qr();
 // "Continue" on the child number screen: derive the BIP-85 child, start its card flow.
 void ui_child_seed(uint32_t index);
+// "Use it" on the child's Seed ready: load the child in place of the seed.
+void ui_child_use();
 bool ui_page_read();           // read the words on Scan seed now (it also starts by itself): false if there's no picture
 bool ui_page_found_read();     // "Read" on Words found: false if nothing was found
 int ui_page_count();           // words on the Check words list

@@ -2643,6 +2643,21 @@ static void ready_tick(lv_timer_t *t) {
     lv_label_set_text(l, spaced);
 }
 
+// "Use it" on a child's Seed ready: the child replaces the loaded seed, like
+// loading it by hand. The parent (and its passphrase) is gone until loaded again;
+// a multisig wallet stays bound to the parent's key, so it isn't used.
+void ui_child_use() {
+    if (ui_current() != UI_SEED_READY || !child_seed) return;
+    bool ok = wallet_load(pending);
+    new_seed_wipe();
+    ui_goto(ok ? UI_WALLET : UI_HOME);
+}
+static void child_use_cb(lv_event_t *e) {
+    lv_label_set_text(lv_obj_get_child(lv_event_get_target_obj(e), 0), "Loading" "\xE2\x80\xA6");
+    lv_refr_now(nullptr);
+    ui_child_use();
+}
+
 static void build_seed_ready() {
     lv_obj_t *scr = screen();
     lv_obj_align(icon_badge(scr, ICON_CHECK, GREEN, GREEN_DIM, 52), LV_ALIGN_TOP_MID, 0, 28);
@@ -2652,11 +2667,12 @@ static void build_seed_ready() {
     lv_obj_align(text(scr, title, &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 92);
     lv_obj_t *fp;
     lv_obj_align(fingerprint_pill(scr, "\xE2\x80\xA6", &fp), LV_ALIGN_TOP_MID, 0, 136);
-    char note[64];
-    if (child_seed) snprintf(note, sizeof(note), "Write it and #%s on your backup. Load the child like any seed.", child_num);
+    char note[80];
+    if (child_seed) snprintf(note, sizeof(note), "Write it and #%s on your backup. Use it to sign with this child.", child_num);
     else snprintf(note, sizeof(note), "Write it on your backup.");
     lv_obj_align(para(scr, note, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, 180);
-    place_bottom(btn_primary(scr, "Done", to_home_cb));
+    if (child_seed) bottom_pair(btn_ghost(scr, "Done", to_home_cb, nullptr, TEXT), btn_primary(scr, "Use it", child_use_cb));
+    else place_bottom(btn_primary(scr, "Done", to_home_cb));
     show(scr);
     ready_timer = lv_timer_create(ready_tick, 200, fp);   // after the fade-in
     lv_timer_set_repeat_count(ready_timer, 1);

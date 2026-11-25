@@ -58,8 +58,8 @@ signed with Sparrow, on mainnet too. The code hasn't been reviewed or audited.
    QR back into your wallet to broadcast it.
 4. Verify address: Scan QR on a receive address to confirm it belongs to your
    seed. Signing and verifying share the one scanner.
-5. Child seed: derive a BIP-85 child seed and back it up as words and a QR
-   card, like a new seed.
+5. Child seed: derive a BIP-85 child seed, back it up as words and a QR
+   card like a new seed, and optionally load it to sign with it.
 6. Multisig: show your wallet's descriptor QR to Scan QR, check it on the
    device, then sign that wallet's transactions as
    one of its cosigners (native segwit `wsh(sortedmulti)`).

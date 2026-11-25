@@ -460,6 +460,11 @@ static int run_shots(const char *dir) {
     for (int i = 0; i < 100 && ui_current() == UI_BACKUP_SCAN; i++) pump(50);
     if (ui_current() != UI_SEED_READY || !wallet_has_seed()) { fprintf(stderr, "child card check failed\n"); return 1; }
     pump(600); save(dir, "34_child_ready");
+    char parent_fp[9], child_fp[9];
+    wallet_fingerprint_hex(parent_fp);
+    ui_child_use();                   // Use it: the child replaces the loaded seed
+    wallet_fingerprint_hex(child_fp);
+    if (ui_current() != UI_WALLET || !strcmp(parent_fp, child_fp)) { fprintf(stderr, "child not loaded\n"); return 1; }
 
     // BIP-39 passphrase: "abandon ... about" with TREZOR (the BIP39 test vector's
     // seed; its fingerprint, b4e3f5ed, was checked against the vector's root key).

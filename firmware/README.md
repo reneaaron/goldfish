@@ -211,7 +211,9 @@ Child seed derives a [BIP-85](https://github.com/bitcoin/bips/blob/master/bip-00
 child of the loaded seed (BIP39, English, 12 words, child number 0 to
 2147483647) and hands it out like a new seed: warning, words, optional QR card
 and check, then its fingerprint. The same seed and number always give the same
-child; leaving the flow wipes it.
+child; leaving the flow wipes it. Use it on that last screen loads the child in
+place of the seed, to sign with it: the seed (and any passphrase) is gone from
+RAM until loaded again, and a multisig wallet checked with it isn't used.
 
 Amounts follow [BIP177](https://github.com/bitcoin/bips/blob/master/bip-0177.mediawiki)
 and [bitcoin.design](https://bitcoin.design/guide/designing-products/units-and-symbols/):

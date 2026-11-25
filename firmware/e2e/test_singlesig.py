@@ -5,7 +5,7 @@ through QR codes in both directions, like with Sparrow.
 All seeds here are public test seeds. Never real funds.
 """
 import pytest
-from embit import bip39
+from embit import bip39, bip85
 
 from flows import (connect_wallet, fingerprint_on_screen, load_by_qr, load_by_words,
                    review_and_sign, verify_address)
@@ -302,7 +302,8 @@ def test_keyboard_types_on_release(dev):
 
 
 def test_child_seed_from_the_keypad(dev):
-    """Child seed: type a number on the keypad and confirm with its OK key."""
+    """Child seed: type a number on the keypad and confirm with its OK key,
+    write the child down, then Use it to sign with the child instead."""
     load_by_words(dev, MNEMONIC)
     dev.tap("Wallet options")
     dev.tap("Child seed")
@@ -310,6 +311,33 @@ def test_child_seed_from_the_keypad(dev):
     dev.tap("3")
     dev.tap("OK")
     assert dev.screen == "BACKUP_WARNING", dev.text()
+
+    dev.tap("I understand")
+    texts = dev.texts()
+    words = [texts[i + 1] for i, t in enumerate(texts) if t.isdigit()]
+    for _ in range(3):
+        dev.scroll_down()
+        dev.wait(500)
+    dev.tap("Written down")
+    dev.tap("Skip")   # no QR card
+    # The same child any BIP-85 tool derives from this seed and number.
+    child = Seed(bip85.derive_mnemonic(Seed(MNEMONIC).root, 12, 3))
+    assert " ".join(words) == child.mnemonic
+    assert fingerprint_on_screen(dev) == child.fingerprint
+
+    dev.tap("Use it")
+    assert dev.screen == "WALLET", dev.text()
+    assert fingerprint_on_screen(dev) == child.fingerprint
+    fingerprint, path, key = connect_wallet(dev)
+    assert (fingerprint, key) == (child.fingerprint, child.key("84h/1h/0h"))
+    wallet = Wallet.singlesig(key)
+    psbt = wallet.create_psbt([wallet.fund(0, 50_000)], [(stranger_address(), 40_000)], fee=500, change_index=0)
+    dev.tap("Scan QR")
+    dev.scan(psbt.to_base64())
+    assert dev.screen == "PSBT_OVERVIEW", dev.text()
+    signed, _ = review_and_sign(dev)
+    wallet.combine(psbt, signed)
+    assert wallet.signers(psbt) == {child.fingerprint}
 
 
 def test_passphrase_gives_its_own_wallet(dev):
