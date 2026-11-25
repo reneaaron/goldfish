@@ -9,15 +9,16 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rethink+Sans:wght@400;500;600;700&family=Caveat:wght@700&display=swap" rel="stylesheet">
+<link href="brand.css" rel="stylesheet">
 <style>
   /* Goldfish brand: white ground, ink text, paper surfaces, one fish orange (the mark).
      Rethink Sans throughout. Screens are the real ones from firmware/docs/screens,
-     inside devices drawn in CSS; --case, --graphite and --white are printed case colours. */
+     inside devices drawn in CSS; the case colours come from brand.css. */
   :root {
     --bg: #FFFFFF; --raised: #EDF2F4; --line: #D9E2E6;
     --text: #14222B; --muted: #5A6B75; --faint: #75858E;
     --accent: #C2501A; --fish: #FF7A2F; --amber: #A16207; --amber-dim: #F5E6C4;
-    --case: #F2A25C; --graphite: #4A4A48; --white: #DDE4E7; --paper: #EDF2F4;
+    --case: var(--case-orange); --paper: #EDF2F4;
     --sans: "Rethink Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
   * { box-sizing: border-box; }
@@ -153,9 +154,9 @@
      small UI text. The three overlap a little so they still fit half the page. */
   .trio .device { --w: 160px; }
   .trio .device + .device { margin-left: -44px; }
-  .trio .device:nth-child(1) { --case: var(--graphite); }
+  .trio .device:nth-child(1) { --case: var(--case-black); }
   .trio .device:nth-child(2) { translate: 0 -24px; z-index: 1; }
-  .trio .device:nth-child(3) { --case: var(--white); }
+  .trio .device:nth-child(3) { --case: var(--case-white); }
   .photo { border-radius: 20px; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
   .ways { list-style: none; padding: 0; margin: 24px 0 0; display: grid; gap: 14px; }
   .ways li { display: grid; grid-template-columns: 10px 1fr; gap: 14px; align-items: baseline; color: var(--muted); }

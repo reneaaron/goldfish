@@ -56,10 +56,11 @@ if want("2"):   # back: camera
     shoot("02_back.png", (-10, -15, 12), (0, 0.2, 0.6), (0, 0.5, 1.7))
     clear_devices()
 if want("3"):   # colourways across the flow
-    device("dev_c", GRAPHITE, "3_seed_loaded", (-5.2, 0.3, UP), (0, 0, math.radians(6)))
-    device("dev_d", SIGNAL, "10_psbt_sign", (0, -0.4, UP), (0, 0, 0))
-    device("dev_e", BONE, "11_psbt_signed", (5.2, 0.2, UP), (0, 0, math.radians(-6)))
-    shoot("03_colorways.png", (0, -16, 34), (0, 0.2, 0.8), (0, 0, 1.7), lens=70)
+    device("dev_c", GRAPHITE, "3_seed_loaded", (-7.8, 0.2, UP), (0, 0, math.radians(5)))
+    device("dev_d", SIGNAL, "10_psbt_sign", (-2.6, -0.2, UP), (0, 0, math.radians(1)))
+    device("dev_d2", BLUE, "11_psbt_signed", (2.6, -0.2, UP), (0, 0, math.radians(-1)))
+    device("dev_e", BONE, "13_verify_found", (7.8, 0.2, UP), (0, 0, math.radians(-5)))
+    shoot("03_colorways.png", (0, -20, 40), (0, 0.6, 0.8), (0, 0, 1.7), lens=78)
     clear_devices()
 if want("4"):   # edge: USB-C and buttons
     device("dev_f", SIGNAL, "13_verify_found", (0, 0, UP), (0, 0, math.radians(35)))
@@ -73,7 +74,7 @@ if want("6"):   # lineup: start, new seed, wallet menu, connect wallet
     device("dev_h", GRAPHITE, "1_home", (-7.8, 0.2, UP), (0, 0, math.radians(4)))
     device("dev_i", BONE, "15_new_seed", (-2.6, -0.2, UP), (0, 0, math.radians(1)))
     device("dev_j", SIGNAL, "4_seed_menu", (2.6, -0.2, UP), (0, 0, math.radians(-1)))
-    device("dev_k", GRAPHITE, "5_export_xpub", (7.8, 0.2, UP), (0, 0, math.radians(-4)))
+    device("dev_k", BLUE, "5_export_xpub", (7.8, 0.2, UP), (0, 0, math.radians(-4)))
     shoot("06_lineup.png", (0, -20, 40), (0, 0.6, 0.8), (0, 0, 1.7), lens=78)
     clear_devices()
 if want("7"):   # hero: start screen, whole device in view
