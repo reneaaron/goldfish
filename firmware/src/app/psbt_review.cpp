@@ -250,7 +250,13 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
         const size_t n_claims = find_claims(&in.keypaths, fp, claims);
         if (n_claims == 0) return r->error = why_not_ours(&in.keypaths);
         if (n_claims > MAX_CLAIMS) return r->error = PSBT_PARSE_FAILED;
-        if (claims[0].path_len >= 2) r->testnet = (claims[0].path[1] & 0x7FFFFFFF) == 1;
+        // One network for the whole review: the first input names it, and an
+        // input under the other coin type would be shown with the wrong one.
+        if (claims[0].path_len >= 2) {
+            const bool testnet = (claims[0].path[1] & 0x7FFFFFFF) == 1;
+            if (i && testnet != r->testnet) return r->error = PSBT_UNSUPPORTED;
+            r->testnet = testnet;
+        }
 
         // Anything but ALL leaves outputs or other inputs out of the signature,
         // so what is shown here would not be what gets signed.

@@ -222,7 +222,8 @@ asks, by share of the amount sent and by rate (the thresholds are ours).
 50% or 500 ₿/vB turns the fee, total, card and slider red. Neither blocks
 signing, since sweeping dust can legitimately cost that much.
 Native segwit only, single-sig or multisig, mainnet or testnet (from the PSBT's
-derivation paths, or the multisig descriptor's keys). BBQr input isn't supported yet.
+derivation paths, or the multisig descriptor's keys; inputs from both networks
+in one PSBT are refused). BBQr input isn't supported yet.
 
 Multisig is `wsh(sortedmulti(...))`, up to 15 keys, with the loaded seed as one
 cosigner. The device needs the wallet's output descriptor, because a PSBT alone

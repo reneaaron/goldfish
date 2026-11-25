@@ -618,6 +618,49 @@ void test_input_with_foreign_script_rejected() {
     TEST_ASSERT_EQUAL(PSBT_NOT_OUR_SEED, psbt_load(raw, raw_len, &r));
 }
 
+// Inputs of one seed under the mainnet and the testnet coin type: the review
+// can show only one network, so neither order may pass.
+static void two_networks(bool testnet_first) {
+    const uint32_t main_path[] = {H + 84, H, H, 0, 0}, test_path[] = {H + 84, H + 1, H, 0, 0};
+    const uint32_t *paths[2] = {testnet_first ? test_path : main_path, testnet_first ? main_path : test_path};
+    uint8_t to[22] = {0x00, 20};
+    memset(to + 2, 0x11, 20);
+
+    struct wally_tx *tx = nullptr;
+    uint8_t txid[32];
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_init_alloc(2, 0, 2, 1, &tx));
+    for (uint8_t i = 0; i < 2; i++) {
+        memset(txid, 0x22 + i, sizeof(txid));
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_add_raw_input(tx, txid, 32, 0, 0xfffffffd, nullptr, 0, nullptr, 0));
+    }
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_add_raw_output(tx, 99000, to, sizeof(to), 0));
+
+    struct wally_psbt *p = nullptr;
+    uint8_t fp[4];
+    wallet_fingerprint(fp);
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_from_tx(tx, 0, 0, &p));
+    for (size_t i = 0; i < 2; i++) {
+        uint8_t pub[33], script[22];
+        struct wally_tx_output utxo;
+        p2wpkh_at(paths[i], pub, script);
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_output_init(50000, script, sizeof(script), &utxo));
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_set_input_witness_utxo(p, i, &utxo));
+        TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_add_input_keypath(p, i, pub, sizeof(pub), fp, sizeof(fp), paths[i], 5));
+    }
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_to_bytes(p, 0, raw, sizeof(raw), &raw_len));
+    wally_psbt_free(p);
+    wally_tx_free(tx);
+
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_UNSUPPORTED, psbt_load(raw, raw_len, &r));
+}
+
+void test_mixed_networks_rejected() {
+    load_seed(SINGLESIG_MNEMONIC);
+    two_networks(false);
+    two_networks(true);
+}
+
 // A transaction without outputs isn't valid: refused at review, not at signing.
 void test_no_outputs_rejected() {
     load_seed(SINGLESIG_MNEMONIC);
@@ -784,6 +827,7 @@ int main() {
     RUN_TEST(test_missing_fingerprint_told_apart);
     RUN_TEST(test_too_many_outputs_rejected);
     RUN_TEST(test_error_texts);
+    RUN_TEST(test_mixed_networks_rejected);
     RUN_TEST(test_no_outputs_rejected);
     RUN_TEST(test_finalized_input_rejected);
     RUN_TEST(test_mismatched_previous_tx_rejected);
