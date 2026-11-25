@@ -1298,8 +1298,12 @@ static lv_obj_t *dev_bar, *dev_cam, *dev_phone, *dev_ink, *dev_chip, *dev_chip_f
 static int dev_chip_n;                   // chunks read on this screen
 static char dev_chip_txt[24];
 // The Camera step's live view: preview_buf as a smaller picture under the text.
-#define DEV_CAM_W 180
-#define DEV_CAM_H 135
+// Every step: its number, title and a one-line subline, then one picture
+// area below (the chip, the camera's view, the device, the scribble box).
+#define DEV_VIS_Y (BAR + 104)
+#define DEV_VIS_H (H - DEV_VIS_Y - M)
+#define DEV_CAM_W 200
+#define DEV_CAM_H 150
 static lv_image_dsc_t dev_cam_dsc;
 static int16_t dev_motion_last[3];
 static DeviceSource dev_shown;           // the stage the screen was built for
@@ -1309,9 +1313,9 @@ static uint32_t dev_stage_ms;
 #define DEV_STEP_MS 5000
 // The scribble's ink: borrows preview_buf (idle once the camera step is over)
 // as an A8 picture over the box, drawn in the accent colour.
-#define DEV_BOX_Y (BAR + 130)
+#define DEV_BOX_Y DEV_VIS_Y
 #define DEV_INK_W CW
-#define DEV_INK_H (H - DEV_BOX_Y - M)
+#define DEV_INK_H DEV_VIS_H
 static_assert(DEV_INK_W * DEV_INK_H <= sizeof(preview_buf), "the scribble's ink doesn't fit preview_buf");
 static lv_image_dsc_t dev_ink_dsc;
 static int dev_pen_x = -1, dev_pen_y;    // the last point of the stroke, -1: pen up
@@ -1506,19 +1510,17 @@ static void build_entropy_device() {
         }
     }
     static const char *title[DS_COUNT] = {"The chip", "Camera noise", "Shake it", "Scribble"};
-    static const char *say[DS_COUNT] = {
+    static const char *say[DS_COUNT] = {   // one line each
         "The chip rolls its own dice.",
-        "Point the camera at anything with some light.",
-        "Shake the device for a few seconds.",
-        "Draw in the box with your finger.",
+        "Point it at something lit.",
+        "Shake it for a few seconds.",
+        "Draw with your finger.",
     };
     char step[16];
     snprintf(step, sizeof(step), "STEP %d OF %d", s + 1, DS_COUNT);
     lv_obj_align(text(scr, step, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, BAR + 22);
     lv_obj_align(text(scr, title[s], &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 42);
-    lv_obj_t *p = para(scr, say[s]);
-    lv_obj_set_style_text_align(p, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(p, LV_ALIGN_TOP_MID, 0, BAR + 78);
+    lv_obj_align(text(scr, say[s], &inter_15, TEXT_2), LV_ALIGN_TOP_MID, 0, BAR + 76);
     lv_bar_set_value(dev_bar, 0, LV_ANIM_OFF);
     if (s == DS_TOUCH) {
         lv_obj_t *box = card(scr, DEV_INK_W, DEV_INK_H);
@@ -1555,13 +1557,22 @@ static void build_entropy_device() {
         // The rest of preview_buf, past the view, is the camera step's working memory.
         static_assert(DEV_CAM_W * DEV_CAM_H + DE_CAMERA_LEND <= sizeof(preview_buf), "the camera step's loan doesn't fit");
         device_entropy_lend(preview_buf + DEV_CAM_W * DEV_CAM_H);
-        dev_cam = lv_image_create(scr);
+        // The view as a rounded card, like the scribble box.
+        lv_obj_t *frame = lv_obj_create(scr);
+        lv_obj_remove_style_all(frame);
+        lv_obj_set_size(frame, DEV_CAM_W, DEV_CAM_H);
+        lv_obj_set_style_radius(frame, 14, 0);
+        lv_obj_set_style_clip_corner(frame, true, 0);
+        lv_obj_set_style_bg_color(frame, lv_color_black(), 0);
+        lv_obj_set_style_bg_opa(frame, LV_OPA_COVER, 0);
+        lv_obj_align(frame, LV_ALIGN_TOP_MID, 0, DEV_VIS_Y);
+        dev_cam = lv_image_create(frame);
         lv_image_set_src(dev_cam, &dev_cam_dsc);
-        lv_obj_align(dev_cam, LV_ALIGN_BOTTOM_MID, 0, -M);
+        lv_obj_center(dev_cam);
     } else if (s == DS_CHIP) {
         // A chip with pins on every side and a die in it; it blinks and the die
         // turns as it is read.
-        const int cs = 64, cy = BAR + 178;
+        const int cs = 64, cy = DEV_VIS_Y + 58;
         for (int side = 0; side < 4; side++)
             for (int k = 0; k < 3; k++) {
                 lv_obj_t *pin = lv_obj_create(scr);
@@ -1598,7 +1609,7 @@ static void build_entropy_device() {
         lv_obj_set_style_radius(dev_phone, 10, 0);
         lv_obj_set_style_border_color(dev_phone, ACCENT, 0);
         lv_obj_set_style_border_width(dev_phone, 3, 0);
-        lv_obj_align(dev_phone, LV_ALIGN_BOTTOM_MID, 0, -44);
+        lv_obj_align(dev_phone, LV_ALIGN_TOP_MID, 0, DEV_VIS_Y + (DEV_VIS_H - 92) / 2);
         lv_obj_t *glass = lv_obj_create(dev_phone);
         lv_obj_remove_style_all(glass);
         lv_obj_set_size(glass, 44, 58);
