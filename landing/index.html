@@ -97,7 +97,10 @@
   .turn img { width: 100%; height: 100%; pointer-events: none; }
   .turn.ready img { visibility: hidden; }
   .hero-fig .notes text, .hero-fig .notes path { transition: opacity .25s; }
-  .hero-fig.away .notes .front { opacity: 0; }   /* turned away: the notes about the front would point at nothing */
+  .hero-fig.away .notes .front { opacity: 0; }
+  /* Plugged in and booted: the notes about the hardware make way for one saying it's live */
+  .hero-fig .notes .live, .hero-fig.on .notes .idle { opacity: 0; }
+  .hero-fig.on:not(.booting) .notes .live { opacity: 1; }   /* turned away: the notes about the front would point at nothing */
   .swatches { display: flex; align-items: center; justify-content: center; gap: 10px; height: 22px; margin-bottom: 20px; font-size: 14px; color: var(--faint); }
   .swatches button { width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 0; background: var(--sw); cursor: pointer;
     box-shadow: inset 0 0 0 1px rgba(20, 34, 43, .15); }
@@ -108,6 +111,19 @@
     display: none; background: var(--paper); touch-action: none; cursor: pointer;
   }
   .hero-fig.on.front .turn canvas { display: block; }
+  /* While the firmware (~2 MB) downloads and boots: a spinner on the blank screen */
+  .boot {
+    position: absolute; left: 12.43%; top: 13.95%; width: 75.14%; height: 67.03%;
+    display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    pointer-events: none; color: var(--muted); font-size: 13px; font-weight: 600;
+  }
+  .boot::before {
+    content: ""; width: 30px; height: 30px; border-radius: 50%;
+    border: 3px solid rgba(20, 34, 43, .12); border-top-color: var(--accent);
+    animation: boot-spin .8s linear infinite;
+  }
+  @keyframes boot-spin { to { rotate: 1turn; } }
+  .hero-fig.on.front.booting .boot { display: flex; }
   .power { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 14px; font-size: 14px; color: var(--faint); }
   .power > button {
     height: 34px; padding: 0 14px; border: 1px solid var(--line); border-radius: 99px; background: var(--bg);
@@ -287,6 +303,7 @@
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
     .cable, .stage .device img, .cta { transition: none; }
+    .boot::before { animation-duration: 2.4s; }
   }
 </style>
 </head>
@@ -344,6 +361,7 @@
       <button type="button" class="turn" id="turn" aria-label="Goldfish, the home screen on its front and the camera on its back. Turn it round">
         <img id="turn-first" src="img/turn/orange-0.webp" alt="" draggable="false">
         <canvas id="screen" width="240" height="320" aria-label="The device's screen"></canvas>
+        <span class="boot" aria-hidden="true">Loading firmware…</span>
         <svg class="plug" viewBox="0 0 46 120" aria-hidden="true">
           <defs><linearGradient id="cord-fade" x1="0" y1="42" x2="0" y2="120" gradientUnits="userSpaceOnUse">
             <stop offset="0" stop-color="#2B3338"/><stop offset="1" stop-color="#2B3338" stop-opacity="0"/></linearGradient></defs>
@@ -353,12 +371,15 @@
       </button>
       <svg class="notes" viewBox="0 0 760 440" aria-hidden="true">
         <defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto"><path d="M1 1 L8.5 5 L1 9"/></marker></defs>
-        <text class="front" x="44" y="78">2″ touch screen</text>
-        <path class="front" d="M120 92 C 150 120, 205 112, 252 130" marker-end="url(#ah)"/>
-        <text class="front" x="20" y="262">no Wi-Fi, no Bluetooth</text>
-        <path class="front" d="M150 274 C 185 290, 212 262, 236 240" marker-end="url(#ah)"/>
-        <text x="560" y="88">camera on the back</text>
-        <path d="M612 100 C 602 140, 570 156, 526 160" marker-end="url(#ah)"/>
+        <text class="front idle" x="44" y="78">2″ touch screen</text>
+        <path class="front idle" d="M120 92 C 150 120, 205 112, 252 130" marker-end="url(#ah)"/>
+        <text class="front idle" x="20" y="262">no Wi-Fi, no Bluetooth</text>
+        <path class="front idle" d="M150 274 C 185 290, 212 262, 236 240" marker-end="url(#ah)"/>
+        <text class="idle" x="560" y="88">camera on the back</text>
+        <path class="idle" d="M612 100 C 602 140, 570 156, 526 160" marker-end="url(#ah)"/>
+        <text class="live" x="40" y="150">it's running!</text>
+        <text class="live" x="40" y="176">tap the screen</text>
+        <path class="live" d="M150 190 C 180 214, 214 206, 250 196" marker-end="url(#ah)"/>
         <text class="front" x="550" y="254">your seed is</text>
         <text class="front" x="550" y="278">never saved</text>
         <path class="front" d="M562 292 C 548 318, 530 312, 506 300" marker-end="url(#ah)"/>
@@ -682,19 +703,20 @@ show(0);
   cams.forEach((c) => c.addEventListener('click', () => { if (sim) { select(c); sim.show(c.dataset.src); } }));
   powerOn.addEventListener('click', () => {
     if (booting) return;
-    fig.classList.add('on');
+    fig.classList.add('on', 'booting');
     touched = true;
     use(colour).catch(() => {});
     spinTo(Math.round(frame / FRAMES) * FRAMES);
-    powerStatus.textContent = 'Starting…';
+    powerStatus.textContent = 'Loading the firmware…';
     booting = goldfishSim(canvas, {
       base: 'try/',
       onCameraStop: () => select(null),
       onReboot: () => { powerStatus.textContent = 'The device would now restart as a USB drive, to take new firmware.'; },
     }).then((s) => {
       sim = s;
-      powerStatus.textContent = 'Demo only: never type a real seed here.';
-    }).catch(() => { powerStatus.textContent = 'This browser could not start the firmware.'; booting = null; });
+      powerStatus.textContent = 'It\'s running: tap the screen. Demo only, never type a real seed here.';
+    }).catch(() => { powerStatus.textContent = 'This browser could not start the firmware.'; booting = null; })
+      .finally(() => fig.classList.remove('booting'));
   });
   // Links to #plug (the nav's Try it, other pages, the old /try/ page) plug it in
   function plugFromLink() {
