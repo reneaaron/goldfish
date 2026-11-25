@@ -15,6 +15,7 @@
 #include "page_reader.h"
 #include "psbt_review.h"
 #include "seed_create.h"
+#include "entropy_check.h"
 #include "qrscan.h"
 #include "seedqr.h"
 #include "theme.h"
@@ -1304,6 +1305,14 @@ void ui_entropy_input(char c) {
     entropy_in[entropy_n++] = c;
     if (entropy_n < entropy_needed()) { entropy_refresh(); return; }
     entropy_in[entropy_n] = 0;
+    // Advisory only, and only once everything is in: the seed is derived from
+    // exactly what was typed either way. The last word's few flips are too few to judge.
+    if (!final_flips && entropy_check(entropy_in, entropy_n, entropy_dice)) { ui_goto(UI_ENTROPY_SUSPECT); return; }
+    ui_entropy_accept();
+}
+
+void ui_entropy_accept() {
+    if (entropy_n != entropy_needed()) return;
     bool ok = final_flips   ? seed_final_word(word_idx, new_words, entropy_in, &pending)
               : entropy_dice ? seed_from_dice(entropy_in, entropy_n, new_words, &pending)
                              : seed_from_coins(entropy_in, entropy_n, new_words, &pending);
@@ -1312,6 +1321,35 @@ void ui_entropy_input(char c) {
     entropy_n = word_n = 0;
     final_flips = false;
     ui_goto(ok ? UI_BACKUP_WARNING : UI_NEW_SEED);
+}
+
+void ui_entropy_restart() {
+    if (ui_current() != UI_ENTROPY_SUSPECT) return;
+    secure_zero(entropy_in, sizeof(entropy_in));
+    entropy_n = 0;
+    ui_goto(entropy_dice ? UI_ENTROPY_DICE : UI_ENTROPY_COINS);
+}
+
+static void entropy_accept_cb(lv_event_t *) { ui_entropy_accept(); }
+static void entropy_restart_cb(lv_event_t *) { ui_entropy_restart(); }
+
+// Every roll is in and they look invented (entropy_check.h). Nothing is said
+// while typing, so nobody "fixes" their numbers along the way.
+static void build_entropy_suspect() {
+    lv_obj_t *scr = screen();
+    lv_obj_align(icon_badge(scr, ICON_WARNING, AMBER, AMBER_DIM, 56), LV_ALIGN_TOP_MID, 0, 20);
+    lv_obj_t *t = text(scr, entropy_dice ? "These rolls look made up" : "These flips look made up", &rethink_24, TEXT);
+    lv_obj_set_width(t, CW);
+    lv_label_set_long_mode(t, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(t, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 86);
+    lv_obj_align(para(scr, entropy_dice ? "Real dice rarely fall like this. Anyone who guesses your rolls can take your bitcoin."
+                                        : "Real coins rarely fall like this. Anyone who guesses your flips can take your bitcoin."),
+                 LV_ALIGN_TOP_MID, 0, 150);
+    lv_obj_align(quiet_link(scr, entropy_dice ? "I really rolled these" : "I really flipped these", entropy_accept_cb, nullptr),
+                 LV_ALIGN_BOTTOM_MID, 0, -M - 52);
+    place_bottom(btn_primary(scr, "Start over", entropy_restart_cb));
+    show(scr);
 }
 
 static void entropy_key_cb(lv_event_t *e) { ui_entropy_input((char)(intptr_t)lv_event_get_user_data(e)); }
@@ -3208,7 +3246,8 @@ static void build_multisig() {
 // ---------------------------------------------------------------- navigation
 // Making or entering a seed: only while none is loaded.
 static bool seed_entry_screen(UiScreen s) {
-    return s == UI_NEW_SEED || s == UI_ENTROPY_DICE || s == UI_ENTROPY_COINS || s == UI_ENTER_WORDS ||
+    return s == UI_NEW_SEED || s == UI_ENTROPY_DICE || s == UI_ENTROPY_COINS || s == UI_ENTROPY_SUSPECT ||
+           s == UI_ENTER_WORDS ||
            s == UI_PAGE_FOUND || s == UI_PAGE_READING || s == UI_PAGE_REVIEW || s == UI_PAGE_WORD;
 }
 // The card flow: for a new seed, or the loaded one.
@@ -3618,6 +3657,7 @@ void ui_goto(UiScreen s) {
         case UI_NEW_SEED: build_new_seed(); break;
         case UI_ENTROPY_DICE: build_entropy(true); break;
         case UI_ENTROPY_COINS: build_entropy(false); break;
+        case UI_ENTROPY_SUSPECT: build_entropy_suspect(); break;
         case UI_ENTER_WORDS: build_enter_words(); break;
         case UI_BACKUP_WARNING: build_backup_warning(); break;
         case UI_BACKUP_WORDS: build_backup_words(); break;

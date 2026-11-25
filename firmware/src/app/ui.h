@@ -24,6 +24,7 @@
 //        Remove / Add a word before (keyboard, then back to the list) -> "Matches
 //        my backup" once there are 12/24 words with a valid checksum -> Wallet
 //   Home -> New seed (12 words) -> dice rolls | coin flips | draw words + coins for the last
+//        -> (rolls or flips look made up? start over, or "I really rolled these")
 //        -> offline warning -> write down the words -> QR card? (whole SeedQR,
 //        each block, optional card check) -> Seed ready (not loaded) -> Home
 //   Wallet options -> Back up as QR -> the same card flow, scan optional
@@ -51,6 +52,7 @@ enum UiScreen {
     UI_NEW_SEED,         // how to make a 12-word seed
     UI_ENTROPY_DICE,
     UI_ENTROPY_COINS,
+    UI_ENTROPY_SUSPECT,  // all rolls/flips in and they look made up: start over, or use them anyway
     UI_ENTER_WORDS,      // one screen per word
     UI_BACKUP_WARNING,
     UI_BACKUP_WORDS,     // all the words on one scrolling list
@@ -91,6 +93,8 @@ void ui_key_details();         // tap the Connect wallet card: QR <-> its text
 void ui_seed_entry(UiScreen method, int words, bool draw = false);
 void ui_backup_loaded();       // "Back up as QR" in the seed menu
 void ui_entropy_input(char c); // a dice key ('1'..'6') or coin key ('1' heads, '0' tails)
+void ui_entropy_accept();      // "I really rolled these" on the made-up warning
+void ui_entropy_restart();     // "Start over" there
 bool ui_enter_word(const char *word);           // tap the suggestion for this word
 void ui_backup_next();         // "Next part"
 // The backup QR as drawn on screen (qrcodegen buffer), nullptr if none. For
