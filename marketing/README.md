@@ -73,6 +73,22 @@ by Printer_Gobrrr (CC BY-NC-SA), its body shortened to 45 mm for 12 washers
 blender -b -P marketing/renders/metal.py
 ```
 
+### Turntable (landing hero)
+
+`renders/turntable.py` renders the device standing upright on the home screen,
+turned a full circle in 36 frames, once per case colour (orange, black, light
+grey), on a transparent background; the version in the screen's corner is
+blanked, since the frames outlive the build. `turntable_pack.py` crops them all
+to one box and packs one WebP sheet per colour into `landing/img/turn/`, which
+the landing page's hero scrubs as you drag it. The raw frames
+(`out/turntable/`) aren't committed. Render again when the case or the home
+screen changes:
+
+```bash
+blender -b -P marketing/renders/turntable.py                     # ~10 min on the GPU
+uv run --with pillow python marketing/renders/turntable_pack.py
+```
+
 The laptop shows a generic wallet window (`renders/assets/laptop_screen.png`,
 drawn for these renders), not any real app's interface. The SeedQR card
 (`renders/assets/seedqr_card.png`, drawn by `make_seedqr_card.py`) is the real

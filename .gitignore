@@ -1,3 +1,5 @@
 # per-folder ignores live in firmware/.gitignore
 __pycache__/
 *.blend1
+# turntable.py frames; turntable_pack.py packs them into landing/img/turn
+marketing/renders/out/turntable/
