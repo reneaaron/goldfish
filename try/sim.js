@@ -37,10 +37,12 @@ window.goldfishSim = (canvas, { base = '', onCameraStop = () => {}, onReboot = (
     M._web_touch(x, y, down ? 1 : 0);
   }
   let pressed = false;
-  canvas.addEventListener('pointerdown', e => { pressed = true; canvas.setPointerCapture(e.pointerId); touch(e, true); });
-  canvas.addEventListener('pointermove', e => { if (pressed) touch(e, true); });
-  canvas.addEventListener('pointerup', e => { pressed = false; touch(e, false); });
-  canvas.addEventListener('pointercancel', e => { pressed = false; touch(e, false); });
+  const off = new AbortController();   // unplug() removes these, so a replug doesn't add a second set
+  const on = { signal: off.signal };
+  canvas.addEventListener('pointerdown', e => { pressed = true; canvas.setPointerCapture(e.pointerId); touch(e, true); }, on);
+  canvas.addEventListener('pointermove', e => { if (pressed) touch(e, true); }, on);
+  canvas.addEventListener('pointerup', e => { pressed = false; touch(e, false); }, on);
+  canvas.addEventListener('pointercancel', e => { pressed = false; touch(e, false); }, on);
 
   // ---- camera: one grayscale picture at a time, at most 2000 px on its longer side
   const grab = document.createElement('canvas');
@@ -71,6 +73,7 @@ window.goldfishSim = (canvas, { base = '', onCameraStop = () => {}, onReboot = (
   const show = (url) => { picked = true; return load(url, false); };
   const idle = () => load(base + 'img/camera_idle.jpg', true);
   function unplug() {
+    off.abort();
     if (!M) return;
     M._web_unplug();
     M.HEAPU8.fill(0);

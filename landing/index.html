@@ -120,7 +120,6 @@
   .power > button { height: 46px; padding: 0 22px; border-color: var(--text); background: var(--text); color: var(--bg); font-size: 16px; }
   .power > button svg { width: 18px; height: 18px; }
   .power > button:hover { border-color: var(--text); opacity: .88; }
-  .power > button:hover { border-color: var(--muted); }
   .hero-fig.on .power { display: none; }
   .hero-fig.on .swatches { visibility: hidden; }   /* keeps its room, so the device doesn't jump */
   /* Plugged in: two things to try. Picking a picture holds it up to the camera. */
@@ -145,10 +144,10 @@
   .tries .n { width: 26px; height: 26px; border-radius: 50%; background: var(--raised); color: var(--muted); font-size: 13px; font-weight: 600; display: grid; place-items: center; }
   .tries h3 { margin: 0; font-size: 15px; font-weight: 600; }
   .tries p { margin: 0; color: var(--muted); font-size: 13px; }
-  .camera .pics { display: flex; gap: 6px; justify-content: center; }
+  .camera .pics { display: flex; gap: 6px; justify-content: center; }   /* centred under "Camera sees" */
   .unplug { display: flex; justify-content: center; margin-top: 16px; }
   #power-off { display: inline-flex; align-items: center; gap: 6px; }
-  #power-off svg { width: 14px; height: 14px; }   /* centred under "Camera sees" */
+  #power-off svg { width: 14px; height: 14px; }
   .camera button {
     height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 99px; background: var(--bg);
     font: inherit; font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer;
@@ -671,7 +670,7 @@ show(0);
   swatches.forEach((b) => b.addEventListener('click', () => use(b.dataset.c)));
 
   // Plug it in: signer.js and its wasm load now, not with the page. The screen shows
-  // while the device faces you; turning it round still works by dragging the case.
+  // while the device faces you, and it doesn't turn while plugged in.
   // Unplug: the firmware stops and its memory is zeroed; plugging back in boots afresh.
   const canvas = document.getElementById('screen');
   const powerOn = document.getElementById('power-on'), powerOff = document.getElementById('power-off');
