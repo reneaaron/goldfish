@@ -2186,6 +2186,7 @@ static void build_page_review() {
 
     // the words in a card, like the menus: rows with a rule between them
     lv_obj_t *list = page_review_list = scroll_area(scr, BAR + 24);
+    lv_obj_set_style_pad_bottom(list, M - 4, 0);   // scrolled to the end: a gap above the button
     int rows = nslots + (nslots < new_words);
     lv_obj_t *box = card(list, CW, rows * 36 + 2);
     lv_obj_set_style_pad_all(box, 0, 0);
@@ -2592,6 +2593,7 @@ static void build_backup_words() {
     uint16_t idx[24];
     seed_word_indexes(pending, idx);
     lv_obj_t *list = scroll_area(scr, BAR + 4);
+    lv_obj_set_style_pad_bottom(list, M - 4, 0);   // scrolled to the end: a gap above the button
     lv_obj_t *c = card(list, CW, new_words * 44 + 16);
     lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
     for (int w = 0; w < new_words; w++) {
