@@ -9,7 +9,8 @@ name: Website
 #   /parts/    parts/ (what to buy, and the case files from case/exports to print)
 #   /assemble/ assemble/ (connecting the camera, closing the case)
 #   /start/    start/ (first use: a seed, then a wallet app; screens from firmware/docs/screens)
-#   /try/      try/index.html plus the firmware built for the browser (firmware/web),
+#   /try/      the firmware built for the browser (firmware/web) that the landing hero runs,
+#              plus try/index.html, which sends old links to the hero;
 #              from the commit being deployed, not the release tag
 # The flasher offers the latest GitHub release's firmware.uf2 (release.yml),
 # checked here against its SHA256SUMS and build attestation; until the first
