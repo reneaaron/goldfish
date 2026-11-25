@@ -495,7 +495,7 @@ void test_signing_is_deterministic() {
 // by one key that share a nonce over different transactions give the key away.
 void test_any_change_gives_another_nonce() {
     static void (*const edits[])(struct wally_psbt *) = {
-        [](struct wally_psbt *p) { p->tx->outputs[0].satoshi -= 1; },   // one unit less paid, one more in fee
+        [](struct wally_psbt *p) { p->tx->outputs[0].satoshi -= 1; },   // one unit less in output 0, one more in fee
         [](struct wally_psbt *p) { p->tx->locktime += 1; },
         [](struct wally_psbt *p) { p->tx->inputs[0].sequence -= 1; },
         [](struct wally_psbt *p) {                                       // one bit of the address paid (the last output)
@@ -507,8 +507,10 @@ void test_any_change_gives_another_nonce() {
         std::string seen[1 + sizeof(edits) / sizeof(edits[0])];
         size_t n = 0;
         for (size_t e = 0; e <= sizeof(edits) / sizeof(edits[0]); e++) {
+            wallet_wipe();
+            setUp();
             if (multi) load_multisig(MS_PSBT);
-            else { setUp(); load_seed(SINGLESIG_MNEMONIC); }
+            else load_seed(SINGLESIG_MNEMONIC);
             if (e) edit_psbt(edits[e - 1]);
             const std::string r = sig_r(sign_raw());
             for (size_t k = 0; k < n; k++) TEST_ASSERT_TRUE(r != seen[k]);
@@ -858,11 +860,11 @@ int main() {
     RUN_TEST(test_multisig_needs_descriptor);
     RUN_TEST(test_multisig_sign);
     RUN_TEST(test_multisig_second_signature);
-    RUN_TEST(test_signing_is_deterministic);
-    RUN_TEST(test_any_change_gives_another_nonce);
     RUN_TEST(test_multisig_other_cosigner);
     RUN_TEST(test_multisig_fake_change);
     RUN_TEST(test_multisig_wrong_wallet);
+    RUN_TEST(test_signing_is_deterministic);
+    RUN_TEST(test_any_change_gives_another_nonce);
     RUN_TEST(test_single_sig_with_descriptor_loaded);
     RUN_TEST(test_input_with_foreign_script_rejected);
     RUN_TEST(test_missing_fingerprint_told_apart);
