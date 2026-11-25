@@ -87,7 +87,7 @@
   /* The device turning round: frames of marketing/renders/turntable.py, one sprite
      sheet per case colour (6 frames a row), scrubbed by dragging. */
   .turn {
-    --frame-w: 370; --frame-h: 554;   /* one frame of the sheet, px */
+    --frame-w: 370; --frame-h: 552;   /* one frame of the sheet, px */
     display: block; position: relative; margin: 0 auto; padding: 0; border: 0; background: none no-repeat;
     height: 404px; aspect-ratio: var(--frame-w) / var(--frame-h); max-width: 100%;
     background-size: 600% 600%; cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none;
@@ -104,7 +104,7 @@
   .swatches button[aria-pressed="true"] { box-shadow: inset 0 0 0 1px rgba(20, 34, 43, .15), 0 0 0 2px var(--bg), 0 0 0 4px var(--text); }
   /* Turned on: the firmware itself (try/sim.js) on a canvas over the front frame's screen */
   .turn canvas {
-    position: absolute; left: 12.16%; top: 14.08%; width: 75.41%; height: 66.79%; border-radius: 2%;
+    position: absolute; left: 12.43%; top: 13.95%; width: 75.14%; height: 67.03%; border-radius: 2%;
     display: none; background: var(--paper); touch-action: none; cursor: pointer;
   }
   .hero-fig.on.front .turn canvas { display: block; }
