@@ -199,6 +199,29 @@ other three (below).
   the browser the host's random source stands in for the TRNG, the motion
   sensor and the camera's noise.
 
+Once the last roll or flip is in (not before: stats shown while typing nudge
+people to "fix" their numbers), a few statistical tests look for rolls a
+person made up (`src/app/entropy_check.cpp`). If one fires, "These rolls look
+made up" offers Start over or "I really rolled these", which carries on as
+usual. It's advice only: the seed is always the hash of exactly what was
+typed. Each test gives a p-value, multiplied by the number of tests
+(Bonferroni) and flagged below 0.01:
+
+- Dice: the step from one roll to the next (mod 6) uneven, which catches
+  counting and cycling; the same face again 2 to 12 rolls later too often for
+  some gap (a repeating sequence); the same face twice in a row too often or
+  too rarely (people avoid repeats); the longest run of one face too long
+  (exact); face counts too uneven or too even (chi-square, both tails).
+- Coins: heads and tails switching too often or too rarely, the same flip 2 to
+  12 flips later too often, the longest run too long, heads too far from half.
+- The last word's 7 flips under Draw words are too few to judge.
+
+On fair input (200,000 simulated sequences per length, measured outside the
+repo since it keeps no RNG) the warning shows for 0.7% of 50 rolls, 0.8% of
+99, 0.7% of 128 flips and 0.7% of 256. It caught every simulated sequence
+without repeated neighbours, every one with face counts 9, 9, 8, 8, 8, 8, and
+98% of coin flips never run longer than two.
+
 Then an offline warning, the words to write down on one scrolling list ("Written down" works once
 it has been scrolled to its end), and an
 optional QR card: a Compact SeedQR (21×21 for 12 words, 25×25 for 24)
@@ -378,6 +401,9 @@ pio test -e test
   amounts, testnet, foreign addresses, and a different seed loaded afterwards;
   multisig receive and change addresses, with and without the descriptor
 - Amounts: BIP177 and legacy BTC formatting from ₿0 to the 21M cap
+- Made-up rolls: fair dice and coin sequences (rolled once, pasted in) pass;
+  counting 123456…, no face twice in a row, too-even face counts, one face
+  over and over, alternating and repeating coin patterns are flagged
 - On this device: a full run from fixed samples gives the seed that
   `test/test_device_entropy/make_vector.py` works out in Python; one touch
   point changed changes it; sources only in order, each moving on only once
@@ -450,6 +476,9 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
   starts on the back button, which isn't pressed), not from one further down,
   and closes from a tap below it (which doesn't reach the screen under it) or
   a drag back up
+- Made-up rolls: counted dice and patterned coins warned only after the last
+  one; Start over clears them, "I really rolled these" gives SeedSigner's
+  words for them; fair rolls go straight on
 - Written words: a handwritten page held still on Scan seed is read without a
   tap, and Retake waits for the view to change; a QR held still isn't
 - On this device: the warning comes first and Back makes nothing; a run makes

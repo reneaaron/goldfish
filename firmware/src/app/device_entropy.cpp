@@ -27,7 +27,8 @@ static DeviceSource stage;
 static int bits[DS_COUNT];
 static const char *err;
 static uint8_t chip_last[32];           // digest of the last chip chunk
-static uint8_t cam_last[CAM_GRID * CAM_GRID];
+static_assert(DE_CAMERA_LEND == CAM_GRID * CAM_GRID, "the camera's loan is one byte per sampled pixel");
+static uint8_t *cam_last;                // the last frame's sampled pixels: lent, see device_entropy_lend
 static int cam_frames;
 static int16_t motion_last[2][6];        // the last sample, and the one before it
 static int motion_n, motion_jitters;
@@ -47,7 +48,8 @@ static void absorb(DeviceSource s, const uint8_t *data, size_t n) {
 void device_entropy_wipe() {
     secure_zero(pool, sizeof(pool));
     secure_zero(chip_last, sizeof(chip_last));
-    secure_zero(cam_last, sizeof(cam_last));
+    if (cam_last) secure_zero(cam_last, DE_CAMERA_LEND);
+    cam_last = nullptr;
     secure_zero(motion_last, sizeof(motion_last));
     memset(motion_same, 0, sizeof(motion_same));
     memset(bits, 0, sizeof(bits));
@@ -116,8 +118,11 @@ bool device_entropy_chip(const uint8_t *b, size_t n) {
     return true;
 }
 
+void device_entropy_lend(uint8_t *buf) { cam_last = buf; }
+
 bool device_entropy_camera(const uint8_t *f, int w, int h) {
     if (!accept(DS_CAMERA)) return false;
+    if (!cam_last) { device_entropy_fail("Camera: no memory"); return false; }
     if (!f || w < CAM_GRID * 2 || h < CAM_GRID * 2) { device_entropy_fail("Camera: no picture"); return false; }
     absorb(DS_CAMERA, f, size_t(w) * h);
     // Noise moves each pixel a little, up or down at random, from one frame to

@@ -16,6 +16,7 @@
 #include "page_reader.h"
 #include "psbt_review.h"
 #include "seed_create.h"
+#include "entropy_check.h"
 #include "qrscan.h"
 #include "seedqr.h"
 #include "theme.h"
@@ -1534,6 +1535,9 @@ static void build_entropy_device() {
         dev_cam_dsc.header.stride = DEV_CAM_W;
         dev_cam_dsc.data_size = DEV_CAM_W * DEV_CAM_H;
         dev_cam_dsc.data = preview_buf;
+        // The rest of preview_buf, past the view, is the camera step's working memory.
+        static_assert(DEV_CAM_W * DEV_CAM_H + DE_CAMERA_LEND <= sizeof(preview_buf), "the camera step's loan doesn't fit");
+        device_entropy_lend(preview_buf + DEV_CAM_W * DEV_CAM_H);
         dev_cam = lv_image_create(scr);
         lv_image_set_src(dev_cam, &dev_cam_dsc);
         lv_obj_align(dev_cam, LV_ALIGN_BOTTOM_MID, 0, -M);
@@ -1589,6 +1593,15 @@ void ui_entropy_input(char c) {
     entropy_in[entropy_n++] = c;
     if (entropy_n < entropy_needed()) { entropy_refresh(); return; }
     entropy_in[entropy_n] = 0;
+    // Advisory only, and only once everything is in: the seed is derived from
+    // exactly what was typed either way. The last word's few flips are too few to judge.
+    if (!final_flips && entropy_check(entropy_in, entropy_n, entropy_dice)) { ui_goto(UI_ENTROPY_SUSPECT); return; }
+    ui_entropy_accept();
+}
+
+void ui_entropy_accept() {
+    UiScreen s = ui_current();
+    if ((s != UI_ENTROPY_SUSPECT && s != UI_ENTROPY_DICE && s != UI_ENTROPY_COINS) || entropy_n != entropy_needed()) return;
     bool ok = final_flips   ? seed_final_word(word_idx, new_words, entropy_in, &pending)
               : entropy_dice ? seed_from_dice(entropy_in, entropy_n, new_words, &pending)
                              : seed_from_coins(entropy_in, entropy_n, new_words, &pending);
@@ -1597,6 +1610,35 @@ void ui_entropy_input(char c) {
     entropy_n = word_n = 0;
     final_flips = false;
     ui_goto(ok ? UI_BACKUP_WARNING : UI_NEW_SEED);
+}
+
+void ui_entropy_restart() {
+    if (ui_current() != UI_ENTROPY_SUSPECT) return;
+    secure_zero(entropy_in, sizeof(entropy_in));
+    entropy_n = 0;
+    ui_goto(entropy_dice ? UI_ENTROPY_DICE : UI_ENTROPY_COINS);
+}
+
+static void entropy_accept_cb(lv_event_t *) { ui_entropy_accept(); }
+static void entropy_restart_cb(lv_event_t *) { ui_entropy_restart(); }
+
+// Every roll is in and they look invented (entropy_check.h). Nothing is said
+// while typing, so nobody "fixes" their numbers along the way.
+static void build_entropy_suspect() {
+    lv_obj_t *scr = screen();
+    lv_obj_align(icon_badge(scr, ICON_WARNING, AMBER, AMBER_DIM, 56), LV_ALIGN_TOP_MID, 0, 20);
+    lv_obj_t *t = text(scr, entropy_dice ? "These rolls look made up" : "These flips look made up", &rethink_24, TEXT);
+    lv_obj_set_width(t, CW);
+    lv_label_set_long_mode(t, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(t, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 86);
+    lv_obj_align(para(scr, entropy_dice ? "Real dice rarely fall like this. Anyone who guesses your rolls can take your bitcoin."
+                                        : "Real coins rarely fall like this. Anyone who guesses your flips can take your bitcoin."),
+                 LV_ALIGN_TOP_MID, 0, 150);
+    lv_obj_align(quiet_link(scr, entropy_dice ? "I really rolled these" : "I really flipped these", entropy_accept_cb, nullptr),
+                 LV_ALIGN_BOTTOM_MID, 0, -M - 52);
+    place_bottom(btn_primary(scr, "Start over", entropy_restart_cb));
+    show(scr);
 }
 
 static void entropy_key_cb(lv_event_t *e) { ui_entropy_input((char)(intptr_t)lv_event_get_user_data(e)); }
@@ -2845,7 +2887,7 @@ static void build_backup_words() {
         snprintf(num, sizeof(num), "%d", w + 1);
         lv_obj_t *n = text(c, num, &inter_15, TEXT_3, LV_TEXT_ALIGN_RIGHT);
         lv_obj_set_width(n, 26);
-        lv_obj_align(n, LV_ALIGN_TOP_LEFT, 0, w * 44 + 8);
+        lv_obj_align(n, LV_ALIGN_TOP_LEFT, 0, w * 44 + 6);   // on the word's baseline
         bool last = w == new_words - 1;
         snprintf(txt_words[w], sizeof(txt_words[w]), "%s", seed_word(idx[w]));
         lv_obj_t *t = text(c, "", &mono_22, last && drawing ? ACCENT : TEXT, LV_TEXT_ALIGN_LEFT);
@@ -3182,6 +3224,28 @@ static void swipe_cb(lv_event_t *e) {
     }
 }
 
+// LVGL starts the fill inside the track's padding, which is there to keep the
+// knob in; drawn as is, its round ends sit 28 px in from the track's and at
+// the knob's centre. Widen it by the padding: track's edge to round the knob.
+static void swipe_draw_cb(lv_event_t *e) {
+    lv_draw_task_t *t = lv_event_get_draw_task(e);
+    if (!t) return;                               // an empty fill: the bar still sends the event
+    lv_draw_dsc_base_t *base = (lv_draw_dsc_base_t *)lv_draw_task_get_draw_dsc(t);
+    if (base->part != LV_PART_INDICATOR || lv_draw_task_get_type(t) != LV_DRAW_TASK_TYPE_FILL) return;
+    lv_draw_fill_dsc_t *f = lv_draw_task_get_fill_dsc(t);
+    lv_area_t a;
+    lv_draw_task_get_area(t, &a);                 // from inside the padding to the knob's centre
+    lv_obj_t *sl = lv_event_get_target_obj(e);
+    a.x1 -= lv_obj_get_style_pad_left(sl, LV_PART_MAIN);
+    a.x2 += lv_obj_get_style_pad_right(sl, LV_PART_MAIN);
+    lv_draw_rect_dsc_t r;
+    lv_draw_rect_dsc_init(&r);
+    r.bg_color = f->color;
+    r.radius = f->radius;
+    f->opa = LV_OPA_TRANSP;
+    lv_draw_rect(base->layer, &r, &a);
+}
+
 static void back_to_outputs_cb(lv_event_t *) {
     out_index = review.n_outputs - 1;
     ui_goto(UI_PSBT_OUTPUT);
@@ -3233,6 +3297,8 @@ static void build_psbt_sign() {
     lv_obj_set_style_text_color(sl, lv_color_white(), LV_PART_KNOB);
     lv_obj_add_event_cb(sl, swipe_cb, LV_EVENT_RELEASED, nullptr);
     lv_obj_add_event_cb(sl, swipe_cb, LV_EVENT_VALUE_CHANGED, nullptr);
+    lv_obj_add_flag(sl, LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);
+    lv_obj_add_event_cb(sl, swipe_draw_cb, LV_EVENT_DRAW_TASK_ADDED, nullptr);
     lv_obj_align(sl, LV_ALIGN_BOTTOM_MID, 0, -(M + 26));
     swipe_hint = text(sl, "Slide to sign", &inter_15, TEXT_2);
     lv_obj_align(swipe_hint, LV_ALIGN_CENTER, 14, 0);
@@ -3493,8 +3559,8 @@ static void build_multisig() {
 // ---------------------------------------------------------------- navigation
 // Making or entering a seed: only while none is loaded.
 static bool seed_entry_screen(UiScreen s) {
-    return s == UI_NEW_SEED || s == UI_ENTROPY_DICE || s == UI_ENTROPY_COINS || s == UI_ENTER_WORDS ||
-           s == UI_DEVICE_WARNING || s == UI_ENTROPY_DEVICE ||
+    return s == UI_NEW_SEED || s == UI_ENTROPY_DICE || s == UI_ENTROPY_COINS || s == UI_ENTROPY_SUSPECT ||
+           s == UI_ENTER_WORDS || s == UI_DEVICE_WARNING || s == UI_ENTROPY_DEVICE ||
            s == UI_PAGE_FOUND || s == UI_PAGE_READING || s == UI_PAGE_REVIEW || s == UI_PAGE_WORD;
 }
 // The card flow: for a new seed, or the loaded one.
@@ -3905,6 +3971,7 @@ void ui_goto(UiScreen s) {
         case UI_NEW_SEED: build_new_seed(); break;
         case UI_ENTROPY_DICE: build_entropy(true); break;
         case UI_ENTROPY_COINS: build_entropy(false); break;
+        case UI_ENTROPY_SUSPECT: build_entropy_suspect(); break;
         case UI_ENTER_WORDS: build_enter_words(); break;
         case UI_BACKUP_WARNING: build_backup_warning(); break;
         case UI_BACKUP_WORDS: build_backup_words(); break;

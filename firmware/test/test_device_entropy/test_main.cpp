@@ -16,6 +16,12 @@ static uint32_t next() {
 }
 
 static uint8_t chunk[DE_CHIP_CHUNK];
+static uint8_t lend[DE_CAMERA_LEND];
+// A session with the camera's working memory lent, as the UI does.
+static void start() {
+    device_entropy_start();
+    device_entropy_lend(lend);
+}
 static uint8_t frame[64 * 64];
 
 static void fill_chunk() { for (auto &b : chunk) b = uint8_t(next()); }
@@ -24,7 +30,7 @@ static void fill_motion(int16_t s[6]) { for (int i = 0; i < 6; i++) s[i] = int16
 
 // Runs every source to its minimum, as the UI would; returns the counts per source.
 static void run_all(int *frames, int *motions, int *touches) {
-    device_entropy_start();
+    start();
     while (device_entropy_bits(DS_CHIP) < device_entropy_needed(DS_CHIP)) { fill_chunk(); TEST_ASSERT_TRUE(device_entropy_chip(chunk, sizeof(chunk))); }
     device_entropy_next();
     *frames = 0;
@@ -70,7 +76,7 @@ void test_one_touch_changes_the_seed() {
     run_all(&f, &m, &t);
     TEST_ASSERT_TRUE(device_entropy_finish(&a));
     x = 1;
-    device_entropy_start();
+    start();
     while (device_entropy_bits(DS_CHIP) < device_entropy_needed(DS_CHIP)) { fill_chunk(); device_entropy_chip(chunk, sizeof(chunk)); }
     device_entropy_next();
     while (device_entropy_bits(DS_CAMERA) < device_entropy_needed(DS_CAMERA)) { fill_frame(); device_entropy_camera(frame, 64, 64); }
@@ -87,7 +93,7 @@ void test_one_touch_changes_the_seed() {
 
 void test_order_is_fixed() {
     x = 7;
-    device_entropy_start();
+    start();
     fill_frame();
     TEST_ASSERT_FALSE(device_entropy_camera(frame, 64, 64));   // camera before the chip
     TEST_ASSERT_NOT_NULL(device_entropy_error());
@@ -99,7 +105,7 @@ void test_order_is_fixed() {
 
 void test_unfinished_gives_nothing() {
     x = 3;
-    device_entropy_start();
+    start();
     while (device_entropy_bits(DS_CHIP) < device_entropy_needed(DS_CHIP)) { fill_chunk(); device_entropy_chip(chunk, sizeof(chunk)); }
     device_entropy_next();
     SeedEntropy e;
@@ -109,7 +115,7 @@ void test_unfinished_gives_nothing() {
 }
 
 static void expect_chip_fails(const uint8_t *c) {
-    device_entropy_start();
+    start();
     TEST_ASSERT_FALSE(device_entropy_chip(c, DE_CHIP_CHUNK));
     TEST_ASSERT_NOT_NULL(device_entropy_error());
     TEST_ASSERT_EQUAL(0, device_entropy_bits(DS_CHIP));
@@ -131,20 +137,20 @@ void test_chip_health() {
     // A counter (0..255) passes: health checks catch a dead or stuck source,
     // not one that only looks random. That is what the warning screen is for.
     for (size_t i = 0; i < sizeof(c); i++) c[i] = uint8_t(i);
-    device_entropy_start();
+    start();
     TEST_ASSERT_TRUE(device_entropy_chip(c, sizeof(c)));
     // The same good chunk twice is a stuck generator.
-    device_entropy_start();
+    start();
     TEST_ASSERT_TRUE(device_entropy_chip(chunk, sizeof(chunk)));
     TEST_ASSERT_FALSE(device_entropy_chip(chunk, sizeof(chunk)));
     TEST_ASSERT_EQUAL(64, device_entropy_bits(DS_CHIP));
     // Wrong size.
-    device_entropy_start();
+    start();
     TEST_ASSERT_FALSE(device_entropy_chip(chunk, 128));
 }
 
 static void chip_done() {
-    device_entropy_start();
+    start();
     while (device_entropy_bits(DS_CHIP) < device_entropy_needed(DS_CHIP)) { fill_chunk(); TEST_ASSERT_TRUE(device_entropy_chip(chunk, sizeof(chunk))); }
     device_entropy_next();
 }
@@ -250,7 +256,7 @@ void test_touch_needs_movement() {
 // seconds); only next() moves on, and only once the minimum is there.
 void test_next_waits_for_the_minimum() {
     x = 17;
-    device_entropy_start();
+    start();
     TEST_ASSERT_FALSE(device_entropy_next());
     for (int i = 0; i < 8; i++) { fill_chunk(); TEST_ASSERT_TRUE(device_entropy_chip(chunk, sizeof(chunk))); }
     TEST_ASSERT_EQUAL(512, device_entropy_bits(DS_CHIP));   // twice the minimum, still the chip
@@ -259,6 +265,21 @@ void test_next_waits_for_the_minimum() {
     TEST_ASSERT_EQUAL(DS_CAMERA, device_entropy_stage());
     fill_chunk();
     TEST_ASSERT_FALSE(device_entropy_chip(chunk, sizeof(chunk)));   // the chip's turn is over
+}
+
+void test_camera_needs_its_loan() {
+    x = 23;
+    device_entropy_start();   // nothing lent
+    while (device_entropy_bits(DS_CHIP) < device_entropy_needed(DS_CHIP)) { fill_chunk(); device_entropy_chip(chunk, sizeof(chunk)); }
+    device_entropy_next();
+    fill_frame();
+    TEST_ASSERT_FALSE(device_entropy_camera(frame, 64, 64));
+    TEST_ASSERT_NOT_NULL(device_entropy_error());
+    // A finished session wipes what it borrowed.
+    start();
+    memset(lend, 0xAA, sizeof(lend));
+    device_entropy_wipe();
+    for (uint8_t b : lend) TEST_ASSERT_EQUAL(0, b);
 }
 
 void test_fail_wipes() {
@@ -284,6 +305,7 @@ int main() {
     RUN_TEST(test_motion_needs_movement);
     RUN_TEST(test_touch_needs_movement);
     RUN_TEST(test_next_waits_for_the_minimum);
+    RUN_TEST(test_camera_needs_its_loan);
     RUN_TEST(test_fail_wipes);
     return UNITY_END();
 }

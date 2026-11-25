@@ -49,6 +49,11 @@ void device_entropy_wipe();
 // Chip: exactly DE_CHIP_CHUNK bytes per call.
 #define DE_CHIP_CHUNK 256
 bool device_entropy_chip(const uint8_t *b, size_t n);
+// The camera step's working memory, DE_CAMERA_LEND bytes of the caller's idle
+// RAM (the board has no static room for it), lent after device_entropy_start
+// and wiped and given back with the session.
+#define DE_CAMERA_LEND 1024
+void device_entropy_lend(uint8_t *buf);
 // Camera: one grayscale frame. Credit only for noise: each sampled pixel's
 // change less the frame's mean change, small, about as often up as down; none
 // for the first frames while exposure settles.
