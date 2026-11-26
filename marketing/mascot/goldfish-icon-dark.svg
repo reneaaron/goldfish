@@ -1,7 +1,7 @@
 <!-- Goldfish mark: a fish of QR modules on a 9x5 grid, the eye a QR finder (ring, gap, centre). Source of truth; don't redraw. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="512" height="512">
   <rect width="128" height="128" rx="30" fill="#14222B"/>
-  <g transform="translate(19 39.5)">
+  <g transform="translate(19.5 39.5)">
   <rect x="20" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
   <rect x="30" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>
   <rect x="40" y="0" width="9" height="9" rx="2" fill="#FF7A2F"/>

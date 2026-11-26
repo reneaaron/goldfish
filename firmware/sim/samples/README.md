@@ -6,4 +6,4 @@ handwritten_page.png is synthetic (handwriting/make_page.py, from EMNIST letters
 handwriting fonts): a made-up 24-word test seed, never real funds.
 handwritten_page_demo.png is the same kind of page with the 12 words of the height demise test seed
 (make_page.py --words 12 --seed 20 --pad 80 --mnemonic ...), a layout the firmware reads 12 of 12;
-the landing page offers it next to that seed's SeedQR and mainnet transaction. Never real funds.
+the landing page offers it with that seed's mainnet transaction, and the screenshots' scan clip shows it. Never real funds.

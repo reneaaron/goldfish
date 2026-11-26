@@ -3,7 +3,7 @@
 The wallet app for Goldfish setups, the part Sparrow or Nunchuk plays today:
 it holds the watch-only wallet (descriptor, addresses, history), builds
 transactions as PSBTs, shows them to Goldfish as QR codes, reads the signed
-PSBT back from Goldfish's screen and broadcasts it. Draft brand name **Bowl**
+PSBT back from Goldfish's screen and broadcasts it. Draft brand name **Dove**
 (`marketing/companion/`).
 
 Status: a spike in Tauri 2, Linux desktop only: single-sig native segwit
@@ -16,8 +16,8 @@ the guides still use Sparrow.
   it gets the xpub or the multisig descriptor from Goldfish's screen.
 - Native segwit only, like the signer: single-sig P2WPKH and `wsh(sortedmulti)`.
 - The network comes from the descriptor's keys, never from a setting.
-- Code says `companion`, never `bowl`: package names, identifiers, paths, CI
-  jobs. "Bowl" appears only in user-facing copy and icons, so a rename touches
+- Code says `companion`, never `dove`: package names, identifiers, paths, CI
+  jobs. "Dove" appears only in user-facing copy and icons, so a rename touches
   only those.
 
 ## What it does
@@ -44,8 +44,9 @@ the guides still use Sparrow.
 - Fees: Fast / Normal / Slow suggestions from the server (next block, ~1 hour,
   ~1 day), fractional sat/vB, and Speed up (RBF) on a pending send, which
   Goldfish signs like any other transaction.
-- Look: Bowl's mark, wordmark and app icon; its blue (the case blue) where
-  Goldfish's screen uses orange, which in Bowl is only the fish's eye; and
+- Look: still the earlier draft brand, Bowl (mark, wordmark and app icon;
+  switching the app to Dove is open); its blue (the case blue) where
+  Goldfish's screen uses orange, which is otherwise only in the mark's eye; and
   Goldfish's own tokens and fonts otherwise.
 
 ## Layout
@@ -64,7 +65,7 @@ the guides still use Sparrow.
 - Test vectors: read `firmware/test/fixtures/` and `firmware/sim/samples/`
   rather than copying them.
 - Marks come from `marketing/companion/`: `ui/bowl.svg` is a copy of
-  `bowl-mark.svg`, and `src-tauri/icons/icon.png` is `bowl-icon.svg` drawn at
+  `options/bowl-mark.svg`, and `src-tauri/icons/icon.png` is `options/bowl-icon.svg` drawn at
   256 px.
 
 ## Run

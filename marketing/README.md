@@ -19,19 +19,24 @@ The eye must contrast with both the body and the ground. Type: Rethink Sans
 for headings, Inter for device text, JetBrains Mono for numbers. The wordmark
 is lowercase (`goldfish`, as in the site header and on the device).
 
-### Companion app: Bowl (draft)
+### Companion app: Dove (draft)
 
-**Bowl** is the draft name for the watch-only companion app. Its mark is a
-fishbowl of the same QR modules on a 9 × 9 grid, in the case blue `#0A7ED0`,
-with the Goldfish eye in fish orange as the fish. The SVGs in `companion/` are the
-source of truth; `companion/index.html` is the brand sheet (rules, lockups, tagline):
+**Dove** is the draft name for the watch-only companion app: like a carrier
+pigeon, it carries the transaction to Goldfish and the signed one out, and never
+holds the keys. Its mark is a standing pigeon (the rock dove) of the same QR
+modules on a 9 × 9 grid, in the case blue `#0A7ED0`; the head is the Goldfish
+eye in ink, and the feet are the only orange. The SVGs in `companion/` are the
+source of truth; `companion/index.html` is the brand sheet (marks, icons, lockups, rules):
 
-- `bowl-mark.svg`: blue bowl, orange eye, for light grounds
-- `bowl-icon.svg` / `bowl-icon-dark.svg`: app tiles on blue and on ink
+- `dove-mark.svg` / `dove-mark-dark.svg`: for light and for dark grounds (on ink the
+  body is light blue `#4FA8EC`, as legible there as the fish orange)
+- `dove-icon.svg` / `dove-icon-dark.svg`: app tiles on blue and on ink, the mark at
+  scale 1 like `goldfish-icon.svg`, so both icons share one module size
 
-Next to the fish, use the same module size (the bowl is then about twice as
-tall). Orange appears in Bowl only as the eye. The name hasn't been checked for
-app-store, domain or trademark clashes.
+Next to the fish, use the same module size. Nothing in its beak or on its legs.
+The name hasn't been checked for app-store, domain or trademark clashes (Dove
+soap is the obvious one). Earlier options, including the Bowl draft, are in
+`companion/options/` (`options/index.html` compares them).
 
 ## Product renders
 
@@ -71,9 +76,9 @@ ONLY=a SAMPLES=64 PCT=50 blender -b -P marketing/renders/scenes.py
 | Scene | Shows |
 |---|---|
 | `out/10_desk.png` | On a desk with a USB-C cable, reviewing a transaction; a laptop behind shows the transaction QR |
-| `out/11_flatlay.png` | Flat lay on slate: wallet menu, paper SeedQR backup card, cable |
-| `out/12_backup_closeup.png` | Seed loaded, next to the SeedQR card it was scanned from |
-| `out/13_backup_copy.png` | Copying the seed onto the paper SeedQR card, part by part |
+| `out/11_flatlay.png` | Flat lay on slate: wallet menu, written word card, cable |
+| `out/12_backup_closeup.png` | Seed loaded, next to the word card it was scanned from |
+| `out/13_backup_copy.png` | Writing a new seed's words onto the word card |
 
 `renders/metal.py` renders the steel backup for the `/metal/` page
 (`out/15_metal_stack.png`): the device showing the words, nine stamped M8
@@ -90,14 +95,13 @@ blender -b -P marketing/renders/metal.py
 
 ### Turntable (landing hero)
 
-`renders/turntable.py` renders the device standing upright on the home screen,
-turned a full circle in 36 frames, once per case colour (orange, black, blue,
-white: `landing/brand.css`), on a transparent background; the version in the screen's corner is
-blanked, since the frames outlive the build. `turntable_pack.py` crops them all
+`renders/turntable.py` renders the device standing upright, unplugged with its
+screen off, turned a full circle in 36 frames, once per case colour (orange, black, blue,
+white: `landing/brand.css`), on a transparent background; the page shows the live
+firmware on the screen once it's plugged in. `turntable_pack.py` crops them all
 to one box and packs one WebP sheet per colour into `landing/img/turn/`, which
 the landing page's hero scrubs as you drag it. The raw frames
-(`out/turntable/`) aren't committed. Render again when the case or the home
-screen changes:
+(`out/turntable/`) aren't committed. Render again when the case changes:
 
 ```bash
 blender -b -P marketing/renders/turntable.py                     # ~10 min on the GPU
@@ -105,11 +109,13 @@ uv run --with pillow python marketing/renders/turntable_pack.py
 ```
 
 The laptop shows a generic wallet window (`renders/assets/laptop_screen.png`,
-drawn for these renders), not any real app's interface. The SeedQR card
-(`renders/assets/seedqr_card.png`, drawn by `make_seedqr_card.py`) is the real
-wallet card from `cards/`, filled in with a scannable Compact SeedQR of
-SeedSigner's public 12-word test vector, the same seed the
-screens show (fingerprint `0948 d268`). Shared device code lives in
+drawn for these renders), not any real app's interface. The word cards
+(`renders/assets/word_card*.png`, drawn by `make_word_card.py` in one of the
+handwriting fonts `firmware/handwriting` trains on) are the real wallet word
+card from `cards/`: `word_card.png` holds SeedSigner's public height demise
+test seed, the seed the screens show after the scan clip (fingerprint
+`8b21 8e81`); `word_card_partial.png` has the first four words of the New seed
+screen's seed, half written down. Shared device code lives in
 `renders/device.py`.
 
 The blue is sampled from a printed case; the other colours are plausible PLA
