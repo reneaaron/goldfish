@@ -71,9 +71,9 @@ ONLY=a SAMPLES=64 PCT=50 blender -b -P marketing/renders/scenes.py
 | Scene | Shows |
 |---|---|
 | `out/10_desk.png` | On a desk with a USB-C cable, reviewing a transaction; a laptop behind shows the transaction QR |
-| `out/11_flatlay.png` | Flat lay on slate: wallet menu, paper SeedQR backup card, cable |
-| `out/12_backup_closeup.png` | Seed loaded, next to the SeedQR card it was scanned from |
-| `out/13_backup_copy.png` | Copying the seed onto the paper SeedQR card, part by part |
+| `out/11_flatlay.png` | Flat lay on slate: wallet menu, written word card, cable |
+| `out/12_backup_closeup.png` | Seed loaded, next to the word card it was scanned from |
+| `out/13_backup_copy.png` | Writing a new seed's words onto the word card |
 
 `renders/metal.py` renders the steel backup for the `/metal/` page
 (`out/15_metal_stack.png`): the device showing the words, nine stamped M8
@@ -105,11 +105,13 @@ uv run --with pillow python marketing/renders/turntable_pack.py
 ```
 
 The laptop shows a generic wallet window (`renders/assets/laptop_screen.png`,
-drawn for these renders), not any real app's interface. The SeedQR card
-(`renders/assets/seedqr_card.png`, drawn by `make_seedqr_card.py`) is the real
-wallet card from `cards/`, filled in with a scannable Compact SeedQR of
-SeedSigner's public 12-word test vector, the same seed the
-screens show (fingerprint `0948 d268`). Shared device code lives in
+drawn for these renders), not any real app's interface. The word cards
+(`renders/assets/word_card*.png`, drawn by `make_word_card.py` in one of the
+handwriting fonts `firmware/handwriting` trains on) are the real wallet word
+card from `cards/`: `word_card.png` holds SeedSigner's public height demise
+test seed, the seed the screens show after the scan clip (fingerprint
+`8b21 8e81`); `word_card_partial.png` has the first four words of the New seed
+screen's seed, half written down. Shared device code lives in
 `renders/device.py`.
 
 The blue is sampled from a printed case; the other colours are plausible PLA

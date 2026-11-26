@@ -321,7 +321,7 @@ static lv_obj_t *scan_hints;   // what the wallet scanner takes, until a status
 static lv_obj_t *scan_stats;
 static uint32_t st_t0, st_frames, st_codes, st_ms, st_max;
 static lv_timer_t *scan_timer;
-// SCAN_SEED: a SeedQR, read as soon as it is seen, or written words, read once the camera holds still on them
+// SCAN_SEED: written words, read once the camera holds still on them, or a SeedQR, read as soon as it is seen
 enum ScanMode { SCAN_SEED, SCAN_WALLET, SCAN_CONFIRM };
 static ScanMode scan_mode;
 static AddressCheck check;
@@ -636,7 +636,7 @@ static void build_scan(ScanMode mode) {
     // line stays empty until there is something to report, except on Scan
     // seed: there it says how words are read (nothing to tap), until a status.
     // The wallet's scanner says what it takes instead, until a status.
-    static const char *prompts[] = {"QR code or written words", "", "Let's check it matches"};
+    static const char *prompts[] = {"Your written words", "", "Let's check it matches"};
     topbar(scr, titles[mode], scan_back_cb);
     preview_image(scr);
     st_t0 = lv_tick_get();
@@ -659,7 +659,7 @@ static void build_scan(ScanMode mode) {
 
     scan_msg = text(scr, prompts[mode], &inter_17_semi, TEXT, LV_TEXT_ALIGN_CENTER);
     lv_obj_align(scan_msg, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + (seed ? 18 : 14));
-    scan_sub = text(scr, seed ? "Hold still to read words" : "", &inter_13, TEXT_3, LV_TEXT_ALIGN_CENTER);
+    scan_sub = text(scr, seed ? "Hold still to read them" : "", &inter_13, TEXT_3, LV_TEXT_ALIGN_CENTER);
     // one line each, kept off the screen edge: status texts are written to fit, this only catches a slip
     lv_obj_t *lines[] = {scan_msg, scan_sub};
     for (lv_obj_t *l : lines) {
@@ -1100,7 +1100,7 @@ static void build_update() {
 // ---------------------------------------------------------------- new seed, restore, backup
 // New seed is a tool: entropy only ever comes from the user (dice, coins, or
 // words drawn by hand with coin flips for the last word, see seed_create.h),
-// then the user writes down the words and optionally copies a QR card. The
+// then the user writes down the words. The
 // new seed is never loaded: the user loads it like any other, by Scan seed or
 // Enter words. Enter words loads straight away. "Back up as QR" runs the card
 // flow for the loaded seed.
@@ -1119,7 +1119,6 @@ static int block_i;
 static bool backup_existing;             // backing up the loaded seed, not a new one
 static bool drawing;                     // Draw words: n-1 words by hand, then coins for the last
 static bool final_flips;                 // the coin screen is collecting the last word's bits
-static bool card_checked;                // Seed ready follows a checked card
 static bool child_seed;                  // pending is a BIP-85 child of the loaded seed
 static UiScreen backup_cancel = UI_NEW_SEED;   // where Cancel/Discard on the warning goes
 static bool child_failed;                // the last Continue couldn't derive a child
@@ -1222,7 +1221,7 @@ static void new_seed_wipe() {
     secure_zero(txt_sugg, sizeof(txt_sugg));
     secure_zero(txt_tail, sizeof(txt_tail));
     entropy_n = word_n = qr_n = block_i = 0;
-    backup_existing = drawing = final_flips = card_checked = child_seed = false;
+    backup_existing = drawing = final_flips = child_seed = false;
     backup_cancel = UI_NEW_SEED;
 }
 
@@ -1250,8 +1249,8 @@ void ui_backup_loaded() {
     ui_goto(UI_BACKUP_WARNING);
 }
 static void backup_existing_cb(lv_event_t *) { ui_backup_loaded(); }
-// Leaving the card flow: back to the wallet, or for a new seed, to Seed ready.
-static void backup_exit_cb(lv_event_t *) { ui_goto(backup_existing ? UI_WALLET_OPTIONS : UI_SEED_READY); }
+// Leaving the card flow: back to the wallet's options.
+static void backup_exit_cb(lv_event_t *) { ui_goto(UI_WALLET_OPTIONS); }
 
 static void build_new_seed() {
     lv_obj_t *scr = screen();
@@ -2476,8 +2475,7 @@ static void build_backup_qr() {
     if (!backup_make_qr()) {
         lv_obj_align(icon_badge(scr, ICON_WARNING, RED, RED_DIM, 64), LV_ALIGN_TOP_MID, 0, 44);
         lv_obj_align(text(scr, "No QR code", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 126);
-        lv_obj_align(para(scr, backup_existing ? "The QR code couldn't be made. Nothing was backed up."
-                                               : "The QR code couldn't be made. Your written words are the backup."),
+        lv_obj_align(para(scr, "The QR code couldn't be made. Nothing was backed up."),
                      LV_ALIGN_TOP_MID, 0, 162);
         place_bottom(btn_primary(scr, "Continue", backup_exit_cb));
         show(scr);
@@ -2585,9 +2583,8 @@ static void build_backup_block() {
 // scrolled to its end, so no word is skipped.
 static lv_obj_t *words_done_btn;
 
-static void words_done_cb(lv_event_t *) { ui_goto(UI_BACKUP_CHOICE); }
+static void words_done_cb(lv_event_t *) { ui_goto(UI_SEED_READY); }
 static void backup_words_back_cb(lv_event_t *) { ui_goto(UI_BACKUP_WARNING); }
-static void to_words_cb(lv_event_t *) { ui_goto(UI_BACKUP_WORDS); }
 
 static void words_scroll_cb(lv_event_t *e) {
     if (lv_obj_get_scroll_bottom((lv_obj_t *)lv_event_get_target(e)) <= 2)
@@ -2629,18 +2626,6 @@ static void build_backup_words() {
     show(scr);
 }
 
-static void build_backup_choice() {
-    lv_obj_t *scr = screen();
-    topbar(scr, "QR code", to_words_cb);
-    lv_obj_align(icon_badge(scr, ICON_QR, ACCENT, ACCENT_DIM, 64), LV_ALIGN_TOP_MID, 0, BAR + 8);
-    lv_obj_align(text(scr, "Back up as QR?", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 86);
-    lv_obj_align(para(scr, "Copy it square by square, then load the seed by scanning instead of typing.", &inter_13,
-                      TEXT_2),
-                 LV_ALIGN_TOP_MID, 0, BAR + 122);
-    bottom_pair(btn_ghost(scr, "Skip", go_cb, GO(UI_SEED_READY), TEXT), btn_primary(scr, "Make card", go_cb, GO(UI_BACKUP_QR)));
-    show(scr);
-}
-
 // ---------------------------------------------------------------- seed ready
 // The end of New seed. The seed isn't loaded: Done wipes it from the device.
 // The fingerprint takes seconds on the board (PBKDF2), so the screen shows
@@ -2659,8 +2644,8 @@ static void build_seed_ready() {
     lv_obj_t *scr = screen();
     lv_obj_align(icon_badge(scr, ICON_CHECK, GREEN, GREEN_DIM, 52), LV_ALIGN_TOP_MID, 0, 28);
     char title[32];
-    if (child_seed) snprintf(title, sizeof(title), "Child #%s %s", child_num, card_checked ? "checked" : "ready");
-    else snprintf(title, sizeof(title), card_checked ? "Card checked" : "Seed ready");
+    if (child_seed) snprintf(title, sizeof(title), "Child #%s ready", child_num);
+    else snprintf(title, sizeof(title), "Seed ready");
     lv_obj_align(text(scr, title, &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 92);
     lv_obj_t *fp;
     lv_obj_align(fingerprint_pill(scr, "\xE2\x80\xA6", &fp), LV_ALIGN_TOP_MID, 0, 136);
@@ -2680,17 +2665,11 @@ static void handle_confirm_payload(QrPayload &p) {
     memset(&p, 0, sizeof(p));
     bool same = r == SEEDQR_OK && e.len == pending.len && memcmp(e.bytes, pending.bytes, e.len) == 0;
     seedqr_wipe(&e);
-    if (same && backup_existing) {
+    if (same) {
         scan_stop();
         new_seed_wipe();
         fresh_backup = true;
         ui_goto(UI_WALLET);
-        return;
-    }
-    if (same) {
-        scan_stop();
-        card_checked = true;
-        ui_goto(UI_SEED_READY);
         return;
     }
     if (r == SEEDQR_OK) scan_status("Wrong seed", "This card has another seed", RED);
@@ -2700,7 +2679,7 @@ static void handle_confirm_payload(QrPayload &p) {
 
 // ---------------------------------------------------------------- BIP-85 child seed
 // A child of the loaded seed (bip85.h), handed out like a new seed: the same
-// warning, words, optional QR card and Seed ready. Same seed and number, same child.
+// warning, words and Seed ready. Same seed and number, same child.
 // Always 12 words, like New seed.
 static void child_start_cb(lv_event_t *) {
     strcpy(child_num, "0");
@@ -3286,9 +3265,9 @@ static bool seed_entry_screen(UiScreen s) {
            s == UI_ENTER_WORDS ||
            s == UI_PAGE_FOUND || s == UI_PAGE_READING || s == UI_PAGE_REVIEW || s == UI_PAGE_WORD;
 }
-// The card flow: for a new seed, or the loaded one.
+// New seed's warning, words and Seed ready, and the QR card for the loaded seed.
 static bool backup_screen(UiScreen s) {
-    return s == UI_BACKUP_WARNING || s == UI_BACKUP_WORDS || s == UI_BACKUP_CHOICE || s == UI_BACKUP_QR ||
+    return s == UI_BACKUP_WARNING || s == UI_BACKUP_WORDS || s == UI_BACKUP_QR ||
            s == UI_BACKUP_BLOCK || s == UI_BACKUP_SCAN || s == UI_SEED_READY;
 }
 
@@ -3697,7 +3676,6 @@ void ui_goto(UiScreen s) {
         case UI_ENTER_WORDS: build_enter_words(); break;
         case UI_BACKUP_WARNING: build_backup_warning(); break;
         case UI_BACKUP_WORDS: build_backup_words(); break;
-        case UI_BACKUP_CHOICE: build_backup_choice(); break;
         case UI_SEED_READY: build_seed_ready(); break;
         case UI_BACKUP_QR: build_backup_qr(); break;
         case UI_BACKUP_BLOCK: build_backup_block(); break;

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Goldfish: sign and forget</title>
-<meta name="description" content="Goldfish is a Bitcoin signer you build from an off-the-shelf board and a printed case. Load your seed from a QR code, sign, unplug. Nothing is saved.">
+<meta name="description" content="Goldfish is a Bitcoin signer you build from an off-the-shelf board and a printed case. Load your seed from your written words, sign, unplug. Nothing is saved.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Crect x='8' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='11' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='20' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='26' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='2' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='20' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='23' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='20' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='26' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='8' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='11' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='5' y='11' width='9' height='9' fill='%2314222B'/%3E%3Crect x='6' y='12' width='7' height='7' fill='%23FFFFFF'/%3E%3Crect x='8' y='14' width='3' height='3' fill='%2314222B'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -399,7 +399,6 @@
           <li><span class="n">1</span><div><h3>Load a seed</h3><p>Tap Scan, then show it</p></div>
             <div class="pics">
               <button type="button" aria-pressed="false" data-src="sim/samples/handwritten_page_demo.png">Paper backup</button>
-              <button type="button" aria-pressed="false" data-src="sim/samples/testseed_height_demise_standard_12word.png">SeedQR</button>
             </div></li>
           <li><span class="n">2</span><div><h3>Sign a transaction</h3><p>Tap Scan QR, check it, slide to sign</p></div>
             <div class="pics">
@@ -437,7 +436,7 @@
       <p class="lede">Everything goes in through the camera and out through the screen. Tap through it.</p>
       <div class="demo">
         <ol class="steps" id="steps">
-          <li><button data-shot="2_scan.webp"><strong>Scan your seed</strong><span>Hold your SeedQR up to the camera. Or type your words.</span></button></li>
+          <li><button data-shot="2_scan.webp"><strong>Scan your seed</strong><span>Hold your written words up to the camera, then check them. Or type them in.</span></button></li>
           <li><button data-shot="3_seed_loaded.png"><strong>Match the fingerprint</strong><span>The device shows which seed it loaded, so you can check it against your wallet app.</span></button></li>
           <li><button data-shot="7_psbt_overview.png"><strong>Scan the transaction</strong><span>Your wallet app shows it as a QR. The device reads the amount, the fee and the change.</span></button></li>
           <li><button data-shot="8_psbt_output_1.png"><strong>Check every address</strong><span>One screen per recipient. Change only counts as change if your seed really owns it.</span></button></li>
@@ -505,10 +504,10 @@
 
   <section>
     <div class="wrap split">
-      <img class="photo" src="img/renders/13_backup_copy.png" alt="Render: a signer next to a paper card with a seed QR being filled in" loading="lazy">
+      <img class="photo" src="img/renders/13_backup_copy.png" alt="Render: a signer showing a new seed's words next to a paper card they are being written on" loading="lazy">
       <div>
         <h2>Back it up with a pen</h2>
-        <p class="lede">Write down the words, or copy the seed onto a paper QR card. The device shows the grid part by part, then scans your card to check you got every square right.</p>
+        <p class="lede">Write down the words. That paper is what you scan next time: the device reads your handwriting, and you check every word before it is used. Reading handwriting is still new, so a paper QR card works too.</p>
         <p class="tryit"><a href="cards/">Print blank cards for a 12-word seed →</a><br><a href="metal/">Or stamp it into steel washers →</a></p>
       </div>
     </div>
