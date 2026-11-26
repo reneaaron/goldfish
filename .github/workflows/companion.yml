@@ -1,0 +1,59 @@
+name: Companion
+
+# Its own workflow, so firmware-only PRs don't wait on a Rust and WebKit build.
+# It also runs when the firmware's app code or e2e harness changes, because
+# the companion's round trip drives the simulator.
+on:
+  push:
+    branches: [main]
+    paths: [companion/**, firmware/src/app/**, firmware/e2e/**, .github/workflows/companion.yml]
+  pull_request:
+    paths: [companion/**, firmware/src/app/**, firmware/e2e/**, .github/workflows/companion.yml]
+
+concurrency:
+  group: companion-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Companion tests and simulator round trip
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.platformio
+          key: pio-native-${{ hashFiles('firmware/platformio.ini') }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            companion/src-tauri/target
+          key: cargo-${{ hashFiles('companion/src-tauri/Cargo.lock') }}
+      - run: uv tool install platformio==6.1.19
+      # Tauri on Linux needs WebKitGTK; the camera's V4L2 bindings need libclang;
+      # the simulator links against X11.
+      - run: >-
+          sudo apt-get update && sudo apt-get install -y
+          libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev
+          librsvg2-dev libclang-dev libx11-dev
+      - name: Unit tests
+        working-directory: companion/src-tauri
+        run: cargo test --locked
+      - name: App builds
+        working-directory: companion/src-tauri
+        run: cargo build --locked
+      - name: Round trip with the simulator
+        working-directory: companion
+        run: uv run --with-requirements ../firmware/e2e/requirements.txt pytest e2e
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: companion-e2e-failures
+          path: firmware/e2e/failure_*.png
+          if-no-files-found: ignore
