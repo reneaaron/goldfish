@@ -51,7 +51,7 @@ def test_qr_held_still_does_not_read_words(dev):
     assert "That's a transaction" in dev.text()
 
 
-DEMO_PSBT = FIRMWARE / "sim" / "samples" / "demopsbt_blossom_base64.png"
+DEMO_PSBT = FIRMWARE / "sim" / "samples" / "mainpsbt_height_demise_base64.png"
 
 
 def sign_demo_transaction(dev):
@@ -65,7 +65,8 @@ def sign_demo_transaction(dev):
 
 def test_demo_page_signs_the_demo_transaction(dev):
     """The landing page's hero offers a paper backup, a SeedQR and a
-    transaction: both seed pictures hold the seed the transaction spends from."""
+    transaction: both seed pictures hold the seed the transaction spends from.
+    Few layouts of these words read 12 of 12 (handwriting/make_page.py)."""
     dev.tap("Scan")
     dev.show_page(FIRMWARE / "sim" / "samples" / "handwritten_page_demo.png")
     dev.wait_for(lambda: dev.screen == "PAGE_FOUND", ms=5000, what="the words to be found")
@@ -81,6 +82,6 @@ def test_demo_page_signs_the_demo_transaction(dev):
 
 def test_demo_seedqr_signs_the_demo_transaction(dev):
     dev.tap("Scan")
-    dev.show(Image.open(FIRMWARE / "sim" / "samples" / "demoseed_blossom_12word.png").convert("L"))
+    dev.show(Image.open(FIRMWARE / "sim" / "samples" / "testseed_height_demise_standard_12word.png").convert("L"))
     dev.wait_for(lambda: dev.screen == "WALLET", what="the seed to load")
     sign_demo_transaction(dev)

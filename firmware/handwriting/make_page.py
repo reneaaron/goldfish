@@ -6,9 +6,12 @@ the training strips (EMNIST capitals, handwriting fonts), but a fixed seed.
 Run from firmware/handwriting:
   uv run --with-requirements requirements.txt python make_page.py --emnist <byclass npz> --fonts <dir> \
       --out ../sim/samples/handwritten_page.png
-Prints the words. The browser simulator (try/ and the landing page) uses a 12-word page
-the firmware reads 12 of 12:
-  ... make_page.py --emnist ... --fonts ... --words 12 --seed 3 --pad 80 --out ../sim/samples/handwritten_page_demo.png
+Prints the words. The browser simulator (the landing page) uses a 12-word page of the
+"height demise" test seed, so it signs the same transaction as the SeedQR; the firmware
+reads this layout 12 of 12 (most don't: try other --seed values after a model change):
+  ... make_page.py --emnist ... --fonts ... --words 12 --seed 20 --pad 80 \
+      --mnemonic "height demise useless trap grow lion found off key clown transfer enroll" \
+      --out ../sim/samples/handwritten_page_demo.png
 """
 import argparse
 import glob
@@ -29,6 +32,7 @@ def main():
     ap.add_argument("--seed", type=int, default=11)
     ap.add_argument("--pad", type=int, default=0, help="table around the photo, in pixels")
     ap.add_argument("--words", type=int, default=24, choices=(12, 24))
+    ap.add_argument("--mnemonic", help="write these words instead of a random seed")
     args = ap.parse_args()
     rng = np.random.default_rng(args.seed)
     d = np.load(args.emnist)
@@ -42,6 +46,9 @@ def main():
     entropy = int(bits, 2).to_bytes(n * 4 // 3, "big")
     idx.append(int(bits[-(11 - cs):] + f"{hashlib.sha256(entropy).digest()[0] >> (8 - cs):0{cs}b}", 2))
     words = [bip39_words()[i] for i in idx]
+    if args.mnemonic:   # the random words are still drawn, so --seed gives the same layout
+        words = args.mnemonic.split()
+        assert len(words) == n and all(w in bip39_words() for w in words)
     rows = n // 2
     W, H, h = 1400, (1800 if n == 24 else 240 + rows * 66 + 160), 44
     ink = np.zeros((H, W), np.float32)
