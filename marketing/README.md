@@ -16,7 +16,22 @@ Case colours: orange (`#EE8B57` on the site, the fish orange `#FF7A2F` as it loo
 in the renders, which start from `#FF7A2F`), black `#303030`, blue `#0A7ED0`, white
 `#DAD7D0`, defined once in `landing/brand.css` for the site; the renders use the same four.
 The eye must contrast with both the body and the ground. Type: Rethink Sans
-for headings, Inter for device text, JetBrains Mono for numbers.
+for headings, Inter for device text, JetBrains Mono for numbers. The wordmark
+is lowercase (`goldfish`, as in the site header and on the device).
+
+### Companion app: Bowl (draft)
+
+**Bowl** is the draft name for the watch-only companion app. Its mark is a
+fishbowl of the same QR modules on a 9 × 9 grid, in the case blue `#0A7ED0`,
+with the Goldfish eye in fish orange as the fish. The SVGs in `companion/` are the
+source of truth; `companion/index.html` is the brand sheet (rules, lockups, tagline):
+
+- `bowl-mark.svg`: blue bowl, orange eye, for light grounds
+- `bowl-icon.svg` / `bowl-icon-dark.svg`: app tiles on blue and on ink
+
+Next to the fish, use the same module size (the bowl is then about twice as
+tall). Orange appears in Bowl only as the eye. The name hasn't been checked for
+app-store, domain or trademark clashes.
 
 ## Product renders
 

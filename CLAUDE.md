@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Goldfish ("Sign and forget."): a stateless, camera-based Bitcoin signer for the Waveshare RP2350-Touch-LCD-2 (240×320 touch screen, OV5640 camera, no radio). The seed lives in RAM only; all I/O is QR codes through the camera and the screen. Status: works in the desktop simulator; on one real board, QR scanning and a 2-of-3 multisig with Sparrow on signet (set up, signed, broadcast) work, and single-sig transactions have been signed with Sparrow, on mainnet too; not for real funds.
 
 - `firmware/`: PlatformIO project (the only code that builds and has tests)
+- `companion/`: the watch-only wallet app for Goldfish setups (replaces Sparrow, Nunchuk); draft brand name Bowl, marks in `marketing/companion/`. Only a skeleton so far, no stack chosen; `companion/README.md` has its rules and layout. Code says `companion`, never `bowl`, so a rename touches only copy and icons
 - `case/`: printed case in gcad (`.gcad` parts, `.gasm` assembly)
 - `hardware/`: parts list, board notes
 - `flasher/`: one static page that copies `firmware.uf2` onto the board's BOOT drive
