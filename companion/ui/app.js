@@ -354,8 +354,16 @@ $("w-receive").onclick = async () => {
   const r = await call("receive_address");
   show("receive");
   $("r-qr").innerHTML = r.qr; // SVG made by the qrcode crate from our own address
-  $("r-label").textContent = `Receive address #${r.index}`;
-  $("r-addr").textContent = groups(r.address);
+  $("r-label").textContent = `Address #${r.index}`;
+  // groups of four, every other one lighter, to compare against Goldfish's screen
+  $("r-addr").replaceChildren(
+    ...r.address.match(/.{1,4}/g).map((g, i) => {
+      const span = document.createElement("span");
+      span.textContent = g;
+      if (i % 2) span.className = "alt";
+      return span;
+    }),
+  );
   $("r-copy").dataset.text = r.address;
 };
 $("w-send").onclick = () => {
