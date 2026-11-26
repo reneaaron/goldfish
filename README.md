@@ -32,7 +32,7 @@ signed with Sparrow, on mainnet too. The code hasn't been reviewed or audited.
 
 | Folder | What's in it |
 |---|---|
-| [`firmware/`](firmware) | PlatformIO firmware (RP2350, LVGL, libwally-core), desktop simulator, tests |
+| [`firmware/`](firmware) | PlatformIO firmware (RP2350, LVGL, libwally-core), desktop and browser simulators, tests |
 | [`case/`](case) | Printed case in gcad: glass on top, press-fit, no screws, STL and STEP exports |
 | [`hardware/`](hardware) | Parts list and board notes |
 | [`cards/`](cards) | Blank SeedQR and word cards for 12-word seeds, to print (open `index.html`, works offline) |
