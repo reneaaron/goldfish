@@ -741,23 +741,23 @@ static void two_coins(bool previous_0, bool previous_1) {
     wally_tx_free(tx);
 }
 
-// Two amounts on the PSBT's word: a wallet app could give a different one
-// falsely in each of two signings of this payment and combine the valid
-// signatures into a transaction with a fee neither review showed. Refused.
-// With one of the two checked against its previous transaction, either one,
-// only one amount is left to trust, and that one its signature covers.
+// Two coins: a wallet app could ask twice for this payment, each time giving
+// one input's amount falsely and the other's previous transaction, and
+// combine the valid signature of each round into a transaction with a fee
+// neither review showed. So with more than one input, each needs its previous
+// transaction: none or only one of the two is refused, both signs.
 void test_two_inputs_without_previous_tx_rejected() {
     load_seed(SINGLESIG_MNEMONIC);
     PsbtReview r;
-    two_coins(false, false);
-    TEST_ASSERT_EQUAL(PSBT_NO_PREVIOUS_TX, psbt_load(raw, raw_len, &r));
-    TEST_ASSERT_EQUAL(0, psbt_sign());
     for (int with = 0; with < 3; with++) {
-        two_coins(with != 1, with != 0);
-        TEST_ASSERT_EQUAL(PSBT_OK, psbt_load(raw, raw_len, &r));
-        TEST_ASSERT_EQUAL_UINT64(1000, r.fee);
-        TEST_ASSERT_EQUAL(2, psbt_sign());
+        two_coins(with == 1, with == 2);
+        TEST_ASSERT_EQUAL(PSBT_NO_PREVIOUS_TX, psbt_load(raw, raw_len, &r));
+        TEST_ASSERT_EQUAL(0, psbt_sign());
     }
+    two_coins(true, true);
+    TEST_ASSERT_EQUAL(PSBT_OK, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL_UINT64(1000, r.fee);
+    TEST_ASSERT_EQUAL(2, psbt_sign());
 }
 
 // Our fingerprint, path and real pubkey on an input whose script pays someone

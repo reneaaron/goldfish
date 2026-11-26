@@ -227,13 +227,13 @@ and an output that claims our fingerprint but doesn't verify blocks signing.
 gives for our fingerprint (BIP84 paths for single-sig); a multisig input's
 witness script must also be the descriptor's.
 
-At most one input may come without its full previous transaction; the others'
-amounts are checked against theirs. A segwit signature covers only its own
-input's amount, so with two amounts on the wallet app's word alone, a
-different one could be given falsely in each of two signings of one payment,
-and the valid signatures combined into a transaction with a fee neither
-review showed. One such amount is safe: given falsely, its signature is
-invalid. Sparrow's QR leaves previous transactions out for segwit wallets
+With more than one input, every input must come with its full previous
+transaction, and its amount is checked against it. A segwit signature covers
+only its own input's amount, so otherwise a wallet app could ask twice for one
+payment, each time giving a different input's amount falsely, and combine the
+valid signature of each round into a transaction with a fee neither review
+showed. A lone input may come without: given falsely, its amount makes its
+only signature invalid. Sparrow's QR leaves previous transactions out for segwit wallets
 (up to 2.5.2 always; later versions send them to Krux and Jade keystores
 when there is more than one input), so with Sparrow a payment that spends
 one coin signs, and one that spends several is refused, saying to spend one
@@ -372,8 +372,8 @@ pio test -e test
   same keys, and change that pays another script
 - PSBT review: SeedSigner's single-sig testnet vector (₿25,000 in, ₿24,857 out,
   ₿143 fee), with the testnet transaction its coin comes from and without;
-  two coins refused without their previous transactions and signed with
-  either one's; signing, wrong seed and garbage input; inputs with fingerprint
+  two coins refused without one or both of their previous transactions and
+  signed with both; signing, wrong seed and garbage input; inputs with fingerprint
   `00000000` or no key path told apart from another seed's (single-sig and
   multisig); more than 16 outputs; inputs refused for an input
   script that isn't our key's, a second unverified key path with our

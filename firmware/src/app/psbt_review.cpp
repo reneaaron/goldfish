@@ -243,7 +243,6 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
     // Inputs: all ours, native segwit, with amounts, and all of one kind:
     // single-sig, or the loaded multisig wallet.
     bool multi = false;
-    int unchecked = 0;   // inputs whose amount rests on the PSBT alone
     r->n_inputs = int(psbt->num_inputs);
     if (r->n_inputs == 0) return r->error = PSBT_PARSE_FAILED;
     for (size_t i = 0; i < psbt->num_inputs; i++) {
@@ -270,14 +269,15 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
         if (wally_psbt_get_input_best_utxo(psbt, i, &utxo) != WALLY_OK || !utxo || utxo->satoshi == 0)
             return r->error = PSBT_MISSING_AMOUNTS;
         // A segwit v0 signature commits to its own input's amount only. With
-        // two amounts taken from the PSBT alone, a wallet app could give a
-        // different one falsely in each of two signings of one payment, and
-        // combine the valid signatures into a transaction whose fee is far
-        // above what either review showed. One such amount is safe: given
-        // falsely, its own signature is invalid. So at most one input may come
-        // without the transaction that made its coin (Sparrow's QR leaves
-        // them out); the others are checked against theirs.
-        if (!in.utxo && ++unchecked > 1) return r->error = PSBT_NO_PREVIOUS_TX;
+        // two inputs, a wallet app could ask twice for one payment, each time
+        // giving a different input's amount falsely (and the other's previous
+        // transaction, so it checks out), and combine the valid signature of
+        // each round into a transaction whose fee is far above what either
+        // review showed. So with more than one input, every one must come with
+        // the transaction that made its coin, to check its amount against. A
+        // lone input may come without (Sparrow's QR leaves them out): given
+        // falsely, its amount makes its only signature invalid.
+        if (!in.utxo && psbt->num_inputs > 1) return r->error = PSBT_NO_PREVIOUS_TX;
         if (in.utxo && !utxo_matches_prevout(i, utxo)) return r->error = PSBT_PARSE_FAILED;
         size_t type = 0;
         if (wally_scriptpubkey_get_type(utxo->script, utxo->script_len, &type) != WALLY_OK ||

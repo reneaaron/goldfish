@@ -178,11 +178,11 @@ def make_case(rng):
         p.inputs[i].witness_utxo = utxos[i]
         p.inputs[i].non_witness_utxo = prevs[i]
         r = rng.random()
-        if r < 0.15:         # the amount on the wallet app's word alone: one such input is fine
+        if r < 0.15:         # the amount on the wallet app's word alone: fine for a lone input only
             p.inputs[i].non_witness_utxo = None
             bare += 1
             c.tags.append("no-previous-tx")
-            if bare == 2: c.must_reject.append("more than one input without its previous transaction")
+            if bare == 1 and n_in > 1: c.must_reject.append("an input without its previous transaction among several")
         elif r < 0.18:       # an amount the previous transaction doesn't have
             p.inputs[i].witness_utxo = TransactionOutput(utxos[i].value + 1000, utxos[i].script_pubkey)
             c.tags.append("false-amount"); c.must_reject.append("witness UTXO disagrees with the previous transaction")
