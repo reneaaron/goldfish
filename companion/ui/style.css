@@ -38,13 +38,13 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 
 /* type */
 .display { font: 800 26px/1.15 var(--display); text-align: center; margin: 12px 0 6px; letter-spacing: -.01em; }
-.para { color: var(--text-2); text-align: center; margin: 0 8px 20px; }
+.para { color: var(--text-2); margin: 0 0 16px; }
 h2 { font: 600 17px/1 var(--sans); margin: 0; flex: 1; text-align: center; padding-right: 40px; }
 .label { font: 500 13px/1 var(--sans); color: var(--text-3); text-transform: uppercase; letter-spacing: .08em; margin-top: 20px; display: flex; gap: 8px; align-items: center; }
 .big { font: 500 34px/1.2 var(--mono); margin-top: 6px; letter-spacing: -.02em; }
 .sub { color: var(--text-3); font: 500 13px/1.4 var(--mono); }
 .mono { font-family: var(--mono); }
-.hint { color: var(--text-3); font-size: 13px; text-align: center; margin-top: 12px; }
+.hint { color: var(--text-3); font-size: 13px; margin-top: 12px; }
 .center { text-align: center; justify-content: center; }
 .accent-title { color: var(--accent); font-weight: 600; font-size: 17px; text-align: center; margin-top: 12px; }
 .caption { color: var(--text-2); text-align: center; margin: 8px 0 12px; font-size: 14px; }
@@ -184,3 +184,40 @@ button.copy { margin-top: 16px; }
 .alt { display: flex; justify-content: center; align-items: center; gap: 6px; color: var(--text-3); }
 .panel { margin-top: 0; }
 .steps li span { padding-top: 2px; }
+
+/* Every screen: header, content, and its main action pinned to the bottom,
+   so it stays in reach however long the content is. */
+main > section { display: flex; flex-direction: column; min-height: calc(100vh - 32px); }
+.fill { flex: 1; display: flex; flex-direction: column; }
+.actions { margin-top: auto; position: sticky; bottom: 0; z-index: 1; display: flex; flex-direction: column; gap: 10px; padding: 20px 0 8px; background: linear-gradient(to bottom, transparent, var(--bg) 18px); }
+.actions .ok { margin: 0; }
+/* status screens (Signed, Sent): centred, like Goldfish's own */
+.status-body { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.status .display, .status .para { text-align: center; }
+.status .badge { margin-top: 0; }
+.status .row { margin-top: 0; }
+/* the amount on Review stays centred, as on Goldfish's Review */
+.sending { text-align: center; }
+.sending .label { justify-content: center; margin-top: 8px; }
+.balance .label { margin-top: 24px; }
+.addr-card { padding: 14px 16px; margin-top: 12px; text-align: center; }
+.addr-card .accent-title { margin-top: 0; }
+.empty { padding: 18px 16px; display: flex; flex-direction: column; gap: 4px; }
+.empty span { color: var(--text-2); font-size: 14px; }
+.danger-zone { margin-top: 28px; }
+/* Connect Goldfish: the fish mark at the bowl's module size (brand sheet) */
+.connect { width: 100%; height: auto; margin-top: 16px; padding: 12px 14px; justify-content: flex-start; gap: 14px; text-align: left; font-weight: 500; background: var(--surface); border: 1px solid var(--border); }
+.connect img { width: 40px; flex: none; }
+.connect span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.connect b { font-weight: 600; }
+.connect small { color: var(--text-2); font-size: 13px; font-weight: 400; }
+.connect .chev { margin-left: auto; color: var(--text-3); font-size: 22px; }
+.banner.waiting { margin-top: 16px; }
+#v-sign .qr { max-width: 260px; }
+#v-sign .sending .big { font-size: 30px; }
+.qr { width: 100%; box-sizing: border-box; }
+/* a text action on the right of a header; the title stays centred */
+.bar .bar-action { width: 40px; padding: 0; font-size: 14px; }
+.bar:has(.bar-action) h2 { padding-right: 0; }
+.row button.copy { margin-top: 0; }
+#v-receive .qr { max-width: 240px; }

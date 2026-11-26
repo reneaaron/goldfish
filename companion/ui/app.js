@@ -352,7 +352,7 @@ $("set-form").onsubmit = async (ev) => {
   } catch (_) {
     // shown in the error line
   } finally {
-    button($("set-save"), "Save", false);
+    button($("set-save"), "Save server", false);
   }
 };
 $("set-forget").onclick = async () => {

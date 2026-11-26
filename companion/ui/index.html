@@ -83,38 +83,51 @@
           <button id="w-settings" class="icon" aria-label="Settings"><svg><use href="#i-settings"/></svg></button>
         </span>
       </div>
-      <p class="label">Balance <span id="net" class="chip" hidden></span></p>
-      <p class="big amount" id="bal">₿0</p>
-      <p class="sub" id="bal-btc"></p>
-      <p class="sub" id="bal-pending" hidden></p>
+      <div class="balance">
+        <p class="label">Balance <span id="net" class="chip" hidden></span></p>
+        <p class="big amount" id="bal">₿0</p>
+        <p class="sub" id="bal-btc"></p>
+        <p class="sub" id="bal-pending" hidden></p>
+      </div>
       <div class="row">
         <button id="w-receive" class="secondary"><svg><use href="#i-in"/></svg>Receive</button>
         <button id="w-send" class="primary"><svg><use href="#i-out"/></svg>Send</button>
       </div>
-      <button id="w-waiting" class="waiting" hidden><b>A signed transaction is waiting</b><span>Broadcast it</span></button>
-      <button id="w-show" class="link center-block" hidden><svg><use href="#i-qr"/></svg>Show this wallet to Goldfish</button>
+      <button id="w-waiting" class="banner waiting" hidden><b>A signed transaction is waiting</b><span>Broadcast it</span></button>
+      <button id="w-show" class="connect" hidden>
+        <img src="goldfish.svg" alt="">
+        <span><b>Connect Goldfish</b><small>Show it this wallet so it can sign. Again after each restart.</small></span>
+        <span class="chev" aria-hidden="true">›</span>
+      </button>
       <div class="list-head">
         <span>Activity</span>
         <button id="w-sync" class="link"><svg><use href="#i-sync"/></svg><span>Sync</span></button>
       </div>
       <ul id="txs" class="card list"></ul>
-      <p id="txs-empty" class="hint">Nothing yet.</p>
+      <div id="txs-empty" class="card empty">
+        <b>No transactions yet</b>
+        <span>Tap Receive for an address to send to.</span>
+      </div>
     </section>
 
     <!-- Receive -->
     <section id="v-receive" hidden>
       <header class="bar"><button class="back" aria-label="Back"><svg><use href="#i-back"/></svg></button><h2>Receive</h2></header>
       <div id="r-qr" class="qr"></div>
-      <p class="accent-title" id="r-label"></p>
-      <p class="mono addr" id="r-addr"></p>
-      <button id="r-copy" class="secondary wide copy"><svg><use href="#i-copy"/></svg><span>Copy address</span></button>
+      <div class="card addr-card">
+        <p class="accent-title" id="r-label"></p>
+        <p class="mono addr" id="r-addr"></p>
+      </div>
       <p class="hint">Check it's yours before you share it: on Goldfish, tap <b>Scan QR</b> and show it this code.</p>
+      <div class="actions">
+        <button id="r-copy" class="primary wide copy"><svg><use href="#i-copy"/></svg><span>Copy address</span></button>
+      </div>
     </section>
 
     <!-- Send -->
     <section id="v-send" hidden>
       <header class="bar"><button class="back" aria-label="Back"><svg><use href="#i-back"/></svg></button><h2>Send</h2></header>
-      <form id="s-form">
+      <form id="s-form" class="fill">
         <label class="field"><span>To</span><input id="s-to" required spellcheck="false" autocomplete="off" placeholder="bc1q… or tb1q…"></label>
         <label class="field"><span>Amount</span><div class="unit"><b>₿</b><input id="s-amount" type="number" min="1" required placeholder="sats"></div></label>
         <label class="field"><span>Fee rate</span><div class="unit"><input id="s-fee" type="number" min="0.1" step="0.1" value="2" required><i>sat/vB</i></div></label>
@@ -123,18 +136,23 @@
           <button type="button" data-rate="normal"><b>Normal</b><span></span></button>
           <button type="button" data-rate="slow"><b>Slow</b><span></span></button>
         </div>
-        <button class="primary wide">Review</button>
+        <div class="actions">
+          <button class="primary wide">Review</button>
+        </div>
       </form>
     </section>
 
     <!-- Multisig descriptor for Goldfish -->
     <section id="v-show" hidden>
-      <header class="bar"><button class="back" aria-label="Back"><svg><use href="#i-back"/></svg></button><h2>Wallet for Goldfish</h2></header>
+      <header class="bar"><button class="back" aria-label="Back"><svg><use href="#i-back"/></svg></button><h2>Connect Goldfish</h2></header>
       <p class="para">On Goldfish, tap <b>Scan QR</b> and show it this code. Check it says <b id="sh-kind"></b> with these fingerprints and first address, then tap <b>Use wallet</b>.</p>
       <div id="sh-qr" class="qr"></div>
       <p class="caption" id="sh-part" hidden></p>
       <dl class="card kv" id="sh-kv"></dl>
       <p class="hint">Goldfish forgets the wallet when it's unplugged. Show it again before signing after a restart.</p>
+      <div class="actions">
+        <button class="primary wide back">Done</button>
+      </div>
     </section>
 
     <!-- Speed up (RBF) -->
@@ -142,79 +160,93 @@
       <header class="bar"><button class="back" aria-label="Back"><svg><use href="#i-back"/></svg></button><h2>Speed up</h2></header>
       <p class="para">Sends the same payment again with a higher fee. It replaces the pending one, so only one of them can confirm.</p>
       <dl class="card kv"><dt>Transaction</dt><dd class="mono" id="b-txid"></dd><dt>Pays now</dt><dd class="mono" id="b-now"></dd></dl>
-      <form id="b-form">
+      <form id="b-form" class="fill">
         <label class="field"><span>New fee rate</span><div class="unit"><input id="b-fee" type="number" min="0.1" step="0.1" required><i>sat/vB</i></div></label>
         <div class="chips" id="b-rates" hidden>
           <button type="button" data-rate="fast"><b>Fast</b><span></span></button>
           <button type="button" data-rate="normal"><b>Normal</b><span></span></button>
           <button type="button" data-rate="slow"><b>Slow</b><span></span></button>
         </div>
-        <button class="primary wide">Review</button>
+        <div class="actions">
+          <button class="primary wide">Review</button>
+        </div>
       </form>
     </section>
 
     <!-- Settings -->
     <section id="v-settings" hidden>
       <header class="bar"><button class="back" aria-label="Back"><svg><use href="#i-back"/></svg></button><h2>Settings</h2></header>
-      <form id="set-form">
+      <form id="set-form" class="fill">
         <label class="field"><span>Server</span><input id="set-url" spellcheck="false" autocomplete="off" placeholder=""></label>
         <p class="field-hint">Your own node: an Electrum server as <code>ssl://host:50002</code> or <code>tcp://host:50001</code>, or an Esplora API as <code>https://…</code>. Empty uses a public server (Blockstream on mainnet, mempool.space on signet), which sees your addresses.</p>
         <label class="field"><span>Proxy</span><input id="set-proxy" spellcheck="false" autocomplete="off" placeholder="none"></label>
         <p class="field-hint">For Tor with an Electrum server: <code>socks5://127.0.0.1:9050</code>. Esplora takes an HTTP proxy, such as Tor's HTTPTunnelPort.</p>
-        <button id="set-save" class="primary wide"><span>Save</span></button>
-        <p class="ok" id="set-ok" hidden></p>
+        <div class="danger-zone">
+          <p class="label">This wallet</p>
+          <p class="hint">The watch-only key is saved on this computer so you don't have to link again. Goldfish keeps nothing.</p>
+          <button type="button" id="set-forget" class="secondary wide danger">Forget this wallet</button>
+        </div>
+        <div class="actions">
+          <p class="ok" id="set-ok" hidden></p>
+          <button id="set-save" class="primary wide"><span>Save server</span></button>
+        </div>
       </form>
-      <div class="danger-zone">
-        <p class="label">This wallet</p>
-        <p class="hint left">The watch-only key is saved on this computer so you don't have to link again. Goldfish keeps nothing.</p>
-        <button id="set-forget" class="secondary wide danger">Forget this wallet</button>
-      </div>
     </section>
 
     <!-- Sign on Goldfish -->
     <section id="v-sign" hidden>
-      <header class="bar"><button class="back" aria-label="Back"><svg><use href="#i-back"/></svg></button><h2>Review</h2></header>
+      <header class="bar"><button class="back" aria-label="Back"><svg><use href="#i-back"/></svg></button><h2>Review</h2><button id="sign-paste-toggle" class="link bar-action">Paste</button></header>
       <p class="sig-status" id="sign-sigs" hidden></p>
-      <p class="label center">You're sending</p>
-      <p class="big amount center" id="rv-amount"></p>
-      <p class="sub center" id="rv-btc"></p>
-      <dl id="review" class="card kv"></dl>
+      <div class="sending">
+        <p class="label">You're sending</p>
+        <p class="big amount" id="rv-amount"></p>
+        <p class="sub" id="rv-btc"></p>
+      </div>
       <div id="sign-show">
         <div id="sign-qr" class="qr"></div>
         <p class="caption"><span id="sign-who">Scan with Goldfish</span> · <span id="sign-part"></span></p>
       </div>
       <div class="cam" hidden><canvas width="320" height="240"></canvas></div>
       <button class="link center-block cam-cancel" hidden>Cancel</button>
-      <progress id="sign-progress" max="100" value="0" hidden></progress>
-      <button id="sign-scan" class="primary wide"><svg><use href="#i-camera"/></svg><span>Scan signed QR</span></button>
-      <button id="sign-paste-toggle" class="link center-block">Paste instead</button>
+      <dl id="review" class="card kv"></dl>
       <div id="sign-paste" class="paste" hidden>
         <textarea id="sign-text" rows="3" spellcheck="false" placeholder="ur:crypto-psbt/… or base64, one part per line"></textarea>
-        <button id="sign-use" class="primary">Use</button>
+        <button id="sign-use" class="secondary">Use</button>
+      </div>
+      <div class="actions">
+        <progress id="sign-progress" max="100" value="0" hidden></progress>
+        <button id="sign-scan" class="primary wide"><svg><use href="#i-camera"/></svg><span>Scan signed QR</span></button>
       </div>
     </section>
 
     <!-- Signed -->
-    <section id="v-ready" hidden>
-      <div class="badge green"><svg><use href="#i-check"/></svg></div>
-      <h1 class="display">Signed</h1>
-      <p class="para">Nothing is sent until you broadcast. <b>Later</b> keeps it here until you close the app.</p>
-      <dl class="card kv"><dt>Transaction</dt><dd class="mono" id="ready-txid"></dd></dl>
-      <div class="stack">
-        <button class="secondary back">Later</button>
-        <button id="ready-send" class="primary">Broadcast</button>
+    <section id="v-ready" class="status" hidden>
+      <div class="status-body">
+        <div class="badge green"><svg><use href="#i-check"/></svg></div>
+        <h1 class="display">Signed</h1>
+        <p class="para">Nothing is sent until you broadcast. <b>Later</b> keeps it here until you close the app.</p>
+        <dl class="card kv"><dt>Transaction</dt><dd class="mono" id="ready-txid"></dd></dl>
+      </div>
+      <div class="actions">
+        <button id="ready-send" class="primary wide">Broadcast</button>
+        <button class="link center-block back">Later</button>
       </div>
     </section>
+
     <!-- Sent -->
-    <section id="v-sent" hidden>
-      <div class="badge green"><svg><use href="#i-check"/></svg></div>
-      <h1 class="display">Sent</h1>
-      <p class="para">It's on its way, and confirms once a miner puts it in a block.</p>
-      <dl class="card kv"><dt>Transaction</dt><dd class="mono" id="sent-txid"></dd></dl>
-      <div class="stack">
-        <button id="sent-copy" class="secondary copy"><svg><use href="#i-copy"/></svg><span>Copy transaction ID</span></button>
-        <button id="sent-explorer" class="secondary"><svg><use href="#i-external"/></svg>View on mempool.space</button>
-        <button class="primary back">Done</button>
+    <section id="v-sent" class="status" hidden>
+      <div class="status-body">
+        <div class="badge green"><svg><use href="#i-check"/></svg></div>
+        <h1 class="display">Sent</h1>
+        <p class="para">It's on its way, and confirms once a miner puts it in a block.</p>
+        <dl class="card kv"><dt>Transaction</dt><dd class="mono" id="sent-txid"></dd></dl>
+        <div class="row">
+          <button id="sent-copy" class="secondary copy"><svg><use href="#i-copy"/></svg><span>Copy ID</span></button>
+          <button id="sent-explorer" class="secondary"><svg><use href="#i-external"/></svg>mempool.space</button>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="primary wide back">Done</button>
       </div>
     </section>
   </main>
