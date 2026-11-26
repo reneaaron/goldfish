@@ -38,7 +38,7 @@ the guides still use Sparrow.
   the signatures needed; Goldfish's multisig Connect wallet key (`Vpub`) is
   one of them. "Connect Goldfish" shows the descriptor for Goldfish's Scan
   QR (a text QR, or an animated `bytes` UR when long); Goldfish keeps it in
-  RAM only, so connect again each time it's plugged in. Each
+  RAM only, so it is connected again whenever it is plugged in. Each
   cosigner's signed PSBT is merged in, and the QR then carries the
   signatures so far for the next one; Broadcast once enough have signed.
 - Fees: Fast / Normal / Slow suggestions from the server (next block, ~1 hour,
