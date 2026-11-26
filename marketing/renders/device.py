@@ -105,6 +105,39 @@ CASE_SRC = bpy.context.selected_objects[0]
 CASE_SRC.scale = (0.1, 0.1, 0.1)
 bpy.ops.object.shade_auto_smooth(angle=math.radians(35))
 CASE_SRC.hide_render = True; CASE_SRC.hide_viewport = True
+# The Goldfish mark is cut one layer (0.2 mm) into the back. Printed back down,
+# its floor is the second layer, so it shows as a patch of lines running the
+# other way. Those faces get material slot 1 (see printed_lines). The first
+# layer squashes into the step on a real print, so the render shows it shallower.
+MARK_STEP = 0.08    # mm the mark sits below the back in the render
+while len(CASE_SRC.data.materials) < 2:
+    CASE_SRC.data.materials.append(None)
+_zmin = min(v.co.z for v in CASE_SRC.data.vertices)
+_floor = set()
+for _p in CASE_SRC.data.polygons:
+    _mark = _p.normal.z < -0.99 and 0.1 < _p.center.z - _zmin < 0.3
+    _p.material_index = 1 if _mark else 0
+    if _mark:
+        _floor.update(_p.vertices)
+for _i in _floor:
+    CASE_SRC.data.vertices[_i].co.z = _zmin + MARK_STEP
+
+
+def printed_lines(name, color):
+    """Case PLA with fine diagonal extrusion lines, 0.45 mm apart."""
+    m = mat(name, color, rough=0.62)
+    nt = m.node_tree
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    wave = nt.nodes.new("ShaderNodeTexWave")
+    wave.wave_type = 'BANDS'; wave.bands_direction = 'DIAGONAL'
+    wave.inputs["Scale"].default_value = 2 * math.pi / (10 * 0.45)   # mesh units are mm
+    bump = nt.nodes.new("ShaderNodeBump")
+    bump.inputs["Strength"].default_value = 0.2
+    bump.inputs["Distance"].default_value = 0.004
+    nt.links.new(tc.outputs["Object"], wave.inputs["Vector"])
+    nt.links.new(wave.outputs["Fac"], bump.inputs["Height"])
+    nt.links.new(bump.outputs["Normal"], nt.nodes["Principled BSDF"].inputs["Normal"])
+    return m
 
 
 USB_FRONT, USB_Z = -2.54, -0.883     # front of the USB-C socket (cm), its centre height
@@ -140,6 +173,8 @@ def device(name, body_color, screen, loc, rot):
         shell.data.materials.append(None)
     shell.material_slots[0].link = 'OBJECT'
     shell.material_slots[0].material = mat(name + "_pla", body_color, rough=0.62)
+    shell.material_slots[1].link = 'OBJECT'
+    shell.material_slots[1].material = printed_lines(name + "_mark", body_color)
     rounded_box(name + "_inner", 3.3, 4.4, 1.35, 0.2, 0.0, m_dark, root, (0, 0.5, -0.80))
     rounded_box(name + "_glass", GW, GH, GT, GR, 0.005, m_glass, root, (0, 0, -GT / 2), top_edge=GE)
     bpy.ops.mesh.primitive_plane_add(size=1, location=(0, SCY, 0.001))

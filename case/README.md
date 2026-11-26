@@ -28,6 +28,10 @@ gcad export parts/case.gcad exports/case.stl
 Flat on its back, no supports. PLA works. The long walls beside the LCD/PCB pocket are only 0.75 mm thick.
 How hard the standoffs grip depends on the print; tune `rw` after a test fit.
 
+The Goldfish mark is cut 0.2 mm (`md`, one layer) into the back, above the camera.
+Printed back down, its floor is the second layer, so it shows as a patch of print
+lines running the other way, not as an engraving. Keep `md` at your layer height.
+
 ## Where the dimensions come from
 
 From Waveshare's [outline drawing](https://www.waveshare.com/img/devkit/RP2350-Touch-LCD-2/RP2350-Touch-LCD-2-details-size.jpg):
