@@ -231,3 +231,26 @@ main > section { display: flex; flex-direction: column; min-height: calc(100vh -
 .bar:has(.bar-action) h2 { padding-right: 0; }
 .row button.copy { margin-top: 0; }
 #v-receive .qr { max-width: 240px; }
+
+/* Wide windows (desktop): the wallet in two columns, every other screen as a
+   centred panel, instead of a phone-width strip in a sea of grey. */
+@media (min-width: 900px) {
+  main { max-width: 1080px; padding: 28px 40px; }
+  .wallet-grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 48px; align-items: start; }
+  .wallet-side { position: sticky; top: 28px; }
+  .wallet-main .list-head { margin-top: 24px; }
+  #v-wallet .top { padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .list li { padding: 14px 4px; }
+  .empty { padding: 56px 24px 48px; }
+
+  main > section:not(#v-wallet) {
+    max-width: 480px; width: 100%; margin: 12px auto; min-height: min(720px, calc(100vh - 80px));
+    background: var(--surface); border: 1px solid var(--border); border-radius: 24px;
+    padding: 12px 28px 20px; box-shadow: 0 12px 40px rgba(20, 34, 43, .06);
+  }
+  main > section:not(#v-wallet) .actions { background: linear-gradient(to bottom, transparent, var(--surface) 18px); }
+  /* white on white: the inner cards and fields take the page grey instead */
+  main > section:not(#v-wallet) :is(.card, .qr, .steps, .panel, input, textarea, .unit, .chips button) { background: var(--bg); }
+  main > section:not(#v-wallet) .unit input { background: none; }
+  main > section:not(#v-wallet) .qr { background: #fff; }
+}

@@ -59,6 +59,14 @@ const btc = (sat) => "₿" + Math.abs(sat).toLocaleString("en-US");
 const inBtc = (sat) => (sat / 1e8).toFixed(8) + " BTC";
 const fingerprint = (fp) => fp.slice(0, 4) + " " + fp.slice(4);
 const groups = (a) => a.match(/.{1,4}/g).join(" ");
+// "14:02" today, "26 Nov" this year, "26 Nov 2025" before
+function when(t) {
+  if (!t) return "";
+  const d = new Date(t * 1000);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: d.getFullYear() === now.getFullYear() ? undefined : "numeric" });
+}
 const shortId = (id) => id.slice(0, 8) + "…" + id.slice(-4);
 
 function button(el, label, busy) {
@@ -150,8 +158,11 @@ function renderOverview(o) {
         li.querySelector(".amt").classList.add("in");
       }
       li.querySelector(".what span").textContent = (incoming ? "Received" : "Sent") + (t.confirmed ? "" : " · pending");
-      li.querySelector(".what small").textContent =
-        shortId(t.txid) + (!incoming && t.fee_rate ? ` · ${t.fee_rate.toFixed(1)} sat/vB` : "");
+      li.querySelector(".what small").textContent = [
+        shortId(t.txid),
+        when(t.time),
+        !incoming && t.fee_rate ? `${t.fee_rate.toFixed(1)} sat/vB` : "",
+      ].filter(Boolean).join(" · ");
       li.querySelector(".amt").textContent = (incoming ? "+" : "−") + btc(t.net_sat);
       return li;
     }),

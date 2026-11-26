@@ -84,6 +84,8 @@
           <button id="w-settings" class="icon" aria-label="Settings"><svg><use href="#i-settings"/></svg></button>
         </span>
       </div>
+      <div class="wallet-grid">
+      <div class="wallet-side">
       <div class="balance">
         <p class="label">Balance <span id="net" class="chip" hidden></span></p>
         <p class="big amount" id="bal">₿0</p>
@@ -100,12 +102,16 @@
         <span><b>Connect Goldfish</b><small>So it can sign for this wallet</small></span>
         <span class="chev" aria-hidden="true">›</span>
       </button>
+      </div>
+      <div class="wallet-main">
       <div class="list-head">
         <span>Activity</span>
         <button id="w-sync" class="link"><svg><use href="#i-sync"/></svg><span>Refresh</span></button>
       </div>
       <ul id="txs" class="card list"></ul>
       <div id="txs-empty" class="card empty" aria-live="polite"></div>
+      </div>
+      </div>
     </section>
 
     <!-- Receive -->

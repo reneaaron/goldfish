@@ -371,6 +371,8 @@ pub struct TxRow {
     pub fee_rate: Option<f64>,
     /// unconfirmed and sent from this wallet: its fee can be raised (RBF)
     pub can_bump: bool,
+    /// unix seconds: when its block was mined, or when it was first seen
+    pub time: Option<u64>,
 }
 
 #[derive(Serialize, Clone)]
@@ -392,16 +394,22 @@ pub fn overview(account: &Account, wallet: &Wallet) -> Overview {
         .map(|t| {
             let (sent, received) = wallet.sent_and_received(&t.tx_node.tx);
             let confirmed = t.chain_position.is_confirmed();
+            let time = match &t.chain_position {
+                bdk_wallet::chain::ChainPosition::Confirmed { anchor, .. } => Some(anchor.confirmation_time),
+                bdk_wallet::chain::ChainPosition::Unconfirmed { first_seen, last_seen } => first_seen.or(*last_seen),
+            };
             TxRow {
                 txid: t.tx_node.txid.to_string(),
                 net_sat: received.to_sat() as i64 - sent.to_sat() as i64,
                 confirmed,
                 fee_rate: wallet.calculate_fee_rate(&t.tx_node.tx).ok().map(sat_per_vb),
                 can_bump: !confirmed && sent.to_sat() > 0 && t.tx_node.tx.is_explicitly_rbf(),
+                time,
             }
         })
         .collect();
-    txs.sort_by_key(|t| t.confirmed);
+    // pending first, then newest first
+    txs.sort_by_key(|t| (t.confirmed, std::cmp::Reverse(t.time.unwrap_or(u64::MAX))));
     Overview {
         network: account.network.to_string(),
         kind: account.kind(),
