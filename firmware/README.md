@@ -209,9 +209,13 @@ or typed, e.g. to turn a words backup into a QR card.
 
 Child seed derives a [BIP-85](https://github.com/bitcoin/bips/blob/master/bip-0085.mediawiki)
 child of the loaded seed (BIP39, English, 12 words, child number 0 to
-2147483647) and hands it out like a new seed: warning, words, optional QR card
-and check, then its fingerprint. The same seed and number always give the same
-child; leaving the flow wipes it.
+2147483647) and shows its fingerprint. The same seed and number always give the
+same child, so signing with it needs no words written down: Use it loads the
+child in place of the seed, and Wallet shows a CHILD #n chip. The seed, its
+passphrase and its multisig wallet are gone from RAM until the seed is loaded
+again. Words hands the child to another wallet instead, like a new seed:
+warning, words, optional QR card and check, then its fingerprint, with Use it
+there too. Leaving the flow wipes the child.
 
 Amounts follow [BIP177](https://github.com/bitcoin/bips/blob/master/bip-0177.mediawiki)
 and [bitcoin.design](https://bitcoin.design/guide/designing-products/units-and-symbols/):

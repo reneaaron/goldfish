@@ -29,6 +29,10 @@ using namespace th;
 
 static UiScreen current = UI_HOME;
 static bool fresh_backup;                // Seed loaded screen follows a checked backup
+// The BIP-85 child loaded with Use it: its number and fingerprint, for the
+// Wallet chip. Shown only while that fingerprint is the loaded one.
+static char loaded_child[11];
+static uint8_t loaded_child_fp[4];
 
 static void show(lv_obj_t *scr) { lv_screen_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_IN, 120, 0, true); }
 static void go_cb(lv_event_t *e) { ui_goto((UiScreen)(intptr_t)lv_event_get_user_data(e)); }
@@ -711,12 +715,15 @@ static void build_wallet() {
     lv_obj_t *scr = screen();
     bool pass = wallet_has_passphrase();
     const MsInfo *ms = multisig_info();   // a multisig wallet is loaded for this seed
+    uint8_t wfp[4];
+    wallet_fingerprint(wfp);
+    bool child = loaded_child[0] && !memcmp(wfp, loaded_child_fp, 4);
     const char *note = fresh_backup ? (pass ? "Backup checked. The card has no passphrase."
                                             : "Backup checked. Write the fingerprint on your card.")
                                     : nullptr;
     fresh_backup = false;
     // Chips and a backup note together don't fit under the logo: drop it.
-    int y = (pass || ms) && note ? -44 : 0;
+    int y = (pass || ms || child) && note ? -44 : 0;
     if (!y) {
         lv_obj_t *logo = lv_image_create(scr);
         lv_image_set_src(logo, &goldfish_logo);
@@ -731,12 +738,17 @@ static void build_wallet() {
     // What the fingerprint stands for, when it isn't just the seed; otherwise
     // what happens to it.
     y += 160;
-    if (pass || ms) {
+    if (pass || ms || child) {
         lv_obj_t *row = lv_obj_create(scr);
         lv_obj_remove_style_all(row);
         lv_obj_set_size(row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
         lv_obj_set_style_pad_column(row, 6, 0);
+        if (child) {
+            char tag[24];
+            snprintf(tag, sizeof(tag), ICON_KEY " CHILD #%s", loaded_child);
+            chip(row, tag, ACCENT, ACCENT_DIM);
+        }
         if (pass) chip(row, ICON_SHIELD " PASSPHRASE", ACCENT, ACCENT_DIM);
         if (ms) {
             char tag[24];
@@ -1068,6 +1080,7 @@ static void wipe_cb(lv_event_t *) {
     psbt_clear();
     multisig_clear();
     wallet_wipe();
+    loaded_child[0] = 0;
     ui_goto(UI_HOME);
 }
 
@@ -2655,6 +2668,30 @@ static void ready_tick(lv_timer_t *t) {
     lv_label_set_text(l, spaced);
 }
 
+// "Use it" on Child (or on its Seed ready after Words): the child replaces the
+// loaded seed, like Forget seed and then loading the child by hand. The seed,
+// its passphrase and its multisig wallet are gone until the seed is loaded again.
+void ui_child_use() {
+    if ((ui_current() != UI_CHILD_READY && ui_current() != UI_SEED_READY) || !child_seed) return;
+    psbt_clear();
+    multisig_clear();
+    ms_confirmed = false;
+    bool ok = wallet_load(pending);
+    new_seed_wipe();
+    if (ok) {
+        snprintf(loaded_child, sizeof(loaded_child), "%s", child_num);
+        wallet_fingerprint(loaded_child_fp);
+    }
+    ui_goto(ok ? UI_WALLET : UI_HOME);
+}
+static void child_use_cb(lv_event_t *e) {
+    lv_label_set_text(lv_obj_get_child(lv_event_get_target_obj(e), 0), "Loading" "\xE2\x80\xA6");
+    lv_refr_now(nullptr);
+    ui_child_use();
+}
+
+static void go_cb_child_index(lv_event_t *) { ui_goto(UI_CHILD_INDEX); }
+
 static void build_seed_ready() {
     lv_obj_t *scr = screen();
     lv_obj_align(icon_badge(scr, ICON_CHECK, GREEN, GREEN_DIM, 52), LV_ALIGN_TOP_MID, 0, 28);
@@ -2668,7 +2705,29 @@ static void build_seed_ready() {
     if (child_seed) snprintf(note, sizeof(note), "Note #%s and this fingerprint with your main seed's backup.", child_num);
     else snprintf(note, sizeof(note), "Write this fingerprint on your backup. The seed is forgotten when you tap Done.");
     lv_obj_align(para(scr, note, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, 180);
-    place_bottom(btn_primary(scr, "Done", to_home_cb));
+    if (child_seed) bottom_pair(btn_ghost(scr, "Done", to_home_cb, nullptr, TEXT), btn_primary(scr, "Use it", child_use_cb));
+    else place_bottom(btn_primary(scr, "Done", to_home_cb));
+    show(scr);
+    ready_timer = lv_timer_create(ready_tick, 200, fp);   // after the fade-in
+    lv_timer_set_repeat_count(ready_timer, 1);
+}
+
+// Child #n, right after the keypad: its fingerprint, then Use it to sign with
+// it here, or Words to hand it to another wallet (the New seed card flow).
+// Signing here needs no words: the seed and the number make the child again.
+static void build_child_ready() {
+    lv_obj_t *scr = screen();
+    char title[24];
+    snprintf(title, sizeof(title), "Child #%s", child_num);
+    topbar(scr, title, go_cb_child_index);
+    lv_obj_t *fp;
+    lv_obj_align(fingerprint_pill(scr, "\xE2\x80\xA6", &fp), LV_ALIGN_TOP_MID, 0, BAR + 28);
+    char note[96];
+    snprintf(note, sizeof(note), "Your seed and #%s make this child again. No words to write down.", child_num);
+    lv_obj_align(para(scr, note, &inter_13, TEXT_2), LV_ALIGN_TOP_MID, 0, BAR + 84);
+    lv_obj_align(para(scr, "Use it sets your seed aside until you load it again.", &inter_13, TEXT_3),
+                 LV_ALIGN_TOP_MID, 0, BAR + 136);
+    bottom_pair(btn_ghost(scr, "Words", go_cb, GO(UI_BACKUP_WARNING), TEXT), btn_primary(scr, "Use it", child_use_cb));
     show(scr);
     ready_timer = lv_timer_create(ready_tick, 200, fp);   // after the fade-in
     lv_timer_set_repeat_count(ready_timer, 1);
@@ -2772,7 +2831,7 @@ void ui_child_seed(uint32_t index) {
     snprintf(child_num, sizeof(child_num), "%u", unsigned(index));
     child_seed = true;
     backup_cancel = UI_CHILD_INDEX;
-    ui_goto(UI_BACKUP_WARNING);
+    ui_goto(UI_CHILD_READY);
 }
 
 // ---------------------------------------------------------------- transaction
@@ -3289,7 +3348,7 @@ static bool seed_entry_screen(UiScreen s) {
 // The card flow: for a new seed, or the loaded one.
 static bool backup_screen(UiScreen s) {
     return s == UI_BACKUP_WARNING || s == UI_BACKUP_WORDS || s == UI_BACKUP_CHOICE || s == UI_BACKUP_QR ||
-           s == UI_BACKUP_BLOCK || s == UI_BACKUP_SCAN || s == UI_SEED_READY;
+           s == UI_BACKUP_BLOCK || s == UI_BACKUP_SCAN || s == UI_SEED_READY || s == UI_CHILD_READY;
 }
 
 // ---------------------------------------------------------------- brightness
@@ -3703,6 +3762,7 @@ void ui_goto(UiScreen s) {
         case UI_BACKUP_BLOCK: build_backup_block(); break;
         case UI_BACKUP_SCAN: build_scan(SCAN_CONFIRM); break;
         case UI_CHILD_INDEX: build_child_index(); break;
+        case UI_CHILD_READY: build_child_ready(); break;
         case UI_MULTISIG: build_multisig(); break;
         case UI_PAGE_FOUND: build_page_found(); break;
         case UI_PAGE_READING: build_page_reading(); break;
