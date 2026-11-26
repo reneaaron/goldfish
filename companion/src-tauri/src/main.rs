@@ -36,7 +36,10 @@ fn load_settings(h: &AppHandle) -> Settings {
 fn save_settings(h: &AppHandle, s: &Settings) -> Res<()> {
     let path = settings_path(h)?;
     std::fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
-    std::fs::write(&path, serde_json::to_vec_pretty(s).unwrap()).map_err(|e| e.to_string())
+    // write a copy, then swap it in: a crash mid-write can't eat the saved wallet
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, serde_json::to_vec_pretty(s).unwrap()).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
 #[derive(Default)]
@@ -322,7 +325,7 @@ fn scan_text(text: String, state: State<Shared>) -> ScanEvent {
 
 /// `mode` "key": Goldfish's Connect wallet QR (emits "key" with the wallet).
 /// `mode` "psbt": the signed transaction (emits "scan" with progress).
-#[tauri::command]
+#[tauri::command(async)]
 fn scan_start(mode: String, handle: AppHandle, state: State<Shared>) -> Res<()> {
     let device = std::env::var("GOLDFISH_CAMERA").unwrap_or_else(|_| "/dev/video0".into());
     let h = handle.clone();
@@ -356,11 +359,14 @@ fn scan_start(mode: String, handle: AppHandle, state: State<Shared>) -> Res<()> 
     }, move |preview| {
         let _ = preview_handle.emit("preview", preview);
     })?;
-    state.lock().unwrap().camera = Some(camera);
+    // Take any old camera out under the lock, but drop it after: its thread
+    // may be waiting on this same lock in its callback.
+    let old = std::mem::replace(&mut state.lock().unwrap().camera, Some(camera));
+    drop(old);
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn scan_stop(state: State<Shared>) {
     // Take it out first: the camera thread locks the state, so it can't be
     // joined while we hold the lock.

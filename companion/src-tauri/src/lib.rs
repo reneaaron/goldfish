@@ -148,6 +148,16 @@ pub fn multisig_from_keys(threshold: usize, keys: &[&str]) -> Res<Account> {
     if threshold < 1 || threshold > n {
         return Err(format!("signatures needed must be between 1 and {n}"));
     }
+    // wsh(sortedmulti) keys come from BIP48's script type 2: 48h/coin/account/2h
+    if let Some(k) = keys.iter().find(|k| {
+        let p: Vec<&str> = k.path.split('/').collect();
+        p.len() != 4 || p[0] != "48h" || p[3] != "2h"
+    }) {
+        return Err(format!(
+            "The key from {} isn't a multisig key (its path is {}, a multisig key's is 48h/…/2h).",
+            k.fingerprint, k.path
+        ));
+    }
     if keys.iter().any(|k| k.mainnet != keys[0].mainnet) {
         return Err("the keys are on different networks".into());
     }
@@ -282,10 +292,11 @@ impl ServerConfig {
                 .timeout(Some(std::time::Duration::from_secs(TIMEOUT_S)))
                 .validate_domain(!own_host(host));
             if !proxy.is_empty() {
-                if proxy.contains("://") && !proxy.starts_with("socks5://") {
+                if proxy.contains("://") && !proxy.starts_with("socks5://") && !proxy.starts_with("socks5h://") {
                     return Err("an Electrum server takes a SOCKS5 proxy, like socks5://127.0.0.1:9050 (Tor)".into());
                 }
-                config = config.socks5(Some(electrum_client::Socks5Config::new(proxy)));
+                // the client only strips "socks5://"; Tor resolves names either way
+                config = config.socks5(Some(electrum_client::Socks5Config::new(proxy.replacen("socks5h://", "", 1))));
             }
             let client = electrum_client::Client::from_config(url, config.build()).map_err(err)?;
             return Ok(Backend::Electrum(BdkElectrumClient::new(client)));
@@ -457,7 +468,13 @@ fn fee_rate(sat_per_vb: f64) -> Res<FeeRate> {
 /// (RBF). Goldfish signs it like any other transaction.
 pub fn build_bump(wallet: &mut Wallet, txid: &str, sat_per_vb: f64) -> Res<Psbt> {
     let txid: Txid = txid.parse().map_err(err)?;
-    let mut builder = wallet.build_fee_bump(txid).map_err(err)?;
+    use bdk_wallet::error::BuildFeeBumpError::*;
+    let mut builder = wallet.build_fee_bump(txid).map_err(|e| match e {
+        TransactionConfirmed(_) => "It's already confirmed, so there's nothing to speed up.".to_string(),
+        IrreplaceableTransaction(_) => "This one can't be sped up: it wasn't sent as replaceable.".to_string(),
+        TransactionNotFound(_) => "That transaction isn't in this wallet any more. Refresh and try again.".to_string(),
+        e => e.to_string(),
+    })?;
     builder.fee_rate(fee_rate(sat_per_vb)?).only_witness_utxo();
     builder.finish().map_err(spend_error)
 }
@@ -495,6 +512,8 @@ fn spend_error(e: bdk_wallet::error::CreateTxError) -> String {
             f.available.to_sat()
         ),
         OutputBelowDustLimit(_) => "That's too small to send.".into(),
+        FeeRateTooLow { required } => format!("Pick at least {:.1} sat/vB.", required.to_sat_per_kwu() as f64 / 250.0),
+        FeeTooLow { required } => format!("The fee has to be at least ₿{}.", required.to_sat()),
         e => e.to_string(),
     }
 }
@@ -532,6 +551,26 @@ pub struct Signatures {
     pub needed: usize,
 }
 
+/// Every partial signature must sign this transaction's input with its key:
+/// a bad one would count toward m of n and only fail at broadcast.
+fn verify_signatures(psbt: &Psbt) -> Res<()> {
+    let secp = bdk_wallet::bitcoin::secp256k1::Secp256k1::verification_only();
+    let mut cache = bdk_wallet::bitcoin::sighash::SighashCache::new(&psbt.unsigned_tx);
+    for (i, input) in psbt.inputs.iter().enumerate() {
+        if input.partial_sigs.is_empty() {
+            continue;
+        }
+        let (msg, _) = psbt.sighash_ecdsa(i, &mut cache).map_err(err)?;
+        for (pk, sig) in &input.partial_sigs {
+            if secp.verify_ecdsa(&msg, &sig.signature, &pk.inner).is_err() {
+                let who = input.bip32_derivation.get(&pk.inner).map(|(fp, _)| fp.to_string()).unwrap_or_else(|| "a cosigner".into());
+                return Err(format!("The signature from {who} doesn't check out. Sign again on that device."));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Merge a signed copy of `psbt` (from Goldfish or another cosigner) into
 /// it. Once `needed` keys have signed every input, also the finished
 /// transaction, ready to broadcast.
@@ -539,7 +578,10 @@ pub fn add_signatures(wallet: &Wallet, psbt: &mut Psbt, signed: Psbt, needed: us
     if signed.unsigned_tx.compute_txid() != psbt.unsigned_tx.compute_txid() {
         return Err("That's a different transaction. Sign this one on Goldfish, then scan again.".into());
     }
-    psbt.combine(signed).map_err(err)?;
+    let mut merged = psbt.clone();
+    merged.combine(signed).map_err(err)?;
+    verify_signatures(&merged)?;
+    *psbt = merged;
     let per_input: Vec<std::collections::BTreeSet<String>> = psbt
         .inputs
         .iter()
@@ -701,7 +743,14 @@ impl PsbtScanner {
                 }
                 self.total = n;
                 self.seen.insert(i);
-                self.decoder.receive(&lower).map_err(err)?;
+                if self.decoder.receive(&lower).is_err() {
+                    // A part of a different message with the same part count (the
+                    // decoder pins the first message's checksum): start over with it.
+                    *self = Self::default();
+                    self.total = n;
+                    self.seen.insert(i);
+                    self.decoder.receive(&lower).map_err(err)?;
+                }
                 match self.decoder.message().map_err(err)? {
                     Some(m) if self.decoder.complete() => m,
                     _ => return Ok(None),
@@ -957,6 +1006,58 @@ mod tests {
         assert!(build_psbt(&mut w, &to, 100, 1.0).unwrap_err().contains("₿294"));
         assert!(build_psbt(&mut w, &to, 294, 1.0).is_ok());
         assert!(build_psbt(&mut w, &to, 200_000, 1.0).unwrap_err().starts_with("Not enough bitcoin"));
+    }
+
+
+    #[test]
+    fn a_bad_signature_is_refused() {
+        let secp = Secp256k1::new();
+        let c = three_cosigners();
+        let keys: Vec<&str> = c.iter().map(|(_, k)| k.as_str()).collect();
+        let a = multisig_from_keys(2, &keys).unwrap();
+        let mut w = a.wallet().unwrap();
+        fund_for_demo(&mut w, 100_000);
+        let mut psbt = build_psbt(&mut w, "tb1q6rz28mcfaxtmd6v789l9rrlrusdprr9pqcpvkl", 30_000, 2.0).unwrap();
+        let mut signed = psbt.clone();
+        signed.sign(&c[0].0, &secp).unwrap();
+        // the same signature, claimed for another cosigner's key
+        let (_, sig) = signed.inputs[0].partial_sigs.iter().next().map(|(k, v)| (*k, *v)).unwrap();
+        let other = *signed.inputs[0].bip32_derivation.keys().find(|k| !signed.inputs[0].partial_sigs.keys().any(|p| p.inner == **k)).unwrap();
+        signed.inputs[0].partial_sigs.clear();
+        signed.inputs[0].partial_sigs.insert(bdk_wallet::bitcoin::PublicKey::new(other), sig);
+        assert!(add_signatures(&w, &mut psbt, signed, 2).unwrap_err().contains("doesn't check out"));
+        assert!(psbt.inputs[0].partial_sigs.is_empty(), "nothing merged");
+    }
+
+    #[test]
+    fn scanner_starts_over_on_another_message_of_the_same_length() {
+        let a = parse_key_export(&abandon_export()).unwrap();
+        let mut w = a.wallet().unwrap();
+        fund_for_demo(&mut w, 100_000);
+        let to = w.peek_address(KeychainKind::External, 5).address.to_string();
+        let first = build_psbt(&mut w, &to, 30_000, 2.0).unwrap();
+        let second = build_psbt(&mut w, &to, 31_000, 2.0).unwrap();
+        let (mut e1, mut e2) = (psbt_encoder(&first).unwrap(), psbt_encoder(&second).unwrap());
+        let mut scan = PsbtScanner::default();
+        scan.receive(&e1.next_part().unwrap()).unwrap();
+        let mut got = None;
+        for _ in 0..200 {
+            if let Some(p) = scan.receive(&e2.next_part().unwrap()).unwrap() {
+                got = Some(p);
+                break;
+            }
+        }
+        assert_eq!(got.unwrap(), second);
+    }
+
+    #[test]
+    fn socks5h_and_non_multisig_keys() {
+        let c = three_cosigners();
+        let single = c[0].1.replace("/48h/1h/0h/2h]", "/84h/1h/0h]");
+        let keys = [single.as_str(), c[1].1.as_str(), c[2].1.as_str()];
+        assert!(multisig_from_keys(2, &keys).unwrap_err().contains("isn't a multisig key"));
+        let bad = ServerConfig { url: "ssl://127.0.0.1:1".into(), proxy: "socks5h://127.0.0.1:1".into() };
+        assert!(!bad.connect(Network::Signet).err().unwrap_or_default().contains("SOCKS5 proxy, like"));
     }
 
 }
