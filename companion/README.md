@@ -44,9 +44,9 @@ the guides still use Sparrow.
 - Fees: Fast / Normal / Slow suggestions from the server (next block, ~1 hour,
   ~1 day), fractional sat/vB, and Speed up (RBF) on a pending send, which
   Goldfish signs like any other transaction.
-- Look: still the earlier draft brand, Bowl (mark, wordmark and app icon;
-  switching the app to Dove is open); its blue (the case blue) where
-  Goldfish's screen uses orange, which is otherwise only in the mark's eye; and
+- Look: the draft brand, Dove (mark, wordmark and app icon); its blue (the
+  case blue) where Goldfish's screen uses orange, which is otherwise only in
+  the mark's feet; and
   Goldfish's own tokens and fonts otherwise.
 
 ## Layout
@@ -64,8 +64,8 @@ the guides still use Sparrow.
   `firmware/e2e/hostwallet.py` (embit) for the other cosigners.
 - Test vectors: read `firmware/test/fixtures/` and `firmware/sim/samples/`
   rather than copying them.
-- Marks come from `marketing/companion/`: `ui/bowl.svg` is a copy of
-  `options/bowl-mark.svg`, and `src-tauri/icons/icon.png` is `options/bowl-icon.svg` drawn at
+- Marks come from `marketing/companion/`: `ui/dove.svg` is a copy of
+  `dove-mark.svg`, and `src-tauri/icons/icon.png` is `dove-icon.svg` drawn at
   256 px.
 
 ## Run

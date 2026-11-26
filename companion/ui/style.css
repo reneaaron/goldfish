@@ -1,6 +1,6 @@
-/* Bowl (marketing/companion/): Goldfish's own colour tokens
+/* Dove (marketing/companion/): Goldfish's own colour tokens
    (firmware/src/app/theme.cpp) with the case blue as the accent where
-   Goldfish uses orange; in Bowl, orange is only the fish's eye in the mark.
+   Goldfish uses orange; in Dove, orange is only the feet in the mark.
    Type as on Goldfish: Rethink Sans titles (700 for the wordmark), Inter
    text, JetBrains Mono amounts and keys.
    Bundled in fonts/; nothing is fetched. */
@@ -12,7 +12,7 @@
   --text: #14222B;
   --text-2: #5A6B75;
   --text-3: #718089;
-  --accent: #0A7ED0;   /* Bowl blue, the case blue */
+  --accent: #0A7ED0;   /* Dove blue, the case blue */
   --accent-dim: #DDEDF9;
   --green: #15803D;
   --green-dim: #DCEFE2;
@@ -50,7 +50,7 @@ h2 { font: 600 17px/1 var(--sans); margin: 0; flex: 1; text-align: center; paddi
 .caption { color: var(--text-2); text-align: center; margin: 8px 0 12px; font-size: 14px; }
 
 /* pieces */
-/* wordmark: the mark, then "bowl" in lowercase Rethink Sans 700 */
+/* wordmark: the mark, then "dove" in lowercase Rethink Sans 700 */
 .lockup { display: inline-flex; align-items: center; gap: 8px; font: 700 22px/1 var(--display); letter-spacing: -0.01em; color: var(--text); }
 .lockup img { height: 40px; } /* brand sheet: a 40 px mark per 22 px name */
 
@@ -219,7 +219,7 @@ main > #v-wallet { min-height: 0; }
 .empty-actions { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
 .empty-actions button.secondary { height: 40px; padding: 0 16px; font-size: 15px; }
 .danger-zone { margin-top: 28px; }
-/* Connect Goldfish: the fish mark at the bowl's module size (brand sheet) */
+/* Connect Goldfish: the fish mark at the dove's module size (brand sheet) */
 .connect { width: 100%; height: auto; margin-top: 16px; padding: 12px 14px; justify-content: flex-start; gap: 14px; text-align: left; font-weight: 500; background: var(--surface); border: 1px solid var(--border); }
 .connect img { width: 40px; flex: none; }
 .connect span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -355,7 +355,7 @@ button.link.danger { color: var(--red); padding: 4px 0; font-size: 14px; justify
 .cam-msg { margin: 0 0 4px; padding: 8px 12px; border-radius: 10px; background: var(--amber-dim); color: var(--text); font-size: 13px; text-align: center; }
 
 /* Anything done on Goldfish: one subtle look, a faint wash of fish orange
-   behind the fish and the line (Bowl's own hints stay grey) */
+   behind the fish and the line (Dove's own hints stay grey) */
 :root { --gf-wash: rgba(255, 122, 47, .09); --gf-edge: rgba(255, 122, 47, .22); }
 .gf-hint { background: var(--gf-wash); border: 1px solid var(--gf-edge); color: var(--text-2); }
 .caption.gf-cap { width: fit-content; margin: 10px auto 0; padding: 6px 14px 6px 10px; border-radius: 999px;
