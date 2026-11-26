@@ -2166,7 +2166,7 @@ static void build_page_review() {
         act = page_cancel_pick_cb;
         sc = TEXT_2;
     } else if (nslots > new_words) {
-        snprintf(status, sizeof(status), "%d words, your backup has %d", nslots, new_words);
+        snprintf(status, sizeof(status), "%d words, backup has %d", nslots, new_words);
         snprintf(action, sizeof(action), ICON_TRASH "   Remove extra word");
         act = page_pick_extra_cb;
     } else if (!ready) {
@@ -2176,16 +2176,25 @@ static void build_page_review() {
         // all in and the checksum fits: say so, and whether the photo read them all
         bool typed = false;
         for (int i = 0; i < nslots; i++) typed |= slots[i].typed || slots[i].piece < 0;
-        if (typed) snprintf(status, sizeof(status), ICON_CHECK "  %d words \xC2\xB7 checksum valid", nslots);
-        else snprintf(status, sizeof(status), ICON_CHECK "  All %d read \xC2\xB7 checksum valid", nslots);
+        if (typed) snprintf(status, sizeof(status), ICON_CHECK "  %d words \xC2\xB7 valid seed", nslots);
+        else snprintf(status, sizeof(status), ICON_CHECK "  All %d read \xC2\xB7 valid seed", nslots);
         snprintf(action, sizeof(action), "Matches my backup");
         act = page_confirm_cb;
         sc = GREEN;
     }
-    lv_obj_align(text(scr, status, &inter_13, sc), LV_ALIGN_TOP_MID, 0, BAR + 2);
+    // the status in a tinted pill as wide as the list, centred over it
+    lv_obj_t *pill = lv_obj_create(scr);
+    lv_obj_remove_style_all(pill);
+    lv_obj_remove_flag(pill, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_size(pill, CW, 30);
+    lv_obj_set_style_bg_color(pill, lv_color_eq(sc, GREEN) ? GREEN_DIM : lv_color_eq(sc, AMBER) ? AMBER_DIM : SURFACE_2, 0);
+    lv_obj_set_style_bg_opa(pill, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(pill, LV_RADIUS_CIRCLE, 0);
+    lv_obj_center(text(pill, status, &inter_15, sc));
+    lv_obj_align(pill, LV_ALIGN_TOP_MID, 0, BAR);
 
     // the words in a card, like the menus: rows with a rule between them
-    lv_obj_t *list = page_review_list = scroll_area(scr, BAR + 24);
+    lv_obj_t *list = page_review_list = scroll_area(scr, BAR + 38);
     lv_obj_set_style_pad_bottom(list, M - 4, 0);   // scrolled to the end: a gap above the button
     int rows = nslots + (nslots < new_words);
     lv_obj_t *box = card(list, CW, rows * 36 + 2);
