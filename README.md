@@ -15,7 +15,7 @@ transactions go in and out through the camera and the screen.
 <p>
   <img src="marketing/renders/out/08_slide_to_sign.png" width="32%" alt="Confirm a transaction's amount and fee, then slide to sign">
   <img src="marketing/renders/out/09_new_seed_dice.png" width="32%" alt="Make a new seed from dice rolls">
-  <img src="marketing/renders/out/13_backup_copy.png" width="32%" alt="Copying the seed onto a paper SeedQR card, part by part">
+  <img src="marketing/renders/out/13_backup_copy.png" width="32%" alt="Writing a new seed's words onto a paper word card">
 </p>
 
 Status: early, not for real funds. The firmware runs on the Waveshare board
