@@ -33,7 +33,7 @@ pio run -t upload                          # flash a board already running this 
 SIM_SHOTS=docs/screens .pio/build/sim/program   # headless scripted run, writes a screenshot per screen
 ```
 
-Simulator camera: it decodes the image at `sim/camera.png` (or `$SIM_CAMERA`), reloaded on change. With a scan screen open, `cp sim/samples/<file>.png sim/camera.png`. `sim/samples` has SeedSigner's public test SeedQRs and a matching seed + testnet PSBT (`testseed_height_demise_*`, `testpsbt_height_demise_base64.png`), plus the same PSBT on mainnet (`mainpsbt_height_demise_base64.png`, from `sim/make_mainnet_psbt.py`) that `SIM_SHOTS` signs.
+Simulator camera: it decodes the image at `sim/camera.png` (or `$SIM_CAMERA`), reloaded on change. With a scan screen open, `cp sim/samples/<file>.png sim/camera.png`. `sim/samples` has handwritten test pages (`handwritten_page_demo.png`: the height demise seed, which the landing hero offers), SeedSigner's public test SeedQRs and a matching seed + testnet PSBT (`testseed_height_demise_*`, `testpsbt_height_demise_base64.png`), plus the same PSBT on mainnet (`mainpsbt_height_demise_base64.png`, from `sim/make_mainnet_psbt.py`) that `SIM_SHOTS` signs.
 
 Case: `gcad check stateless-signer.gasm` (add `--set clip=0` for the screw variant), `gcad export parts/case.gcad exports/case.stl`.
 
