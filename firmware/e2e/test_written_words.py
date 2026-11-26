@@ -69,8 +69,8 @@ def sign_demo_transaction(dev):
 
 
 def test_demo_page_signs_the_demo_transaction(dev):
-    """The landing page's hero offers a paper backup, a SeedQR and a
-    transaction: both seed pictures hold the seed the transaction spends from.
+    """The landing page's hero offers a paper backup and a transaction: the
+    page holds the seed the transaction spends from.
     Few layouts of these words read 12 of 12 (handwriting/make_page.py)."""
     dev.tap("Scan")
     dev.show_page(FIRMWARE / "sim" / "samples" / "handwritten_page_demo.png")

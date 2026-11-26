@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Goldfish: sign and forget</title>
-<meta name="description" content="Goldfish is a Bitcoin signer you build from an off-the-shelf board and a printed case. Load your seed from a QR code, sign, unplug. Nothing is saved.">
+<meta name="description" content="Goldfish is a Bitcoin signer you build from an off-the-shelf board and a printed case. Load your seed from your written words, sign, unplug. Nothing is saved.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Crect x='8' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='11' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='20' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='26' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='2' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='20' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='23' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='20' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='26' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='8' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='11' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='5' y='11' width='9' height='9' fill='%2314222B'/%3E%3Crect x='6' y='12' width='7' height='7' fill='%23FFFFFF'/%3E%3Crect x='8' y='14' width='3' height='3' fill='%2314222B'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -87,7 +87,7 @@
   /* The device turning round: frames of marketing/renders/turntable.py, one sprite
      sheet per case colour (6 frames a row), scrubbed by dragging. */
   .turn {
-    --frame-w: 370; --frame-h: 552;   /* one frame of the sheet, px */
+    --frame-w: 366; --frame-h: 571;   /* one frame of the sheet, px */
     display: block; position: relative; margin: 0 auto; padding: 0; border: 0; background: none no-repeat;
     height: 404px; aspect-ratio: var(--frame-w) / var(--frame-h); max-width: 100%;
     background-size: 600% 600%; cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none;
@@ -100,22 +100,29 @@
   .hero-fig.away .notes .front { opacity: 0; }
   /* Plugged in and booted: the notes about the hardware make way for one saying it's live */
   .hero-fig .notes .live, .hero-fig.on .notes .idle { opacity: 0; }
-  .hero-fig.on:not(.booting) .notes .live { opacity: 1; }   /* turned away: the notes about the front would point at nothing */
+  .hero-fig.on:not(.booting) .notes .live { opacity: 1; }
+  /* Unplugged: "plug me in!" points at the port and plugs it in; plugged, it's "power via USB" */
+  .hero-fig:not(.on) .notes .wired { opacity: 0; }
+  .hero-fig:not(.on):not(.away) .notes text.plugme { pointer-events: auto; cursor: pointer; }   /* turned away: the notes about the front would point at nothing */
   .swatches { display: flex; align-items: center; justify-content: center; gap: 10px; height: 22px; margin-bottom: 20px; font-size: 14px; color: var(--faint); }
   .swatches button { width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 0; background: var(--sw); cursor: pointer;
     box-shadow: inset 0 0 0 1px rgba(20, 34, 43, .15); }
   .swatches button[aria-pressed="true"] { box-shadow: inset 0 0 0 1px rgba(20, 34, 43, .15), 0 0 0 2px var(--bg), 0 0 0 4px var(--text); }
   /* Turned on: the firmware itself (sim/sim.js) on a canvas over the front frame's screen */
   .turn canvas {
-    position: absolute; left: 12.43%; top: 13.95%; width: 75.14%; height: 67.03%; border-radius: 2%;
+    position: absolute; left: 12.57%; top: 17.69%; width: 74.86%; height: 63.05%; border-radius: 2%;
     display: none; background: var(--paper); touch-action: none; cursor: pointer;
   }
   .hero-fig.on.front .turn canvas { display: block; }
+  /* Unplugged and facing you: a tap on the dark screen plugs it in (see up() below) */
+  .screen-hit { position: absolute; left: 12.57%; top: 17.69%; width: 74.86%; height: 63.05%; display: none; cursor: pointer; }
+  .hero-fig.front:not(.on) .screen-hit { display: block; }
   /* While the firmware (~2 MB) downloads and boots: a spinner on the blank screen */
   .boot {
-    position: absolute; left: 12.43%; top: 13.95%; width: 75.14%; height: 67.03%;
+    position: absolute; left: 12.57%; top: 17.69%; width: 74.86%; height: 63.05%;
     display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
     pointer-events: none; color: var(--muted); font-size: 13px; font-weight: 600;
+    background: var(--paper); border-radius: 2%;   /* the frames' screen is off (dark): light it up */
   }
   .boot::before {
     content: ""; width: 30px; height: 30px; border-radius: 50%;
@@ -145,7 +152,7 @@
      "Plug it in" slides its tip into the port, bottom middle of the case. While it's
      plugged in the device faces you and doesn't turn, as a plugged-in one sits still. */
   .plug {
-    position: absolute; left: calc(50% - 19.5px); top: calc(96.9% - 8px); width: 39px; height: 102px;   /* the tip is in the port: the body meets the case */
+    position: absolute; left: calc(50% - 19.5px); top: calc(95.6% - 8px); width: 39px; height: 102px;   /* the tip is in the port: the body meets the case */
     pointer-events: none; opacity: 0; translate: 0 40px; transition: translate .6s cubic-bezier(.2, .8, .3, 1), opacity .3s;
   }
   .hero-fig.on .plug { opacity: 1; translate: 0 0; }
@@ -358,9 +365,10 @@
         <button type="button" data-c="blue" aria-pressed="false" aria-label="Blue" style="--sw: var(--case-blue)"></button>
         <button type="button" data-c="white" aria-pressed="false" aria-label="White" style="--sw: var(--case-white)"></button>
       </div>
-      <button type="button" class="turn" id="turn" aria-label="Goldfish, the home screen on its front and the camera on its back. Turn it round">
+      <button type="button" class="turn" id="turn" aria-label="Goldfish, the screen on its front and the camera on its back. Turn it round">
         <img id="turn-first" src="img/turn/orange-0.webp" alt="" draggable="false">
         <canvas id="screen" width="240" height="320" aria-label="The device's screen"></canvas>
+        <span class="screen-hit" aria-hidden="true"></span>
         <span class="boot" aria-hidden="true">Loading firmware…</span>
         <svg class="plug" viewBox="0 0 46 120" aria-hidden="true">
           <defs><linearGradient id="cord-fade" x1="0" y1="42" x2="0" y2="120" gradientUnits="userSpaceOnUse">
@@ -383,8 +391,10 @@
         <text class="front" x="550" y="254">your seed is</text>
         <text class="front" x="550" y="278">never saved</text>
         <path class="front" d="M562 292 C 548 318, 530 312, 506 300" marker-end="url(#ah)"/>
-        <text class="front" x="462" y="440">power via USB</text>
-        <path class="front" d="M456 432 C 434 430, 420 420, 412 402" marker-end="url(#ah)"/>
+        <text class="front wired" x="462" y="440">power via USB</text>
+        <path class="front wired" d="M456 432 C 434 430, 420 420, 412 402" marker-end="url(#ah)"/>
+        <text class="front idle plugme" x="462" y="440">plug me in!</text>
+        <path class="front idle" d="M456 432 C 434 430, 420 420, 412 402" marker-end="url(#ah)"/>
       </svg>
       <div class="power">
         <button type="button" id="power-on">
@@ -399,7 +409,6 @@
           <li><span class="n">1</span><div><h3>Load a seed</h3><p>Tap Scan, then show it</p></div>
             <div class="pics">
               <button type="button" aria-pressed="false" data-src="sim/samples/handwritten_page_demo.png">Paper backup</button>
-              <button type="button" aria-pressed="false" data-src="sim/samples/testseed_height_demise_standard_12word.png">SeedQR</button>
             </div></li>
           <li><span class="n">2</span><div><h3>Sign a transaction</h3><p>Tap Scan QR, check it, slide to sign</p></div>
             <div class="pics">
@@ -437,7 +446,7 @@
       <p class="lede">Everything goes in through the camera and out through the screen. Tap through it.</p>
       <div class="demo">
         <ol class="steps" id="steps">
-          <li><button data-shot="2_scan.webp"><strong>Scan your seed</strong><span>Hold your SeedQR up to the camera. Or type your words.</span></button></li>
+          <li><button data-shot="2_scan.webp"><strong>Scan your seed</strong><span>Hold your written words up to the camera, then check them. Or type them in.</span></button></li>
           <li><button data-shot="3_seed_loaded.png"><strong>Match the fingerprint</strong><span>The device shows which seed it loaded, so you can check it against your wallet app.</span></button></li>
           <li><button data-shot="7_psbt_overview.png"><strong>Scan the transaction</strong><span>Your wallet app shows it as a QR. The device reads the amount, the fee and the change.</span></button></li>
           <li><button data-shot="8_psbt_output_1.png"><strong>Check every address</strong><span>One screen per recipient. Change only counts as change if your seed really owns it.</span></button></li>
@@ -505,10 +514,10 @@
 
   <section>
     <div class="wrap split">
-      <img class="photo" src="img/renders/13_backup_copy.png" alt="Render: a signer next to a paper card with a seed QR being filled in" loading="lazy">
+      <img class="photo" src="img/renders/13_backup_copy.png" alt="Render: a signer showing a new seed's words next to a paper card they are being written on" loading="lazy">
       <div>
         <h2>Back it up with a pen</h2>
-        <p class="lede">Write down the words, or copy the seed onto a paper QR card. The device shows the grid part by part, then scans your card to check you got every square right.</p>
+        <p class="lede">Write down the words. That paper is what you scan next time: the device reads your handwriting, and you check every word before it is used. Reading handwriting is still new, so a paper QR card works too.</p>
         <p class="tryit"><a href="cards/">Print blank cards for a 12-word seed →</a><br><a href="metal/">Or stamp it into steel washers →</a></p>
       </div>
     </div>
@@ -678,7 +687,14 @@ show(0);
     if (Math.abs(dx) > 4) down.moved = true;
     frame = down.frame + dx / PX_PER_FRAME; draw();
   });
-  const up = () => { if (down && !down.moved) flip(); down = null; };
+  const onScreen = (e) => {   // the dark screen, while it faces you unplugged
+    const r = turn.querySelector('.screen-hit').getBoundingClientRect();
+    return r.width && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+  };
+  const up = (e) => {
+    if (down && !down.moved) { if (onScreen(e)) powerOn.click(); else flip(); }
+    down = null;
+  };
   turn.addEventListener('pointerup', up);
   turn.addEventListener('pointercancel', () => { down = null; });
   turn.addEventListener('keydown', (e) => {
@@ -696,6 +712,7 @@ show(0);
   const canvas = document.getElementById('screen');
   const powerOn = document.getElementById('power-on'), powerOff = document.getElementById('power-off');
   const powerStatus = document.getElementById('power-status');
+  document.querySelector('.notes .plugme').addEventListener('click', () => powerOn.click());
   const cams = [...document.querySelectorAll('.camera .pics button[data-src]')];
   const select = (el) => cams.forEach((c) => c.setAttribute('aria-pressed', String(c === el)));
   let sim = null, booting = null;
