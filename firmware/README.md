@@ -499,8 +499,8 @@ camera and secure boot only show up on the real board.
 The same `src/app`, compiled to WebAssembly with Emscripten, with `src/web`
 in place of `src/sim`: the screen is a `<canvas>`, the pointer is the touch
 screen, and the camera sees a picture the page hands it (one of a few
-`sim/samples`: the test seed, a transaction for it, and a handwritten page,
-`handwritten_page_demo.png`, 12 words that the firmware reads 12 of 12). It runs on the website's hero device
+`sim/samples`: a handwritten page, `handwritten_page_demo.png`, 12 words that
+the firmware reads 12 of 12, a SeedQR of the same seed and a transaction for it). It runs on the website's hero device
 after "Plug it in" ([`try/sim.js`](../try/sim.js)); Unplug stops it and zeroes its
 memory. Needs `emcc` (emsdk 4.0.10).
 

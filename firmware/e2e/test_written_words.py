@@ -49,3 +49,38 @@ def test_qr_held_still_does_not_read_words(dev):
     dev.wait(3000)
     assert dev.screen == "SCAN_SEED", dev.text()
     assert "That's a transaction" in dev.text()
+
+
+DEMO_PSBT = FIRMWARE / "sim" / "samples" / "demopsbt_blossom_base64.png"
+
+
+def sign_demo_transaction(dev):
+    dev.look_away()
+    dev.wait(200)   # past the fade-in
+    dev.tap("Scan QR")
+    dev.show(Image.open(DEMO_PSBT).convert("L"))
+    dev.wait_for(lambda: dev.screen != "SCAN", ms=5000, what="the transaction to be read")
+    assert dev.screen == "PSBT_OVERVIEW", dev.text()
+
+
+def test_demo_page_signs_the_demo_transaction(dev):
+    """The landing page's hero offers a paper backup, a SeedQR and a
+    transaction: both seed pictures hold the seed the transaction spends from."""
+    dev.tap("Scan")
+    dev.show_page(FIRMWARE / "sim" / "samples" / "handwritten_page_demo.png")
+    dev.wait_for(lambda: dev.screen == "PAGE_FOUND", ms=5000, what="the words to be found")
+    dev.wait(200)   # past the fade-in
+    dev.tap("Read")
+    dev.wait_for(lambda: dev.screen == "PAGE_REVIEW", ms=20000, what="the words to be read")
+    assert "All 12 read" in dev.text(), dev.text()
+    dev.wait(200)   # past the fade-in
+    dev.tap("Matches my backup")
+    dev.wait_for(lambda: dev.screen == "WALLET", what="the seed to load")
+    sign_demo_transaction(dev)
+
+
+def test_demo_seedqr_signs_the_demo_transaction(dev):
+    dev.tap("Scan")
+    dev.show(Image.open(FIRMWARE / "sim" / "samples" / "demoseed_blossom_12word.png").convert("L"))
+    dev.wait_for(lambda: dev.screen == "WALLET", what="the seed to load")
+    sign_demo_transaction(dev)
