@@ -379,6 +379,7 @@ static bool looks_like_psbt(const QrPayload &p) {
 static void scan_status(const char *msg, const char *sub, lv_color_t c) {
     if (scan_hints) lv_obj_add_flag(scan_hints, LV_OBJ_FLAG_HIDDEN);
     if (hold_row) lv_obj_add_flag(hold_row, LV_OBJ_FLAG_HIDDEN);
+    hold_shown = false;   // a status ends the pill: the next one is drawn from the start
     lv_obj_remove_flag(scan_msg, LV_OBJ_FLAG_HIDDEN);
     lv_obj_remove_flag(scan_sub, LV_OBJ_FLAG_HIDDEN);
     lv_label_set_text(scan_msg, msg);
@@ -604,7 +605,8 @@ static void scan_tick(lv_timer_t *) {
         st_frames = st_codes = st_ms = st_max = 0;
     }
     if (!found) {
-        if (scan_mode == SCAN_SEED && page_watch(frame, w, h)) ui_page_read();   // this timer is gone now
+        // read: this timer is gone now; no picture: its status stays until the view moves
+        if (scan_mode == SCAN_SEED && page_watch(frame, w, h) && !ui_page_read()) hold_missed = true;
         return;
     }
     if (scan_mode == SCAN_SEED) handle_seed_payload(p);
@@ -709,6 +711,7 @@ static void build_scan(ScanMode mode) {
     lv_obj_align(scan_sub, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + (seed ? 44 : 40));
     scan_hints = nullptr;
     hold_row = nullptr;
+    hold_last = -1;   // a new, empty pill: drawn on the first tick that shows it
     if (seed) {
         // like Check words' status pill; the fill is a darker tint of it
         hold_row = lv_obj_create(scr);
