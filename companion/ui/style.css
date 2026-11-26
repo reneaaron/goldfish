@@ -156,17 +156,20 @@ button.danger { color: var(--red); }
 h2.left { text-align: left; padding-right: 0; }
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
 .panel .field { margin-bottom: 0; }
-/* multisig: how many signatures so far, and whose */
-.sig-status { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+/* multisig: how many signatures are still needed, then one row per cosigner */
+.sig-status { display: flex; flex-direction: column; padding: 12px 14px 4px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 .sig-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; color: var(--text-2); }
-.sig-head b { color: var(--text); font-weight: 600; }
-.sig-bar { display: flex; gap: 4px; }
-.sig-bar i { flex: 1; height: 6px; border-radius: 3px; background: var(--surface-2); }
+.sig-head b { color: var(--text); font-size: 15px; font-weight: 600; }
+.sig-bar { display: flex; gap: 4px; margin: 10px 0 4px; }
+.sig-bar i { flex: 1; height: 4px; border-radius: 2px; background: var(--surface-2); }
 .sig-bar i.on { background: var(--green); }
-.sig-who { display: flex; flex-wrap: wrap; gap: 6px 14px; }
-.signer { display: inline-flex; align-items: center; gap: 5px; font: 400 13px/1 var(--mono); color: var(--text-3); }
+.signer { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-top: 1px solid var(--border); font-size: 13px; color: var(--text-3); }
+.sig-bar + .signer { border-top: 0; }
+.signer .fp { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); color: var(--text-2); }
 .signer svg { width: 14px; height: 14px; }
-.signer.on { color: var(--green); }
+.signer .state { display: inline-flex; align-items: center; gap: 4px; }
+.signer.on .fp { color: var(--text); }
+.signer.on .state { color: var(--green); font-weight: 500; }
 .kv dd.list-dd { display: flex; flex-direction: column; gap: 4px; }
 .kv dt.cont, .kv dt.cont + dd { border-top: 0; padding-top: 0; }
 
@@ -366,5 +369,6 @@ button.link.danger { color: var(--red); padding: 4px 0; font-size: 14px; justify
    behind the fish and the line (Dove's own hints stay grey) */
 :root { --gf-wash: rgba(255, 122, 47, .09); --gf-edge: rgba(255, 122, 47, .22); }
 .gf-hint { background: var(--gf-wash); border: 1px solid var(--gf-edge); color: var(--text-2); }
+#sign-part, #sh-part { font-variant-numeric: tabular-nums; }
 .caption.gf-cap { width: fit-content; margin: 10px auto 0; padding: 6px 14px 6px 10px; border-radius: 999px;
   background: var(--gf-wash); border: 1px solid var(--gf-edge); color: var(--text-2); font-size: 13px; }
