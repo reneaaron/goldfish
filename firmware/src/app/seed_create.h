@@ -4,9 +4,10 @@
 #include "seedqr.h"
 
 // New seeds from entropy the user supplies: dice rolls, coin flips or words
-// they draw themselves. There is deliberately no RNG anywhere on this device,
-// hardware or pseudo, not even for tests: every bit comes from the user and
-// can be re-checked offline.
+// they draw themselves. These use no RNG, hardware or pseudo, not even in
+// tests: every bit comes from the user and can be re-checked offline. The
+// device's own sources (device_entropy.h) are a separate method and are never
+// mixed into these.
 //
 // Dice and coins match SeedSigner (helpers/mnemonic_generation.py) and
 // bitcoiner.guide/seed: the input string is hashed with SHA256 and the first

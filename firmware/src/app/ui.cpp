@@ -11,6 +11,7 @@
 #include "address_verify.h"
 #include "amount.h"
 #include "bip85.h"
+#include "device_entropy.h"
 #include "multisig.h"
 #include "page_reader.h"
 #include "psbt_review.h"
@@ -1209,8 +1210,10 @@ static void page_flow_wipe() {
     edit_slot = -1;
 }
 
+static void device_flow_wipe();
 static void new_seed_wipe() {
     page_flow_wipe();
+    device_flow_wipe();
     seedqr_wipe(&pending);
     secure_zero(entropy_in, sizeof(entropy_in));
     secure_zero(word_idx, sizeof(word_idx));
@@ -1257,7 +1260,7 @@ static void build_new_seed() {
     lv_obj_t *scr = screen();
     topbar(scr, "New seed", to_home_cb);
 
-    lv_obj_t *c = card(scr, CW, 3 * 62 + 2);
+    lv_obj_t *c = card(scr, CW, 4 * 62 + 3);
     lv_obj_set_style_pad_all(c, 0, 0);
     lv_obj_set_style_clip_corner(c, true, 0);
     lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 4);
@@ -1274,6 +1277,367 @@ static void build_new_seed() {
     snprintf(draw, sizeof(draw), "%d from a hat", new_words);
     lv_obj_t *r3 = list_row(c, ICON_KEYBOARD, "Draw words", draw, draw_cb);
     lv_obj_align(r3, LV_ALIGN_TOP_MID, 0, 126);
+    divider(c, 188);
+    // Not checkable like the three above: its own warning comes first.
+    lv_obj_t *r4 = list_row(c, ICON_WARNING, "On this device", "Chip, camera, sensors", go_cb, GO(UI_DEVICE_WARNING));
+    lv_obj_align(r4, LV_ALIGN_TOP_MID, 0, 189);
+    lv_obj_t *ic = lv_obj_get_child(r4, 0);
+    lv_obj_set_style_bg_color(ic, AMBER_DIM, 0);
+    lv_obj_set_style_text_color(lv_obj_get_child(ic, 0), AMBER, 0);
+    show(scr);
+}
+
+// ---------------------------------------------------------------- on this device
+// Generate on device (device_entropy.h): a separate method, never mixed into
+// dice, coins or drawn words. Its warning comes first: the user can't check
+// these words, they trust this chip and firmware. Then the chip, the camera,
+// shaking and a scribble, in that order; any failure ends it with no seed.
+#define DEV_CAMERA_TIMEOUT_MS 20000
+static lv_timer_t *dev_timer;
+static lv_obj_t *dev_bar, *dev_cam, *dev_phone, *dev_ink, *dev_chip, *dev_chip_face, *dev_chip_read;
+static int dev_chip_n;                   // chunks read on this screen
+// The chip's chunk is gathered a piece per tick (a whole chunk at once held the
+// screen up) in the start of preview_buf, idle during this step; dev_chip_fill
+// bytes of it so far.
+#define DEV_CHIP_PIECE 32
+static_assert(DE_CHIP_CHUNK % DEV_CHIP_PIECE == 0, "a chunk is whole pieces");
+static int dev_chip_fill;
+static char dev_chip_txt[24];
+// The Camera step's live view: preview_buf as a smaller picture under the text.
+// Every step: its number, title and a one-line subline, then one picture
+// area below (the chip, the camera's view, the device, the scribble box).
+#define DEV_VIS_Y (BAR + 104)
+#define DEV_VIS_H (H - DEV_VIS_Y - M)
+#define DEV_CAM_W 200
+#define DEV_CAM_H 150
+static lv_image_dsc_t dev_cam_dsc;
+static int16_t dev_motion_last[3];
+static DeviceSource dev_shown;           // the stage the screen was built for
+static uint32_t dev_stage_ms;
+// Each step stays up at least this long, collecting (and hashing) all the
+// while, then moves on by itself.
+#define DEV_STEP_MS 5000
+// The scribble's ink: borrows preview_buf (idle once the camera step is over)
+// as an A8 picture over the box, drawn in the accent colour.
+#define DEV_BOX_Y DEV_VIS_Y
+#define DEV_INK_W CW
+#define DEV_INK_H DEV_VIS_H
+static_assert(DEV_INK_W * DEV_INK_H <= sizeof(preview_buf), "the scribble's ink doesn't fit preview_buf");
+static lv_image_dsc_t dev_ink_dsc;
+static int dev_pen_x = -1, dev_pen_y;    // the last point of the stroke, -1: pen up
+
+static void device_flow_wipe() {
+    if (dev_timer) { lv_timer_delete(dev_timer); dev_timer = nullptr; }
+    dev_pen_x = -1;
+    device_entropy_wipe();
+}
+
+static void build_device_warning() {
+    lv_obj_t *scr = screen();
+    // Laid out like Keep it offline (build_backup_warning).
+    lv_obj_align(icon_badge(scr, ICON_WARNING, AMBER, AMBER_DIM, 64), LV_ALIGN_TOP_MID, 0, 36);
+    lv_obj_align(text(scr, "Skip the dice?", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 118);
+    lv_obj_align(para(scr, "The device will pick your words. Unlike dice, there's no way to confirm it "
+                           "picked them fairly."),
+                 LV_ALIGN_TOP_MID, 0, 154);
+    bottom_pair(btn_ghost(scr, "Back", to_new_seed_cb, nullptr, TEXT),
+                btn_primary(scr, "Skip dice", [](lv_event_t *) { ui_device_start(); }));
+    show(scr);
+}
+
+static void device_fail(const char *why) {
+    device_entropy_fail(why);
+    ui_goto(UI_ENTROPY_DEVICE);   // shows the error
+}
+
+// How far the step on screen is: its bits, but never ahead of its minimum time.
+static int device_progress(DeviceSource s) {
+    int by_bits = device_entropy_bits(s) * 100 / device_entropy_needed(s);
+    int by_time = int(lv_tick_elaps(dev_stage_ms) * 100 / DEV_STEP_MS);
+    return LV_MIN(100, LV_MIN(by_bits, by_time));
+}
+
+// The step on screen has enough bits and time: on to the next one (or the words).
+static void device_step_next() {
+    if (dev_shown == DS_CHIP) secure_zero(preview_buf, DE_CHIP_CHUNK);   // a piece of a chunk not yet hashed
+    if (dev_shown == DS_CAMERA) {
+        platform_camera_stop();
+        secure_zero(preview_buf, sizeof(preview_buf));   // the view was part of the seed's input
+    }
+    device_entropy_next();
+    if (device_entropy_stage() == DS_COUNT) {
+        secure_zero(preview_buf, sizeof(preview_buf));   // the scribble's ink
+        bool ok = device_entropy_finish(&pending);
+        ui_goto(ok ? UI_BACKUP_WARNING : UI_ENTROPY_DEVICE);
+        return;
+    }
+    ui_goto(UI_ENTROPY_DEVICE);
+}
+
+static void device_tick(lv_timer_t *) {
+    if (device_entropy_error()) return;
+    DeviceSource s = device_entropy_stage();
+    if (s == DS_CHIP) {
+        // A small piece a tick for the whole step, all of it hashed in: with the
+        // hardware's checks on the chip is slow, and the screen has to keep up.
+        uint8_t *c = preview_buf;
+        if (!platform_trng(c + dev_chip_fill, DEV_CHIP_PIECE)) {
+            secure_zero(c, DE_CHIP_CHUNK);
+            device_fail("Chip: can't read its random generator");
+            return;
+        }
+        dev_chip_fill += DEV_CHIP_PIECE;
+        if (dev_chip_fill == DE_CHIP_CHUNK) {
+            dev_chip_fill = 0;
+            bool ok = device_entropy_chip(c, DE_CHIP_CHUNK);
+            secure_zero(c, DE_CHIP_CHUNK);
+            if (!ok) { ui_goto(UI_ENTROPY_DEVICE); return; }
+            // The chip blinks with each read and the count goes up. Only how
+            // much was read is shown, never what: the bytes are the seed's.
+            dev_chip_n++;
+            if (dev_chip) lv_obj_set_style_border_color(dev_chip, dev_chip_n % 2 ? ACCENT : ACCENT_DIM, 0);
+            static const char *faces[] = {ICON_DICE_1, ICON_DICE_2, ICON_DICE_3, ICON_DICE_4, ICON_DICE_5, ICON_DICE_6};
+            if (dev_chip_face) lv_label_set_text_static(dev_chip_face, faces[dev_chip_n % 6]);   // in turn, not the bytes
+            if (dev_chip_read) {
+                int b = dev_chip_n * DE_CHIP_CHUNK;
+                snprintf(dev_chip_txt, sizeof(dev_chip_txt), "%d.%d KB read", b / 1024, b % 1024 * 10 / 1024);
+                lv_label_set_text_static(dev_chip_read, dev_chip_txt);
+            }
+        }
+    } else if (s == DS_CAMERA) {
+        int w, h;
+        const uint8_t *f = platform_camera_frame(&w, &h);
+        if (f && dev_cam) {
+            for (int y = 0; y < DEV_CAM_H; y++)
+                for (int x = 0; x < DEV_CAM_W; x++)
+                    preview_buf[y * DEV_CAM_W + x] = f[(y * h / DEV_CAM_H) * w + (x * w / DEV_CAM_W)];
+            lv_obj_invalidate(dev_cam);
+        }
+        if (f && !device_entropy_camera(f, w, h)) { ui_goto(UI_ENTROPY_DEVICE); return; }
+        // (a camera error is ridden out, as the scan screen does: the camera
+        // restarts by itself, and the timeout below still ends a dead one)
+        if (lv_tick_elaps(dev_stage_ms) > DEV_CAMERA_TIMEOUT_MS) {
+            device_fail(platform_camera_error() ? "Camera: no picture" : "Camera: its picture doesn't change");
+            return;
+        }
+    } else if (s == DS_MOTION) {
+        int16_t m[6];
+        if (!platform_motion(m)) { device_fail("Motion sensor: can't read it"); return; }
+        // The picture of the device jumps with each jolt: the change in acceleration since the last sample.
+        if (dev_phone) {
+            int dx = (m[0] - dev_motion_last[0]) / 48, dy = (m[1] - dev_motion_last[1]) / 48;
+            lv_obj_set_style_translate_x(dev_phone, LV_CLAMP(-28, dx, 28), 0);
+            lv_obj_set_style_translate_y(dev_phone, LV_CLAMP(-12, dy, 12), 0);
+            for (int i = 0; i < 3; i++) dev_motion_last[i] = m[i];
+        }
+        bool ok = device_entropy_motion(m);
+        secure_zero(m, sizeof(m));
+        if (!ok) { ui_goto(UI_ENTROPY_DEVICE); return; }
+    }
+    // (the scribble's points come from ui_device_scribble; this only watches the clock)
+    int pct = device_progress(s);
+    if (pct >= 100) { device_step_next(); return; }
+    if (dev_bar) lv_bar_set_value(dev_bar, pct, LV_ANIM_OFF);
+}
+
+void ui_device_start() {
+    if (ui_current() != UI_DEVICE_WARNING) return;
+    device_entropy_start();
+    ui_goto(UI_ENTROPY_DEVICE);
+}
+
+// A round 5-pixel dab of ink, clipped to the box.
+static void ink_dab(int cx, int cy) {
+    for (int dy = -2; dy <= 2; dy++)
+        for (int dx = -2; dx <= 2; dx++) {
+            int x = cx + dx, y = cy + dy;
+            if (dx * dx + dy * dy > 5 || x < 0 || y < 0 || x >= DEV_INK_W || y >= DEV_INK_H) continue;
+            preview_buf[y * DEV_INK_W + x] = 0xFF;
+        }
+}
+
+static void ink_line(int x0, int y0, int x1, int y1) {
+    int n = LV_MAX(LV_ABS(x1 - x0), LV_ABS(y1 - y0));
+    for (int i = 0; i <= n; i++) ink_dab(x0 + (x1 - x0) * i / LV_MAX(n, 1), y0 + (y1 - y0) * i / LV_MAX(n, 1));
+}
+
+void ui_device_scribble(int x, int y) {
+    if (ui_current() != UI_ENTROPY_DEVICE || device_entropy_stage() != DS_TOUCH || device_entropy_error()) return;
+    if (!device_entropy_touch(x, y, lv_tick_get())) { ui_goto(UI_ENTROPY_DEVICE); return; }
+    if (dev_ink) {
+        int ix = x - M, iy = y - DEV_BOX_Y;
+        if (dev_pen_x >= 0) ink_line(dev_pen_x, dev_pen_y, ix, iy);
+        else ink_dab(ix, iy);
+        dev_pen_x = ix;
+        dev_pen_y = iy;
+        lv_obj_invalidate(dev_ink);
+    }
+    lv_bar_set_value(dev_bar, device_progress(DS_TOUCH), LV_ANIM_OFF);
+}
+
+static void scribble_cb(lv_event_t *e) {
+    if (lv_event_get_code(e) == LV_EVENT_PRESSED) dev_pen_x = -1;   // a new stroke
+    lv_point_t p;
+    lv_indev_get_point(lv_indev_active(), &p);
+    ui_device_scribble(p.x, p.y);
+}
+
+static void build_entropy_device() {
+    if (dev_timer) { lv_timer_delete(dev_timer); dev_timer = nullptr; }
+    dev_bar = dev_cam = dev_phone = dev_ink = dev_chip = dev_chip_face = dev_chip_read = nullptr;
+    dev_chip_n = dev_chip_fill = 0;
+    dev_pen_x = -1;
+    secure_zero(dev_motion_last, sizeof(dev_motion_last));
+    lv_obj_t *scr = screen();
+    topbar(scr, "On this device", to_new_seed_cb);
+    const char *err = device_entropy_error();
+    if (err) {
+        lv_obj_align(icon_badge(scr, ICON_WARNING, RED, RED_DIM, 56), LV_ALIGN_TOP_MID, 0, BAR + 16);
+        lv_obj_align(text(scr, "No seed made", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 84);
+        lv_obj_t *p = para(scr, err);
+        lv_obj_set_style_text_align(p, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_align(p, LV_ALIGN_TOP_MID, 0, BAR + 120);
+        lv_obj_t *b = btn_primary(scr, "Back", to_new_seed_cb);
+        lv_obj_set_width(b, CW);
+        place_bottom(b);
+        show(scr);
+        return;
+    }
+    DeviceSource s = device_entropy_stage();
+    dev_shown = s;
+    dev_stage_ms = lv_tick_get();
+    // One source per screen. The four-part bar is both the steps and the
+    // progress: done parts full, the current one filling, the rest empty.
+    const int gap = 6, sw = (CW - 3 * gap) / DS_COUNT;
+    for (int i = 0; i < DS_COUNT; i++) {
+        lv_obj_t *seg = i == s ? lv_bar_create(scr) : lv_obj_create(scr);
+        if (i != s) lv_obj_remove_style_all(seg);
+        lv_obj_set_size(seg, sw, 4);
+        lv_obj_set_pos(seg, M + i * (sw + gap), BAR + 4);
+        lv_obj_set_style_radius(seg, 2, 0);
+        lv_obj_set_style_bg_opa(seg, LV_OPA_COVER, 0);
+        lv_obj_set_style_bg_color(seg, i < s ? ACCENT : SURFACE_2, 0);
+        if (i == s) {
+            lv_bar_set_range(seg, 0, 100);
+            lv_obj_set_style_bg_color(seg, ACCENT, LV_PART_INDICATOR);
+            lv_obj_set_style_radius(seg, 2, LV_PART_INDICATOR);
+            dev_bar = seg;
+        }
+    }
+    static const char *title[DS_COUNT] = {"The chip", "Camera noise", "Shake it", "Scribble"};
+    static const char *say[DS_COUNT] = {   // one line each
+        "The chip rolls its own dice.",
+        "Point it at something lit.",
+        "Shake it for a few seconds.",
+        "Draw with your finger.",
+    };
+    char step[16];
+    snprintf(step, sizeof(step), "STEP %d OF %d", s + 1, DS_COUNT);
+    lv_obj_align(text(scr, step, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, BAR + 14);
+    lv_obj_align(text(scr, title[s], &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 44);
+    lv_obj_align(text(scr, say[s], &inter_15, TEXT_2), LV_ALIGN_TOP_MID, 0, BAR + 74);
+    lv_bar_set_value(dev_bar, 0, LV_ANIM_OFF);
+    if (s == DS_TOUCH) {
+        lv_obj_t *box = card(scr, DEV_INK_W, DEV_INK_H);
+        lv_obj_set_pos(box, M, DEV_BOX_Y);
+        lv_obj_add_flag(box, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_event_cb(box, scribble_cb, LV_EVENT_PRESSED, nullptr);
+        lv_obj_add_event_cb(box, scribble_cb, LV_EVENT_PRESSING, nullptr);
+        if (word_reader_holds(preview_buf)) word_reader_free();
+        memset(preview_buf, 0, sizeof(preview_buf));
+        dev_ink_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
+        dev_ink_dsc.header.cf = LV_COLOR_FORMAT_A8;
+        dev_ink_dsc.header.w = DEV_INK_W;
+        dev_ink_dsc.header.h = DEV_INK_H;
+        dev_ink_dsc.header.stride = DEV_INK_W;
+        dev_ink_dsc.data_size = DEV_INK_W * DEV_INK_H;
+        dev_ink_dsc.data = preview_buf;
+        dev_ink = lv_image_create(scr);
+        lv_image_set_src(dev_ink, &dev_ink_dsc);
+        lv_obj_remove_flag(dev_ink, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_style_image_recolor(dev_ink, ACCENT, 0);
+        lv_obj_set_style_image_recolor_opa(dev_ink, LV_OPA_COVER, 0);
+        lv_obj_set_pos(dev_ink, M, DEV_BOX_Y);
+    } else if (s == DS_CAMERA) {
+        if (word_reader_holds(preview_buf)) word_reader_free();
+        memset(preview_buf, 0, sizeof(preview_buf));
+        dev_cam_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
+        dev_cam_dsc.header.cf = LV_COLOR_FORMAT_L8;
+        dev_cam_dsc.header.w = DEV_CAM_W;
+        dev_cam_dsc.header.h = DEV_CAM_H;
+        dev_cam_dsc.header.stride = DEV_CAM_W;
+        dev_cam_dsc.data_size = DEV_CAM_W * DEV_CAM_H;
+        dev_cam_dsc.data = preview_buf;
+        // The rest of preview_buf, past the view, is the camera step's working memory.
+        static_assert(DEV_CAM_W * DEV_CAM_H + DE_CAMERA_LEND <= sizeof(preview_buf), "the camera step's loan doesn't fit");
+        device_entropy_lend(preview_buf + DEV_CAM_W * DEV_CAM_H);
+        // The view as a rounded card, like the scribble box.
+        lv_obj_t *frame = lv_obj_create(scr);
+        lv_obj_remove_style_all(frame);
+        lv_obj_set_size(frame, DEV_CAM_W, DEV_CAM_H);
+        lv_obj_set_style_radius(frame, 14, 0);
+        lv_obj_set_style_clip_corner(frame, true, 0);
+        lv_obj_set_style_bg_color(frame, lv_color_black(), 0);
+        lv_obj_set_style_bg_opa(frame, LV_OPA_COVER, 0);
+        lv_obj_align(frame, LV_ALIGN_TOP_MID, 0, DEV_VIS_Y);
+        dev_cam = lv_image_create(frame);
+        lv_image_set_src(dev_cam, &dev_cam_dsc);
+        lv_obj_center(dev_cam);
+    } else if (s == DS_CHIP) {
+        if (word_reader_holds(preview_buf)) word_reader_free();
+        secure_zero(preview_buf, DE_CHIP_CHUNK);
+        // A chip with pins on every side and a die in it; it blinks and the die
+        // turns as it is read.
+        const int cs = 64, cy = DEV_VIS_Y + 58;
+        for (int side = 0; side < 4; side++)
+            for (int k = 0; k < 3; k++) {
+                lv_obj_t *pin = lv_obj_create(scr);
+                lv_obj_remove_style_all(pin);
+                bool vert = side < 2;   // pins above and below stand up
+                lv_obj_set_size(pin, vert ? 6 : 12, vert ? 12 : 6);
+                lv_obj_set_style_radius(pin, 2, 0);
+                lv_obj_set_style_bg_color(pin, TEXT_3, 0);
+                lv_obj_set_style_bg_opa(pin, LV_OPA_COVER, 0);
+                int along = (k - 1) * 18;
+                int out = cs / 2 + 6;
+                int dx = vert ? along : (side == 2 ? -out : out), dy = vert ? (side == 0 ? -out : out) : along;
+                lv_obj_align(pin, LV_ALIGN_TOP_MID, dx, cy + dy - (vert ? 6 : 3));
+            }
+        dev_chip = lv_obj_create(scr);
+        lv_obj_remove_style_all(dev_chip);
+        lv_obj_set_size(dev_chip, cs, cs);
+        lv_obj_set_style_radius(dev_chip, 8, 0);
+        lv_obj_set_style_bg_color(dev_chip, SURFACE, 0);
+        lv_obj_set_style_bg_opa(dev_chip, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_color(dev_chip, ACCENT, 0);
+        lv_obj_set_style_border_width(dev_chip, 3, 0);
+        lv_obj_align(dev_chip, LV_ALIGN_TOP_MID, 0, cy - cs / 2);
+        dev_chip_face = text(dev_chip, ICON_DICE_5, &icons_40, ACCENT);   // the chip "rolling dice"
+        lv_obj_center(dev_chip_face);
+        dev_chip_read = text(scr, "", &inter_13, TEXT_3);
+        lv_obj_align(dev_chip_read, LV_ALIGN_TOP_MID, 0, cy + cs / 2 + 20);
+    } else if (s == DS_MOTION) {
+        // A device outline in the space below; it jumps with the motion sensor.
+        dev_phone = lv_obj_create(scr);
+        lv_obj_remove_style_all(dev_phone);
+        lv_obj_remove_flag(dev_phone, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_size(dev_phone, 64, 92);
+        lv_obj_set_style_radius(dev_phone, 10, 0);
+        lv_obj_set_style_border_color(dev_phone, ACCENT, 0);
+        lv_obj_set_style_border_width(dev_phone, 3, 0);
+        lv_obj_align(dev_phone, LV_ALIGN_TOP_MID, 0, DEV_VIS_Y + (DEV_VIS_H - 92) / 2);
+        lv_obj_t *glass = lv_obj_create(dev_phone);
+        lv_obj_remove_style_all(glass);
+        lv_obj_set_size(glass, 44, 58);
+        lv_obj_set_style_radius(glass, 4, 0);
+        lv_obj_set_style_bg_color(glass, ACCENT_DIM, 0);
+        lv_obj_set_style_bg_opa(glass, LV_OPA_COVER, 0);
+        lv_obj_align(glass, LV_ALIGN_TOP_MID, 0, 9);
+    }
+    // Chip, camera and motion are sampled here (shaking wants ~100 samples a
+    // second); on the scribble the timer only watches the clock.
+    dev_timer = lv_timer_create(device_tick, s == DS_MOTION ? 10 : 30, nullptr);
     show(scr);
 }
 
@@ -3283,7 +3647,7 @@ static void build_multisig() {
 // Making or entering a seed: only while none is loaded.
 static bool seed_entry_screen(UiScreen s) {
     return s == UI_NEW_SEED || s == UI_ENTROPY_DICE || s == UI_ENTROPY_COINS || s == UI_ENTROPY_SUSPECT ||
-           s == UI_ENTER_WORDS ||
+           s == UI_ENTER_WORDS || s == UI_DEVICE_WARNING || s == UI_ENTROPY_DEVICE ||
            s == UI_PAGE_FOUND || s == UI_PAGE_READING || s == UI_PAGE_REVIEW || s == UI_PAGE_WORD;
 }
 // The card flow: for a new seed, or the loaded one.
@@ -3666,6 +4030,7 @@ void ui_goto(UiScreen s) {
     bool needs_pending = backup_screen(s) && s != UI_BACKUP_BLOCK && s != UI_BACKUP_SCAN;
     bool needs_qr = s == UI_BACKUP_BLOCK || s == UI_BACKUP_SCAN;
     if ((needs_pending && !pending.len) || (needs_qr && (!pending.len || !qr_n))) { new_seed_wipe(); s = UI_HOME; }
+    if (s != UI_ENTROPY_DEVICE && dev_timer) { lv_timer_delete(dev_timer); dev_timer = nullptr; }
     if (s != UI_VERIFY_RESULT && verify_timer) { lv_timer_delete(verify_timer); verify_timer = nullptr; }
     if (s != UI_PAGE_READING && page_timer) { lv_timer_delete(page_timer); page_timer = nullptr; }
     if (s != UI_PSBT_SIGNED && anim_timer) { lv_timer_delete(anim_timer); anim_timer = nullptr; }
@@ -3709,6 +4074,8 @@ void ui_goto(UiScreen s) {
         case UI_PAGE_REVIEW: build_page_review(); break;
         case UI_PAGE_WORD: build_page_word(); break;
         case UI_UPDATE: build_update(); break;
+        case UI_DEVICE_WARNING: build_device_warning(); break;
+        case UI_ENTROPY_DEVICE: build_entropy_device(); break;
     }
     apply_backlight();
 }
