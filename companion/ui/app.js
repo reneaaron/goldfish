@@ -470,22 +470,29 @@ $("s-form").onsubmit = async (ev) => {
 };
 
 function showReview(r) {
-  const paying = r.recipients.reduce((s, [, v]) => s + v, 0);
+  const paying = r.recipients.reduce((s, x) => s + x.sat, 0);
   show("sign");
   $("rv-amount").textContent = btc(paying);
   $("rv-btc").textContent = inBtc(paying);
   const rows = [
-    ...r.recipients.map(([a, v]) => [r.recipients.length > 1 ? btc(v) : "To", groups(a)]),
+    ...r.recipients.map((x) => [r.recipients.length > 1 ? btc(x.sat) : "To", groups(x.address), x.yours]),
     ["Fee", btc(r.fee_sat)],
     ["Change", r.change_sat ? btc(r.change_sat) : "None"],
   ];
   $("review").replaceChildren(
-    ...rows.flatMap(([k, v]) => {
+    ...rows.flatMap(([k, v, yours]) => {
       const dt = document.createElement("dt");
       const dd = document.createElement("dd");
       dt.textContent = k;
       dd.textContent = v;
       if (v.length > 20) dd.className = "mono";
+      if (yours) {
+        // a send to one of this wallet's own addresses
+        const tag = document.createElement("span");
+        tag.className = "yours";
+        tag.textContent = "This wallet";
+        dd.append(tag);
+      }
       return [dt, dd];
     }),
   );

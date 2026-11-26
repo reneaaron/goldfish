@@ -425,9 +425,17 @@ pub fn overview(account: &Account, wallet: &Wallet) -> Overview {
 // ------------------------------------------------------------ spending
 
 #[derive(Serialize, Clone)]
+pub struct Recipient {
+    pub address: String,
+    pub sat: u64,
+    /// one of this wallet's own receive addresses (a send to yourself)
+    pub yours: bool,
+}
+
+#[derive(Serialize, Clone)]
 pub struct Review {
     pub txid: String,
-    pub recipients: Vec<(String, u64)>,
+    pub recipients: Vec<Recipient>,
     pub change_sat: u64,
     pub fee_sat: u64,
     pub frames: usize,
@@ -476,13 +484,16 @@ pub fn review(wallet: &Wallet, psbt: &Psbt, frames: usize) -> Review {
     let mut recipients = vec![];
     let mut change_sat = 0;
     for out in &psbt.unsigned_tx.output {
-        if wallet.is_mine(out.script_pubkey.clone()) {
+        // Change is only what goes back to the change chain: a payment to one
+        // of our own receive addresses is still the amount being sent.
+        let ours = wallet.derivation_of_spk(out.script_pubkey.clone());
+        if matches!(ours, Some((KeychainKind::Internal, _))) {
             change_sat += out.value.to_sat();
         } else {
-            let addr = Address::from_script(&out.script_pubkey, wallet.network())
+            let address = Address::from_script(&out.script_pubkey, wallet.network())
                 .map(|a| a.to_string())
                 .unwrap_or_else(|_| out.script_pubkey.to_hex_string());
-            recipients.push((addr, out.value.to_sat()));
+            recipients.push(Recipient { address, sat: out.value.to_sat(), yours: ours.is_some() });
         }
     }
     Review {
@@ -903,6 +914,19 @@ mod tests {
         let (sigs, tx) = add_signatures(&w, &mut psbt, third, a.threshold).unwrap();
         assert_eq!(sigs.have, 2);
         assert_eq!(tx.unwrap().input[0].witness.len(), 4); // empty, two signatures, the script
+    }
+
+
+    #[test]
+    fn a_send_to_yourself_is_not_change() {
+        let mut w = abandon_account().wallet().unwrap();
+        fund_for_demo(&mut w, 100_000);
+        let own = w.peek_address(KeychainKind::External, 3).address.to_string();
+        let psbt = build_psbt(&mut w, &own, 10_000, 1.0).unwrap();
+        let r = review(&w, &psbt, 1);
+        assert_eq!(r.recipients.len(), 1);
+        assert_eq!((r.recipients[0].sat, r.recipients[0].yours), (10_000, true));
+        assert!(r.change_sat > 0 && r.change_sat < 90_000);
     }
 
 }

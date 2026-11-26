@@ -328,3 +328,25 @@ html, body { overflow-x: clip; }
 .danger-zone .hint { margin: 8px 0 4px; }
 button.link.danger { color: var(--red); padding: 4px 0; font-size: 14px; justify-content: flex-start; }
 #v-receive .addr-block { margin-top: 12px; }
+
+/* Review: room to breathe; on desktop, details left and the QR right */
+.sign-body { display: flex; flex-direction: column; gap: 16px; }
+.sign-body .sig-status { margin: 0; }
+.sign-body .sending .label { margin-top: 0; }
+.sign-body #review { margin: 0; }
+.kv dd .yours { display: block; margin-top: 6px; font: 600 11px/1 var(--sans); letter-spacing: .04em; text-transform: uppercase; color: var(--accent); }
+@media (min-width: 900px) {
+  body.dialog-open main > section#v-sign { width: min(800px, calc(100vw - 48px)); max-width: none; }
+  #v-sign .sign-body {
+    display: grid; grid-template-columns: minmax(0, 1fr) 300px; column-gap: 32px; row-gap: 20px;
+    grid-template-areas: "sig qr" "amt qr" "det qr" "paste qr"; grid-template-rows: auto auto auto 1fr;
+    align-items: start; padding-top: 8px;
+  }
+  #v-sign #sign-sigs { grid-area: sig; justify-content: flex-start; }
+  #v-sign .sending { grid-area: amt; text-align: left; }
+  #v-sign .sending .label { justify-content: flex-start; }
+  #v-sign #review { grid-area: det; }
+  #v-sign #sign-paste { grid-area: paste; }
+  #v-sign .sign-qr-col { grid-area: qr; }
+  #v-sign .qr { max-width: 300px; margin: 0; }
+}

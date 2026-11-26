@@ -201,22 +201,26 @@
     <!-- Sign on Goldfish -->
     <section id="v-sign" hidden>
       <header class="bar"><button class="back" aria-label="Back"><svg><use href="#i-back"/></svg></button><h2>Review</h2><button id="sign-paste-toggle" class="link bar-action">Paste</button></header>
-      <p class="sig-status" id="sign-sigs" hidden></p>
-      <div class="sending">
-        <p class="label">You're sending</p>
-        <p class="big amount" id="rv-amount"></p>
-        <p class="sub" id="rv-btc"></p>
-      </div>
-      <div id="sign-show">
-        <div id="sign-qr" class="qr"></div>
-        <p class="caption"><img class="gf-inline" id="sign-fish" src="goldfish.svg" alt=""><span id="sign-who">Scan with Goldfish</span> · <span id="sign-part"></span></p>
-      </div>
-      <div class="cam" hidden><canvas width="320" height="240"></canvas></div>
-      <button class="link center-block cam-cancel" hidden>Cancel</button>
-      <dl id="review" class="card kv"></dl>
-      <div id="sign-paste" class="paste" hidden>
-        <textarea id="sign-text" rows="3" spellcheck="false" placeholder="ur:crypto-psbt/… or base64, one part per line"></textarea>
-        <button id="sign-use" class="secondary">Use</button>
+      <div class="sign-body">
+        <p class="sig-status" id="sign-sigs" hidden></p>
+        <div class="sending">
+          <p class="label">You're sending</p>
+          <p class="big amount" id="rv-amount"></p>
+          <p class="sub" id="rv-btc"></p>
+        </div>
+        <div class="sign-qr-col">
+          <div id="sign-show">
+            <div id="sign-qr" class="qr"></div>
+            <p class="caption"><img class="gf-inline" id="sign-fish" src="goldfish.svg" alt=""><span id="sign-who">Scan with Goldfish</span> · <span id="sign-part"></span></p>
+          </div>
+          <div class="cam" hidden><canvas width="320" height="240"></canvas></div>
+          <button class="link center-block cam-cancel" hidden>Cancel</button>
+        </div>
+        <dl id="review" class="card kv"></dl>
+        <div id="sign-paste" class="paste" hidden>
+          <textarea id="sign-text" rows="3" spellcheck="false" placeholder="ur:crypto-psbt/… or base64, one part per line"></textarea>
+          <button id="sign-use" class="secondary">Use</button>
+        </div>
       </div>
       <div class="actions">
         <progress id="sign-progress" max="100" value="0" hidden></progress>
