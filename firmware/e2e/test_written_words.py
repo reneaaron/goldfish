@@ -31,6 +31,49 @@ def test_written_page_starts_by_itself(dev):
     dev.wait_for(lambda: dev.screen == "PAGE_FOUND", ms=5000, what="the words to be found again")
 
 
+def test_moving_restarts_the_countdown(dev):
+    """Holding still fills a "Hold still" pill; moving starts it over."""
+    dev.tap("Scan")
+    dev.show_page(PAGE)
+    dev.wait(1200)
+    assert "Hold still" in dev.texts(), dev.text()
+
+    dev.show(GREY)   # moved: back to the prompt at once
+    dev.wait(100)
+    assert "Hold still" not in dev.texts(), dev.text()
+    assert "Hold still to read them" in dev.texts(), dev.text()
+
+    # Still again: the wait starts from zero, not where it was.
+    dev.show_page(PAGE)
+    dev.wait(1200)
+    assert dev.screen == "SCAN_SEED", dev.text()
+    assert "Hold still" in dev.texts(), dev.text()
+    dev.wait_for(lambda: dev.screen == "PAGE_FOUND", ms=5000, what="the words to be found")
+
+
+def test_no_words_says_so_until_it_moves(dev):
+    dev.tap("Scan")
+    dev.show(GREY)
+    dev.wait(3000)
+    assert dev.screen == "SCAN_SEED", dev.text()
+    assert "No words found yet" in dev.texts(), dev.text()
+    dev.show_page(PAGE)
+    dev.wait(100)
+    assert "No words found yet" not in dev.texts(), dev.text()
+    dev.wait_for(lambda: dev.screen == "PAGE_FOUND", ms=5000, what="the words to be found")
+
+
+def test_failed_picture_says_so_until_it_moves(dev):
+    """A status after the pill (here: the camera gives no still) stays up; the pill doesn't cover it."""
+    dev.tap("Scan")
+    dev.show(Image.open(PAGE).convert("L"))   # words in the preview, but no still to take
+    dev.wait(3000)
+    assert "No picture yet" in dev.texts(), dev.text()
+    dev.wait(1000)
+    assert "No picture yet" in dev.texts(), dev.text()
+    assert "Hold still" not in dev.texts(), dev.text()
+
+
 def test_written_page_is_read(dev):
     """Read takes the words to the list, in the board's memory (the simulator
     has the board's heap: a step that doesn't fit shows "Out of memory")."""

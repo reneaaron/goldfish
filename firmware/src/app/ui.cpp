@@ -374,6 +374,9 @@ static_assert(sizeof(preview_buf) >= WR_LEND_BYTES, "the word reader's loan does
 static lv_image_dsc_t preview_dsc;
 static lv_obj_t *preview_img, *scan_msg, *scan_sub, *scan_bar;
 static lv_obj_t *scan_hints;   // what the wallet scanner takes, until a status
+// Scan seed while held still: a tinted "Hold still" pill that fills from the left
+// until the picture is taken; in place of scan_msg and scan_sub until a status
+static lv_obj_t *hold_row, *hold_fill;
 // Scan speed, per second: frames from the camera, QRs decoded, quirc's time
 // per frame (average and slowest). A long press on the preview shows it in
 // its own line at the bottom, above the progress bar.
@@ -397,9 +400,13 @@ static int out_index;
 #define PROBE_MS 500        // at most this often: finding the words takes a while on the board
 #define STEADY_DIFF 6       // mean change per pixel between frames (of 255) that counts as moving
 #define PAGE_MIN_WORDS 8
+#define HOLD_GRACE_MS 300   // a pause this short shows nothing: the pill only shows after it
 static uint8_t steady_ref[(PREV_W / 4) * (PREV_H / 4)];   // the last preview, small: a picture of the seed, wiped by scan_stop
 static bool steady_have;
 static uint32_t steady_since, last_probe;
+// hold_missed: the pill filled on no words; nothing more shows until the view moves.
+static bool hold_shown, hold_missed;
+static int hold_last = -1;   // the pill's fill as last drawn (0..100)
 // Back from the page flow (Retake, Back, a failure): no new try until the
 // view changes, or the same picture would be taken again at once.
 static bool page_retake, page_armed;
@@ -414,6 +421,8 @@ static void scan_stop(bool camera_off = true) {
     memset(preview_buf, 0, sizeof(preview_buf));
     memset(steady_ref, 0, sizeof(steady_ref));
     steady_have = false;
+    hold_shown = hold_missed = false;
+    hold_last = -1;
 }
 
 static bool starts_with_ci(const QrPayload &p, const char *s) {
@@ -428,6 +437,10 @@ static bool looks_like_psbt(const QrPayload &p) {
 
 static void scan_status(const char *msg, const char *sub, lv_color_t c) {
     if (scan_hints) lv_obj_add_flag(scan_hints, LV_OBJ_FLAG_HIDDEN);
+    if (hold_row) lv_obj_add_flag(hold_row, LV_OBJ_FLAG_HIDDEN);
+    hold_shown = false;   // a status ends the pill: the next one is drawn from the start
+    lv_obj_remove_flag(scan_msg, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(scan_sub, LV_OBJ_FLAG_HIDDEN);
     lv_label_set_text(scan_msg, msg);
     lv_obj_set_style_text_color(scan_msg, c, 0);
     lv_label_set_text(scan_sub, sub ? sub : "");
@@ -586,6 +599,31 @@ static void handle_wallet_payload(QrPayload &p) {
 
 static void handle_confirm_payload(QrPayload &p);
 static bool page_probe(const uint8_t *frame, int w, int h);
+static const char *const SEED_PROMPT = "Your written words", *const SEED_HINT = "Hold still to read them";
+static const char *const SEED_MISSED = "No words found yet";
+
+// The filling pill on Scan seed, from how long the view has held still.
+#define HOLD_W 160
+static void hold_show() {
+    bool on = steady_have && page_armed && !hold_missed && !qrscan_finders() &&
+              lv_tick_elaps(steady_since) >= HOLD_GRACE_MS;
+    if (!on) {
+        // the countdown's text gone, or a miss the view has since moved off (another status stays)
+        if (hold_shown || (!hold_missed && !strcmp(lv_label_get_text(scan_sub), SEED_MISSED))) {
+            hold_shown = false;
+            scan_status(SEED_PROMPT, hold_missed ? SEED_MISSED : SEED_HINT, TEXT);
+        }
+        return;
+    }
+    uint32_t held = lv_tick_elaps(steady_since);
+    int pct = held >= STEADY_MS ? 100 : int((held - HOLD_GRACE_MS) * 100 / (STEADY_MS - HOLD_GRACE_MS));
+    if (pct != hold_last) lv_obj_set_width(hold_fill, HOLD_W * (hold_last = pct) / 100);
+    if (hold_shown) return;
+    hold_shown = true;
+    lv_obj_add_flag(scan_msg, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(scan_sub, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(hold_row, LV_OBJ_FLAG_HIDDEN);
+}
 
 // True once the view has held still on what looks like written words.
 static bool page_watch(const uint8_t *frame, int w, int h) {
@@ -600,16 +638,19 @@ static bool page_watch(const uint8_t *frame, int w, int h) {
     diff /= k;
     if (!steady_have) { steady_have = true; steady_since = now; return false; }
     if (diff > STEADY_DIFF) page_armed = true;
-    if (diff > STEADY_DIFF || qrscan_finders()) { steady_since = now; return false; }
+    if (diff > STEADY_DIFF || qrscan_finders()) { steady_since = now; hold_missed = false; return false; }
     if (!page_armed || now - steady_since < STEADY_MS || now - last_probe < PROBE_MS) return false;
     last_probe = now;
-    return page_probe(frame, w, h);
+    if (page_probe(frame, w, h)) return true;
+    hold_missed = true;   // still probed every PROBE_MS: the camera may settle on them
+    return false;
 }
 
 static bool cam_err;   // the scan screen is showing platform_camera_error()
 
 static void scan_tick(lv_timer_t *) {
     if (ask_scrim) return;   // a question over the scanner: wait for the answer
+    if (scan_mode == SCAN_SEED && !cam_err) hold_show();   // every tick: smoother than the camera's frames
     int w, h;
     const uint8_t *frame = platform_camera_frame(&w, &h);
     if (!frame) {
@@ -645,7 +686,8 @@ static void scan_tick(lv_timer_t *) {
         st_frames = st_codes = st_ms = st_max = 0;
     }
     if (!found) {
-        if (scan_mode == SCAN_SEED && page_watch(frame, w, h)) ui_page_read();   // this timer is gone now
+        // read: this timer is gone now; no picture: its status stays until the view moves
+        if (scan_mode == SCAN_SEED && page_watch(frame, w, h) && !ui_page_read()) hold_missed = true;
         return;
     }
     if (scan_mode == SCAN_SEED) handle_seed_payload(p);
@@ -718,7 +760,7 @@ static void build_scan(ScanMode mode) {
     // line stays empty until there is something to report, except on Scan
     // seed: there it says how words are read (nothing to tap), until a status.
     // The wallet's scanner says what it takes instead, until a status.
-    static const char *prompts[] = {"Your written words", "", "Let's check it matches"};
+    static const char *prompts[] = {SEED_PROMPT, "", "Let's check it matches"};
     topbar(scr, titles[mode], scan_back_cb);
     preview_image(scr);
     st_t0 = lv_tick_get();
@@ -741,7 +783,7 @@ static void build_scan(ScanMode mode) {
 
     scan_msg = text(scr, prompts[mode], &inter_17_semi, TEXT, LV_TEXT_ALIGN_CENTER);
     lv_obj_align(scan_msg, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + (seed ? 18 : 14));
-    scan_sub = text(scr, seed ? "Hold still to read them" : "", &inter_13, TEXT_3, LV_TEXT_ALIGN_CENTER);
+    scan_sub = text(scr, seed ? SEED_HINT : "", &inter_13, TEXT_3, LV_TEXT_ALIGN_CENTER);
     // one line each, kept off the screen edge: status texts are written to fit, this only catches a slip
     lv_obj_t *lines[] = {scan_msg, scan_sub};
     for (lv_obj_t *l : lines) {
@@ -750,6 +792,27 @@ static void build_scan(ScanMode mode) {
     }
     lv_obj_align(scan_sub, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + (seed ? 44 : 40));
     scan_hints = nullptr;
+    hold_row = nullptr;
+    hold_last = -1;   // a new, empty pill: drawn on the first tick that shows it
+    if (seed) {
+        // like Check words' status pill; the fill is a darker tint of it
+        hold_row = lv_obj_create(scr);
+        lv_obj_remove_style_all(hold_row);
+        lv_obj_remove_flag(hold_row, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_size(hold_row, HOLD_W, 36);
+        lv_obj_set_style_bg_color(hold_row, ACCENT_DIM, 0);
+        lv_obj_set_style_bg_opa(hold_row, LV_OPA_COVER, 0);
+        lv_obj_set_style_radius(hold_row, LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_clip_corner(hold_row, true, 0);
+        hold_fill = lv_obj_create(hold_row);
+        lv_obj_remove_style_all(hold_fill);
+        lv_obj_set_size(hold_fill, 0, 36);
+        lv_obj_set_style_bg_color(hold_fill, ACCENT, 0);
+        lv_obj_set_style_bg_opa(hold_fill, LV_OPA_30, 0);
+        lv_obj_center(text(hold_row, "Hold still", &inter_17_semi, ACCENT, LV_TEXT_ALIGN_CENTER));
+        lv_obj_align(hold_row, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + 26);
+        lv_obj_add_flag(hold_row, LV_OBJ_FLAG_HIDDEN);
+    }
     if (mode == SCAN_WALLET) {
         pass_asked = false;
         scan_hints = text(scr, ms_scan ? "The wallet's QR\nfrom your wallet app" : "Transactions, addresses\nand multisig wallets",
