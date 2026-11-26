@@ -96,7 +96,7 @@
       <button id="w-waiting" class="banner waiting" hidden><b>A signed transaction is waiting</b><span>Broadcast it</span></button>
       <button id="w-show" class="connect" hidden>
         <img src="goldfish.svg" alt="">
-        <span><b>Connect Goldfish</b><small>Show it this wallet so it can sign. Again after each restart.</small></span>
+        <span><b>Connect Goldfish</b><small>Lets Goldfish sign for this wallet. Connect again each time you plug it in.</small></span>
         <span class="chev" aria-hidden="true">›</span>
       </button>
       <div class="list-head">
@@ -145,11 +145,11 @@
     <!-- Multisig descriptor for Goldfish -->
     <section id="v-show" hidden>
       <header class="bar"><button class="back" aria-label="Back"><svg><use href="#i-back"/></svg></button><h2>Connect Goldfish</h2></header>
-      <p class="para">On Goldfish, tap <b>Scan QR</b> and show it this code. Check it says <b id="sh-kind"></b> with these fingerprints and first address, then tap <b>Use wallet</b>.</p>
+      <p class="para">On Goldfish, tap <b>Scan QR</b> and show it this code. Check that it says <b id="sh-kind"></b> and that the fingerprints and first address match the ones below, then tap <b>Use wallet</b>.</p>
       <div id="sh-qr" class="qr"></div>
       <p class="caption" id="sh-part" hidden></p>
       <dl class="card kv" id="sh-kv"></dl>
-      <p class="hint">Goldfish forgets the wallet when it's unplugged. Show it again before signing after a restart.</p>
+      <p class="hint">Goldfish forgets this wallet when it's unplugged, so connect again each time you plug it in.</p>
       <div class="actions">
         <button class="primary wide back">Done</button>
       </div>
