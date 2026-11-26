@@ -392,19 +392,6 @@ static int run_shots(const char *dir) {
     pump(300); save(dir, "17_backup_warning");
     ui_goto(UI_BACKUP_WORDS);   pump(300); save(dir, "18_backup_words");
     ui_goto(UI_SEED_READY);     pump(300); save(dir, "23_seed_ready");   // "Written down"
-    // The QR card (Back up as QR in Wallet options), shown for this seed.
-    ui_goto(UI_BACKUP_QR);      pump(300); save(dir, "20_backup_qr");
-    // Part 1 is all pre-printed finder square; show the first part with squares to copy.
-    ui_goto(UI_BACKUP_BLOCK); ui_backup_next(); pump(300); save(dir, "21_backup_block_1");
-    while (ui_current() == UI_BACKUP_BLOCK) ui_backup_next();
-    if (ui_current() != UI_BACKUP_SCAN) { fprintf(stderr, "no card check after the last block\n"); return 1; }
-    setenv("SIM_CAMERA", "sim/samples/vector4_compact_12word.png", 1);   // somebody else's seed
-    for (int i = 0; i < 40; i++) pump(50);
-    save(dir, "22_check_wrong_card");
-    if (!cam_show_matrix(ui_backup_qr())) { fprintf(stderr, "no backup QR on screen\n"); return 1; }
-    for (int i = 0; i < 100 && ui_current() == UI_BACKUP_SCAN; i++) pump(50);
-    if (ui_current() != UI_SEED_READY || wallet_has_seed()) { fprintf(stderr, "card check failed (screen %d)\n", ui_current()); return 1; }
-    pump(300); save(dir, "23b_card_checked");
 
     // Coin flips, up to the count.
     cam_override = false;
@@ -448,8 +435,9 @@ static int run_shots(const char *dir) {
     ui_goto(UI_WALLET_OPTIONS); pump(300); save(dir, "28_menu_backup");
     ui_backup_loaded();
     if (ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "backup did not start\n"); return 1; }
-    ui_goto(UI_BACKUP_QR);
-    ui_goto(UI_BACKUP_BLOCK);
+    ui_goto(UI_BACKUP_QR);      pump(300); save(dir, "20_backup_qr");
+    // Part 1 is all pre-printed finder square; show the first part with squares to copy.
+    ui_goto(UI_BACKUP_BLOCK); ui_backup_next(); pump(300); save(dir, "21_backup_block_1");
     while (true) {
         ui_backup_next();
         if (ui_current() != UI_BACKUP_BLOCK) break;
@@ -457,11 +445,16 @@ static int run_shots(const char *dir) {
     // ui_backup_next from the last block goes to the check; capture the last block first.
     ui_goto(UI_BACKUP_BLOCK); pump(300); save(dir, "29_backup_last_block");
     ui_backup_next();
+    if (ui_current() != UI_BACKUP_SCAN) { fprintf(stderr, "no card check after the last block\n"); return 1; }
+    cam_override = false;
+    setenv("SIM_CAMERA", "sim/samples/vector4_compact_12word.png", 1);   // somebody else's seed
+    for (int i = 0; i < 40; i++) pump(50);
+    save(dir, "22_check_wrong_card");
     if (!cam_show_matrix(ui_backup_qr())) { fprintf(stderr, "no backup QR on screen\n"); return 1; }
     for (int i = 0; i < 100 && ui_current() == UI_BACKUP_SCAN; i++) pump(50);
     if (ui_current() != UI_WALLET || !wallet_has_seed()) { fprintf(stderr, "existing backup check failed\n"); return 1; }
 
-    // BIP-85 child seed of the loaded seed: words, QR card, card check.
+    // BIP-85 child seed of the loaded seed: words, Seed ready.
     ui_goto(UI_WALLET_OPTIONS);    pump(300); save(dir, "30_menu_child");
     ui_goto(UI_CHILD_INDEX);
     // Keypad: the largest child number, a digit past it is ignored, Del back to 0.
@@ -478,12 +471,8 @@ static int run_shots(const char *dir) {
     ui_child_seed((uint32_t)strtoul(ui_child_number(), nullptr, 10));
     if (ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "child seed did not start\n"); return 1; }
     ui_goto(UI_BACKUP_WORDS); pump(300); save(dir, "33_child_words");
-    ui_goto(UI_BACKUP_QR);
-    ui_goto(UI_BACKUP_BLOCK);
-    while (ui_current() == UI_BACKUP_BLOCK) ui_backup_next();
-    if (!cam_show_matrix(ui_backup_qr())) { fprintf(stderr, "no child QR on screen\n"); return 1; }
-    for (int i = 0; i < 100 && ui_current() == UI_BACKUP_SCAN; i++) pump(50);
-    if (ui_current() != UI_SEED_READY || !wallet_has_seed()) { fprintf(stderr, "child card check failed\n"); return 1; }
+    ui_goto(UI_SEED_READY);   // "Written down"
+    if (!wallet_has_seed()) { fprintf(stderr, "child seed unloaded the parent\n"); return 1; }
     pump(600); save(dir, "34_child_ready");
 
     // BIP-39 passphrase: "abandon ... about" with TREZOR (the BIP39 test vector's
