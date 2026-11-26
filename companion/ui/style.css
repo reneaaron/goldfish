@@ -358,9 +358,5 @@ button.link.danger { color: var(--red); padding: 4px 0; font-size: 14px; justify
    behind the fish and the line (Bowl's own hints stay grey) */
 :root { --gf-wash: rgba(255, 122, 47, .09); --gf-edge: rgba(255, 122, 47, .22); }
 .gf-hint { background: var(--gf-wash); border: 1px solid var(--gf-edge); color: var(--text-2); }
-.steps li.gf { margin: 0 -16px; padding: 14px 16px; background: var(--gf-wash); border-bottom: 1px solid var(--gf-edge); border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0; }
-.steps li.gf::before { background: var(--gf-edge); color: #c2531a; }
-.steps li.gf + li { border-top: 0; }
-.steps li.gf .gf-inline { vertical-align: -4px; margin-right: 6px; }
 .caption.gf-cap { width: fit-content; margin: 10px auto 0; padding: 6px 14px 6px 10px; border-radius: 999px;
   background: var(--gf-wash); border: 1px solid var(--gf-edge); color: var(--text-2); font-size: 13px; }

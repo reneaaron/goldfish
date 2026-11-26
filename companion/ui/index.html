@@ -41,18 +41,19 @@
       <div class="onboard-top"><span class="lockup"><img src="bowl.svg" alt="">bowl</span></div>
       <div class="onboard-body">
         <div id="link-intro">
-          <h1 class="display">Link your Goldfish</h1>
-          <p class="para">Bowl watches your wallet and builds transactions. Goldfish signs them, and the keys never leave it.</p>
+          <h1 class="display">Link your signer</h1>
+          <p class="para">Bowl watches your wallet and builds transactions. Your keys stay on your signer.</p>
           <ol class="steps">
-            <li class="gf"><span><img class="gf-inline" src="goldfish.svg" alt="">On Goldfish, open <b>Wallet options</b>, then <b>Connect wallet</b>.</span></li>
-            <li><span>Tap <b>Scan QR</b> and hold Goldfish up to this computer's camera.</span></li>
+            <li><span>Open the wallet QR on your signer.</span></li>
+            <li><span>Tap <b>Scan QR</b> and hold it up to this computer's camera.</span></li>
           </ol>
+          <p class="gf-hint"><img class="gf" src="goldfish.svg" alt="On Goldfish"><span>On Goldfish, it's in <b>Wallet options</b>, under <b>Connect wallet</b>.</span></p>
         </div>
         <div class="cam" hidden><canvas width="320" height="240"></canvas></div>
         <p class="cam-msg" role="status" hidden></p>
           <button class="link center-block cam-cancel" hidden>Cancel</button>
         <div id="link-paste" class="paste panel" hidden>
-          <h2 class="left">Paste Goldfish's key</h2>
+          <h2 class="left">Paste your signer's key</h2>
           <p class="gf-hint"><img class="gf" src="goldfish.svg" alt="On Goldfish"><span>On Goldfish, tap the QR under <b>Connect wallet</b> to see the key as text.</span></p>
           <textarea id="link-text" rows="3" spellcheck="false" placeholder="[fingerprint/84h/1h/0h]vpub…"></textarea>
           <button id="link-import" class="primary">Link</button>
@@ -104,7 +105,7 @@
       <button id="w-waiting" class="banner waiting" hidden><b>A signed transaction is waiting</b><span>Broadcast it</span></button>
       <button id="w-show" class="connect" hidden>
         <img src="goldfish.svg" alt="">
-        <span><b>Connect Goldfish</b><small>Do this before you send</small></span>
+        <span><b>Connect your signers</b><small>Do this before you send</small></span>
         <span class="chev" aria-hidden="true">›</span>
       </button>
       </div>
@@ -153,7 +154,7 @@
 
     <!-- Multisig descriptor for Goldfish -->
     <section id="v-show" hidden>
-      <header class="bar"><button class="back" aria-label="Back"><svg><use href="#i-back"/></svg></button><h2>Connect Goldfish</h2></header>
+      <header class="bar"><button class="back" aria-label="Back"><svg><use href="#i-back"/></svg></button><h2>Connect your signers</h2></header>
       <p class="gf-hint"><img class="gf" src="goldfish.svg" alt="On Goldfish"><span>Scan this with Goldfish, then tap <b>Use wallet</b> if the details match.</span></p>
       <div id="sh-qr" class="qr"></div>
       <p class="caption" id="sh-part" hidden></p>

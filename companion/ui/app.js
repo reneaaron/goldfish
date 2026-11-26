@@ -153,7 +153,7 @@ function renderOverview(o) {
   $("fp").textContent = o.multisig ? o.kind.replace(" multisig", "") : fingerprint(o.fingerprints[0]);
   $("fp-more").textContent = o.multisig ? " multisig" : "";
   $("fp-pill").classList.toggle("mono", !o.multisig);
-  $("fp-pill").title = o.multisig ? o.kind : "Goldfish's fingerprint";
+  $("fp-pill").title = o.multisig ? o.kind : "Your signer's fingerprint";
   $("fp-pill").querySelector("use").setAttribute("href", o.multisig ? "#i-users" : "#i-fingerprint");
   $("w-show").hidden = !o.multisig;
   $("net").hidden = o.network === "bitcoin";
@@ -567,7 +567,7 @@ function onScan(ev) {
 }
 $("sign-scan").onclick = async () => {
   await startScan("psbt");
-  button($("sign-scan"), "Reading Goldfish's QR…", true);
+  button($("sign-scan"), "Reading the QR…", true);
 };
 $("sign-paste-toggle").onclick = () => ($("sign-paste").hidden = !$("sign-paste").hidden);
 $("sign-use").onclick = async () => {
