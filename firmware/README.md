@@ -562,9 +562,6 @@ computer, when a seed is loaded.
 
 - The home screen appears with the right colours (if colours look inverted
   or red/blue swapped, adjust `0x21`/`0x36` in `src/board/display.cpp`).
-- While a finger is down, a line across and a line down the whole screen
-  cross where the touch is registered, on every screen: a thumb covers what
-  it presses, and the lines show around it.
 - Buttons react where you touch. If touches are mirrored or swapped, fix the
   mapping in `src/board/touch.cpp` (marked TODO).
 - The scan screen shows the camera image. If it stays black, the line under

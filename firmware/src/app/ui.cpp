@@ -1,6 +1,5 @@
 #include "ui.h"
 #include <lvgl.h>
-#include <initializer_list>
 #include <ctype.h>
 #include <math.h>
 #include <string.h>
@@ -3717,54 +3716,10 @@ void ui_goto(UiScreen s) {
 
 UiScreen ui_current() { return current; }
 
-// Touch guides: while a finger is down, a line across and a line down the
-// whole screen cross where the touch is registered, on every screen. The
-// screen is small and a thumb covers what it presses; the lines show around
-// it, so a touch that landed beside its target is seen, and slid to the right
-// place or away before lifting. Drawn where LVGL reads the pointer, so they
-// follow every read; two thin strips to redraw.
-constexpr int GUIDE_DEVS = 2;
-static lv_indev_t *guide_dev[GUIDE_DEVS];
-static lv_indev_read_cb_t guide_read[GUIDE_DEVS];
-static lv_obj_t *guide_h, *guide_v;
-
-static lv_obj_t *guide_line(int w, int h) {
-    lv_obj_t *o = lv_obj_create(lv_layer_sys());
-    lv_obj_remove_style_all(o);
-    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_set_size(o, w, h);
-    lv_obj_set_style_bg_color(o, ACCENT, 0);
-    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
-    return o;
-}
-static void guide_read_cb(lv_indev_t *in, lv_indev_data_t *d) {
-    for (int i = 0; i < GUIDE_DEVS; i++)
-        if (guide_dev[i] == in) guide_read[i](in, d);
-    bool down = d->state == LV_INDEV_STATE_PRESSED, shown = !lv_obj_has_flag(guide_h, LV_OBJ_FLAG_HIDDEN);
-    if (down) {
-        if (lv_obj_get_y(guide_h) != d->point.y) lv_obj_set_y(guide_h, d->point.y);
-        if (lv_obj_get_x(guide_v) != d->point.x) lv_obj_set_x(guide_v, d->point.x);
-    }
-    if (down == shown) return;
-    for (lv_obj_t *o : {guide_h, guide_v}) {
-        if (down) lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
-        else lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
-    }
-}
-
 void ui_build() {
-    guide_h = guide_line(W, 1);
-    guide_v = guide_line(1, H);
-    int guides = 0;
     for (lv_indev_t *in = lv_indev_get_next(nullptr); in; in = lv_indev_get_next(in)) {
         if (lv_indev_get_type(in) != LV_INDEV_TYPE_POINTER) continue;
         lv_indev_add_event_cb(in, pull_cb, LV_EVENT_PRESSED, nullptr);
-        if (guides < GUIDE_DEVS) {
-            guide_dev[guides] = in;
-            guide_read[guides++] = lv_indev_get_read_cb(in);
-            lv_indev_set_read_cb(in, guide_read_cb);
-        }
     }
     idle_timer = lv_timer_create(idle_tick, 500, nullptr);
     ui_goto(UI_HOME);
