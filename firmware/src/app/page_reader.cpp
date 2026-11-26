@@ -271,6 +271,7 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
     int nv = int(vmax - vmin) + 2, nu = int(umax - umin) + 2, stride = (nu + 7) / 8;
     uint8_t *map = (uint8_t *)calloc((size_t)stride * nv, 1);   // ink along the tilt, 1 bit per pixel
     bool ok = false;
+    int letter_h = 0;   // the median letter height, once the letters are found
     nruns = max_runs = max_letters = 0;
     if (!map) goto done;
 #define MAP_GET(u, v) ((map[(size_t)(v) * stride + ((u) >> 3)] >> ((u) & 7)) & 1)
@@ -355,6 +356,7 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
         if (!nh) goto done;
         qsort(hs, nh, sizeof(int), cmp_int);
         int lh = hs[nh / 2];
+        letter_h = lh;
         // letters: not specks, not pictures
         auto is_letter = [&](int i) {
             if (find_run(i) != i) return false;
@@ -428,11 +430,15 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
     }
 
     {
-        // a lone row number or a speck is narrower than any word
+        // a lone row number or a speck is narrower than any word. A short word
+        // that reaches both up and down ("day") is tall for its width, so a
+        // word also stays if it's wider than one and a half letters.
         int k = 0;
-        for (int i = 0; i < page->n; i++)
-            if (page->words[i].u1 - page->words[i].u0 >= 1.2f * (page->words[i].v1 - page->words[i].v0))
+        for (int i = 0; i < page->n; i++) {
+            float ww = page->words[i].u1 - page->words[i].u0;
+            if (ww >= 1.2f * (page->words[i].v1 - page->words[i].v0) || ww >= 1.5f * letter_h)
                 page->words[k++] = page->words[i];
+        }
         page->n = k;
         if (!page->n) goto done;
     }
