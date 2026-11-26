@@ -321,7 +321,7 @@ static lv_obj_t *scan_hints;   // what the wallet scanner takes, until a status
 static lv_obj_t *scan_stats;
 static uint32_t st_t0, st_frames, st_codes, st_ms, st_max;
 static lv_timer_t *scan_timer;
-// SCAN_SEED: a SeedQR, read as soon as it is seen, or written words, read once the camera holds still on them
+// SCAN_SEED: written words, read once the camera holds still on them, or a SeedQR, read as soon as it is seen
 enum ScanMode { SCAN_SEED, SCAN_WALLET, SCAN_CONFIRM };
 static ScanMode scan_mode;
 static AddressCheck check;
@@ -636,7 +636,7 @@ static void build_scan(ScanMode mode) {
     // line stays empty until there is something to report, except on Scan
     // seed: there it says how words are read (nothing to tap), until a status.
     // The wallet's scanner says what it takes instead, until a status.
-    static const char *prompts[] = {"QR code or written words", "", "Let's check it matches"};
+    static const char *prompts[] = {"Your written words", "", "Let's check it matches"};
     topbar(scr, titles[mode], scan_back_cb);
     preview_image(scr);
     st_t0 = lv_tick_get();
@@ -659,7 +659,7 @@ static void build_scan(ScanMode mode) {
 
     scan_msg = text(scr, prompts[mode], &inter_17_semi, TEXT, LV_TEXT_ALIGN_CENTER);
     lv_obj_align(scan_msg, LV_ALIGN_TOP_MID, 0, BAR + PREV_H + (seed ? 18 : 14));
-    scan_sub = text(scr, seed ? "Hold still to read words" : "", &inter_13, TEXT_3, LV_TEXT_ALIGN_CENTER);
+    scan_sub = text(scr, seed ? "Hold still to read them" : "", &inter_13, TEXT_3, LV_TEXT_ALIGN_CENTER);
     // one line each, kept off the screen edge: status texts are written to fit, this only catches a slip
     lv_obj_t *lines[] = {scan_msg, scan_sub};
     for (lv_obj_t *l : lines) {
@@ -1100,7 +1100,7 @@ static void build_update() {
 // ---------------------------------------------------------------- new seed, restore, backup
 // New seed is a tool: entropy only ever comes from the user (dice, coins, or
 // words drawn by hand with coin flips for the last word, see seed_create.h),
-// then the user writes down the words and optionally copies a QR card. The
+// then the user writes down the words. The
 // new seed is never loaded: the user loads it like any other, by Scan seed or
 // Enter words. Enter words loads straight away. "Back up as QR" runs the card
 // flow for the loaded seed.
@@ -2585,9 +2585,8 @@ static void build_backup_block() {
 // scrolled to its end, so no word is skipped.
 static lv_obj_t *words_done_btn;
 
-static void words_done_cb(lv_event_t *) { ui_goto(UI_BACKUP_CHOICE); }
+static void words_done_cb(lv_event_t *) { ui_goto(UI_SEED_READY); }
 static void backup_words_back_cb(lv_event_t *) { ui_goto(UI_BACKUP_WARNING); }
-static void to_words_cb(lv_event_t *) { ui_goto(UI_BACKUP_WORDS); }
 
 static void words_scroll_cb(lv_event_t *e) {
     if (lv_obj_get_scroll_bottom((lv_obj_t *)lv_event_get_target(e)) <= 2)
@@ -2626,18 +2625,6 @@ static void build_backup_words() {
     lv_obj_add_event_cb(list, words_scroll_cb, LV_EVENT_SCROLL, nullptr);
     lv_obj_update_layout(list);
     lv_obj_send_event(list, LV_EVENT_SCROLL, nullptr);   // a list that fits needs no scrolling
-    show(scr);
-}
-
-static void build_backup_choice() {
-    lv_obj_t *scr = screen();
-    topbar(scr, "QR code", to_words_cb);
-    lv_obj_align(icon_badge(scr, ICON_QR, ACCENT, ACCENT_DIM, 64), LV_ALIGN_TOP_MID, 0, BAR + 8);
-    lv_obj_align(text(scr, "Back up as QR?", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, BAR + 86);
-    lv_obj_align(para(scr, "Copy it square by square, then load the seed by scanning instead of typing.", &inter_13,
-                      TEXT_2),
-                 LV_ALIGN_TOP_MID, 0, BAR + 122);
-    bottom_pair(btn_ghost(scr, "Skip", go_cb, GO(UI_SEED_READY), TEXT), btn_primary(scr, "Make card", go_cb, GO(UI_BACKUP_QR)));
     show(scr);
 }
 
@@ -3288,7 +3275,7 @@ static bool seed_entry_screen(UiScreen s) {
 }
 // The card flow: for a new seed, or the loaded one.
 static bool backup_screen(UiScreen s) {
-    return s == UI_BACKUP_WARNING || s == UI_BACKUP_WORDS || s == UI_BACKUP_CHOICE || s == UI_BACKUP_QR ||
+    return s == UI_BACKUP_WARNING || s == UI_BACKUP_WORDS || s == UI_BACKUP_QR ||
            s == UI_BACKUP_BLOCK || s == UI_BACKUP_SCAN || s == UI_SEED_READY;
 }
 
@@ -3697,7 +3684,6 @@ void ui_goto(UiScreen s) {
         case UI_ENTER_WORDS: build_enter_words(); break;
         case UI_BACKUP_WARNING: build_backup_warning(); break;
         case UI_BACKUP_WORDS: build_backup_words(); break;
-        case UI_BACKUP_CHOICE: build_backup_choice(); break;
         case UI_SEED_READY: build_seed_ready(); break;
         case UI_BACKUP_QR: build_backup_qr(); break;
         case UI_BACKUP_BLOCK: build_backup_block(); break;
