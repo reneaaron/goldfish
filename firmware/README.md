@@ -98,7 +98,10 @@ columns; numbered or not); its prompt asks for written words. A SeedQR is also r
 words, fit the page in view and hold still: after about 2 seconds with no QR
 finder pattern in view and at least 8 words found on the preview (checked at
 most twice a second), the device
-takes one picture and finds the words (`src/app/page_reader.cpp`: the paper's
+takes one picture. While it waits, a "Hold still" pill under the preview fills
+from the left; moving starts it over, and a pill that fills on no words says
+so until the view changes. It
+then takes one picture and finds the words (`src/app/page_reader.cpp`: the paper's
 brightness, how dark the page's darkest strokes are (so a hard pencil still
 counts as ink), the photo's tilt, ruled and margin lines erased, blobs of ink
 grouped into words, a row number joined to its word, reading order by columns
