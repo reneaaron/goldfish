@@ -118,7 +118,9 @@ letters is scored by its best path through them, and the best is offered only
 if it clearly beats the next).
 
 Then Check words lists the words found, in order, with "?" where one couldn't
-be read; such a word's screen still offers its best reading as a one-tap
+be read (a piece as narrow as a stray, kept for a short word that reaches up
+and down like "day", is listed only if read, unless it sits where a word is
+missing); such a word's screen still offers its best reading as a one-tap
 "Best guess, if it matches" (in poor light the reader is often right but not
 sure enough to fill it in itself). A word too faint to be found at all still gets its place: a column
 whose rows skip one (or a shorter column next to longer ones) gets a "?" row

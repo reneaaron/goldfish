@@ -27,6 +27,7 @@ struct PageWord {
     float u0, u1, v0, v1;   // the word's box along the tilt (u across, v down)
     int column, row;        // reading order
     bool guessed;           // no ink found here, but the rows around it leave a gap for a word
+    bool unsure;            // as narrow as a stray, kept for a short word that reaches up and down ("day"): a word only if read
 };
 
 struct Page {

@@ -1674,8 +1674,9 @@ static bool page_find_words() {
     if (page_find(page_still, page_w, page_h, &page)) {
         // Rows the page reader only guessed (a gap in a column) count only if
         // words are missing: a complete page gets no extra "?" rows.
+        // Unsure pieces (often strays) are read but not counted.
         int found = 0;
-        for (int i = 0; i < page.n; i++) found += !page.words[i].guessed;
+        for (int i = 0; i < page.n; i++) found += !page.words[i].guessed && !page.words[i].unsure;
         // nothing typed yet: 12 or 24 words, from how many are on the page
         // (strays and a few unfound words either way)
         if (!word_n) new_words = found > 16 ? 24 : 12;
@@ -1830,8 +1831,9 @@ static void page_make_slots() {
     nslots = 0;
     page_review_y = 0;
     for (int i = 0; i < ncands && nslots < MAX_SLOTS; i++)
-        slots[nslots++] = {int16_t(cands[i].ok ? cands[i].word : -1), int16_t(cands[i].piece), false,
-                           int16_t(cands[i].ok ? -1 : cands[i].word)};
+        if (cands[i].ok || !page.words[cands[i].piece].unsure)   // an unsure piece not read: a stray, no row
+            slots[nslots++] = {int16_t(cands[i].ok ? cands[i].word : -1), int16_t(cands[i].piece), false,
+                               int16_t(cands[i].ok ? -1 : cands[i].word)};
     secure_zero(word_idx, sizeof(word_idx));
     secure_zero(cands, sizeof(cands));
     word_n = 0;
@@ -1853,7 +1855,7 @@ static bool page_probe(const uint8_t *frame, int w, int h) {
     qr_w = qr_h = 0;
     bool ok = page_find(frame, w, h, &page);
     int found = 0;
-    for (int i = 0; ok && i < page.n; i++) found += !page.words[i].guessed;
+    for (int i = 0; ok && i < page.n; i++) found += !page.words[i].guessed && !page.words[i].unsure;
     secure_zero(&page, sizeof(page));
     return found >= PAGE_MIN_WORDS;
 }
