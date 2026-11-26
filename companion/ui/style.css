@@ -350,3 +350,6 @@ button.link.danger { color: var(--red); padding: 4px 0; font-size: 14px; justify
   #v-sign .sign-qr-col { grid-area: qr; }
   #v-sign .qr { max-width: 300px; margin: 0; }
 }
+
+/* a note about what the camera sees, right under it */
+.cam-msg { margin: 0 0 4px; padding: 8px 12px; border-radius: 10px; background: var(--amber-dim); color: var(--text); font-size: 13px; text-align: center; }

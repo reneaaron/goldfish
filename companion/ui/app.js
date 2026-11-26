@@ -110,7 +110,7 @@ async function stopScan() {
 // ---- camera preview
 function camera(on) {
   // only the camera box of the screen in front: Link and Review each have one
-  for (const c of document.querySelectorAll(".cam, .cam-cancel")) c.hidden = true;
+  for (const c of document.querySelectorAll(".cam, .cam-cancel, .cam-msg")) c.hidden = true;
   if (on) for (const c of $("v-" + currentView).querySelectorAll(".cam, .cam-cancel")) c.hidden = false;
   // on Link, the camera takes the steps' place (the multisig panel keeps its own)
   if ($("link-ms").hidden && $("link-paste").hidden) $("link-intro").hidden = on;
@@ -529,8 +529,18 @@ function stopFrames() {
   frameTimer = null;
 }
 
+// A problem with what the camera sees goes right under the camera, and goes
+// away once a good QR is being read; anything else uses the error line.
+function camMsg(text) {
+  for (const m of document.querySelectorAll(".cam-msg")) m.hidden = true;
+  const m = $("v-" + currentView).querySelector(".cam-msg");
+  if (!m || !text) return;
+  m.textContent = friendly(text)[0];
+  m.hidden = false;
+}
 function onScan(ev) {
-  if (ev.error) error(ev.error);
+  if (ev.error) scanning ? camMsg(ev.error) : error(ev.error);
+  else if (ev.percent) camMsg("");
   if (ev.percent) {
     $("sign-progress").hidden = false;
     $("sign-progress").value = ev.percent;

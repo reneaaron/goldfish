@@ -537,7 +537,7 @@ pub struct Signatures {
 /// transaction, ready to broadcast.
 pub fn add_signatures(wallet: &Wallet, psbt: &mut Psbt, signed: Psbt, needed: usize) -> Res<(Signatures, Option<Transaction>)> {
     if signed.unsigned_tx.compute_txid() != psbt.unsigned_tx.compute_txid() {
-        return Err("that signed PSBT is for another transaction, not this one".into());
+        return Err("That's a different transaction. Sign this one on Goldfish, then scan again.".into());
     }
     psbt.combine(signed).map_err(err)?;
     let per_input: Vec<std::collections::BTreeSet<String>> = psbt
@@ -690,7 +690,7 @@ impl PsbtScanner {
         }
         let lower = t.to_lowercase();
         if !lower.starts_with("ur:crypto-psbt/") {
-            return Err(format!("not a PSBT QR: {}", &t[..t.len().min(30)]));
+            return Err("That QR isn't a signed transaction.".into());
         }
         let cbor = match part_indices(&lower) {
             None => ur::decode(&lower).map_err(err)?.1,
