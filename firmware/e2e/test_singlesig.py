@@ -341,24 +341,15 @@ def test_back_shows_the_word_entered_there(dev):
     assert dev.screen == "HOME"
 
 
-def test_switching_key_type_and_network_asks_first(dev):
-    """The watch-only key for another kind of wallet, or another network, is
-    another wallet to a wallet app: both ask before they switch."""
+def test_switching_network_asks_first(dev):
+    """The watch-only key for another network is another wallet to a wallet
+    app: it asks before it switches. Connect wallet has the single-key key
+    only (a multisig key is on the Multisig screen)."""
     load_by_words(dev, MNEMONIC)
     dev.tap("Wallet options")
     dev.tap("Connect wallet")
     single = dev.read_qr()
-    dev.tap("For a multisig wallet  {RIGHT}")
-    assert "Switch to a multisig wallet?" in dev.text()
-    dev.tap("Cancel")
-    assert dev.read_qr() == single
-    dev.tap("For a multisig wallet  {RIGHT}")
-    dev.tap("Switch")
-    assert dev.read_qr() != single
-    dev.tap("For a single-key wallet  {RIGHT}")
-    assert "Switch to a single-key wallet?" in dev.text()
-    dev.tap("Switch")
-    assert dev.read_qr() == single
+    assert not any("multisig" in t.lower() for t in dev.texts()), dev.text()
     dev.back()
 
     dev.scroll_down()

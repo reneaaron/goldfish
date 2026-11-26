@@ -38,11 +38,6 @@ bool wallet_entropy(SeedEntropy *out);
 bool wallet_testnet();
 void wallet_set_testnet(bool testnet);
 
-// Which key Connect wallet shows: the single-sig account, or this seed's key
-// for a multisig wallet. RAM only, like the network: single-sig on every boot.
-bool wallet_export_multisig();
-void wallet_set_export_multisig(bool multisig);
-
 // The account key for a wallet app, as SeedSigner's static export (SLIP-132).
 // Native segwit single-sig (BIP-84):
 //   mainnet "[fingerprint/84h/0h/0h]zpub...", testnet "[fingerprint/84h/1h/0h]vpub...".
@@ -50,4 +45,4 @@ void wallet_set_export_multisig(bool multisig);
 // into a wsh(sortedmulti) wallet:
 //   mainnet "[fingerprint/48h/0h/0h/2h]Zpub...", testnet "[fingerprint/48h/1h/0h/2h]Vpub...".
 // Returns length written.
-size_t wallet_export_xpub(char *out, size_t cap);
+size_t wallet_export_xpub(char *out, size_t cap, bool multisig = false);

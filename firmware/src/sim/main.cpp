@@ -334,9 +334,8 @@ static int run_shots(const char *dir) {
     ui_goto(UI_NETWORK);      pump(300); save(dir, "5b_network");
     ui_goto(UI_EXPORT_XPUB);  pump(300); save(dir, "5c_export_vpub");
     wallet_set_testnet(false);
-    wallet_set_export_multisig(true);
-    ui_goto(UI_EXPORT_XPUB);  pump(300); save(dir, "5e_export_multisig");
-    wallet_set_export_multisig(false);
+    ui_goto(UI_MULTISIG_OPTIONS); pump(300); save(dir, "5g_multisig");
+    ui_goto(UI_MULTISIG_KEY);  pump(300); save(dir, "5e_export_multisig");
     ui_goto(UI_WIPE_CONFIRM); pump(300); save(dir, "6_wipe_confirm");
 
     // Transaction: SeedSigner's single-sig vector and its seed, on mainnet
@@ -564,6 +563,8 @@ static int run_shots(const char *dir) {
     if (!ui_swipe_sign()) { fprintf(stderr, "multisig signing failed\n"); return 1; }
     pump(400); save(dir, "48_multisig_signed");
     ui_goto(UI_WALLET);   pump(300); save(dir, "49_menu_multisig");
+    ui_goto(UI_MULTISIG_OPTIONS); pump(300); save(dir, "49b_multisig_in_use");
+    ui_goto(UI_MULTISIG_KEY);     pump(300); save(dir, "49c_multisig_key");
     ui_goto(UI_SCAN);
     cam_show_qr(MS_ADDR_CHANGE_4);
     for (int i = 0; i < 400 && !(ui_current() == UI_VERIFY_RESULT && verify_done()); i++) pump(30);

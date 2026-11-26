@@ -7,6 +7,7 @@
 #include <wally_bip32.h>
 #include <wally_crypto.h>
 #include <wally_descriptor.h>
+#include "seedqr.h"
 #include "ur.h"
 #include "wallet.h"
 
@@ -34,6 +35,31 @@ bool multisig_loaded() {
 }
 
 const MsInfo *multisig_info() { return multisig_loaded() ? &info : nullptr; }
+
+size_t multisig_export_key(char *out, size_t cap) {
+    if (!multisig_loaded() || cap == 0) return 0;
+    struct ext_key k;
+    uint8_t ser[BIP32_SERIALIZED_LEN];
+    bool ok = bip32_key_from_parent_path(wallet_root(), our_path, our_path_len, BIP32_FLAG_KEY_PRIVATE, &k) == WALLY_OK &&
+              bip32_key_serialize(&k, BIP32_FLAG_KEY_PUBLIC, ser, sizeof(ser)) == WALLY_OK;
+    secure_zero(&k, sizeof(k));           // drop the private key
+    if (!ok) return 0;
+    // SLIP-132 for P2WSH multisig, as Connect wallet's standard key: Zpub / Vpub.
+    const uint32_t ver = info.testnet ? 0x02575483 : 0x02aa7ed3;
+    ser[0] = ver >> 24; ser[1] = ver >> 16; ser[2] = ver >> 8; ser[3] = ver;
+    char *key = nullptr;
+    if (wally_base58_from_bytes(ser, sizeof(ser), BASE58_FLAG_CHECKSUM, &key) != WALLY_OK) return 0;
+    uint8_t fp[4];
+    wallet_fingerprint(fp);
+    size_t o = size_t(snprintf(out, cap, "[%02x%02x%02x%02x", fp[0], fp[1], fp[2], fp[3]));
+    for (size_t j = 0; j < our_path_len && o < cap; j++)
+        o += size_t(snprintf(out + o, cap - o, "/%u%s", unsigned(our_path[j] & ~BIP32_INITIAL_HARDENED_CHILD),
+                             (our_path[j] & BIP32_INITIAL_HARDENED_CHILD) ? "h" : ""));
+    if (o < cap) o += size_t(snprintf(out + o, cap - o, "]%s", key));
+    wally_free_string(key);
+    if (o >= cap) { out[0] = 0; return 0; }
+    return o;
+}
 
 // ------------------------------------------------------------ descriptor text
 static bool starts_with(const char *s, const char *prefix) { return strncmp(s, prefix, strlen(prefix)) == 0; }
@@ -148,7 +174,7 @@ static MsResult inspect(const struct wally_descriptor *d, MsInfo *out, uint32_t 
     return r;
 }
 
-MsResult multisig_load(const char *text, size_t len) {
+MsResult multisig_load(const char *text, size_t len, bool replace) {
     static char a[MAX_TEXT], b[MAX_TEXT];
     while (len && (text[0] == ' ' || text[0] == '\n' || text[0] == '\r' || text[0] == '\t')) { text++; len--; }
     while (len && (text[len - 1] == ' ' || text[len - 1] == '\n' || text[len - 1] == '\r' || text[len - 1] == '\t')) len--;
@@ -187,6 +213,15 @@ MsResult multisig_load(const char *text, size_t len) {
     if (r == MS_OK && wally_descriptor_set_network(d, found.testnet ? WALLY_NETWORK_BITCOIN_TESTNET
                                                                     : WALLY_NETWORK_BITCOIN_MAINNET) != WALLY_OK)
         r = MS_BAD;
+    if (r == MS_OK && !replace && multisig_loaded()) {   // one wallet at a time
+        char *now = nullptr, *got = nullptr;
+        bool same = wally_descriptor_canonicalize(desc, WALLY_MS_CANONICAL_NO_CHECKSUM, &now) == WALLY_OK &&
+                    wally_descriptor_canonicalize(d, WALLY_MS_CANONICAL_NO_CHECKSUM, &got) == WALLY_OK &&
+                    strcmp(now, got) == 0;
+        if (now) wally_free_string(now);
+        if (got) wally_free_string(got);
+        r = same ? MS_SAME : MS_IN_USE;
+    }
     if (r != MS_OK) {
         wally_descriptor_free(d);
         return r;
@@ -328,7 +363,7 @@ static bool ur_hdkey(Cbor *c, UrKey *k) {
     return k->key && k->chain_code;
 }
 
-MsResult multisig_load_ur_output(const uint8_t *cbor, size_t len) {
+MsResult multisig_load_ur_output(const uint8_t *cbor, size_t len, bool replace) {
     Cbor c = {cbor, cbor + len};
     uint64_t tag, entries, m = 0, n = 0;
     if (!cbor_expect(&c, 6, &tag)) return MS_BAD;
@@ -370,7 +405,7 @@ MsResult multisig_load_ur_output(const uint8_t *cbor, size_t len) {
     }
     if (c.p != c.end || o + 3 > sizeof(text)) return MS_BAD;
     memcpy(text + o, "))", 3);
-    return multisig_load(text, o + 2);
+    return multisig_load(text, o + 2, replace);
 }
 
 // ------------------------------------------------------------ scripts
