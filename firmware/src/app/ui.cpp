@@ -974,9 +974,24 @@ static void build_passphrase() {
 
 static void backup_existing_cb(lv_event_t *);
 
+// Leave multisig: forget the descriptor, keep the seed. Until now only Forget
+// seed or unplugging did that. Connect wallet goes back to the single-key key.
+static void ms_leave_apply() {
+    multisig_clear();
+    wallet_set_export_multisig(false);
+    ui_goto(UI_WALLET);
+}
+static void ms_leave_cb(lv_event_t *) {
+    if (!multisig_loaded()) return;
+    ask("Leave the multisig wallet?",
+        "Its transactions and addresses are refused until you scan its descriptor again. The seed stays loaded.",
+        "Leave", ms_leave_apply);
+}
+
 // Groups by importance: what most people need once (Connect wallet, Back up),
 // then the advanced ones with grey icons, then Forget seed on its own. Every row says
-// what it does. The list scrolls, so more options can join it.
+// what it does. The list scrolls, so more options can join it. Leave multisig
+// is there only while a multisig wallet is in use.
 static void build_wallet_options() {
     lv_obj_t *scr = screen();
     topbar(scr, "Options", to_wallet_cb);
@@ -1001,16 +1016,19 @@ static void build_wallet_options() {
     const Row rows[] = {
         {ICON_WALLET, "Connect wallet", "Set up watch-only", go_cb, GO(UI_EXPORT_XPUB)},
         {ICON_QR, "Back up as QR", "Copy it onto a card", backup_existing_cb, nullptr},
+        {ICON_USERS, "Leave multisig", "Back to single-key", ms_leave_cb, nullptr},
         {ICON_SHIELD, "Passphrase", wallet_has_passphrase() ? "On, tap to change" : "Optional extra word", go_cb,
          GO(UI_PASSPHRASE)},
         {ICON_KEY, "Child seed", "Derived from this one", child_start_cb, nullptr},
         {ICON_COINS, "Network", wallet_testnet() ? "Testnet" : "Mainnet", go_cb, GO(UI_NETWORK)},
         {ICON_TRASH, "Forget seed", "Unplugging does it too", go_cb, GO(UI_WIPE_CONFIRM)},
     };
-    const int groups[] = {2, 3, 1};
+    const bool ms = multisig_loaded();
+    const int groups[] = {2, ms ? 4 : 3, 1};
     int at = 0;
     for (int g = 0; g < 3; g++) {
         int n = groups[g];
+        if (g == 1 && !ms) at++;   // no Leave multisig row
         lv_obj_t *c = card(list, CW, n * RH + n - 1);
         lv_obj_set_style_pad_all(c, 0, 0);
         lv_obj_set_style_clip_corner(c, true, 0);
@@ -1035,7 +1053,9 @@ static int address_chunks(lv_obj_t *parent, const char *a);
 // Connect wallet shows the QR, and under it what's in it: the start and end of
 // the key, to compare with what the wallet app imported. Tapping the card
 // swaps the QR for everything in it: fingerprint, path and the whole key.
-// Which key is a plain-words toggle; the network is in Wallet options.
+// Which key is a plain-words toggle; the network is in Wallet options. While a
+// multisig wallet is in use the key is the multisig one and there is no toggle:
+// Leave multisig, in Wallet options, is the way back to the single-key key.
 static bool key_details;   // the card shows the text instead of the QR
 
 void ui_key_details() {
@@ -1050,6 +1070,7 @@ static void key_type_apply() {
     ui_goto(UI_EXPORT_XPUB);
 }
 static void key_type_cb(lv_event_t *) {
+    if (multisig_loaded()) return;
     if (wallet_export_multisig())
         ask("Switch to a single-key wallet?", "The QR becomes this seed's key for a wallet it signs for alone.", "Switch",
             key_type_apply);
@@ -1061,6 +1082,8 @@ static void key_type_cb(lv_event_t *) {
 
 static void build_export_xpub() {
     lv_obj_t *scr = screen();
+    const MsInfo *in_use = multisig_info();
+    if (in_use) wallet_set_export_multisig(true);
     bool tn = wallet_testnet(), ms = wallet_export_multisig();
     // In the details, Back returns to the QR.
     topbar(scr, "Watch-only wallet", key_details ? key_details_cb : to_menu_cb);
@@ -1117,7 +1140,14 @@ static void build_export_xpub() {
     lv_obj_set_ext_click_area(sk, 8);
     lv_obj_add_event_cb(sk, key_details_cb, LV_EVENT_CLICKED, nullptr);
 
-    // The other kind of key, in plain words.
+    // The other kind of key, in plain words; or why there is no choice.
+    if (in_use) {
+        char m[40];
+        snprintf(m, sizeof(m), "%d of %d multisig wallet in use", in_use->m, in_use->n);
+        lv_obj_align(text(scr, m, &inter_13, TEXT_3), LV_ALIGN_BOTTOM_MID, 0, -16);
+        show(scr);
+        return;
+    }
     lv_obj_align(quiet_link(scr, ms ? "For a single-key wallet  " ICON_RIGHT : "For a multisig wallet  " ICON_RIGHT,
                             key_type_cb, nullptr),
                  LV_ALIGN_BOTTOM_MID, 0, -6);

@@ -31,7 +31,8 @@ The seed lives in RAM only: Forget seed or unplugging removes it.
    a chip for a passphrase or a multisig wallet). A fingerprint icon marks the
    fingerprint on every screen that shows one. Scan QR for everyday use, and
    Wallet options for the rest:
-   Connect wallet and Back up as QR, then Passphrase, Child seed and Network,
+   Connect wallet and Back up as QR, then Passphrase, Child seed and Network
+   (and Leave multisig first, while a multisig wallet is in use),
    then Forget seed on its own; the list scrolls
 3. Scan QR: one scanner for a transaction to sign, an address to verify, or a
    multisig descriptor; the device tells them apart by their format
@@ -47,7 +48,9 @@ The seed lives in RAM only: Forget seed or unplugging removes it.
    wallet app each is another wallet.
    "For a multisig wallet" switches to this seed's key for a multisig wallet,
    `[fingerprint/48h/0h/0h/2h]Zpub…` (BIP-48, native segwit; `48h/1h/0h/2h` and
-   `Vpub…` on testnet), to add as a cosigner in the wallet app. Also RAM only
+   `Vpub…` on testnet), to add as a cosigner in the wallet app. Also RAM only.
+   While a multisig wallet is in use the screen shows the multisig key and says
+   so, with no switch to the single-key one; Leave multisig brings it back
 5. Verify address: Scan QR on a receive address (plain or `bitcoin:` URI) from your
    wallet app; the device checks the first 500 receive and 100 change
    addresses of this seed and says which one it is, or that it isn't yours;
@@ -279,6 +282,10 @@ can name any cosigner keys next to ours:
 - The descriptor is kept in RAM only and belongs to the key it was checked
   with: it isn't used with another seed or another passphrase, and wiping the
   seed or unplugging drops it, so it is scanned again next time
+- Leave multisig, in Wallet options while a multisig wallet is in use, drops
+  the descriptor and keeps the seed. It asks first. After it the wallet's
+  transactions and addresses are refused again, and Connect wallet is back on
+  the single-key key
 - A descriptor whose keys lack `[fingerprint/path]`, or whose fingerprints
   are `00000000` where ours should be, says "Key fingerprint missing": the
   wallet app has to add the keys again with their origin
@@ -440,6 +447,8 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
   signed; wallets the seed isn't in, a forged fingerprint, `multi`, keys
   without origin or with fingerprint `00000000`, a wrong
   checksum; change to another multisig; the descriptor gone after a wipe;
+  Leave multisig (Connect wallet without its switch before it, Cancel, then
+  the descriptor gone with the seed still loaded);
   a 15-input transaction through a camera that reads each frame twice and
   misses three in four; a 35-input one, past 16 KB, refused as too big with
   what to do

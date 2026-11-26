@@ -18,6 +18,8 @@
 //   Multisig: show the wallet's descriptor QR to the scanner
 //        -> Multisig wallet (M of N, key fingerprints, first address) -> Use wallet
 //        -> back to the scanner, which now takes the wallet's transactions / addresses
+//        While it is in use: Connect wallet shows the multisig key only, and
+//        Wallet options -> Leave multisig (asks first) forgets the descriptor, not the seed
 //   Home -> Enter words (12, or 24 from the first word) -> one screen per word (Back shows the
 //        word entered there) -> Wallet
 //   Scan seed -> held still on written words (a photo of the backup, experimental)
