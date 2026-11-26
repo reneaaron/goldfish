@@ -1,18 +1,30 @@
-# Goldfish Companion (spike)
+# Companion app
 
-A watch-only wallet app for Goldfish, in Tauri 2. It does Sparrow's part of
-the job: it links the key from Goldfish's **Connect wallet** QR, syncs over
-Electrum or Esplora, shows receive addresses, builds transactions, shows them as an
-animated `crypto-psbt` QR, reads the signed one back with the webcam, and
-broadcasts. The seed never comes here; this app can't spend on its own.
+The wallet app for Goldfish setups, the part Sparrow or Nunchuk plays today:
+it holds the watch-only wallet (descriptor, addresses, history), builds
+transactions as PSBTs, shows them to Goldfish as QR codes, reads the signed
+PSBT back from Goldfish's screen and broadcasts it. Draft brand name **Bowl**
+(`marketing/companion/`).
 
-Spike status: Linux desktop only, single-sig native segwit (`84h`) or
-`wsh(sortedmulti)` multisig, signet or mainnet. Not for real funds.
+Status: a spike in Tauri 2, Linux desktop only: single-sig native segwit
+(`84h`) or `wsh(sortedmulti)` multisig, signet or mainnet. Not for real funds;
+the guides still use Sparrow.
+
+## Rules
+
+- Watch-only. The companion never sees a seed, a passphrase or a private key;
+  it gets the xpub or the multisig descriptor from Goldfish's screen.
+- Native segwit only, like the signer: single-sig P2WPKH and `wsh(sortedmulti)`.
+- The network comes from the descriptor's keys, never from a setting.
+- Code says `companion`, never `bowl`: package names, identifiers, paths, CI
+  jobs. "Bowl" appears only in user-facing copy and icons, so a rename touches
+  only those.
+
+## What it does
 
 - The watch-only key and the server are saved in `settings.json` in the app's
   data folder (`~/.local/share/dev.goldfish.companion/` on Linux), so the
   wallet reopens on start. Settings → Forget this wallet removes the key.
-  The seed never comes here.
 - Server: your own Electrum server (`ssl://host:50002`, `tcp://host:50001`) or
   Esplora API (`https://…`), optionally through a proxy. Tor:
   `socks5://127.0.0.1:9050` for Electrum; the Esplora client takes only an
@@ -32,17 +44,28 @@ Spike status: Linux desktop only, single-sig native segwit (`84h`) or
 - Fees: Fast / Normal / Slow suggestions from the server (next block, ~1 hour,
   ~1 day), fractional sat/vB, and Speed up (RBF) on a pending send, which
   Goldfish signs like any other transaction.
+- Look: Bowl's mark, wordmark and app icon; its blue (the case blue) where
+  Goldfish's screen uses orange, which in Bowl is only the fish's eye; and
+  Goldfish's own tokens and fonts otherwise.
 
 ## Layout
 
-- `src-tauri/src/lib.rs`: wallet logic with no UI (BDK, Electrum and Esplora, UR codec,
-  QR rendering), with unit tests
-- `src-tauri/src/camera.rs`: webcam QR reader (V4L2 + rqrr). Capture runs in
-  Rust because WebKitGTK's `getUserMedia` is unreliable
-- `src-tauri/src/main.rs`: Tauri commands; `ui/`: the page (plain HTML/JS, no
-  build step)
-- `src-tauri/src/bin/cli.rs` + `e2e/`: the same logic driven against the
-  Goldfish simulator, over QR codes both ways
+| Part | Where |
+|---|---|
+| core: wallet logic, no UI (BDK, Electrum and Esplora, descriptors, PSBTs, UR codec, QR rendering) | `src-tauri/src/lib.rs` |
+| app: Tauri commands, webcam QR reader (V4L2 + rqrr, in Rust because WebKitGTK's `getUserMedia` is unreliable), the page (plain HTML/JS, no build step) | `src-tauri/src/main.rs`, `src-tauri/src/camera.rs`, `ui/` |
+| tests for core | `#[cfg(test)]` in `lib.rs` |
+| e2e: round trips with the firmware simulator, over QR codes both ways | `e2e/`, driving `src-tauri/src/bin/cli.rs` |
+
+## Shared with the firmware
+
+- `e2e/` drives the simulator through `firmware/e2e/device.py`, and uses
+  `firmware/e2e/hostwallet.py` (embit) for the other cosigners.
+- Test vectors: read `firmware/test/fixtures/` and `firmware/sim/samples/`
+  rather than copying them.
+- Marks come from `marketing/companion/`: `ui/bowl.svg` is a copy of
+  `bowl-mark.svg`, and `src-tauri/icons/icon.png` is `bowl-icon.svg` drawn at
+  256 px.
 
 ## Run
 
