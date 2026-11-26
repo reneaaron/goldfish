@@ -32,10 +32,9 @@ signed with Sparrow, on mainnet too. The code hasn't been reviewed or audited.
 
 | Folder | What's in it |
 |---|---|
-| [`firmware/`](firmware) | PlatformIO firmware (RP2350, LVGL, libwally-core), desktop simulator, tests |
+| [`firmware/`](firmware) | PlatformIO firmware (RP2350, LVGL, libwally-core), desktop and browser simulators, tests |
 | [`case/`](case) | Printed case in gcad: glass on top, press-fit, no screws, STL and STEP exports |
 | [`hardware/`](hardware) | Parts list and board notes |
-| [`try/`](try) | Runs the firmware's WebAssembly build on the website's hero device |
 | [`cards/`](cards) | Blank SeedQR and word cards for 12-word seeds, to print (open `index.html`, works offline) |
 | [`metal/`](metal) | Guide to stamping a 12-word seed into stainless steel washers on a bolt |
 | [`marketing/`](marketing) | Product renders made from the real case and firmware screens |

@@ -9,8 +9,7 @@ name: Website
 #   /parts/    parts/ (what to buy, and the case files from case/exports to print)
 #   /assemble/ assemble/ (connecting the camera, closing the case)
 #   /start/    start/ (first use: a seed, then a wallet app; screens from firmware/docs/screens)
-#   /try/      the firmware built for the browser (firmware/web) that the landing hero runs,
-#              plus try/index.html, which sends old links to the hero;
+#   /sim/      the firmware built for the browser (firmware/web) that the landing hero runs,
 #              from the commit being deployed, not the release tag
 # The flasher offers the latest GitHub release's firmware.uf2 (release.yml),
 # checked here against its SHA256SUMS and build attestation; until the first
@@ -21,7 +20,7 @@ name: Website
 on:
   push:
     branches: [main]
-    paths: ['landing/**', 'flasher/**', 'cards/**', 'metal/**', 'parts/**', 'assemble/**', 'start/**', 'case/exports/**', 'try/**', 'firmware/src/**', 'firmware/web/**', 'firmware/platformio.ini', 'firmware/include/**', 'firmware/lib/**', 'firmware/sim/samples/**', 'firmware/docs/screens/**', 'marketing/renders/out/**', '.github/workflows/pages.yml']
+    paths: ['landing/**', 'flasher/**', 'cards/**', 'metal/**', 'parts/**', 'assemble/**', 'start/**', 'case/exports/**', 'firmware/src/**', 'firmware/web/**', 'firmware/platformio.ini', 'firmware/include/**', 'firmware/lib/**', 'firmware/sim/samples/**', 'firmware/docs/screens/**', 'marketing/renders/out/**', '.github/workflows/pages.yml']
   workflow_run:
     workflows: [Release]
     types: [completed]
@@ -53,7 +52,7 @@ jobs:
         with:
           version: 4.0.10
       - name: Browser simulator
-        run: pio pkg install -e sim && make -C web -j"$(nproc)" && mv .pio/build/web "$RUNNER_TEMP/try"
+        run: pio pkg install -e sim && make -C web -j"$(nproc)" && mv .pio/build/web "$RUNNER_TEMP/sim"
         working-directory: firmware
       - name: Firmware to offer
         id: firmware
@@ -114,7 +113,7 @@ jobs:
           cp cards/index.html site/cards/
           # parts/files is a symlink too (case/exports); start/ uses the landing page's img/screens
           cp -rL parts assemble start metal site/
-          cp -r "$RUNNER_TEMP/try" site/try && rm -rf site/try/obj
+          cp -r "$RUNNER_TEMP/sim" site/sim && rm -rf site/sim/obj
           # Renders are ~2 MB lossless PNGs; serve them as WebP (~15-45 KB each).
           # The repo's pages keep pointing at the PNGs so they still open locally.
           uv run --with pillow==13.0.0 python -I - site/img/renders <<'EOF'
