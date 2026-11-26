@@ -4,7 +4,7 @@ Firmware for a stateless, camera-based Bitcoin signer on the Waveshare
 RP2350-Touch-LCD-2 (RP2350A, 16MB flash, 2" 240×320 touch screen, OV5640
 camera connector). The board has no Wi-Fi or Bluetooth hardware.
 
-Status: early. Seed loading, BIP-39 passphrases, new seeds with a SeedQR backup, xpub export and
+Status: early. Seed loading (written words, typed words or a SeedQR), BIP-39 passphrases, new seeds, xpub export and
 PSBT review/signing (single-sig and multisig) work in the simulator. On the board, the camera reads seed, descriptor and animated PSBT QRs, and a
 2-of-3 multisig with Sparrow 2.5.2 on signet was set up, signed and broadcast, and single-sig
 transactions have been signed with Sparrow, on mainnet too. Not for real funds.
@@ -18,12 +18,12 @@ transactions have been signed with Sparrow, on mainnet too. Not for real funds.
 
 ## How it works
 
-Seeds come in as a SeedQR (Standard or Compact, 12 or 24 words), the
-format SeedSigner uses (the UI just calls it a seed QR), as typed BIP39
-words, or are made on the device. A BIP-39 passphrase can be added after loading.
+Seeds come in as a photo of the written words (experimental, below), as
+typed BIP39 words, as a SeedQR (Standard or Compact, 12 or 24 words, the
+format SeedSigner uses), or are made on the device. A BIP-39 passphrase can be added after loading.
 The seed lives in RAM only: Forget seed or unplugging removes it.
 
-1. Home: Scan (a seed QR or written words), Enter words, or New seed. The top left corner shows Wi-Fi,
+1. Home: Scan (written words, or a SeedQR), Enter words, or New seed. The top left corner shows Wi-Fi,
    Bluetooth and USB crossed out: the board has no radio, and the firmware has
    no USB stack, so USB-C is power only (until Restart into the bootloader, see Flash).
 2. Wallet: the home screen once a seed is loaded, shaped like Home: the logo,
@@ -98,8 +98,8 @@ the word entered on the screen before, to accept again or change, and going
 forward again shows the words already entered after it; Back from the first
 word asks before they are forgotten.
 
-Experimental: Scan seed also reads a handwritten backup, on any paper (plain, ruled, a printed card; one or more
-columns; numbered or not). A SeedQR is read as soon as it is in view. For written
+Experimental: Scan seed reads a handwritten backup, on any paper (plain, ruled, a printed card; one or more
+columns; numbered or not); its prompt asks for written words. A SeedQR is also read, as soon as it is in view. For written
 words, fit the page in view and hold still: after about 2 seconds with no QR
 finder pattern in view and at least 8 words found on the preview (checked at
 most twice a second), the device
@@ -123,7 +123,9 @@ letters is scored by its best path through them, and the best is offered only
 if it clearly beats the next).
 
 Then Check words lists the words found, in order, with "?" where one couldn't
-be read; such a word's screen still offers its best reading as a one-tap
+be read (a piece as narrow as a stray, kept for a short word that reaches up
+and down like "day", is listed only if read, unless it sits where a word is
+missing); such a word's screen still offers its best reading as a one-tap
 "Best guess, if it matches" (in poor light the reader is often right but not
 sure enough to fill it in itself). A word too faint to be found at all still gets its place: a column
 whose rows skip one (or a shorter column next to longer ones) gets a "?" row
@@ -200,24 +202,22 @@ without repeated neighbours, every one with face counts 9, 9, 8, 8, 8, 8, and
 98% of coin flips never run longer than two.
 
 Then an offline warning, the words to write down on one scrolling list ("Written down" works once
-it has been scrolled to its end), and an
-optional QR card: a Compact SeedQR (21×21 for 12 words, 25×25 for 24)
+it has been scrolled to its end), and the fingerprint to write on the backup; leaving it wipes the seed.
+The new seed isn't loaded: scan or type what you wrote to load it, which also checks the backup.
+
+Back up as QR (Wallet options) copies whatever seed is loaded onto a paper
+QR card: a Compact SeedQR (21×21 for 12 words, 25×25 for 24)
 shown whole, then copied one part (5×5 squares) at a time, labelled with column letters
 and row numbers like the card's grid (21×21 splits 5+5+5+6, so no thin
 edge parts). Each part shows one ring of its neighbours greyed, to line up
 with what is already on the card; squares a card template pre-prints (the finder
 squares, the timing lines, the fixed dark module, and the alignment square on
 25×25) are hatched. The blank 12-word cards in [`cards/`](../cards) come with
-them printed. Scanning the finished card checks it. The flow ends with the
-fingerprint to write on the backup; leaving it wipes the seed.
-
-Back up as QR runs the same card flow for whatever seed is loaded, scanned
-or typed, e.g. to turn a words backup into a QR card.
+them printed. Scanning the finished card checks it.
 
 Child seed derives a [BIP-85](https://github.com/bitcoin/bips/blob/master/bip-0085.mediawiki)
 child of the loaded seed (BIP39, English, 12 words, child number 0 to
-2147483647) and hands it out like a new seed: warning, words, optional QR card
-and check, then its fingerprint. The same seed and number always give the same
+2147483647) and hands it out like a new seed: warning, words, then its fingerprint. The same seed and number always give the same
 child; leaving the flow wipes it.
 
 Amounts follow [BIP177](https://github.com/bitcoin/bips/blob/master/bip-0177.mediawiki)
@@ -476,11 +476,12 @@ Camera: the simulator "sees" the image at `sim/camera.png` (or
 240x180 view. With the scan screen open:
 
 ```bash
-cp sim/samples/vector4_standard_12word.png sim/camera.png
+cp sim/samples/handwritten_page_demo.png sim/camera.png
 ```
 
-`sim/samples` holds SeedSigner's public test SeedQRs, a photo of a stamped
-plate, and `testseed_height_demise_*` / `testpsbt_height_demise_base64.png`, a
+`sim/samples` holds handwritten test pages (`handwritten_page_demo.png`, the
+12 words of the height demise test seed; `handwritten_page.png`, 24 words),
+SeedSigner's public test SeedQRs, a photo of a stamped plate, and `testseed_height_demise_*` / `testpsbt_height_demise_base64.png`, a
 matching seed and testnet PSBT from SeedSigner's tests for trying the signing
 flow. `mainpsbt_height_demise_base64.png` is the same transaction on mainnet
 (made up by `sim/make_mainnet_psbt.py`); the screenshots use it.
@@ -506,20 +507,19 @@ camera and secure boot only show up on the real board.
 The same `src/app`, compiled to WebAssembly with Emscripten, with `src/web`
 in place of `src/sim`: the screen is a `<canvas>`, the pointer is the touch
 screen, and the camera sees a picture the page hands it (one of a few
-`sim/samples`: the test seed, a transaction for it, and a handwritten page of the same seed,
-`handwritten_page_demo.png`, which the firmware reads 12 of 12). It runs on the website's hero device
-after "Plug it in" ([`try/sim.js`](../try/sim.js)); Unplug stops it and zeroes its
+`sim/samples`: a handwritten page of the test seed, `handwritten_page_demo.png`, which the
+firmware reads 12 of 12, and a transaction for it). It runs on the website's hero device
+after "Plug it in" ([`web/sim.js`](web/sim.js)); Unplug stops it and zeroes its
 memory. Needs `emcc` (emsdk 4.0.10).
 
 ```bash
 pio pkg install -e sim          # once: LVGL and libwally
 make -C web -j                  # -> .pio/build/web
-mkdir -p /tmp/site && cp -rL ../landing/. /tmp/site && cp -r .pio/build/web /tmp/site/try
+mkdir -p /tmp/site && cp -rL ../landing/. /tmp/site && cp -r .pio/build/web /tmp/site/sim
 python3 -m http.server -d /tmp/site    # then "Plug it in" on the landing page
 ```
 
-The `Website` workflow (`pages.yml`) builds it from `main` and publishes it at `/try/`;
-`/try/` itself only sends old links to the hero.
+The `Website` workflow (`pages.yml`) builds it from `main` and publishes it at `/sim/`.
 It's a demo: a browser tab isn't stateless, and the page says not to use a real
 seed there.
 
