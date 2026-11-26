@@ -17,20 +17,10 @@ WANT = os.environ.get("COLORS", ",".join(COLORS)).split(",")
 ONLY_FRAME = os.environ.get("ONLY_FRAME")
 TT_OUT = os.path.join(OUT, "turntable")
 
-# The home screen without its version in the corner: the frames outlive the build
-# they were rendered from (the page's flat screenshots get the release's tag on deploy).
+# Unplugged: the screen is off, dark glass. The page lays the live firmware over the
+# front frame's screen once it's plugged in.
 os.makedirs(TT_OUT, exist_ok=True)
-_src = bpy.data.images.load(os.path.join(SCREENS, "1_home.png"))
-_w, _h = _src.size
-_px = list(_src.pixels)
-_bg = _px[((_h - 1 - 12) * _w + 140) * 4:][:4]
-for y in range(8, 21):                     # version text: x 173-230, y 10-18 (from the top)
-    for x in range(170, 234):
-        i = ((_h - 1 - y) * _w + x) * 4
-        _px[i:i + 4] = _bg
-_src.pixels = _px
-_src.filepath_raw = os.path.join(TT_OUT, "1_home.png"); _src.file_format = 'PNG'; _src.save()
-HOME = os.path.relpath(os.path.join(TT_OUT, "1_home"), SCREENS)
+SCREEN = "1_home"   # device() wants a screen; with no emission it isn't seen
 
 world = bpy.data.worlds.new("w"); scene.world = world
 world.use_nodes = True
@@ -38,8 +28,7 @@ bg = world.node_tree.nodes["Background"]
 bg.inputs["Color"].default_value = (1, 1, 1, 1)
 bg.inputs["Strength"].default_value = 0.12   # low, so the black glass stays black
 scene.render.film_transparent = True
-# Standard, not the studio shots' AgX: AgX's curve greys the screen's white and
-# washes its orange out, and the page lays the live firmware over the front frame
+# Standard, not the studio shots' AgX: AgX's curve washes the case's orange out
 scene.view_settings.view_transform = 'Standard'
 
 
@@ -64,17 +53,16 @@ scene.cycles.samples = int(os.environ.get("SAMPLES", 64))
 scene.render.image_settings.file_format = 'PNG'
 scene.render.image_settings.color_mode = 'RGBA'
 
-cam_loc = (0, -60, 4.5)          # a touch above the middle, long lens: nearly flat
+cam_loc = (0, -60, 11)           # ~10° above the middle, long lens: shows the top edge
 cam.location = cam_loc; cam_data.lens = 300
 cam.rotation_euler = (Vector((0, 0, 0)) - Vector(cam_loc)).to_track_quat('-Z', 'Y').to_euler()
 cam_data.dof.use_dof = False
 
 for cname in WANT:
     clear_devices()
-    dev = device("dev_" + cname, COLORS[cname], HOME, (0, (ZB - ZT) / 2, 0), (math.pi / 2, 0, 0))
+    dev = device("dev_" + cname, COLORS[cname], SCREEN, (0, (ZB - ZT) / 2, 0), (math.pi / 2, 0, 0))
     dev.parent = pivot
-    # with Standard, ~0.9 shows the screenshot's own white (~245), as the live canvas does
-    screen_mat(HOME).node_tree.nodes["Principled BSDF"].inputs["Emission Strength"].default_value = 0.9
+    screen_mat(SCREEN).node_tree.nodes["Principled BSDF"].inputs["Emission Strength"].default_value = 0
     os.makedirs(os.path.join(TT_OUT, cname), exist_ok=True)
     frames = [int(ONLY_FRAME)] if ONLY_FRAME else range(FRAMES)
     for i in frames:
