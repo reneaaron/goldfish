@@ -12,8 +12,26 @@ let server = { url: "", proxy: "" };
 let frameTimer = null;
 let scanning = false;
 
+// On a wide window the wallet stays put and every other screen opens as a
+// dialog over it; on a narrow one each screen takes the whole window.
+const wide = matchMedia("(min-width: 900px)");
+let currentView = "link";
+function layout() {
+  const dialog = wide.matches && !!current && currentView !== "wallet" && currentView !== "link";
+  for (const v of VIEWS) $("v-" + v).hidden = !(v === currentView || (dialog && v === "wallet"));
+  document.body.classList.toggle("dialog-open", dialog);
+  $("backdrop").hidden = !dialog;
+  $("v-" + currentView).setAttribute("role", dialog ? "dialog" : "region");
+}
+wide.addEventListener("change", layout);
+$("backdrop").onclick = () => show("wallet");
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && document.body.classList.contains("dialog-open")) show("wallet");
+});
+
 function show(view) {
-  for (const v of VIEWS) $("v-" + v).hidden = v !== view;
+  currentView = view;
+  layout();
   if (view !== "sign") stopFrames();
   if (view !== "show") clearInterval(showTimer);
   if (view === "wallet") $("w-waiting").hidden = !waiting;
@@ -136,7 +154,7 @@ function renderOverview(o) {
   $("fp-pill").querySelector("use").setAttribute("href", o.multisig ? "#i-users" : "#i-fingerprint");
   $("w-show").hidden = !o.multisig;
   $("net").hidden = o.network === "bitcoin";
-  $("net").textContent = o.network.toUpperCase();
+  $("net").textContent = o.network.charAt(0).toUpperCase() + o.network.slice(1); // "Signet"
   $("bal").textContent = btc(o.confirmed_sat);
   $("bal-btc").textContent = inBtc(o.confirmed_sat);
   $("bal-pending").hidden = !o.pending_sat;

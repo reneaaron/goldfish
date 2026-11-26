@@ -30,6 +30,7 @@
   </svg>
 
   <main>
+    <div id="backdrop" hidden></div>
     <div id="error" role="alert" hidden>
       <p><span id="error-text"></span><small id="error-detail"></small></p>
       <button id="error-close" aria-label="Dismiss">×</button>
@@ -81,8 +82,7 @@
         <span class="lockup"><img src="bowl.svg" alt="">bowl</span>
         <span class="top-right">
           <span class="wallet-id">
-            <span class="pill" id="fp-pill"><svg><use href="#i-fingerprint"/></svg><span id="fp"></span><span id="fp-more" class="wide-only"></span></span>
-            <span id="net" class="chip" hidden></span>
+            <span class="pill" id="fp-pill"><svg><use href="#i-fingerprint"/></svg><span id="fp"></span><span id="fp-more" class="wide-only"></span><span id="net" class="net" hidden></span></span>
           </span>
           <button id="w-settings" class="icon settings" aria-label="Settings"><svg><use href="#i-settings"/></svg><span class="wide-only">Settings</span></button>
         </span>
