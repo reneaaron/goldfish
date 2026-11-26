@@ -4,7 +4,8 @@ const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 
 const $ = (id) => document.getElementById(id);
-const VIEWS = ["link", "wallet", "receive", "send", "bump", "settings", "show", "sign", "ready"];
+const VIEWS = ["link", "wallet", "receive", "send", "bump", "settings", "show", "sign", "ready", "sent"];
+let waiting = null; // txid of a signed transaction not broadcast yet
 let current = null; // the linked wallet's overview
 let showTimer = null;
 let server = { url: "", proxy: "" };
@@ -15,15 +16,33 @@ function show(view) {
   for (const v of VIEWS) $("v-" + v).hidden = v !== view;
   if (view !== "sign") stopFrames();
   if (view !== "show") clearInterval(showTimer);
+  if (view === "wallet") $("w-waiting").hidden = !waiting;
   if (scanning) stopScan();
   error("");
   window.scrollTo(0, 0);
 }
 
-function error(e) {
-  $("error").textContent = e ? String(e) : "";
-  $("error").hidden = !e;
+// Errors in words a person can act on, with the technical detail under it,
+// shown under the open screen's header.
+function friendly(raw) {
+  const s = String(raw);
+  if (/timed out|timeout|refused|unreachable|could not connect|failed to lookup|dns error|resolve|os error (101|110|111|113)|IoError|Minreq|HttpResponse|ConnectionReset|broken pipe/i.test(s))
+    return ["Can't reach the server. Check your internet connection, or the server in Settings.", s];
+  return [s.charAt(0).toUpperCase() + s.slice(1), ""];
 }
+function error(e) {
+  const el = $("error");
+  el.hidden = !e;
+  if (!e) return;
+  const [text, detail] = friendly(e);
+  $("error-text").textContent = text;
+  $("error-detail").textContent = detail;
+  const open = [...document.querySelectorAll("main > section")].find((s) => !s.hidden);
+  const bar = open?.querySelector(".bar");
+  if (bar) bar.after(el);
+  else if (open) open.prepend(el);
+}
+$("error-close").onclick = () => error("");
 
 async function call(cmd, args) {
   error("");
@@ -63,9 +82,15 @@ async function stopScan() {
 
 // ---- camera preview
 function camera(on) {
-  for (const c of document.querySelectorAll(".cam")) c.hidden = !on;
+  for (const c of document.querySelectorAll(".cam, .cam-cancel")) c.hidden = !on;
   $("sign-show").hidden = on;
+  if (!on) {
+    button($("link-scan"), "Scan QR", false);
+    button($("ms-scan"), "Scan a key or descriptor", false);
+    button($("sign-scan"), $("sign-scan").dataset.label || "Scan signed QR", false);
+  }
 }
+for (const b of document.querySelectorAll(".cam-cancel")) b.onclick = () => stopScan();
 listen("preview", ({ payload: p }) => {
   const canvas = [...document.querySelectorAll(".cam")].find((c) => !c.hidden)?.querySelector("canvas");
   if (!canvas) return;
@@ -101,7 +126,9 @@ function renderOverview(o) {
   $("bal").textContent = btc(o.confirmed_sat);
   $("bal-btc").textContent = inBtc(o.confirmed_sat);
   $("bal-pending").hidden = !o.pending_sat;
-  $("bal-pending").textContent = `+${btc(o.pending_sat)} pending`;
+  // unconfirmed, either way: incoming, or the change of our own send
+  $("bal-pending").textContent = `${btc(o.pending_sat)} unconfirmed`;
+  $("w-waiting").hidden = !waiting;
   $("txs").replaceChildren(
     ...o.txs.map((t) => {
       const incoming = t.net_sat >= 0;
@@ -240,6 +267,7 @@ $("w-receive").onclick = async () => {
   $("r-qr").innerHTML = r.qr; // SVG made by the qrcode crate from our own address
   $("r-label").textContent = `Receive address #${r.index}`;
   $("r-addr").textContent = groups(r.address);
+  $("r-copy").dataset.text = r.address;
 };
 $("w-send").onclick = () => {
   show("send");
@@ -364,6 +392,9 @@ function showReview(r) {
   $("sign-paste").hidden = true;
   button($("sign-scan"), "Scan signed QR", false);
   renderSigs({ have: 0, needed: current?.threshold ?? 1, signers: [] });
+  $("sign-who").textContent = "Scan with Goldfish";
+  waiting = null; // a new transaction replaces one signed but not broadcast
+  $("sign-scan").dataset.label = "Scan signed QR";
   startFrames();
 }
 
@@ -399,13 +430,14 @@ function onScan(ev) {
     invoke("scan_stop");
     renderSigs(ev.sigs);
     $("sign-progress").hidden = true;
+    $("sign-who").textContent = "Show to the next signer";
+    $("sign-scan").dataset.label = "Scan next signature";
     button($("sign-scan"), "Scan next signature", false);
     return;
   }
   if (ev.signed_txid) {
-    show("ready");
-    $("ready-txid").textContent = shortId(ev.signed_txid);
-    $("ready-txid").title = ev.signed_txid;
+    waiting = ev.signed_txid;
+    openReady();
   }
 }
 $("sign-scan").onclick = async () => {
@@ -419,16 +451,57 @@ $("sign-use").onclick = async () => {
 listen("scan", (e) => onScan(e.payload));
 
 // ---- broadcast
+function openReady() {
+  show("ready");
+  $("ready-txid").textContent = shortId(waiting);
+  $("ready-txid").title = waiting;
+}
+$("w-waiting").onclick = openReady;
 $("ready-send").onclick = async () => {
   $("ready-send").disabled = true;
   try {
-    await call("broadcast_signed");
-    show("wallet");
+    const txid = await call("broadcast_signed");
+    waiting = null;
+    show("sent");
+    $("sent-txid").textContent = groups(txid);
+    $("sent-copy").dataset.text = txid;
+    const base = current?.network === "bitcoin" ? "https://mempool.space/tx/" : "https://mempool.space/signet/tx/";
+    $("sent-explorer").onclick = () => window.__TAURI__.opener.openUrl(base + txid).catch(error);
     sync();
+  } catch (_) {
+    // shown in the error line
   } finally {
     $("ready-send").disabled = false;
   }
 };
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (_) {
+    // WebKitGTK may refuse the async clipboard; the old way still works there
+    const t = document.createElement("textarea");
+    t.value = text;
+    t.style.position = "fixed";
+    t.style.opacity = "0";
+    document.body.append(t);
+    t.select();
+    const ok = document.execCommand("copy");
+    t.remove();
+    return ok;
+  }
+}
+
+// Copy buttons: the text is in data-text; the label says it worked.
+for (const b of document.querySelectorAll("button.copy")) {
+  b.onclick = async () => {
+    const label = b.querySelector("span");
+    const was = label.dataset.was || (label.dataset.was = label.textContent);
+    label.textContent = (await copyText(b.dataset.text)) ? "Copied" : "Couldn't copy: select the text instead";
+    setTimeout(() => (label.textContent = was), 1600);
+  };
+}
 
 // ---- start: reopen the saved wallet, if any
 invoke("startup")

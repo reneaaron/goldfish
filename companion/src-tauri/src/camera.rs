@@ -37,6 +37,16 @@ pub struct Outline {
 /// About 10 previews a second: enough to aim the camera by, and cheap.
 const PREVIEW_EVERY: std::time::Duration = std::time::Duration::from_millis(100);
 
+/// What a person can do about a camera that won't open.
+fn camera_error(device: &str, e: &std::io::Error) -> String {
+    match e.raw_os_error() {
+        Some(16) => "The camera is in use by another app. Close that app and try again.".into(),
+        Some(2) | Some(19) => format!("No camera at {device}. Plug one in, or set GOLDFISH_CAMERA to another device."),
+        Some(13) => format!("No permission to use {device}. Add your user to the video group and log in again."),
+        _ => format!("The camera at {device} didn't open ({e})."),
+    }
+}
+
 pub struct Camera {
     stop: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
@@ -67,14 +77,17 @@ impl Camera {
             })();
             let (dev, fmt) = match opened {
                 Ok(v) => v,
-                Err(e) => return drop(ready_tx.send(Err(format!("camera {device}: {e}")))),
+                Err(e) => return drop(ready_tx.send(Err(camera_error(&device, &e)))),
             };
             if fmt.fourcc != FourCC::new(b"YUYV") {
-                return drop(ready_tx.send(Err(format!("camera {device} won't give YUYV frames ({})", fmt.fourcc))));
+                return drop(ready_tx.send(Err(format!(
+                    "This camera doesn't give the picture format the companion reads (YUYV, it offers {}). Try another one with GOLDFISH_CAMERA.",
+                    fmt.fourcc
+                ))));
             }
             let mut stream = match MmapStream::with_buffers(&dev, Type::VideoCapture, 4) {
                 Ok(s) => s,
-                Err(e) => return drop(ready_tx.send(Err(format!("camera {device}: {e}")))),
+                Err(e) => return drop(ready_tx.send(Err(camera_error(&device, &e)))),
             };
             let _ = ready_tx.send(Ok(()));
             let (w, h, stride) = (fmt.width as usize, fmt.height as usize, fmt.stride as usize);

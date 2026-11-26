@@ -383,6 +383,7 @@ fn broadcast_signed(state: State<Shared>) -> Res<String> {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .manage(Shared::default())
         .setup(|app| {
             // Reopen the saved watch-only wallet, if any.
