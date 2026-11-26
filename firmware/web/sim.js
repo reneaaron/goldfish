@@ -2,7 +2,7 @@
 //
 //   goldfishSim(canvas, { base, onCameraStop, onReboot }) -> Promise<{ show(url), unplug() }>
 //
-// base is where signer.js, signer.wasm and samples/ live ('try/' from the landing
+// base is where signer.js, signer.wasm and samples/ live ('sim/' from the landing
 // page); signer.js is loaded on the first call, not before. show(url) puts a
 // picture in front of the camera; onCameraStop says the device took it away again.
 // With no picture picked, the camera sees img/camera_idle.jpg: a desk, out of focus,

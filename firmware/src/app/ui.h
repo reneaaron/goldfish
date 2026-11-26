@@ -3,8 +3,8 @@
 // Shared UI and app logic. Runs on the board and in the desktop simulator;
 // nothing in src/app may touch hardware directly.
 //
-// Flow (SeedQR only, one seed in RAM):
-//   Home -> Scan seed: a SeedQR (read when seen) -> Wallet: the fingerprint, Scan QR, Wallet options
+// Flow (one seed in RAM):
+//   Home -> Scan seed: written words (below; a SeedQR is read when seen) -> Wallet: the fingerprint, Scan QR, Wallet options
 //   Wallet -> Scan QR: one scanner for a transaction or an address
 //        transaction -> Review -> each output -> Swipe to sign -> Signed QR -> Wallet
 //        address -> searching -> verified / not from this seed
@@ -25,17 +25,17 @@
 //        my backup" once there are 12/24 words with a valid checksum -> Wallet
 //   Home -> New seed (12 words) -> dice rolls | coin flips | draw words + coins for the last
 //        -> (rolls or flips look made up? start over, or "I really rolled these")
-//        -> offline warning -> write down the words -> QR card? (whole SeedQR,
-//        each block, optional card check) -> Seed ready (not loaded) -> Home
-//   Wallet options -> Back up as QR -> the same card flow, scan optional
+//        -> offline warning -> write down the words -> Seed ready (not loaded) -> Home
+//   Wallet options -> Back up as QR -> a QR card: whole SeedQR, each block,
+//        optional card check
 //   Home -> tap the version -> Update firmware? -> Restart: the board's ROM
 //        bootloader, a USB drive for firmware.uf2 (only with no seed loaded)
 //   Wallet options -> Child seed (BIP-85): child number -> the New seed
-//        card flow from the warning on (words, QR card?, Seed ready)
+//        flow from the warning on (words, Seed ready)
 
 enum UiScreen {
     UI_HOME,
-    UI_SCAN_SEED,        // a SeedQR, or written words once held still
+    UI_SCAN_SEED,        // written words once held still (a SeedQR works too)
     UI_WALLET,           // home once a seed is loaded: fingerprint, Scan QR, Wallet options
     UI_PASSPHRASE,       // BIP-39 passphrase keyboard, from Wallet options
     UI_WALLET_OPTIONS,
@@ -56,7 +56,6 @@ enum UiScreen {
     UI_ENTER_WORDS,      // one screen per word
     UI_BACKUP_WARNING,
     UI_BACKUP_WORDS,     // all the words on one scrolling list
-    UI_BACKUP_CHOICE,    // add a QR card, or skip
     UI_BACKUP_QR,        // the whole SeedQR
     UI_BACKUP_BLOCK,     // one 5x5 block per screen
     UI_BACKUP_SCAN,      // scan the hand-made card; must hold the same seed

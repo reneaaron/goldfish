@@ -1,10 +1,10 @@
 # Browser simulator: src/app + src/web compiled to WebAssembly with Emscripten.
-# The landing page's hero runs it ("Plug it in") from the site's /try/, where this
-# build goes, with try/sim.js; try/index.html only sends old links to the hero.
+# The landing page's hero runs it ("Plug it in") from the site's /sim/, where this
+# build goes, with sim.js from this folder.
 #
 #   pio pkg install -e sim          # once: fetches LVGL and libwally into .pio/libdeps/sim
 #   make -C web -j                  # -> .pio/build/web/{signer.js,signer.wasm,sim.js,img/,samples/}
-#   mkdir -p /tmp/site && cp -rL ../landing/. /tmp/site && cp -r .pio/build/web /tmp/site/try
+#   mkdir -p /tmp/site && cp -rL ../landing/. /tmp/site && cp -r .pio/build/web /tmp/site/sim
 #   python3 -m http.server -d /tmp/site
 #
 # Needs emcc on PATH (emsdk). Same sources and libraries as the sim env in
@@ -37,21 +37,17 @@ LDFLAGS := $(OPT) -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=16MB -sSTACK_SIZE=1MB
            -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU16 -sFILESYSTEM=0
 
 .PHONY: all clean
-all: $(OUT)/signer.js $(OUT)/index.html $(OUT)/sim.js $(OUT)/img/camera_idle.jpg samples
+all: $(OUT)/signer.js $(OUT)/sim.js $(OUT)/img/camera_idle.jpg samples
 
 $(OUT)/signer.js: $(OBJS)
 	$(CXX) $(LDFLAGS) $^ -o $@
 
-$(OUT)/index.html: $(FW)/../try/index.html
-	@mkdir -p $(@D)
-	cp $< $@
-
-$(OUT)/sim.js: $(FW)/../try/sim.js
+$(OUT)/sim.js: $(FW)/web/sim.js
 	@mkdir -p $(@D)
 	cp $< $@
 
 # what the camera sees with no picture picked (sim.js shows it)
-$(OUT)/img/%: $(FW)/../try/img/%
+$(OUT)/img/%: $(FW)/web/img/%
 	@mkdir -p $(@D)
 	cp $< $@
 
