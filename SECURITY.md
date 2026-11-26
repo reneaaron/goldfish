@@ -30,7 +30,7 @@ Only the latest release is fixed.
   loaded seed, an output counts as change only if the seed re-derives that
   exact script, and multisig scripts come from the confirmed descriptor, never
   the PSBT. See [`firmware/README.md`](firmware/README.md).
-- The browser simulator (the website's hero, [`try/sim.js`](try/sim.js)) is a demo. Don't type a real seed into
+- The browser simulator (the website's hero, [`firmware/web/sim.js`](firmware/web/sim.js)) is a demo. Don't type a real seed into
   it.
 
 ## Checking a release before flashing
