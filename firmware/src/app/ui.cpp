@@ -2899,17 +2899,43 @@ static void build_psbt_output() {
     topbar(scr, title, prev_output_cb);
 
     bool ours = o.is_change || o.is_self;
-    lv_obj_t *tag = ours ? chip(scr, o.is_change ? ICON_CHECK "  YOUR CHANGE" : ICON_CHECK "  YOUR ADDRESS", GREEN, GREEN_DIM)
-                         : chip(scr, "SENDING TO", TEXT_2, SURFACE_2);
+    // Ours, but further down its list than a wallet app scans (psbt_review.h):
+    // amber, with why and the path, and Cancel next to the way on.
+    lv_color_t mine = o.far ? AMBER : GREEN, mine_dim = o.far ? AMBER_DIM : GREEN_DIM;
+    const char *mark = o.far ? ICON_WARNING : ICON_CHECK;
+    char label[40];
+    snprintf(label, sizeof(label), "%s  %s", mark, o.is_change ? "YOUR CHANGE" : "YOUR ADDRESS");
+    lv_obj_t *tag = ours ? chip(scr, label, mine, mine_dim) : chip(scr, "SENDING TO", TEXT_2, SURFACE_2);
     lv_obj_align(tag, LV_ALIGN_TOP_MID, 0, BAR + 8);
-    lv_obj_align(amount(scr, o.amount, ours ? GREEN : TEXT), LV_ALIGN_TOP_MID, 0, BAR + 36);
+    lv_obj_align(amount(scr, o.amount, ours ? mine : TEXT), LV_ALIGN_TOP_MID, 0, BAR + 36);
 
-    lv_obj_t *c = card(scroll_area(scr, BAR + 88), CW, 0);
+    // The warning first: it has to be read without scrolling. The address and
+    // the path, which says how far down, follow under it.
+    lv_obj_t *area = scroll_area(scr, BAR + 88);
+    lv_obj_t *why = nullptr;
+    if (o.far) {
+        why = para(area, "Yours, but far past the addresses in use. Your wallet app may not find these coins.", &inter_15, AMBER);
+        lv_obj_set_style_text_align(why, LV_TEXT_ALIGN_LEFT, 0);
+        lv_obj_update_layout(why);
+    }
+    lv_obj_t *c = card(area, CW, 0);
+    if (why) lv_obj_align(c, LV_ALIGN_TOP_LEFT, 0, lv_obj_get_height(why) + 10);
     lv_obj_align(caption(c, "ADDRESS"), LV_ALIGN_TOP_LEFT, 0, 0);
-    lv_obj_set_height(c, 20 + address_chunks(c, o.address) + 2 * CARD_PY);
+    int h = 20 + address_chunks(c, o.address);
+    if (o.far) {
+        lv_obj_align(caption(c, "PATH"), LV_ALIGN_TOP_LEFT, 0, h + 10);
+        lv_obj_t *path = para(c, o.path, &mono_16, TEXT);
+        lv_obj_set_width(path, lv_pct(100));
+        lv_obj_set_style_text_align(path, LV_TEXT_ALIGN_LEFT, 0);
+        lv_obj_align(path, LV_ALIGN_TOP_LEFT, 0, h + 30);
+        lv_obj_update_layout(path);
+        h += 30 + lv_obj_get_height(path);
+    }
+    lv_obj_set_height(c, h + 2 * CARD_PY);
 
     bool last = out_index + 1 >= review.n_outputs;
-    place_bottom(btn_primary(scr, last ? "Continue" : "Next address", next_output_cb));
+    if (o.far) bottom_pair(btn_ghost(scr, "Cancel", discard_psbt_cb, nullptr, TEXT), btn_primary(scr, "Continue", next_output_cb));
+    else place_bottom(btn_primary(scr, last ? "Continue" : "Next address", next_output_cb));
     show(scr);
 }
 

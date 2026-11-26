@@ -231,6 +231,29 @@ def test_change_to_another_multisig_blocks_signing(dev):
     assert "Don't sign this" in dev.text()
 
 
+def test_change_far_down_the_list_asks_first(dev):
+    """The wallet's own change, but further down the list than a wallet app
+    looks for a wallet whose coin is at address 0: shown with its path, and
+    signed only after Continue."""
+    wallet = two_of_three()
+    psbt = wallet.create_psbt([wallet.fund(0, 300_000)], [(STRANGER, 10_000)], fee=500, change_index=40)
+    loaded(dev)
+    dev.tap("Scan QR")
+    dev.scan(wallet.descriptor())
+    dev.tap("Use wallet")
+    dev.scan_animated(psbt_parts(psbt))
+    assert dev.screen == "PSBT_OVERVIEW", dev.text()
+    dev.tap("Check addresses")
+    dev.tap("Next address")
+    warning = dev.text()
+    assert "YOUR CHANGE" in warning and "₿289,500" in warning
+    assert "may not find these coins" in warning and "m/48h/1h/0h/2h/1/40" in warning
+    assert address_on_screen(dev) == wallet.address(40, change=True)
+    assert "Cancel" in dev.texts()
+    dev.tap("Continue")
+    assert dev.screen == "PSBT_SIGN", dev.text()
+
+
 def test_descriptor_goes_with_the_seed(dev):
     """Stateless: after Forget seed the wallet is unknown again, also to the same seed."""
     wallet = two_of_three()

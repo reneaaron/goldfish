@@ -241,6 +241,120 @@ void test_our_key_at_odd_path_is_suspicious() {
     }
 }
 
+// One coin of ours at `in_path` (50,000) spent to somebody else (30,000) and
+// to our own key at `out_path` (19,000), both paths in the PSBT. Needs the
+// seed loaded.
+static void spend_with_change(const uint32_t in_path[5], const uint32_t out_path[5]) {
+    uint8_t to[22] = {0x00, 20}, txid[32], fp[4], pub[33], script[22];
+    memset(to + 2, 0x11, 20);
+    memset(txid, 0x22, sizeof(txid));
+    wallet_fingerprint(fp);
+
+    struct wally_tx *tx = nullptr;
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_init_alloc(2, 0, 1, 2, &tx));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_add_raw_input(tx, txid, 32, 0, 0xfffffffd, nullptr, 0, nullptr, 0));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_add_raw_output(tx, 30000, to, sizeof(to), 0));
+    p2wpkh_at(out_path, pub, script);
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_add_raw_output(tx, 19000, script, sizeof(script), 0));
+
+    struct wally_psbt *p = nullptr;
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_from_tx(tx, 0, 0, &p));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_add_output_keypath(p, 1, pub, sizeof(pub), fp, sizeof(fp), out_path, 5));
+    struct wally_tx_output utxo;
+    p2wpkh_at(in_path, pub, script);
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_output_init(50000, script, sizeof(script), &utxo));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_set_input_witness_utxo(p, 0, &utxo));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_add_input_keypath(p, 0, pub, sizeof(pub), fp, sizeof(fp), in_path, 5));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_to_bytes(p, 0, raw, sizeof(raw), &raw_len));
+    wally_psbt_free(p);
+    wally_tx_free(tx);
+}
+
+// Loads it: ours on chain `chain` (1 change, 0 receive), far or not, and
+// signed either way: far is a warning on the screen, not a refusal.
+static void expect_ours(int chain, bool far, const char *path) {
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_OK, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(chain == 1, r.outputs[1].is_change);
+    TEST_ASSERT_EQUAL(chain == 0, r.outputs[1].is_self);
+    TEST_ASSERT_EQUAL_MESSAGE(far, r.outputs[1].far, path);
+    TEST_ASSERT_EQUAL_STRING(path, r.outputs[1].path);
+    TEST_ASSERT_FALSE(r.outputs[0].far);
+    TEST_ASSERT_EQUAL_UINT64(19000, chain ? r.change : r.self);
+    TEST_ASSERT_EQUAL(1, psbt_sign());
+}
+
+// A fresh wallet's scan covers the first PSBT_GAP_LIMIT addresses of a chain:
+// change or a receive address of ours past them, with no input to show the
+// wallet got that far, is flagged.
+void test_index_past_the_gap_limit_is_far() {
+    load_seed(SINGLESIG_MNEMONIC);
+    const uint32_t in[] = {H + 84, H, H, 0, 0};
+    const uint32_t c19[] = {H + 84, H, H, 1, 19}, c20[] = {H + 84, H, H, 1, 20};
+    // The input is receive address 0, which reaches one further on its own chain.
+    const uint32_t r20[] = {H + 84, H, H, 0, 20}, r21[] = {H + 84, H, H, 0, 21};
+    const uint32_t huge[] = {H + 84, H, H, 1, 2000000000};
+    spend_with_change(in, c19); expect_ours(1, false, "m/84h/0h/0h/1/19");
+    spend_with_change(in, c20); expect_ours(1, true, "m/84h/0h/0h/1/20");
+    spend_with_change(in, r20); expect_ours(0, false, "m/84h/0h/0h/0/20");
+    spend_with_change(in, r21); expect_ours(0, true, "m/84h/0h/0h/0/21");
+    spend_with_change(in, huge); expect_ours(1, true, "m/84h/0h/0h/1/2000000000");
+    PsbtReview r;
+    psbt_load(raw, raw_len, &r);
+    TEST_ASSERT_EQUAL_UINT32(2000000000, r.outputs[1].index);
+}
+
+// An input at index n shows the wallet used n, so its scan reaches n +
+// PSBT_GAP_LIMIT on that chain, and only on that chain.
+void test_an_input_vouches_for_the_next_indexes() {
+    load_seed(SINGLESIG_MNEMONIC);
+    const uint32_t in_c150[] = {H + 84, H, H, 1, 150}, in_r150[] = {H + 84, H, H, 0, 150};
+    const uint32_t c60[] = {H + 84, H, H, 1, 60}, c170[] = {H + 84, H, H, 1, 170}, c171[] = {H + 84, H, H, 1, 171};
+    const uint32_t r170[] = {H + 84, H, H, 0, 170}, r171[] = {H + 84, H, H, 0, 171};
+    spend_with_change(in_c150, c60); expect_ours(1, false, "m/84h/0h/0h/1/60");
+    spend_with_change(in_c150, c170); expect_ours(1, false, "m/84h/0h/0h/1/170");
+    spend_with_change(in_c150, c171); expect_ours(1, true, "m/84h/0h/0h/1/171");
+    spend_with_change(in_r150, r170); expect_ours(0, false, "m/84h/0h/0h/0/170");
+    spend_with_change(in_r150, r171); expect_ours(0, true, "m/84h/0h/0h/0/171");
+    spend_with_change(in_r150, c60); expect_ours(1, true, "m/84h/0h/0h/1/60");     // a receive coin says nothing of change
+    spend_with_change(in_c150, r170); expect_ours(0, true, "m/84h/0h/0h/0/170");
+}
+
+// A coin sent to a high index of ours on purpose must not vouch for the ones
+// after it: from PSBT_SCAN_LIMIT on, an index is far whatever is spent.
+void test_no_input_vouches_past_the_scan_limit() {
+    load_seed(SINGLESIG_MNEMONIC);
+    const uint32_t in990[] = {H + 84, H, H, 1, 990}, in5000[] = {H + 84, H, H, 1, 5000};
+    const uint32_t c999[] = {H + 84, H, H, 1, 999}, c1000[] = {H + 84, H, H, 1, 1000}, c5001[] = {H + 84, H, H, 1, 5001};
+    spend_with_change(in990, c999); expect_ours(1, false, "m/84h/0h/0h/1/999");
+    spend_with_change(in990, c1000); expect_ours(1, true, "m/84h/0h/0h/1/1000");
+    spend_with_change(in5000, c5001); expect_ours(1, true, "m/84h/0h/0h/1/5001");
+}
+
+// Our key, but in an account the transaction doesn't spend from: with the
+// account free too, nobody would find it. Refused, at any index.
+void test_output_in_another_account_rejected() {
+    load_seed(SINGLESIG_MNEMONIC);
+    const uint32_t in[] = {H + 84, H, H, 0, 0};
+    const uint32_t outs[][5] = {
+        {H + 84, H, H + 1, 1, 0},
+        {H + 84, H, H + 1, 0, 0},
+        {H + 84, H, H + 1987654321, 1, 2000000000},
+    };
+    for (const auto &out : outs) {
+        spend_with_change(in, out);
+        PsbtReview r;
+        TEST_ASSERT_EQUAL(PSBT_OTHER_ACCOUNT, psbt_load(raw, raw_len, &r));
+        TEST_ASSERT_FALSE(r.outputs[1].is_change || r.outputs[1].is_self);
+        TEST_ASSERT_EQUAL_UINT64(0, r.change + r.self);
+        TEST_ASSERT_EQUAL(0, psbt_sign());
+    }
+    // The same account as the input, other than account 0: fine.
+    const uint32_t in5[] = {H + 84, H, H + 5, 0, 0}, out5[] = {H + 84, H, H + 5, 1, 0};
+    spend_with_change(in5, out5);
+    expect_ours(1, false, "m/84h/0h/5h/1/0");
+}
+
 // Re-serializes the PSBT in `raw` after changing it with libwally.
 static void edit_psbt(void (*edit)(struct wally_psbt *)) {
     struct wally_psbt *p = nullptr;
@@ -666,7 +780,7 @@ void test_too_many_outputs_rejected() {
 
 // Every error has its own text: none falls through to an empty screen.
 void test_error_texts() {
-    for (int e = PSBT_PARSE_FAILED; e <= PSBT_WRONG_WALLET; e++)
+    for (int e = PSBT_PARSE_FAILED; e <= PSBT_OTHER_ACCOUNT; e++)
         TEST_ASSERT_GREATER_THAN(20, strlen(psbt_error_text(PsbtError(e))));
 }
 
@@ -851,6 +965,10 @@ int main() {
     RUN_TEST(test_foreign_script_with_our_derivation_is_suspicious);
     RUN_TEST(test_real_change_is_change);
     RUN_TEST(test_receive_address_is_self);
+    RUN_TEST(test_index_past_the_gap_limit_is_far);
+    RUN_TEST(test_an_input_vouches_for_the_next_indexes);
+    RUN_TEST(test_no_input_vouches_past_the_scan_limit);
+    RUN_TEST(test_output_in_another_account_rejected);
     RUN_TEST(test_our_key_at_odd_path_is_suspicious);
     RUN_TEST(test_other_sighash_rejected);
     RUN_TEST(test_already_signed);

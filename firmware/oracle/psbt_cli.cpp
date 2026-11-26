@@ -51,8 +51,9 @@ int main() {
             const PsbtOutput &o = r.outputs[i];
             printf("%s{\"address\":", i ? "," : "");
             json_str(o.address);
-            printf(",\"amount\":%llu,\"change\":%s,\"self\":%s,\"suspicious\":%s,\"path\":", (unsigned long long)o.amount,
-                   o.is_change ? "true" : "false", o.is_self ? "true" : "false", o.suspicious ? "true" : "false");
+            printf(",\"amount\":%llu,\"change\":%s,\"self\":%s,\"suspicious\":%s,\"far\":%s,\"path\":", (unsigned long long)o.amount,
+                   o.is_change ? "true" : "false", o.is_self ? "true" : "false", o.suspicious ? "true" : "false",
+                   o.far ? "true" : "false");
             json_str(o.path);
             putchar('}');
         }

@@ -41,6 +41,7 @@ const char *psbt_error_text(PsbtError e) {
         case PSBT_SUSPICIOUS: return "An address claims to be your change but isn't. The transaction may have been tampered with.";
         case PSBT_NEEDS_DESCRIPTOR: return "A multisig transaction needs its wallet's descriptor QR.";
         case PSBT_WRONG_WALLET: return "This transaction doesn't spend from the multisig wallet you loaded.";
+        case PSBT_OTHER_ACCOUNT: return "It pays an address of this seed in another account than it spends from. Your wallet app wouldn't look for it there.";
     }
     return "";
 }
@@ -153,6 +154,41 @@ static bool multisig_claim_verifies(const Claim &c, const uint8_t *script, size_
               script_len == sizeof(ours) && memcmp(script, ours, sizeof(ours)) == 0;
     secure_zero(&k, sizeof(k));
     return ok;
+}
+
+// Where a verified claim sits: its chain and index, and for single-sig its
+// account (m/84h/coin'/account'/chain/index). A multisig wallet has one
+// account, the descriptor's.
+static void claim_place(const Claim &c, bool multi, uint32_t *account, int *chain, uint32_t *index) {
+    *account = 0;
+    *chain = 0;
+    *index = 0;
+    if (multi) { multisig_path(c.path, c.path_len, chain, index); return; }
+    *account = c.path[2];
+    *chain = int(c.path[3]);
+    *index = c.path[4];
+}
+
+// How far a wallet app's scan reaches on `chain` of `account`, going by the
+// inputs (all verified by then): indexes below *reach. False if no input is
+// from that account. See PSBT_GAP_LIMIT.
+static bool inputs_reach(bool multi, const uint8_t fp[4], uint32_t account, int chain, uint64_t *reach) {
+    bool same_account = false;
+    *reach = PSBT_GAP_LIMIT;
+    for (size_t i = 0; i < psbt->num_inputs; i++) {
+        Claim claims[MAX_CLAIMS];
+        const size_t n_claims = find_claims(&psbt->inputs[i].keypaths, fp, claims);
+        for (size_t k = 0; k < n_claims && k < MAX_CLAIMS; k++) {
+            uint32_t a, index;
+            int ch;
+            claim_place(claims[k], multi, &a, &ch, &index);
+            if (a != account) continue;
+            same_account = true;
+            if (ch == chain && uint64_t(index) + 1 + PSBT_GAP_LIMIT > *reach) *reach = uint64_t(index) + 1 + PSBT_GAP_LIMIT;
+        }
+    }
+    if (*reach > PSBT_SCAN_LIMIT) *reach = PSBT_SCAN_LIMIT;
+    return same_account;
 }
 
 static void format_address(const uint8_t *script, size_t len, bool testnet, char *out, size_t cap) {
@@ -329,8 +365,16 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
             if (k == 0) chain = ck;
             else verified = verified && ck == chain;
         }
-        if (verified) {
+        uint32_t account = 0;
+        uint64_t reach = 0;
+        if (verified) claim_place(claims[0], multi, &account, &chain, &o.index);
+        if (verified && !inputs_reach(multi, fp, account, chain, &reach)) {
+            // Ours, but where no wallet app would look: any of 2^31 accounts.
+            // Not signed, and not counted as coming back.
+            if (r->error == PSBT_OK) r->error = PSBT_OTHER_ACCOUNT;
+        } else if (verified) {
             format_path(claims[0], o.path, sizeof(o.path));
+            o.far = o.index >= reach;
             if (chain == 1) { o.is_change = true; r->change += o.amount; }
             else { o.is_self = true; r->self += o.amount; }
         } else if (claimed) {

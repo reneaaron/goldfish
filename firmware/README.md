@@ -225,7 +225,17 @@ change counts as change only if the seed re-derives that exact output script,
 and an output that claims our fingerprint but doesn't verify blocks signing.
 "Belongs" means the seed re-derives the input's script at every path the PSBT
 gives for our fingerprint (BIP84 paths for single-sig); a multisig input's
-witness script must also be the descriptor's. A transaction without outputs,
+witness script must also be the descriptor's.
+
+An address of ours also has to be where a wallet app will look for it. The
+device keeps nothing, so it goes by the transaction: wallet apps scan 20
+addresses past the last one used (BIP 44's gap limit), and an input at index n
+shows n was used. Change or a receive address of ours at index 20 or more, and
+more than 20 past every input on the same chain, is shown in amber with a
+warning and its derivation path, with Cancel next to Continue. From index 1000
+on it is warned about whatever is spent, so a coin sent to a high index can't
+vouch for the ones after it. Single-sig change in an account none of the
+inputs is from is refused. A transaction without outputs,
 an input that is already finalized, a full previous transaction that isn't the
 one spent or disagrees with the witness UTXO, and a redeem script (or a witness
 script on a single-sig input) are refused as invalid. More than 16 outputs are
@@ -358,6 +368,10 @@ pio test -e test
   payment; our signature checked against the transaction and against the hash
   embit signed; a cosigner's signature kept; no descriptor, a 3-of-3 of the
   same keys, and change that pays another script
+- Where our own outputs are: change and receive addresses at index 19, 20 and
+  2,000,000,000 with a coin from address 0; inputs at index 150 vouching for
+  their own chain up to 170 and not for the other chain; nothing vouched for
+  from index 1000; an output in another account refused, at any index
 - PSBT review: SeedSigner's single-sig testnet vector (₿25,000 in, ₿24,857 out,
   ₿143 fee), signing, wrong seed and garbage input; inputs with fingerprint
   `00000000` or no key path told apart from another seed's (single-sig and
@@ -421,6 +435,8 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
   change reviewed and signed; a 24-word seed typed in; SeedQR Standard and Compact; the QR card check;
   an animated PSBT joined mid-cycle (fountain parts only) both ways and a base64 frame; the signed QR read in full screen;
   another seed's transaction, another wallet's address, and fake change;
+  change at an index no wallet scans, warned about with its path, cancelled, then accepted and signed, and not
+  warned about when a coin from the index before is spent; change in another account refused;
   a transaction whose key has fingerprint `00000000` or no key path; 9 outputs;
   SIGHASH_NONE;
   a passphrase typed on the keyboard giving the key and signatures embit
@@ -432,7 +448,7 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
   spelling of the descriptor at both scanners; a 3-of-5 after a cosigner has
   signed; wallets the seed isn't in, a forged fingerprint, `multi`, keys
   without origin or with fingerprint `00000000`, a wrong
-  checksum; change to another multisig; the descriptor gone after a wipe;
+  checksum; change to another multisig; change far down the list warned about; the descriptor gone after a wipe;
   a 15-input transaction through a camera that reads each frame twice and
   misses three in four; a 35-input one, past 16 KB, refused as too big with
   what to do
