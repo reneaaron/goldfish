@@ -505,6 +505,7 @@ function showReview(r) {
   renderSigs({ have: 0, needed: current?.threshold ?? 1, signers: [] });
   $("sign-who").textContent = "Scan with Goldfish";
   $("sign-fish").hidden = false;
+  $("sign-cap").classList.add("gf-cap");
   waiting = null; // a new transaction replaces one signed but not broadcast
   $("sign-scan").dataset.label = "Scan signed QR";
   startFrames();
@@ -554,6 +555,7 @@ function onScan(ev) {
     $("sign-progress").hidden = true;
     $("sign-who").textContent = "Show to the next signer";
     $("sign-fish").hidden = true; // the next signer may not be a Goldfish
+    $("sign-cap").classList.remove("gf-cap");
     $("sign-scan").dataset.label = "Scan next signature";
     button($("sign-scan"), "Scan next signature", false);
     return;

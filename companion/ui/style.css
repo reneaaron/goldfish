@@ -353,3 +353,10 @@ button.link.danger { color: var(--red); padding: 4px 0; font-size: 14px; justify
 
 /* a note about what the camera sees, right under it */
 .cam-msg { margin: 0 0 4px; padding: 8px 12px; border-radius: 10px; background: var(--amber-dim); color: var(--text); font-size: 13px; text-align: center; }
+
+/* Anything done on Goldfish: one subtle look, a faint wash of fish orange
+   behind the fish and the line (Bowl's own hints stay grey) */
+:root { --gf-wash: rgba(255, 122, 47, .09); --gf-edge: rgba(255, 122, 47, .22); }
+.gf-hint { background: var(--gf-wash); border: 1px solid var(--gf-edge); color: var(--text-2); }
+.caption.gf-cap { width: fit-content; margin: 10px auto 0; padding: 6px 14px 6px 10px; border-radius: 999px;
+  background: var(--gf-wash); border: 1px solid var(--gf-edge); color: var(--text-2); font-size: 13px; }
