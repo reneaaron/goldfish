@@ -318,3 +318,5 @@ html, body { overflow-x: clip; }
 #v-show .gf-hint { margin: 0 0 16px; }
 .caption { display: flex; align-items: center; justify-content: center; gap: 6px; }
 .gf-inline { width: 20px; }
+.kv dd.cosigner { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.kv dd.cosigner svg { width: 14px; height: 14px; color: var(--accent); }

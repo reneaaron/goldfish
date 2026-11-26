@@ -284,7 +284,7 @@ $("w-show").onclick = async () => {
   show("show");
   const rows = [
     ["Wallet", w.kind],
-    ...w.fingerprints.map((fp, i) => [i ? "" : "Fingerprints", fingerprint(fp)]),
+    ...w.fingerprints.map((fp, i) => [i ? "" : "Cosigners", fingerprint(fp)]),
     ["First address", groups(w.first_address)],
   ];
   $("sh-kv").replaceChildren(
@@ -294,7 +294,12 @@ $("w-show").onclick = async () => {
       dt.textContent = k;
       dd.textContent = v;
       dd.className = "mono";
-      if (!k) dt.className = "cont"; // another fingerprint: same row group
+      if (!k) dt.className = "cont"; // another cosigner: same row group
+      if (k === "Cosigners" || (!k && v)) {
+        // each cosigner's key fingerprint, with the fingerprint icon Goldfish shows beside its own
+        dd.classList.add("cosigner");
+        dd.insertAdjacentHTML("afterbegin", '<svg><use href="#i-fingerprint"/></svg>');
+      }
       return [dt, dd];
     }),
   );
