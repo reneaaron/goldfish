@@ -6,6 +6,7 @@ The page is a public test seed (handwriting/make_page.py). Never real funds.
 from PIL import Image
 
 from device import FIRMWARE
+from flows import review_and_sign
 
 PAGE = FIRMWARE / "sim" / "samples" / "handwritten_page.png"
 GREY = Image.new("L", (240, 180), 128)
@@ -61,6 +62,10 @@ def sign_demo_transaction(dev):
     dev.show(Image.open(DEMO_PSBT).convert("L"))
     dev.wait_for(lambda: dev.screen != "SCAN", ms=5000, what="the transaction to be read")
     assert dev.screen == "PSBT_OVERVIEW", dev.text()
+    dev.wait(200)   # past the fade-in
+    signed, _ = review_and_sign(dev)
+    assert len(signed.inputs[0].partial_sigs) == 1
+    assert dev.screen == "WALLET"
 
 
 def test_demo_page_signs_the_demo_transaction(dev):

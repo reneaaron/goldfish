@@ -48,7 +48,12 @@ def main():
     words = [bip39_words()[i] for i in idx]
     if args.mnemonic:   # the random words are still drawn, so --seed gives the same layout
         words = args.mnemonic.split()
-        assert len(words) == n and all(w in bip39_words() for w in words)
+        if len(words) != n or any(w not in bip39_words() for w in words):
+            raise SystemExit(f"--mnemonic: need {n} BIP-39 words")
+        bits = "".join(f"{bip39_words().index(w):011b}" for w in words)
+        entropy = int(bits[:-cs], 2).to_bytes(n * 4 // 3, "big")
+        if int(bits[-cs:], 2) != hashlib.sha256(entropy).digest()[0] >> (8 - cs):
+            raise SystemExit("--mnemonic: checksum doesn't match")
     rows = n // 2
     W, H, h = 1400, (1800 if n == 24 else 240 + rows * 66 + 160), 44
     ink = np.zeros((H, W), np.float32)
