@@ -41,7 +41,7 @@ const char *psbt_error_text(PsbtError e) {
         case PSBT_SUSPICIOUS: return "An address claims to be your change but isn't. The transaction may have been tampered with.";
         case PSBT_NEEDS_DESCRIPTOR: return "A multisig transaction needs its wallet's descriptor QR.";
         case PSBT_WRONG_WALLET: return "This transaction doesn't spend from the multisig wallet you loaded.";
-        case PSBT_NO_PREVIOUS_TX: return "Your wallet app left out your coins' previous transactions, so the amounts can't be checked.";
+        case PSBT_NO_PREVIOUS_TX: return "The fee can't be checked when several coins are spent at once. Spend one coin at a time.";
     }
     return "";
 }
@@ -243,6 +243,7 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
     // Inputs: all ours, native segwit, with amounts, and all of one kind:
     // single-sig, or the loaded multisig wallet.
     bool multi = false;
+    int unchecked = 0;   // inputs whose amount rests on the PSBT alone
     r->n_inputs = int(psbt->num_inputs);
     if (r->n_inputs == 0) return r->error = PSBT_PARSE_FAILED;
     for (size_t i = 0; i < psbt->num_inputs; i++) {
@@ -268,13 +269,16 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
         const struct wally_tx_output *utxo = nullptr;
         if (wally_psbt_get_input_best_utxo(psbt, i, &utxo) != WALLY_OK || !utxo || utxo->satoshi == 0)
             return r->error = PSBT_MISSING_AMOUNTS;
-        // A segwit v0 signature commits to its own input's amount only. Amounts
-        // taken from the PSBT alone could be given falsely, differently in two
-        // signings of one payment, and the valid signatures of each combined
-        // into a transaction whose fee is far above what either review showed.
-        // So every amount is checked against the transaction that made the coin.
-        if (!in.utxo) return r->error = PSBT_NO_PREVIOUS_TX;
-        if (!utxo_matches_prevout(i, utxo)) return r->error = PSBT_PARSE_FAILED;
+        // A segwit v0 signature commits to its own input's amount only. With
+        // two amounts taken from the PSBT alone, a wallet app could give a
+        // different one falsely in each of two signings of one payment, and
+        // combine the valid signatures into a transaction whose fee is far
+        // above what either review showed. One such amount is safe: given
+        // falsely, its own signature is invalid. So at most one input may come
+        // without the transaction that made its coin (Sparrow's QR leaves
+        // them out); the others are checked against theirs.
+        if (!in.utxo && ++unchecked > 1) return r->error = PSBT_NO_PREVIOUS_TX;
+        if (in.utxo && !utxo_matches_prevout(i, utxo)) return r->error = PSBT_PARSE_FAILED;
         size_t type = 0;
         if (wally_scriptpubkey_get_type(utxo->script, utxo->script_len, &type) != WALLY_OK ||
             (type != WALLY_SCRIPT_TYPE_P2WPKH && type != WALLY_SCRIPT_TYPE_P2WSH))

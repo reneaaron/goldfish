@@ -173,14 +173,17 @@ def make_case(rng):
 
     tx = Transaction(version=2, vin=vin, vout=vout, locktime=0)
     p = PSBT(tx)
+    bare = 0
     for i in range(n_in):
         p.inputs[i].witness_utxo = utxos[i]
         p.inputs[i].non_witness_utxo = prevs[i]
         r = rng.random()
-        if r < 0.04:         # the amount on the wallet app's word alone
+        if r < 0.15:         # the amount on the wallet app's word alone: one such input is fine
             p.inputs[i].non_witness_utxo = None
-            c.tags.append("no-previous-tx"); c.must_reject.append("input without its previous transaction")
-        elif r < 0.07:       # an amount the previous transaction doesn't have
+            bare += 1
+            c.tags.append("no-previous-tx")
+            if bare == 2: c.must_reject.append("more than one input without its previous transaction")
+        elif r < 0.18:       # an amount the previous transaction doesn't have
             p.inputs[i].witness_utxo = TransactionOutput(utxos[i].value + 1000, utxos[i].script_pubkey)
             c.tags.append("false-amount"); c.must_reject.append("witness UTXO disagrees with the previous transaction")
         p.inputs[i].bip32_derivations.update(in_derivs[i])
