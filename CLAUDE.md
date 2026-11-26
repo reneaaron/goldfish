@@ -6,7 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Goldfish ("Sign and forget."): a stateless, camera-based Bitcoin signer for the Waveshare RP2350-Touch-LCD-2 (240×320 touch screen, OV5640 camera, no radio). The seed lives in RAM only; all I/O is QR codes through the camera and the screen. Status: works in the desktop simulator; on one real board, QR scanning and a 2-of-3 multisig with Sparrow on signet (set up, signed, broadcast) work, and single-sig transactions have been signed with Sparrow, on mainnet too; not for real funds.
 
-- `firmware/`: PlatformIO project (the only code that builds and has tests)
+- `firmware/`: PlatformIO project
+- `companion/`: a spike of the wallet app that plays Sparrow's part for Goldfish (Tauri 2, Linux desktop only so far): a watch-only wallet (single-sig `84h` or `wsh(sortedmulti)` multisig) over Electrum or Esplora, PSBTs out as animated UR QR codes, the signed one back through the webcam (V4L2, in Rust), then broadcast. Its logic is `src-tauri/src/lib.rs`, tested on its own; `companion/e2e` drives it against the simulator through `firmware/e2e/device.py`, so a change to the formats Goldfish reads (UR types, descriptor spellings, PSBT rules) lands with the companion side in the same PR. `.github/workflows/companion.yml` runs only when `companion/`, `firmware/src/app/` or `firmware/e2e/` change. Details in `companion/README.md`
 - `case/`: printed case in gcad (`.gcad` parts, `.gasm` assembly)
 - `hardware/`: parts list, board notes
 - `flasher/`: one static page that copies `firmware.uf2` onto the board's BOOT drive
@@ -37,6 +38,14 @@ Simulator camera: it decodes the image at `sim/camera.png` (or `$SIM_CAMERA`), r
 Case: `gcad check stateless-signer.gasm` (add `--set clip=0` for the screw variant), `gcad export parts/case.gcad exports/case.stl`.
 
 Renders: `blender -b -P marketing/renders/render.py` (`ONLY=1,3 SAMPLES=64 PCT=50` for a quick preview).
+
+Companion (needs Rust, the Tauri Linux libraries `libwebkit2gtk-4.1-dev` and friends, and libclang):
+
+```bash
+cd companion/src-tauri && cargo test      # logic tests
+cd companion/src-tauri && cargo run       # the app window
+cd companion && uv run --with-requirements ../firmware/e2e/requirements.txt pytest e2e   # round trips with the simulator
+```
 
 ## Firmware architecture
 

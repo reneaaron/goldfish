@@ -1,0 +1,37 @@
+[package]
+name = "goldfish-companion"
+version = "0.0.1"
+edition = "2021"
+default-run = "goldfish-companion"
+publish = false
+
+[lib]
+name = "companion"
+path = "src/lib.rs"
+
+[[bin]]
+name = "goldfish-companion"
+path = "src/main.rs"
+
+[[bin]]
+name = "companion-cli"
+path = "src/bin/cli.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+bdk_wallet = "3.2"
+bdk_esplora = { version = "0.22", default-features = false, features = ["std", "blocking-https-rustls"] }
+ur = "0.5"
+qrcode = { version = "0.15", default-features = false, features = ["std", "svg"] }
+rqrr = { version = "0.11", default-features = false }
+v4l = "0.14"
+base64 = "0.22"
+bdk_electrum = "0.24"
+
+[dev-dependencies]
+bdk_wallet = { version = "3.2", features = ["keys-bip39"] }
