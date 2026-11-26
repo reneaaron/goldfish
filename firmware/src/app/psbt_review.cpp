@@ -41,7 +41,7 @@ const char *psbt_error_text(PsbtError e) {
         case PSBT_SUSPICIOUS: return "An address claims to be your change but isn't. The transaction may have been tampered with.";
         case PSBT_NEEDS_DESCRIPTOR: return "A multisig transaction needs its wallet's descriptor QR.";
         case PSBT_WRONG_WALLET: return "This transaction doesn't spend from the multisig wallet you loaded.";
-        case PSBT_OTHER_ACCOUNT: return "It pays an address of this seed in another account than it spends from. Your wallet app wouldn't look for it there.";
+        case PSBT_OTHER_ACCOUNT: return "It pays this seed in another account than it spends from, where no wallet app would look.";
     }
     return "";
 }
