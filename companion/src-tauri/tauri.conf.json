@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Goldfish Companion",
+  "productName": "Bowl",
   "version": "0.0.1",
   "identifier": "dev.goldfish.companion",
   "build": {
@@ -10,7 +10,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Goldfish Companion",
+        "title": "Bowl",
         "width": 420,
         "height": 760
       }

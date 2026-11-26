@@ -108,7 +108,7 @@ listen("preview", ({ payload: p }) => {
   ctx.lineWidth = 3;
   ctx.lineJoin = "round";
   for (const code of p.codes) {
-    ctx.strokeStyle = code.read ? "#15803D" : "#C2501A";
+    ctx.strokeStyle = code.read ? "#15803D" : "#0A7ED0";
     ctx.beginPath();
     code.corners.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
     ctx.closePath();

@@ -1,5 +1,8 @@
-/* Goldfish's own colour tokens (firmware/src/app/theme.cpp) and type:
-   Rethink Sans ExtraBold titles, Inter text, JetBrains Mono amounts and keys.
+/* Bowl (marketing/companion/): Goldfish's own colour tokens
+   (firmware/src/app/theme.cpp) with the case blue as the accent where
+   Goldfish uses orange; in Bowl, orange is only the fish's eye in the mark.
+   Type as on Goldfish: Rethink Sans titles (700 for the wordmark), Inter
+   text, JetBrains Mono amounts and keys.
    Bundled in fonts/; nothing is fetched. */
 :root {
   --bg: #F4F7F8;
@@ -9,8 +12,8 @@
   --text: #14222B;
   --text-2: #5A6B75;
   --text-3: #718089;
-  --accent: #C2501A;
-  --accent-dim: #FFE6D6;
+  --accent: #0A7ED0;   /* Bowl blue, the case blue */
+  --accent-dim: #DDEDF9;
   --green: #15803D;
   --green-dim: #DCEFE2;
   --red: #C62828;
@@ -47,8 +50,13 @@ h2 { font: 600 17px/1 var(--sans); margin: 0; flex: 1; text-align: center; paddi
 .caption { color: var(--text-2); text-align: center; margin: 8px 0 12px; font-size: 14px; }
 
 /* pieces */
-.fish { display: block; width: 96px; margin: 24px auto 4px; }
-.fish.small { width: 44px; margin: 0; }
+/* wordmark: the mark, then "bowl" in lowercase Rethink Sans 700 */
+.lockup { display: inline-flex; align-items: center; gap: 8px; font: 700 22px/1 var(--display); letter-spacing: -0.01em; color: var(--text); }
+.lockup img { height: 40px; } /* brand sheet: a 40 px mark per 22 px name */
+.lockup.big { font-size: 40px; gap: 14px; letter-spacing: -0.02em; }
+.lockup.big img { height: 72px; }
+.brand { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 28px 0 20px; }
+.tagline { color: var(--text-2); font-size: 15px; }
 .top { display: flex; justify-content: space-between; align-items: center; }
 .pill { display: inline-flex; gap: 6px; align-items: center; background: var(--surface-2); border-radius: 999px; padding: 5px 12px; font-size: 14px; }
 .pill svg { color: var(--accent); width: 16px; height: 16px; }
