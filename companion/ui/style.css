@@ -171,7 +171,7 @@ button.copy { margin-top: 16px; }
 
 /* Link: brand on top, what to do in the middle, the one action at the bottom
    (the layout of Goldfish's own home screen) */
-.onboard { min-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+.onboard { display: flex; flex-direction: column; }
 .onboard-top { display: flex; justify-content: center; padding-top: 8px; }
 .onboard-body { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 24px 0; }
 .onboard .display { text-align: left; margin: 0 0 8px; }
@@ -187,7 +187,10 @@ button.copy { margin-top: 16px; }
 
 /* Every screen: header, content, and its main action pinned to the bottom,
    so it stays in reach however long the content is. */
-main > section { display: flex; flex-direction: column; min-height: calc(100vh - 32px); }
+main { --pad-y: 16px; }
+main > section { display: flex; flex-direction: column; min-height: calc(100vh - 2 * var(--pad-y)); }
+/* the wallet has no pinned action: its height is its content, so no scroll */
+main > #v-wallet { min-height: 0; }
 .fill { flex: 1; display: flex; flex-direction: column; }
 .actions { margin-top: auto; position: sticky; bottom: 0; z-index: 1; display: flex; flex-direction: column; gap: 10px; padding: 20px 0 8px; background: linear-gradient(to bottom, transparent, var(--bg) 18px); }
 .actions .ok { margin: 0; }
@@ -235,7 +238,7 @@ main > section { display: flex; flex-direction: column; min-height: calc(100vh -
 /* Wide windows (desktop): the wallet in two columns, every other screen as a
    centred panel, instead of a phone-width strip in a sea of grey. */
 @media (min-width: 900px) {
-  main { max-width: 1080px; padding: 28px 40px; }
+  main { max-width: 1080px; --pad-y: 28px; padding: var(--pad-y) 40px; }
   .wallet-grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 48px; align-items: start; }
   .wallet-side { position: sticky; top: 28px; }
   .wallet-main .list-head { margin-top: 24px; }
