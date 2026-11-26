@@ -156,10 +156,47 @@ function renderOverview(o) {
       return li;
     }),
   );
-  $("txs-empty").hidden = o.txs.length > 0;
+  renderEmpty();
+}
+
+// What the Activity list says while it has nothing to list: still looking,
+// nothing there, or the server out of reach.
+let syncState = "idle"; // "syncing" | "ok" | "failed" | "idle"
+const EMPTY = {
+  syncing: {
+    icon: "i-sync", spin: true,
+    title: "Looking for transactions",
+    text: "This can take a minute the first time.",
+  },
+  ok: {
+    icon: "i-in",
+    title: "No transactions yet",
+    text: "Bitcoin you receive to this wallet shows up here.",
+    actions: [["receive", "secondary", "i-in", "Receive"]],
+  },
+  failed: {
+    icon: "i-cloud-off", tone: "warn",
+    title: "Can't reach the server",
+    text: "Your wallet is fine. Check your connection, or pick another server in Settings.",
+    actions: [["retry", "secondary", "i-sync", "Try again"], ["settings", "link", null, "Settings"]],
+  },
+};
+function renderEmpty() {
+  const el = $("txs-empty");
+  el.hidden = (current?.txs.length ?? 0) > 0;
+  if (el.hidden) return;
+  const st = EMPTY[syncState] || EMPTY.ok;
+  el.innerHTML = `<span class="empty-badge${st.spin ? " spin" : ""}${st.tone ? " " + st.tone : ""}"><svg><use href="#${st.icon}"/></svg></span>
+    <b>${st.title}</b><span>${st.text}</span>
+    ${st.actions ? `<span class="empty-actions">${st.actions
+      .map(([act, cls, icon, label]) => `<button class="${cls}" data-act="${act}">${icon ? `<svg><use href="#${icon}"/></svg>` : ""}${label}</button>`)
+      .join("")}</span>` : ""}`;
+  for (const b of el.querySelectorAll("button"))
+    b.onclick = () => ({ receive: () => $("w-receive").click(), retry: sync, settings: () => $("w-settings").click() })[b.dataset.act]();
 }
 
 function linked(o) {
+  syncState = "syncing";
   renderOverview(o);
   show("wallet");
   sync();
@@ -263,13 +300,20 @@ function renderSigs(sigs) {
 
 // ---- wallet
 async function sync() {
-  button($("w-sync"), "Syncing…", true);
+  button($("w-sync"), "Refreshing…", true);
+  syncState = "syncing";
+  renderEmpty();
   try {
-    renderOverview(await call("sync"));
+    const o = await call("sync");
+    syncState = "ok";
+    renderOverview(o);
   } catch (_) {
-    // shown in the error line
+    syncState = "failed";
+    // with nothing to list, the Activity card says it; otherwise the error line does
+    if (!current?.txs.length) error("");
+    renderEmpty();
   } finally {
-    button($("w-sync"), "Sync", false);
+    button($("w-sync"), "Refresh", false);
   }
 }
 $("w-sync").onclick = sync;

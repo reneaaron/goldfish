@@ -202,8 +202,18 @@ main > section { display: flex; flex-direction: column; min-height: calc(100vh -
 .balance .label { margin-top: 24px; }
 .addr-card { padding: 14px 16px; margin-top: 12px; text-align: center; }
 .addr-card .accent-title { margin-top: 0; }
-.empty { padding: 18px 16px; display: flex; flex-direction: column; gap: 4px; }
-.empty span { color: var(--text-2); font-size: 14px; }
+/* empty Activity: an icon badge like Goldfish's, a line, and the way forward */
+.empty { padding: 28px 20px 24px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+.empty > b { font-size: 16px; font-weight: 600; margin-top: 8px; }
+.empty > span:not(.empty-badge):not(.empty-actions) { color: var(--text-2); font-size: 14px; max-width: 280px; }
+.empty-badge { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-dim); color: var(--accent); }
+.empty-badge svg { width: 24px; height: 24px; }
+.empty-badge.warn { background: var(--amber-dim); color: var(--amber); }
+.empty-badge.spin svg { animation: spin 1.2s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .empty-badge.spin svg { animation: none; } }
+.empty-actions { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+.empty-actions button.secondary { height: 40px; padding: 0 16px; font-size: 15px; }
 .danger-zone { margin-top: 28px; }
 /* Connect Goldfish: the fish mark at the bowl's module size (brand sheet) */
 .connect { width: 100%; height: auto; margin-top: 16px; padding: 12px 14px; justify-content: flex-start; gap: 14px; text-align: left; font-weight: 500; background: var(--surface); border: 1px solid var(--border); }
