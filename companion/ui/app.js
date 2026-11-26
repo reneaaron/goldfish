@@ -128,8 +128,12 @@ listen("preview", ({ payload: p }) => {
 
 function renderOverview(o) {
   current = o;
+  // "2 of 3" (+ " multisig" where there's room), or the single key's fingerprint
   $("fp").textContent = o.multisig ? o.kind.replace(" multisig", "") : fingerprint(o.fingerprints[0]);
-  $("fp").previousElementSibling.querySelector("use").setAttribute("href", o.multisig ? "#i-users" : "#i-fingerprint");
+  $("fp-more").textContent = o.multisig ? " multisig" : "";
+  $("fp-pill").classList.toggle("mono", !o.multisig);
+  $("fp-pill").title = o.multisig ? o.kind : "Goldfish's fingerprint";
+  $("fp-pill").querySelector("use").setAttribute("href", o.multisig ? "#i-users" : "#i-fingerprint");
   $("w-show").hidden = !o.multisig;
   $("net").hidden = o.network === "bitcoin";
   $("net").textContent = o.network.toUpperCase();

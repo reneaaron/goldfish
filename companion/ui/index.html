@@ -77,17 +77,20 @@
 
     <!-- Wallet -->
     <section id="v-wallet" hidden>
-      <div class="top">
+      <header class="top appbar">
         <span class="lockup"><img src="bowl.svg" alt="">bowl</span>
         <span class="top-right">
-          <span class="pill mono"><svg><use href="#i-fingerprint"/></svg><span id="fp"></span></span>
-          <button id="w-settings" class="icon" aria-label="Settings"><svg><use href="#i-settings"/></svg></button>
+          <span class="wallet-id">
+            <span class="pill" id="fp-pill"><svg><use href="#i-fingerprint"/></svg><span id="fp"></span><span id="fp-more" class="wide-only"></span></span>
+            <span id="net" class="chip" hidden></span>
+          </span>
+          <button id="w-settings" class="icon settings" aria-label="Settings"><svg><use href="#i-settings"/></svg><span class="wide-only">Settings</span></button>
         </span>
-      </div>
+      </header>
       <div class="wallet-grid">
       <div class="wallet-side">
       <div class="balance">
-        <p class="label">Balance <span id="net" class="chip" hidden></span></p>
+        <p class="label">Balance</p>
         <p class="big amount" id="bal">₿0</p>
         <p class="sub" id="bal-btc"></p>
         <p class="sub" id="bal-pending" hidden></p>
@@ -105,7 +108,7 @@
       </div>
       <div class="wallet-main">
       <div class="list-head">
-        <span>Activity</span>
+        <span class="label">Activity</span>
         <button id="w-sync" class="link"><svg><use href="#i-sync"/></svg><span>Refresh</span></button>
       </div>
       <ul id="txs" class="card list"></ul>

@@ -85,7 +85,8 @@ button.wide { width: 100%; }
 .kv dd { text-align: right; word-break: normal; padding-left: 12px; }
 .kv dd.mono { font-size: 13px; }
 
-.list-head { display: flex; justify-content: space-between; align-items: center; margin: 28px 0 8px; color: var(--text-3); font: 500 13px/1 var(--sans); text-transform: uppercase; letter-spacing: .08em; }
+.list-head { display: flex; justify-content: space-between; align-items: center; margin: 28px 0 8px; }
+.list-head .label { margin: 0; }
 .list { list-style: none; margin: 0; padding: 0 14px; }
 .list li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
 .list li:first-child { border-top: 0; }
@@ -240,9 +241,7 @@ main > #v-wallet { min-height: 0; }
 @media (min-width: 900px) {
   main { max-width: 1080px; --pad-y: 28px; padding: var(--pad-y) 40px; }
   .wallet-grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 48px; align-items: start; }
-  .wallet-side { position: sticky; top: 28px; }
   .wallet-main .list-head { margin-top: 24px; }
-  #v-wallet .top { padding-bottom: 8px; border-bottom: 1px solid var(--border); }
   .list li { padding: 14px 4px; }
   .empty { padding: 56px 24px 48px; }
 
@@ -261,3 +260,27 @@ main > #v-wallet { min-height: 0; }
 /* small monospaced text (BTC line, IDs, times, fee rates) in the regular
    weight; 500 stays for the amounts */
 .sub, .list .what small, .kv dd.mono, .chips button span, .field-hint code, #error small, .sig-status .chip { font-weight: 400; }
+
+/* the wallet's header: wallet identity and network on the right */
+.wallet-id { display: inline-flex; align-items: center; gap: 6px; }
+.pill:not(.mono) { font: 600 13px/1 var(--sans); }
+.wide-only { display: none; }
+button.settings { gap: 6px; }
+@media (min-width: 900px) {
+  .wide-only { display: inline; }
+  /* a full-width white bar across the window, content on the page's grid */
+  .appbar {
+    margin: calc(-1 * var(--pad-y)) 0 28px; padding: 14px 0; min-height: 68px;
+    position: relative; background: var(--surface);
+    box-shadow: 0 0 0 100vmax var(--surface); clip-path: inset(0 -100vmax 0 -100vmax);
+  }
+  .appbar::after { content: ""; position: absolute; left: -100vmax; right: -100vmax; bottom: 0; height: 1px; background: var(--border); }
+  .appbar .top-right { gap: 16px; }
+  button.settings { width: auto; height: 36px; padding: 0 12px; border-radius: 10px; color: var(--text-2); font-size: 14px; font-weight: 500; }
+  button.settings:hover { background: var(--surface-2); }
+  .wallet-side .balance .label { margin-top: 0; }
+  .wallet-main .list-head { margin-top: 0; }
+}
+/* the header's full-width background and line paint past the content box;
+   clip them, so the page never scrolls sideways */
+html, body { overflow-x: clip; }
