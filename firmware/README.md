@@ -43,6 +43,8 @@ The seed lives in RAM only: Forget seed or unplugging removes it.
    (`[fingerprint/84h/1h/0h]vpub…`, shown in amber), which also serves signet and
    Mutinynet. The choice is kept in RAM, so every boot starts on mainnet. Signing and
    Verify address don't use it: they read the network from the PSBT or the address.
+   Switching the network, like switching the kind of key, asks first: to a
+   wallet app each is another wallet.
    "For a multisig wallet" switches to this seed's key for a multisig wallet,
    `[fingerprint/48h/0h/0h/2h]Zpub…` (BIP-48, native segwit; `48h/1h/0h/2h` and
    `Vpub…` on testnet), to add as a cosigner in the wallet app. Also RAM only
@@ -91,7 +93,10 @@ A tap brings the screen back at the set brightness and presses nothing.
 
 Enter words restores from a words backup: type each word. It starts at 12
 words; a 24-word backup taps "24 words" on the first word. The keyboard only offers letters that lead to a word and, on the last
-word, only words with a valid checksum. The seed loads right away.
+word, only words with a valid checksum. The seed loads right away. Back shows
+the word entered on the screen before, to accept again or change, and going
+forward again shows the words already entered after it; Back from the first
+word asks before they are forgotten.
 
 Experimental: Scan seed also reads a handwritten backup, on any paper (plain, ruled, a printed card; one or more
 columns; numbered or not). A SeedQR is read as soon as it is in view. For written
@@ -148,9 +153,11 @@ reading speed are unmeasured.
 
 Passphrase (in Wallet options) opens a keyboard for a BIP-39 passphrase (the "25th word"):
 letters, digits and all ASCII symbols, up to 64 characters, with a Show/Hide
-switch. OK derives the key again (a few seconds on the board, like loading) and
-returns to Wallet with the fingerprint of seed plus passphrase, to check
-against the wallet app. An empty passphrase removes it. The
+switch. OK shows the passphrase once more, in full, to confirm: every passphrase
+gives a wallet, so a typo can't be told from the right one afterwards. Then the
+key is derived again (a few seconds on the board, like loading), back to Wallet
+with the fingerprint of seed plus passphrase, to check against the wallet app.
+An empty passphrase removes it, also once confirmed. The
 device keeps only the derived key, not the passphrase; both go with Forget seed
 or unplugging. Signing, Verify address, Connect wallet and Child seed
 then all use the passphrase wallet. Back up as QR still writes the seed alone:

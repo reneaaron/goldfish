@@ -8,7 +8,7 @@ import pytest
 from embit import bip39
 
 from flows import (connect_wallet, fingerprint_on_screen, load_by_qr, load_by_words,
-                   review_and_sign, verify_address)
+                   review_and_sign, type_words, verify_address)
 from hostwallet import NET, Seed, Wallet, psbt_parts, read_psbt, seedqr
 
 MNEMONIC = "crew marble private differ race truly blush basket crater affair prepare unique"
@@ -301,6 +301,84 @@ def test_keyboard_types_on_release(dev):
     assert field() == "w_"
 
 
+def test_back_shows_the_word_entered_there(dev):
+    """Enter words: Back shows the previous word in the field, not an empty
+    one, and going forward again shows the words already entered after it.
+    Leaving from the first word asks before the words are forgotten."""
+    dev.tap("Enter words")
+    field = lambda: next(t for t in dev.texts() if t.endswith("_"))
+    type_words(dev, "crew marble private")
+    assert "Word 4 of 12" in dev.text() and field() == "_"
+    dev.back()
+    assert "Word 3 of 12" in dev.text() and field() == "private_"
+    dev.back()
+    assert "Word 2 of 12" in dev.text() and field() == "marble_"
+    dev.tap("marble")                            # as it was: the next one is still there
+    assert "Word 3 of 12" in dev.text() and field() == "private_"
+    dev.back()
+    for _ in "ble":                              # changed: the ones after it stay
+        dev.key("Del")
+    for letter in "ke":
+        dev.key(letter)
+    assert field() == "marke_"
+    dev.tap("market")
+    assert "Word 3 of 12" in dev.text() and field() == "private_"
+    dev.tap("private")
+    assert "Word 4 of 12" in dev.text() and field() == "_"
+
+    for _ in range(3):
+        dev.back()
+    assert "Word 1 of 12" in dev.text() and field() == "crew_"
+    dev.back()
+    assert "Discard these words?" in dev.text() and dev.screen == "ENTER_WORDS"
+    dev.tap("Cancel")
+    assert dev.screen == "ENTER_WORDS" and field() == "crew_"
+    dev.back()
+    dev.tap("Discard")
+    assert dev.screen == "HOME"
+    dev.tap("Enter words")                       # nothing is kept
+    assert field() == "_"
+    dev.back()
+    assert dev.screen == "HOME"
+
+
+def test_switching_key_type_and_network_asks_first(dev):
+    """The watch-only key for another kind of wallet, or another network, is
+    another wallet to a wallet app: both ask before they switch."""
+    load_by_words(dev, MNEMONIC)
+    dev.tap("Wallet options")
+    dev.tap("Connect wallet")
+    single = dev.read_qr()
+    dev.tap("For a multisig wallet  {RIGHT}")
+    assert "Switch to a multisig wallet?" in dev.text()
+    dev.tap("Cancel")
+    assert dev.read_qr() == single
+    dev.tap("For a multisig wallet  {RIGHT}")
+    dev.tap("Switch")
+    assert dev.read_qr() != single
+    dev.tap("For a single-key wallet  {RIGHT}")
+    assert "Switch to a single-key wallet?" in dev.text()
+    dev.tap("Switch")
+    assert dev.read_qr() == single
+    dev.back()
+
+    dev.scroll_down()
+    dev.tap("Network")
+    dev.tap("Mainnet")                           # as it is: nothing to ask
+    assert dev.screen == "WALLET_OPTIONS"
+    dev.scroll_down()
+    dev.tap("Network")
+    dev.tap("Testnet")
+    assert "Switch to Testnet?" in dev.text() and dev.screen == "NETWORK"
+    dev.tap("Cancel")
+    assert dev.screen == "NETWORK"
+    dev.tap("Testnet")
+    dev.tap("Switch")
+    assert dev.screen == "WALLET_OPTIONS"
+    dev.tap("Connect wallet")
+    assert dev.read_qr() != single
+
+
 def test_child_seed_from_the_keypad(dev):
     """Child seed: type a number on the keypad and confirm with its OK key."""
     load_by_words(dev, MNEMONIC)
@@ -324,7 +402,15 @@ def test_passphrase_gives_its_own_wallet(dev):
     # vectors.json, which BIP-39 links to), the same one the unit tests use.
     for letter in "TREZOR":
         dev.key(letter)
+    dev.key("OK")                     # asks first, with the text to check
+    assert dev.screen == "PASSPHRASE"
+    assert "Use this passphrase?" in dev.text() and "TREZOR" in dev.texts()
+    assert "6 characters." in dev.text()
+    dev.tap("Cancel")                 # back on the keyboard, the text kept
+    assert dev.screen == "PASSPHRASE" and "Use this passphrase?" not in dev.text()
+    assert "TREZOR_" in dev.texts()
     dev.key("OK")
+    dev.tap("Use")
     assert dev.screen == "WALLET", dev.text()
     assert "PASSPHRASE" in dev.text()
     with_pass = Seed(MNEMONIC, "TREZOR")
@@ -345,7 +431,9 @@ def test_passphrase_gives_its_own_wallet(dev):
 
     dev.tap("Wallet options")
     dev.tap("Passphrase")
-    dev.key("OK")                     # empty: back to the seed alone
+    dev.key("OK")                     # empty: back to the seed alone, once confirmed
+    assert "Remove the passphrase?" in dev.text()
+    dev.tap("Remove")
     assert dev.screen == "WALLET", dev.text()
     assert fingerprint_on_screen(dev) == Seed(MNEMONIC).fingerprint
 

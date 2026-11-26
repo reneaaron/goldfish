@@ -480,7 +480,7 @@ static int run_shots(const char *dir) {
     pump(300); save(dir, "37_passphrase_typed");
     ui_passphrase_key("123");  pump(300); save(dir, "38_passphrase_digits");
     ui_passphrase_key("#+=");  pump(300); save(dir, "39_passphrase_symbols");
-    ui_passphrase_key("OK");
+    ui_passphrase_key("OK"); ui_confirm(true);
     char pfp[9];
     wallet_fingerprint_hex(pfp);
     if (ui_current() != UI_WALLET || !wallet_has_passphrase() || strcmp(pfp, "b4e3f5ed")) {
@@ -494,7 +494,7 @@ static int run_shots(const char *dir) {
     pump(300); save(dir, "41_passphrase_full");
     for (int i = 0; i < 70; i++) ui_passphrase_key("Del");
     pump(300); save(dir, "42_passphrase_remove");
-    ui_passphrase_key("OK");
+    ui_passphrase_key("OK"); ui_confirm(true);
     wallet_fingerprint_hex(pfp);
     if (wallet_has_passphrase() || strcmp(pfp, "73c5da0a")) { fprintf(stderr, "passphrase was not removed\n"); return 1; }
 
