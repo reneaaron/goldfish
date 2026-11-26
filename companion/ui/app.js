@@ -55,7 +55,8 @@ function error(e) {
   const [text, detail] = friendly(e);
   $("error-text").textContent = text;
   $("error-detail").textContent = detail;
-  const open = [...document.querySelectorAll("main > section")].find((s) => !s.hidden);
+  // the screen in front: the dialog when one is open, not the wallet behind it
+  const open = $("v-" + currentView);
   const bar = open?.querySelector(".bar");
   if (bar) bar.after(el);
   else if (open) open.prepend(el);

@@ -459,7 +459,7 @@ pub fn build_bump(wallet: &mut Wallet, txid: &str, sat_per_vb: f64) -> Res<Psbt>
     let txid: Txid = txid.parse().map_err(err)?;
     let mut builder = wallet.build_fee_bump(txid).map_err(err)?;
     builder.fee_rate(fee_rate(sat_per_vb)?).only_witness_utxo();
-    builder.finish().map_err(err)
+    builder.finish().map_err(spend_error)
 }
 
 pub fn build_psbt(wallet: &mut Wallet, to: &str, amount_sat: u64, sat_per_vb: f64) -> Res<Psbt> {
@@ -469,6 +469,11 @@ pub fn build_psbt(wallet: &mut Wallet, to: &str, amount_sat: u64, sat_per_vb: f6
         .map_err(err)?
         .require_network(wallet.network())
         .map_err(err)?;
+    // Nodes don't relay outputs below the dust limit: say so before building.
+    let min = address.script_pubkey().minimal_non_dust().to_sat();
+    if amount_sat < min {
+        return Err(format!("That's too small to send. The minimum to this address is ₿{min}."));
+    }
     let fee_rate = fee_rate(sat_per_vb)?;
     let mut builder = wallet.build_tx();
     builder
@@ -477,7 +482,21 @@ pub fn build_psbt(wallet: &mut Wallet, to: &str, amount_sat: u64, sat_per_vb: f6
         // Witness UTXOs only: a smaller PSBT, fewer QR frames. Goldfish
         // checks the amount it signs for against the witness UTXO.
         .only_witness_utxo();
-    builder.finish().map_err(err)
+    builder.finish().map_err(spend_error)
+}
+
+/// BDK's errors in words: the two a person can act on.
+fn spend_error(e: bdk_wallet::error::CreateTxError) -> String {
+    use bdk_wallet::error::CreateTxError::*;
+    match e {
+        CoinSelection(f) => format!(
+            "Not enough bitcoin. This needs ₿{} with the fee, and the wallet has ₿{}.",
+            f.needed.to_sat(),
+            f.available.to_sat()
+        ),
+        OutputBelowDustLimit(_) => "That's too small to send.".into(),
+        e => e.to_string(),
+    }
 }
 
 pub fn review(wallet: &Wallet, psbt: &Psbt, frames: usize) -> Review {
@@ -927,6 +946,17 @@ mod tests {
         assert_eq!(r.recipients.len(), 1);
         assert_eq!((r.recipients[0].sat, r.recipients[0].yours), (10_000, true));
         assert!(r.change_sat > 0 && r.change_sat < 90_000);
+    }
+
+
+    #[test]
+    fn too_small_and_too_much_say_so() {
+        let mut w = abandon_account().wallet().unwrap();
+        fund_for_demo(&mut w, 100_000);
+        let to = w.peek_address(KeychainKind::External, 1).address.to_string(); // P2WPKH: dust below 294
+        assert!(build_psbt(&mut w, &to, 100, 1.0).unwrap_err().contains("₿294"));
+        assert!(build_psbt(&mut w, &to, 294, 1.0).is_ok());
+        assert!(build_psbt(&mut w, &to, 200_000, 1.0).unwrap_err().starts_with("Not enough bitcoin"));
     }
 
 }
