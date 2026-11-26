@@ -325,17 +325,29 @@ function renderSigs(sigs) {
   const el = $("sign-sigs");
   el.hidden = !current?.multisig;
   if (el.hidden) return;
-  const label = document.createElement("span");
-  label.textContent = `${sigs.have} of ${sigs.needed} signatures`;
-  el.replaceChildren(
-    label,
+  // "Signatures  0 of 2", a bar with one segment per signature needed,
+  // then each cosigner: a check once they've signed
+  const head = document.createElement("span");
+  head.className = "sig-head";
+  head.innerHTML = `<span>Signatures</span><b></b>`;
+  head.querySelector("b").textContent = `${sigs.have} of ${sigs.needed}`;
+  const bar = document.createElement("span");
+  bar.className = "sig-bar";
+  for (let i = 0; i < sigs.needed; i++) bar.append(Object.assign(document.createElement("i"), { className: i < sigs.have ? "on" : "" }));
+  const who = document.createElement("span");
+  who.className = "sig-who";
+  who.append(
     ...current.fingerprints.map((fp) => {
+      const on = sigs.signers.includes(fp);
       const c = document.createElement("span");
-      c.className = "chip" + (sigs.signers.includes(fp) ? " on" : "");
-      c.textContent = fingerprint(fp);
+      c.className = "signer" + (on ? " on" : "");
+      c.title = on ? "Signed" : "Not signed yet";
+      c.innerHTML = `<svg><use href="#${on ? "i-check" : "i-fingerprint"}"/></svg><span></span>`;
+      c.querySelector("span").textContent = fingerprint(fp);
       return c;
     }),
   );
+  el.replaceChildren(head, bar, who);
 }
 
 // ---- wallet

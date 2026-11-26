@@ -156,9 +156,17 @@ button.danger { color: var(--red); }
 h2.left { text-align: left; padding-right: 0; }
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
 .panel .field { margin-bottom: 0; }
-.sig-status { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; font-size: 14px; color: var(--text-2); margin-bottom: 4px; }
-.sig-status .chip { font: 500 12px/1 var(--mono); letter-spacing: 0; padding: 5px 9px; background: var(--surface-2); color: var(--text-3); }
-.sig-status .chip.on { background: var(--green-dim); color: var(--green); }
+/* multisig: how many signatures so far, and whose */
+.sig-status { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.sig-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; color: var(--text-2); }
+.sig-head b { color: var(--text); font-weight: 600; }
+.sig-bar { display: flex; gap: 4px; }
+.sig-bar i { flex: 1; height: 6px; border-radius: 3px; background: var(--surface-2); }
+.sig-bar i.on { background: var(--green); }
+.sig-who { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.signer { display: inline-flex; align-items: center; gap: 5px; font: 400 13px/1 var(--mono); color: var(--text-3); }
+.signer svg { width: 14px; height: 14px; }
+.signer.on { color: var(--green); }
 .kv dd.list-dd { display: flex; flex-direction: column; gap: 4px; }
 .kv dt.cont, .kv dt.cont + dd { border-top: 0; padding-top: 0; }
 
@@ -253,14 +261,14 @@ main > #v-wallet { min-height: 0; }
   }
   main > section:not(#v-wallet) .actions { background: linear-gradient(to bottom, transparent, var(--surface) 18px); }
   /* white on white: the inner cards and fields take the page grey instead */
-  main > section:not(#v-wallet) :is(.card, .qr, .steps, .panel, input, textarea, .unit, .chips button) { background: var(--bg); }
+  main > section:not(#v-wallet) :is(.card, .qr, .steps, .panel, .sig-status, input, textarea, .unit, .chips button) { background: var(--bg); }
   main > section:not(#v-wallet) .unit input { background: none; }
   main > section:not(#v-wallet) .qr { background: #fff; }
 }
 
 /* small monospaced text (BTC line, IDs, times, fee rates) in the regular
    weight; 500 stays for the amounts */
-.sub, .list .what small, .kv dd.mono, .chips button span, .field-hint code, #error small, .sig-status .chip { font-weight: 400; }
+.sub, .list .what small, .kv dd.mono, .chips button span, .field-hint code, #error small { font-weight: 400; }
 
 /* the wallet's header: wallet identity and network on the right */
 .wallet-id { display: inline-flex; align-items: center; gap: 6px; }
