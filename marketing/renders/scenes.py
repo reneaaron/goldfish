@@ -1,10 +1,11 @@
 """Lifestyle mockups: the real case in context (desk with a laptop, flat lay
-with a paper SeedQR backup, close-up). Device geometry and screens come from
+with a written word backup, close-ups). Device geometry and screens come from
 device.py, i.e. the real case STL and the firmware's simulator screenshots.
 
 The laptop shows a generic wallet window (assets/laptop_screen.png), not any
-real app's UI. The paper SeedQR card carries SeedSigner's public 12-word test vector
-(the same seed the device screens show, fingerprint 0948d268).
+real app's UI. The word card carries SeedSigner's public height demise test seed
+(the seed the device screens show, fingerprint 8b218e81); the half-written
+one has the New seed screenshot's first four words (assets/make_word_card.py).
 
 Run from the repo root:
     blender -b -P marketing/renders/scenes.py
@@ -159,12 +160,12 @@ def laptop(loc, rz, open_deg=112):
     return root
 
 
-def seed_card(loc, rz):
-    """Paper SeedQR backup card, credit-card size, filled in by hand (assets/seedqr_card.png)."""
-    m, nt, p = node_mat("seedqr_card")
+def seed_card(loc, rz, image="word_card.png"):
+    """Paper word card, credit-card size, written by hand (assets/word_card*.png)."""
+    m, nt, p = node_mat(image)
     tc = nt.nodes.new("ShaderNodeTexCoord")
     tex = nt.nodes.new("ShaderNodeTexImage")
-    tex.image = bpy.data.images.load(os.path.join(ASSETS, "seedqr_card.png"))
+    tex.image = bpy.data.images.load(os.path.join(ASSETS, image))
     tex.extension = 'EXTEND'
     nt.links.new(tc.outputs["UV"], tex.inputs["Vector"])
     nt.links.new(tex.outputs["Color"], p.inputs["Base Color"])
@@ -177,7 +178,7 @@ def seed_card(loc, rz):
 
     bpy.ops.mesh.primitive_plane_add(size=1)
     ob = bpy.context.object
-    ob.name = "seedqr_card"
+    ob.name = "word_card"
     ob.scale = (8.56, 5.4, 1)
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     bev = ob.modifiers.new("corners", 'BEVEL')
@@ -260,7 +261,7 @@ if want("a"):   # desk: reviewing a transaction, laptop showing the QR behind
     cam_data.dof.aperture_fstop = 2.8
     shoot("10_desk.png", (2.5, -17, 10.5), (0.6, 5, 3.0), (0, 0.2, 1.7), lens=34)
 
-if want("b"):   # flat lay on slate: device, paper SeedQR backup, cable
+if want("b"):   # flat lay on slate: device, written word backup, cable
     clear_scene()
     world((0.5, 0.5, 0.52, 1), 0.4)
     ground(slate_mat())
@@ -271,7 +272,7 @@ if want("b"):   # flat lay on slate: device, paper SeedQR backup, cable
     area("fill", (30, -25, 35), 25, 12000, (0.9, 0.95, 1.0))
     top_down("11_flatlay.png", (0.8, -0.6), 30, lens=50)
 
-if want("c"):   # close-up: seed loaded next to the SeedQR card it came from
+if want("c"):   # close-up: seed loaded next to the word card it was scanned from
     clear_scene()
     world((0.75, 0.72, 0.68, 1), 0.5)
     ground(linen_mat())
@@ -282,12 +283,12 @@ if want("c"):   # close-up: seed loaded next to the SeedQR card it came from
     cam_data.dof.aperture_fstop = 3.2
     shoot("12_backup_closeup.png", (5, -23, 15), (1.2, 0, 0.8), (-1.5, 0.5, 1.7), lens=68)
 
-if want("d"):   # copying the SeedQR onto the paper card, square by square
+if want("d"):   # writing the new seed's words onto the card
     clear_scene()
     world((0.75, 0.72, 0.68, 1), 0.5)
     ground(linen_mat())
-    device("dev_d", BONE, "21_backup_block_1", (-3.0, 0.6, UP), (0, 0, math.radians(-7)))
-    seed_card((3.6, -0.8, 0), math.radians(6))
+    device("dev_d", BONE, "18_backup_words", (-3.0, 0.6, UP), (0, 0, math.radians(-7)))
+    seed_card((3.6, -0.8, 0), math.radians(6), "word_card_partial.png")
     area("window", (-40, -10, 35), 35, 60000, (1.0, 0.96, 0.9))
     area("rim", (25, 35, 20), 20, 14000, (0.9, 0.95, 1.0))
     cam_data.dof.aperture_fstop = 4.0
