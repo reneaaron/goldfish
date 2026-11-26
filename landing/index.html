@@ -105,7 +105,7 @@
   .swatches button { width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 0; background: var(--sw); cursor: pointer;
     box-shadow: inset 0 0 0 1px rgba(20, 34, 43, .15); }
   .swatches button[aria-pressed="true"] { box-shadow: inset 0 0 0 1px rgba(20, 34, 43, .15), 0 0 0 2px var(--bg), 0 0 0 4px var(--text); }
-  /* Turned on: the firmware itself (try/sim.js) on a canvas over the front frame's screen */
+  /* Turned on: the firmware itself (sim/sim.js) on a canvas over the front frame's screen */
   .turn canvas {
     position: absolute; left: 12.43%; top: 13.95%; width: 75.14%; height: 67.03%; border-radius: 2%;
     display: none; background: var(--paper); touch-action: none; cursor: pointer;
@@ -398,12 +398,12 @@
           <li class="head" aria-hidden="true"><small>Camera sees</small></li>
           <li><span class="n">1</span><div><h3>Load a seed</h3><p>Tap Scan, then show it</p></div>
             <div class="pics">
-              <button type="button" aria-pressed="false" data-src="try/samples/handwritten_page_demo.png">Paper backup</button>
-              <button type="button" aria-pressed="false" data-src="try/samples/testseed_height_demise_standard_12word.png">SeedQR</button>
+              <button type="button" aria-pressed="false" data-src="sim/samples/handwritten_page_demo.png">Paper backup</button>
+              <button type="button" aria-pressed="false" data-src="sim/samples/testseed_height_demise_standard_12word.png">SeedQR</button>
             </div></li>
           <li><span class="n">2</span><div><h3>Sign a transaction</h3><p>Tap Scan QR, check it, slide to sign</p></div>
             <div class="pics">
-              <button type="button" aria-pressed="false" data-src="try/samples/mainpsbt_height_demise_base64.png">Transaction</button>
+              <button type="button" aria-pressed="false" data-src="sim/samples/mainpsbt_height_demise_base64.png">Transaction</button>
             </div></li>
         </ol>
         <div class="unplug">
@@ -594,7 +594,7 @@
   </div>
 </footer>
 
-<script src="try/sim.js"></script>
+<script src="sim/sim.js"></script>
 <script>
 const buttons = [...document.querySelectorAll('#steps button')];
 const stage = document.getElementById('stage');
@@ -709,7 +709,7 @@ show(0);
     spinTo(Math.round(frame / FRAMES) * FRAMES);
     powerStatus.textContent = 'Loading the firmware…';
     booting = goldfishSim(canvas, {
-      base: 'try/',
+      base: 'sim/',
       onCameraStop: () => select(null),
       onReboot: () => { powerStatus.textContent = 'The device would now restart as a USB drive, to take new firmware.'; },
     }).then((s) => {
@@ -718,7 +718,7 @@ show(0);
     }).catch(() => { powerStatus.textContent = 'This browser could not start the firmware.'; booting = null; })
       .finally(() => fig.classList.remove('booting'));
   });
-  // Links to #plug (the nav's Try it, other pages, the old /try/ page) plug it in
+  // Links to #plug (the nav's Try it, other pages) plug it in
   function plugFromLink() {
     scrollTo({ top: 0, behavior: still.matches ? 'auto' : 'smooth' });
     if (!fig.classList.contains('on')) powerOn.click();

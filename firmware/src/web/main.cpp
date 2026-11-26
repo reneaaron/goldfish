@@ -1,5 +1,5 @@
 // Browser simulator: the app compiled to WebAssembly (web/Makefile), drawn on
-// a <canvas> by try/sim.js, in the landing page's hero. Pointer = touch.
+// a <canvas> by firmware/web/sim.js, in the landing page's hero. Pointer = touch.
 //
 // Camera: the page hands over one grayscale picture at a time (the sample the
 // user picked) through web_camera_buffer / web_camera_set.
