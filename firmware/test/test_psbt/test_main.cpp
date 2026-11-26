@@ -29,10 +29,38 @@ static void load_seed(const char *mnemonic) {
     TEST_ASSERT_TRUE(wallet_load(e));
 }
 
-void setUp() {
-    multisig_clear();
+// SeedSigner's frame as a wallet app has to send it: with the transaction its
+// coin comes from. The transaction and its signature stay the same.
+static void load_singlesig_frame(bool previous_tx = true) {
     TEST_ASSERT_EQUAL(WALLY_OK, wally_base64_to_bytes(SINGLESIG_FRAME, 0, raw, sizeof(raw), &raw_len));
     TEST_ASSERT_GREATER_THAN(0, raw_len);
+    if (!previous_tx) return;
+    struct wally_psbt *p = nullptr;
+    struct wally_tx *prev = nullptr;
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_from_bytes(raw, raw_len, 0, &p));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_from_hex(SINGLESIG_PREVIOUS_TX, 0, &prev));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_set_input_utxo(p, 0, prev));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_to_bytes(p, 0, raw, sizeof(raw), &raw_len));
+    wally_tx_free(prev);
+    wally_psbt_free(p);
+}
+
+void setUp() {
+    multisig_clear();
+    load_singlesig_frame();
+}
+
+// A segwit v0 signature commits to its own input's amount only, so amounts
+// that come from the PSBT alone can be given falsely: differently in two
+// signings of one payment, whose valid signatures then combine into a
+// transaction with a fee neither review showed. Without the transaction a
+// coin comes from, nothing is reviewed or signed.
+void test_input_without_previous_tx_rejected() {
+    load_seed(SINGLESIG_MNEMONIC);
+    load_singlesig_frame(false);
+    PsbtReview r;
+    TEST_ASSERT_EQUAL(PSBT_NO_PREVIOUS_TX, psbt_load(raw, raw_len, &r));
+    TEST_ASSERT_EQUAL(0, psbt_sign());
 }
 
 void test_review_matches_seedsigner() {
@@ -666,8 +694,21 @@ void test_too_many_outputs_rejected() {
 
 // Every error has its own text: none falls through to an empty screen.
 void test_error_texts() {
-    for (int e = PSBT_PARSE_FAILED; e <= PSBT_WRONG_WALLET; e++)
+    for (int e = PSBT_PARSE_FAILED; e <= PSBT_NO_PREVIOUS_TX; e++)
         TEST_ASSERT_GREATER_THAN(20, strlen(psbt_error_text(PsbtError(e))));
+}
+
+// A made-up transaction that pays `amount` to `script` in its output 0, for
+// an input to spend. *txid gets its id. Free it with wally_tx_free.
+static struct wally_tx *funding_tx(const uint8_t *script, size_t script_len, uint64_t amount, uint8_t txid[32]) {
+    struct wally_tx *prev = nullptr;
+    uint8_t from[32];
+    memset(from, 0x33, sizeof(from));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_init_alloc(2, 0, 1, 1, &prev));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_add_raw_input(prev, from, 32, 0, 0xffffffff, nullptr, 0, nullptr, 0));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_add_raw_output(prev, amount, script, script_len, 0));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_get_txid(prev, txid, 32));
+    return prev;
 }
 
 // Our fingerprint, path and real pubkey on an input whose script pays someone
@@ -681,7 +722,7 @@ void test_input_with_foreign_script_rejected() {
 
     struct wally_tx *tx = nullptr;
     uint8_t txid[32];
-    memset(txid, 0x22, sizeof(txid));
+    struct wally_tx *prev = funding_tx(theirs, sizeof(theirs), 50000, txid);
     TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_init_alloc(2, 0, 1, 1, &tx));
     TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_add_raw_input(tx, txid, 32, 0, 0xfffffffd, nullptr, 0, nullptr, 0));
     TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_add_raw_output(tx, 49000, theirs, sizeof(theirs), 0));
@@ -693,6 +734,8 @@ void test_input_with_foreign_script_rejected() {
     TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_from_tx(tx, 0, 0, &p));
     TEST_ASSERT_EQUAL(WALLY_OK, wally_tx_output_init(50000, theirs, sizeof(theirs), &utxo));
     TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_set_input_witness_utxo(p, 0, &utxo));
+    TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_set_input_utxo(p, 0, prev));
+    wally_tx_free(prev);
     TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_add_input_keypath(p, 0, pub, sizeof(pub), fp, sizeof(fp), path, 5));
     TEST_ASSERT_EQUAL(WALLY_OK, wally_psbt_to_bytes(p, 0, raw, sizeof(raw), &raw_len));
     wally_psbt_free(p);
@@ -849,6 +892,7 @@ int main() {
     RUN_TEST(test_wrong_seed_rejected);
     RUN_TEST(test_garbage_rejected);
     RUN_TEST(test_foreign_script_with_our_derivation_is_suspicious);
+    RUN_TEST(test_input_without_previous_tx_rejected);
     RUN_TEST(test_real_change_is_change);
     RUN_TEST(test_receive_address_is_self);
     RUN_TEST(test_our_key_at_odd_path_is_suspicious);

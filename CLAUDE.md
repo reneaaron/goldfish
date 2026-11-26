@@ -33,7 +33,7 @@ pio run -t upload                          # flash a board already running this 
 SIM_SHOTS=docs/screens .pio/build/sim/program   # headless scripted run, writes a screenshot per screen
 ```
 
-Simulator camera: it decodes the image at `sim/camera.png` (or `$SIM_CAMERA`), reloaded on change. With a scan screen open, `cp sim/samples/<file>.png sim/camera.png`. `sim/samples` has SeedSigner's public test SeedQRs and a matching seed + testnet PSBT (`testseed_height_demise_*`, `testpsbt_height_demise_base64.png`), plus the same PSBT on mainnet (`mainpsbt_height_demise_base64.png`, from `sim/make_mainnet_psbt.py`) that `SIM_SHOTS` signs.
+Simulator camera: it decodes the image at `sim/camera.png` (or `$SIM_CAMERA`), reloaded on change. With a scan screen open, `cp sim/samples/<file>.png sim/camera.png`. `sim/samples` has SeedSigner's public test SeedQRs and a matching seed + testnet PSBT (`testseed_height_demise_*`, `testpsbt_height_demise_base64.png`; it has no previous transaction, so it is refused), plus the same PSBT on mainnet with one (`mainpsbt_height_demise_base64.png`, from `sim/make_mainnet_psbt.py`) that `SIM_SHOTS` signs.
 
 Case: `gcad check stateless-signer.gasm` (add `--set clip=0` for the screw variant), `gcad export parts/case.gcad exports/case.stl`.
 
@@ -74,7 +74,7 @@ Rules that follow from this:
 ### Security invariants (don't weaken these in passing)
 
 - Nothing is written to flash. Seed, passphrase-derived key, Connect wallet's network and key type, and the multisig descriptor are all RAM-only and go on wipe or unplug.
-- PSBT review follows SeedSigner's rules: every input must belong to the loaded seed; an output counts as change only if the seed re-derives that exact output script; an output that claims our fingerprint but doesn't verify blocks signing.
+- PSBT review follows SeedSigner's rules: every input must belong to the loaded seed; an output counts as change only if the seed re-derives that exact output script; an output that claims our fingerprint but doesn't verify blocks signing. Every input needs its full previous transaction, and its amount is checked against it: amounts are never taken from the PSBT alone.
 - Multisig inputs and change are checked against scripts derived from the confirmed descriptor, never the PSBT's own witness scripts. The descriptor is bound to the root key it was checked with (other seed or other passphrase = not used).
 - Native segwit only (single-sig P2WPKH, `wsh(sortedmulti)`). The network comes from the PSBT's derivation paths, the address, or the descriptor's keys, not from the Connect wallet setting.
 

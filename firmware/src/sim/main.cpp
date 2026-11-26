@@ -322,6 +322,13 @@ static int run_shots(const char *dir) {
     setenv("SIM_CAMERA", "sim/samples/testseed_height_demise_standard_12word.png", 1);
     for (int i = 0; i < 100 && ui_current() == UI_SCAN_SEED; i++) pump(50);
     if (ui_current() != UI_WALLET) { fprintf(stderr, "test seed was not decoded\n"); return 1; }
+    // SeedSigner's own frame has no previous transaction to check the amount
+    // against: refused.
+    ui_goto(UI_SCAN);
+    setenv("SIM_CAMERA", "sim/samples/testpsbt_height_demise_base64.png", 1);
+    for (int i = 0; i < 100 && ui_current() == UI_SCAN; i++) pump(50);
+    if (ui_current() != UI_PSBT_ERROR) { fprintf(stderr, "a PSBT without its previous transaction was not refused (screen %d)\n", ui_current()); return 1; }
+    pump(300); save(dir, "7a_psbt_no_previous_tx");
     ui_goto(UI_SCAN);
     setenv("SIM_CAMERA", "sim/samples/mainpsbt_height_demise_base64.png", 1);
     for (int i = 0; i < 100 && ui_current() == UI_SCAN; i++) pump(50);

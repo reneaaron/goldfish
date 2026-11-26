@@ -225,7 +225,15 @@ change counts as change only if the seed re-derives that exact output script,
 and an output that claims our fingerprint but doesn't verify blocks signing.
 "Belongs" means the seed re-derives the input's script at every path the PSBT
 gives for our fingerprint (BIP84 paths for single-sig); a multisig input's
-witness script must also be the descriptor's. A transaction without outputs,
+witness script must also be the descriptor's.
+
+Every input must come with its full previous transaction, and the amount is
+checked against it. A segwit signature covers only its own input's amount, so
+amounts on the wallet app's word alone could be given falsely, differently in
+two signings of one payment, and the valid signatures combined into a
+transaction with a fee neither review showed. A PSBT that leaves a previous
+transaction out is refused, saying so; Sparrow sends them. A big previous
+transaction makes the PSBT bigger, up to the size limit above. A transaction without outputs,
 an input that is already finalized, a full previous transaction that isn't the
 one spent or disagrees with the witness UTXO, and a redeem script (or a witness
 script on a single-sig input) are refused as invalid. More than 16 outputs are
@@ -359,7 +367,8 @@ pio test -e test
   embit signed; a cosigner's signature kept; no descriptor, a 3-of-3 of the
   same keys, and change that pays another script
 - PSBT review: SeedSigner's single-sig testnet vector (₿25,000 in, ₿24,857 out,
-  ₿143 fee), signing, wrong seed and garbage input; inputs with fingerprint
+  ₿143 fee) with the testnet transaction its coin comes from, and refused
+  without it; signing, wrong seed and garbage input; inputs with fingerprint
   `00000000` or no key path told apart from another seed's (single-sig and
   multisig); more than 16 outputs; inputs refused for an input
   script that isn't our key's, a second unverified key path with our
@@ -421,6 +430,7 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
   change reviewed and signed; a 24-word seed typed in; SeedQR Standard and Compact; the QR card check;
   an animated PSBT joined mid-cycle (fountain parts only) both ways and a base64 frame; the signed QR read in full screen;
   another seed's transaction, another wallet's address, and fake change;
+  a transaction without its previous transactions refused, saying so;
   a transaction whose key has fingerprint `00000000` or no key path; 9 outputs;
   SIGHASH_NONE;
   a passphrase typed on the keyboard giving the key and signatures embit
@@ -474,9 +484,11 @@ cp sim/samples/vector4_standard_12word.png sim/camera.png
 
 `sim/samples` holds SeedSigner's public test SeedQRs, a photo of a stamped
 plate, and `testseed_height_demise_*` / `testpsbt_height_demise_base64.png`, a
-matching seed and testnet PSBT from SeedSigner's tests for trying the signing
-flow. `mainpsbt_height_demise_base64.png` is the same transaction on mainnet
-(made up by `sim/make_mainnet_psbt.py`); the screenshots use it.
+matching seed and testnet PSBT from SeedSigner's tests. That PSBT comes
+without its previous transaction, so it shows the refusal.
+`mainpsbt_height_demise_base64.png` is the same transaction on mainnet with a
+made-up previous transaction (`sim/make_mainnet_psbt.py`): the one to try the
+signing flow with, and the one the screenshots use.
 
 Screenshots of the whole flow, no window:
 

@@ -191,6 +191,20 @@ def test_fake_change_blocks_signing(dev):
     assert "Don't sign this" in dev.text()
 
 
+def test_transaction_without_previous_transactions_is_refused(dev):
+    """The amounts of our coins on the wallet app's word alone: it could give
+    them falsely, differently each time it asks for a signature, and build a
+    transaction with a huge fee out of the two. Refused, saying what's missing."""
+    wallet = linked_wallet(dev)
+    psbt = wallet.create_psbt([wallet.fund(0, 90_000), wallet.fund(1, 50_000)], [(stranger_address(), 10_000)], fee=500)
+    for scope in psbt.inputs:
+        scope.non_witness_utxo = None
+    dev.tap("Scan QR")
+    dev.scan_animated(psbt_parts(psbt))
+    assert dev.screen == "PSBT_ERROR", dev.text()
+    assert "Can't sign this" in dev.text() and "previous transactions" in dev.text()
+
+
 def test_psbt_joined_mid_animation(dev):
     """The camera rarely catches the first frame: the scanner has to finish
     from fountain-coded parts alone, and so does the wallet app reading the

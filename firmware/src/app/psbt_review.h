@@ -36,6 +36,7 @@ enum PsbtError {
     PSBT_SUSPICIOUS,        // a "change" output failed verification
     PSBT_NEEDS_DESCRIPTOR,  // multisig inputs, but no wallet descriptor is loaded
     PSBT_WRONG_WALLET,      // multisig inputs that aren't the loaded descriptor's
+    PSBT_NO_PREVIOUS_TX,    // an input without its full previous transaction: its amount can't be checked
 };
 
 enum FeeLevel { FEE_OK = 0, FEE_HIGH, FEE_VERY_HIGH };
