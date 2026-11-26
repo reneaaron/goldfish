@@ -327,3 +327,4 @@ html, body { overflow-x: clip; }
 .danger-zone { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--border); }
 .danger-zone .hint { margin: 8px 0 4px; }
 button.link.danger { color: var(--red); padding: 4px 0; font-size: 14px; justify-content: flex-start; }
+#v-receive .gf-hint { justify-content: center; text-align: center; }
