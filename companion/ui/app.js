@@ -83,6 +83,8 @@ async function stopScan() {
 // ---- camera preview
 function camera(on) {
   for (const c of document.querySelectorAll(".cam, .cam-cancel")) c.hidden = !on;
+  // on Link, the camera takes the steps' place (the multisig panel keeps its own)
+  if ($("link-ms").hidden && $("link-paste").hidden) $("link-intro").hidden = on;
   $("sign-show").hidden = on;
   if (!on) {
     button($("link-scan"), "Scan QR", false);
@@ -167,7 +169,17 @@ $("link-scan").onclick = async () => {
   await startScan("key");
   button($("link-scan"), "Looking for the QR…", true);
 };
-$("link-paste-toggle").onclick = () => ($("link-paste").hidden = !$("link-paste").hidden);
+// One of: the intro (steps), the paste panel, the multisig panel.
+function linkPanel(name) {
+  $("link-intro").hidden = !!name;
+  $("link-paste").hidden = name !== "paste";
+  $("link-ms").hidden = name !== "ms";
+  $("link-scan").hidden = !!name;
+  $("link-alt").hidden = !!name;
+  $("link-back").hidden = !name;
+}
+$("link-paste-toggle").onclick = () => linkPanel("paste");
+$("link-back").onclick = () => linkPanel(null);
 $("link-import").onclick = async () => linked(await call("import_key", { text: $("link-text").value }));
 listen("key", (e) => {
   scanning = false;
@@ -178,7 +190,7 @@ listen("key", (e) => {
 });
 
 // ---- multisig: link from a descriptor or the cosigners' keys
-$("link-ms-toggle").onclick = () => ($("link-ms").hidden = !$("link-ms").hidden);
+$("link-ms-toggle").onclick = () => linkPanel("ms");
 $("ms-keys").oninput = () => ($("ms-threshold-field").hidden = $("ms-keys").value.includes("multi("));
 $("ms-scan").onclick = async () => {
   await startScan("text");

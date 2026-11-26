@@ -35,31 +35,42 @@
     </div>
 
     <!-- Link Goldfish -->
-    <section id="v-link">
-      <div class="brand">
-        <span class="lockup big"><img src="bowl.svg" alt="">bowl</span>
-        <p class="tagline">Where your Goldfish lives.</p>
+    <section id="v-link" class="onboard">
+      <div class="onboard-top"><span class="lockup"><img src="bowl.svg" alt="">bowl</span></div>
+      <div class="onboard-body">
+        <div id="link-intro">
+          <h1 class="display">Link your Goldfish</h1>
+          <p class="para">Bowl watches your wallet and builds transactions. Goldfish signs them, and the keys never leave it.</p>
+          <ol class="steps">
+            <li><span>On Goldfish, open <b>Wallet options</b>, then <b>Connect wallet</b>.</span></li>
+            <li><span>Tap <b>Scan QR</b> and hold Goldfish up to this computer's camera.</span></li>
+          </ol>
+        </div>
+        <div class="cam" hidden><canvas width="320" height="240"></canvas></div>
+        <button class="link center-block cam-cancel" hidden>Cancel</button>
+        <div id="link-paste" class="paste panel" hidden>
+          <h2 class="left">Paste Goldfish's key</h2>
+          <p class="hint left">The text under the QR on Goldfish's Connect wallet screen, tap the QR to see it whole.</p>
+          <textarea id="link-text" rows="3" spellcheck="false" placeholder="[fingerprint/84h/1h/0h]vpub…"></textarea>
+          <button id="link-import" class="primary">Link</button>
+        </div>
+        <div id="link-ms" class="paste panel" hidden>
+          <h2 class="left">Multisig wallet</h2>
+          <p class="hint left">Paste the wallet's descriptor, or each cosigner's key on its own line. Goldfish's key is under <b>Wallet options</b>, <b>Connect wallet</b>, set to multisig.</p>
+          <textarea id="ms-keys" rows="6" spellcheck="false" placeholder="wsh(sortedmulti(2,[…]…))&#10;or&#10;[fingerprint/48h/1h/0h/2h]Vpub…&#10;[fingerprint/48h/1h/0h/2h]tpub…"></textarea>
+          <button id="ms-scan" class="secondary"><svg><use href="#i-camera"/></svg><span>Scan a key or descriptor</span></button>
+          <label class="field" id="ms-threshold-field"><span>Signatures needed</span><input id="ms-threshold" type="number" min="1" max="15" value="2"></label>
+          <button id="ms-link" class="primary">Link multisig wallet</button>
+        </div>
       </div>
-      <h1 class="display">Link your Goldfish</h1>
-      <p class="para">On Goldfish, open <b>Wallet options</b>, then <b>Connect wallet</b>, and hold its QR up to the camera.</p>
-      <div class="stack">
-        <button id="link-paste-toggle" class="secondary"><svg><use href="#i-paste"/></svg>Paste key</button>
-        <button id="link-scan" class="primary"><svg><use href="#i-camera"/></svg><span>Scan QR</span></button>
-      </div>
-      <div class="cam" hidden><canvas width="320" height="240"></canvas></div>
-      <button class="link center-block cam-cancel" hidden>Cancel</button>
-      <div id="link-paste" class="paste" hidden>
-        <textarea id="link-text" rows="3" spellcheck="false" placeholder="[fingerprint/84h/1h/0h]vpub…"></textarea>
-        <button id="link-import" class="primary">Link</button>
-      </div>
-      <button id="link-ms-toggle" class="link center-block"><svg><use href="#i-users"/></svg>Multisig wallet</button>
-      <div id="link-ms" class="paste" hidden>
-        <h2 class="left">Multisig wallet</h2>
-        <p class="hint left">Paste the wallet's descriptor, or each cosigner's key on its own line. Goldfish's key is under <b>Wallet options</b>, <b>Connect wallet</b>, set to multisig.</p>
-        <textarea id="ms-keys" rows="6" spellcheck="false" placeholder="wsh(sortedmulti(2,[…]…))&#10;or&#10;[fingerprint/48h/1h/0h/2h]Vpub…&#10;[fingerprint/48h/1h/0h/2h]tpub…"></textarea>
-        <button id="ms-scan" class="secondary"><svg><use href="#i-camera"/></svg><span>Scan a key or descriptor</span></button>
-        <label class="field" id="ms-threshold-field"><span>Signatures needed</span><input id="ms-threshold" type="number" min="1" max="15" value="2"></label>
-        <button id="ms-link" class="primary">Link multisig wallet</button>
+      <div class="onboard-actions">
+        <button id="link-scan" class="primary wide"><svg><use href="#i-camera"/></svg><span>Scan QR</span></button>
+        <div class="alt" id="link-alt">
+          <button id="link-paste-toggle" class="link">Paste key instead</button>
+          <span aria-hidden="true">·</span>
+          <button id="link-ms-toggle" class="link">Multisig wallet</button>
+        </div>
+        <button id="link-back" class="link center-block" hidden>Back</button>
       </div>
     </section>
 
