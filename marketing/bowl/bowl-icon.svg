@@ -1,4 +1,4 @@
-<!-- Bowl mark: a fishbowl of QR modules on a 9x9 grid, same module as the Goldfish mark (9 on a 10 pitch, rx 2); the fish is the Goldfish eye (ring, gap, centre). Draft. -->
+<!-- Bowl mark: a fishbowl of QR modules on a 9x9 grid, same module as the Goldfish mark (9 on a 10 pitch, rx 2); the fish is the Goldfish eye (ring, gap, centre) in the fish's orange. Draft. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="512" height="512">
   <rect x="0" y="0" width="128" height="128" rx="30" fill="#0A7ED0"/>
   <g transform="translate(19.5 19.5)">
@@ -56,8 +56,8 @@
   <rect x="40" y="80" width="9" height="9" rx="2" fill="#FFFFFF"/>
   <rect x="50" y="80" width="9" height="9" rx="2" fill="#FFFFFF"/>
   <rect x="60" y="80" width="9" height="9" rx="2" fill="#FFFFFF"/>
-  <rect x="30" y="40" width="29" height="29" rx="3" fill="#14222B"/>
+  <rect x="30" y="40" width="29" height="29" rx="3" fill="#FF7A2F"/>
   <rect x="35" y="45" width="19" height="19" rx="1.5" fill="#FFFFFF"/>
-  <rect x="40" y="50" width="9" height="9" rx="1" fill="#14222B"/>
+  <rect x="40" y="50" width="9" height="9" rx="1" fill="#FF7A2F"/>
   </g>
 </svg>
