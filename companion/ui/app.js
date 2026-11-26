@@ -109,7 +109,9 @@ async function stopScan() {
 
 // ---- camera preview
 function camera(on) {
-  for (const c of document.querySelectorAll(".cam, .cam-cancel")) c.hidden = !on;
+  // only the camera box of the screen in front: Link and Review each have one
+  for (const c of document.querySelectorAll(".cam, .cam-cancel")) c.hidden = true;
+  if (on) for (const c of $("v-" + currentView).querySelectorAll(".cam, .cam-cancel")) c.hidden = false;
   // on Link, the camera takes the steps' place (the multisig panel keeps its own)
   if ($("link-ms").hidden && $("link-paste").hidden) $("link-intro").hidden = on;
   $("sign-show").hidden = on;
@@ -121,7 +123,7 @@ function camera(on) {
 }
 for (const b of document.querySelectorAll(".cam-cancel")) b.onclick = () => stopScan();
 listen("preview", ({ payload: p }) => {
-  const canvas = [...document.querySelectorAll(".cam")].find((c) => !c.hidden)?.querySelector("canvas");
+  const canvas = $("v-" + currentView).querySelector(".cam:not([hidden]) canvas");
   if (!canvas) return;
   canvas.width = p.width;
   canvas.height = p.height;
