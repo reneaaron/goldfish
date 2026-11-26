@@ -36,9 +36,9 @@ the guides still use Sparrow.
 - Multisig: link from the wallet's descriptor (`<0;1>`, `{0,1}` or `0`
   children, checksum checked when present) or from the cosigners' keys plus
   the signatures needed; Goldfish's multisig Connect wallet key (`Vpub`) is
-  one of them. "Show this wallet to Goldfish" shows the descriptor for
-  Goldfish's Scan QR (a text QR, or an animated `bytes` UR when long);
-  Goldfish keeps it in RAM only, so show it again after a restart. Each
+  one of them. "Connect Goldfish" shows the descriptor for Goldfish's Scan
+  QR (a text QR, or an animated `bytes` UR when long); Goldfish keeps it in
+  RAM only, so connect again each time it's plugged in. Each
   cosigner's signed PSBT is merged in, and the QR then carries the
   signatures so far for the next one; Broadcast once enough have signed.
 - Fees: Fast / Normal / Slow suggestions from the server (next block, ~1 hour,
