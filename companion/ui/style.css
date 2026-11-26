@@ -254,3 +254,7 @@ main > section { display: flex; flex-direction: column; min-height: calc(100vh -
   main > section:not(#v-wallet) .unit input { background: none; }
   main > section:not(#v-wallet) .qr { background: #fff; }
 }
+
+/* small monospaced text (BTC line, IDs, times, fee rates) in the regular
+   weight; 500 stays for the amounts */
+.sub, .list .what small, .kv dd.mono, .chips button span, .field-hint code, #error small, .sig-status .chip { font-weight: 400; }
