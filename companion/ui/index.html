@@ -52,13 +52,14 @@
         <button class="link center-block cam-cancel" hidden>Cancel</button>
         <div id="link-paste" class="paste panel" hidden>
           <h2 class="left">Paste Goldfish's key</h2>
-          <p class="hint left">The text under the QR on Goldfish's Connect wallet screen, tap the QR to see it whole.</p>
+          <p class="gf-hint"><img class="gf" src="goldfish.svg" alt="On Goldfish"><span>Tap the QR on Goldfish's <b>Connect wallet</b> screen to see the key as text.</span></p>
           <textarea id="link-text" rows="3" spellcheck="false" placeholder="[fingerprint/84h/1h/0h]vpub…"></textarea>
           <button id="link-import" class="primary">Link</button>
         </div>
         <div id="link-ms" class="paste panel" hidden>
           <h2 class="left">Multisig wallet</h2>
-          <p class="hint left">Paste the wallet's descriptor, or each cosigner's key on its own line. Goldfish's key is under <b>Wallet options</b>, <b>Connect wallet</b>, set to multisig.</p>
+          <p class="hint left">Paste the wallet's descriptor, or each cosigner's key on its own line.</p>
+          <p class="gf-hint"><img class="gf" src="goldfish.svg" alt="On Goldfish"><span>Goldfish's key: <b>Wallet options</b> → <b>Connect wallet</b> → multisig.</span></p>
           <textarea id="ms-keys" rows="6" spellcheck="false" placeholder="wsh(sortedmulti(2,[…]…))&#10;or&#10;[fingerprint/48h/1h/0h/2h]Vpub…&#10;[fingerprint/48h/1h/0h/2h]tpub…"></textarea>
           <button id="ms-scan" class="secondary"><svg><use href="#i-camera"/></svg><span>Scan a key or descriptor</span></button>
           <label class="field" id="ms-threshold-field"><span>Signatures needed</span><input id="ms-threshold" type="number" min="1" max="15" value="2"></label>
@@ -125,7 +126,7 @@
         <p class="label" id="r-label"></p>
         <p class="mono addr" id="r-addr"></p>
       </div>
-      <p class="hint">Check it's yours before you share it: on Goldfish, tap <b>Scan QR</b> and show it this code.</p>
+      <p class="gf-hint"><img class="gf" src="goldfish.svg" alt="On Goldfish"><span>To check it's yours, scan it with Goldfish.</span></p>
       <div class="actions">
         <button id="r-copy" class="primary wide copy"><svg><use href="#i-copy"/></svg><span>Copy address</span></button>
       </div>
@@ -152,7 +153,7 @@
     <!-- Multisig descriptor for Goldfish -->
     <section id="v-show" hidden>
       <header class="bar"><button class="back" aria-label="Back"><svg><use href="#i-back"/></svg></button><h2>Connect Goldfish</h2></header>
-      <p class="para">On Goldfish, tap <b>Scan QR</b> and show it this code. Check that it says <b id="sh-kind"></b> and that the fingerprints and first address match the ones below, then tap <b>Use wallet</b>.</p>
+      <p class="gf-hint"><img class="gf" src="goldfish.svg" alt="On Goldfish"><span>Scan this with Goldfish. If the fingerprints and first address match, tap <b>Use wallet</b>.</span></p>
       <div id="sh-qr" class="qr"></div>
       <p class="caption" id="sh-part" hidden></p>
       <dl class="card kv" id="sh-kv"></dl>
@@ -211,7 +212,7 @@
       </div>
       <div id="sign-show">
         <div id="sign-qr" class="qr"></div>
-        <p class="caption"><span id="sign-who">Scan with Goldfish</span> · <span id="sign-part"></span></p>
+        <p class="caption"><img class="gf-inline" id="sign-fish" src="goldfish.svg" alt=""><span id="sign-who">Scan with Goldfish</span> · <span id="sign-part"></span></p>
       </div>
       <div class="cam" hidden><canvas width="320" height="240"></canvas></div>
       <button class="link center-block cam-cancel" hidden>Cancel</button>

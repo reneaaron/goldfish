@@ -282,7 +282,6 @@ $("ms-link").onclick = async () =>
 $("w-show").onclick = async () => {
   const w = await call("wallet_descriptor");
   show("show");
-  $("sh-kind").textContent = w.kind;
   const rows = [
     ["Wallet", w.kind],
     ...w.fingerprints.map((fp, i) => [i ? "" : "Fingerprints", fingerprint(fp)]),
@@ -490,6 +489,7 @@ function showReview(r) {
   button($("sign-scan"), "Scan signed QR", false);
   renderSigs({ have: 0, needed: current?.threshold ?? 1, signers: [] });
   $("sign-who").textContent = "Scan with Goldfish";
+  $("sign-fish").hidden = false;
   waiting = null; // a new transaction replaces one signed but not broadcast
   $("sign-scan").dataset.label = "Scan signed QR";
   startFrames();
@@ -528,6 +528,7 @@ function onScan(ev) {
     renderSigs(ev.sigs);
     $("sign-progress").hidden = true;
     $("sign-who").textContent = "Show to the next signer";
+    $("sign-fish").hidden = true; // the next signer may not be a Goldfish
     $("sign-scan").dataset.label = "Scan next signature";
     button($("sign-scan"), "Scan next signature", false);
     return;
