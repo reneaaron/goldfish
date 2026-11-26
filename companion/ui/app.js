@@ -86,6 +86,8 @@ function when(t) {
   if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: d.getFullYear() === now.getFullYear() ? undefined : "numeric" });
 }
+// "4/11" padded to " 4/11" with a figure space, so the caption keeps its width
+const partOf = (f) => String(f.part).padStart(String(f.total).length, "\u2007") + "/" + f.total;
 const shortId = (id) => id.slice(0, 8) + "…" + id.slice(-4);
 
 function button(el, label, busy) {
@@ -314,28 +316,43 @@ $("w-show").onclick = async () => {
   const tick = async () => {
     const f = await invoke("next_wallet_frame");
     $("sh-qr").innerHTML = f.svg;
-    $("sh-part").textContent = `Animated · ${f.part}/${f.total}`;
+    $("sh-part").textContent = `Animated · ${partOf(f)}`;
   };
   tick();
   showTimer = setInterval(tick, 250);
 };
 
-// signatures so far, one chip per cosigner
+// signatures so far: how many are still needed, one row per cosigner,
+// and the scan button counts along ("Scan signature 2 of 2")
 function renderSigs(sigs) {
   const el = $("sign-sigs");
   el.hidden = !current?.multisig;
   if (el.hidden) return;
-  const label = document.createElement("span");
-  label.textContent = `${sigs.have} of ${sigs.needed} signatures`;
+  const left = sigs.needed - sigs.have;
+  const head = document.createElement("span");
+  head.className = "sig-head";
+  head.innerHTML = `<b></b><span></span>`;
+  head.querySelector("b").textContent = `${left} more signature${left === 1 ? "" : "s"} needed`;
+  head.querySelector("span").textContent = `${sigs.have} of ${sigs.needed}`;
+  const bar = document.createElement("span");
+  bar.className = "sig-bar";
+  for (let i = 0; i < sigs.needed; i++) bar.append(Object.assign(document.createElement("i"), { className: i < sigs.have ? "on" : "" }));
   el.replaceChildren(
-    label,
+    head,
+    bar,
     ...current.fingerprints.map((fp) => {
-      const c = document.createElement("span");
-      c.className = "chip" + (sigs.signers.includes(fp) ? " on" : "");
-      c.textContent = fingerprint(fp);
-      return c;
+      const on = sigs.signers.includes(fp);
+      const row = document.createElement("span");
+      row.className = "signer" + (on ? " on" : "");
+      row.innerHTML = `<span class="fp"><svg><use href="#i-fingerprint"/></svg><span></span></span><span class="state"></span>`;
+      row.querySelector(".fp span").textContent = fingerprint(fp);
+      row.querySelector(".state").innerHTML = on ? `<svg><use href="#i-check"/></svg>Signed` : "Waiting";
+      return row;
     }),
   );
+  const label = `Scan signature ${sigs.have + 1} of ${sigs.needed}`;
+  $("sign-scan").dataset.label = label;
+  button($("sign-scan"), label, false);
 }
 
 // ---- wallet
@@ -502,12 +519,12 @@ function showReview(r) {
   $("sign-progress").hidden = true;
   $("sign-paste").hidden = true;
   button($("sign-scan"), "Scan signed QR", false);
-  renderSigs({ have: 0, needed: current?.threshold ?? 1, signers: [] });
   $("sign-who").textContent = "Scan with Goldfish";
   $("sign-fish").hidden = false;
   $("sign-cap").classList.add("gf-cap");
   waiting = null; // a new transaction replaces one signed but not broadcast
   $("sign-scan").dataset.label = "Scan signed QR";
+  renderSigs({ have: 0, needed: current?.threshold ?? 1, signers: [] });
   startFrames();
 }
 
@@ -517,7 +534,7 @@ function startFrames() {
     try {
       const f = await invoke("next_frame");
       $("sign-qr").innerHTML = f.svg;
-      $("sign-part").textContent = `${f.part}/${f.total}`;
+      $("sign-part").textContent = partOf(f);
     } catch (_) {
       stopFrames();
     }
@@ -556,8 +573,6 @@ function onScan(ev) {
     $("sign-who").textContent = "Show to the next signer";
     $("sign-fish").hidden = true; // the next signer may not be a Goldfish
     $("sign-cap").classList.remove("gf-cap");
-    $("sign-scan").dataset.label = "Scan next signature";
-    button($("sign-scan"), "Scan next signature", false);
     return;
   }
   if (ev.signed_txid) {

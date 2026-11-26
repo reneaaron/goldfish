@@ -156,9 +156,20 @@ button.danger { color: var(--red); }
 h2.left { text-align: left; padding-right: 0; }
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
 .panel .field { margin-bottom: 0; }
-.sig-status { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; font-size: 14px; color: var(--text-2); margin-bottom: 4px; }
-.sig-status .chip { font: 500 12px/1 var(--mono); letter-spacing: 0; padding: 5px 9px; background: var(--surface-2); color: var(--text-3); }
-.sig-status .chip.on { background: var(--green-dim); color: var(--green); }
+/* multisig: how many signatures are still needed, then one row per cosigner */
+.sig-status { display: flex; flex-direction: column; padding: 12px 14px 4px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.sig-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; color: var(--text-2); }
+.sig-head b { color: var(--text); font-size: 15px; font-weight: 600; }
+.sig-bar { display: flex; gap: 4px; margin: 10px 0 4px; }
+.sig-bar i { flex: 1; height: 4px; border-radius: 2px; background: var(--surface-2); }
+.sig-bar i.on { background: var(--green); }
+.signer { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-top: 1px solid var(--border); font-size: 13px; color: var(--text-3); }
+.sig-bar + .signer { border-top: 0; }
+.signer .fp { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); color: var(--text-2); }
+.signer svg { width: 14px; height: 14px; }
+.signer .state { display: inline-flex; align-items: center; gap: 4px; }
+.signer.on .fp { color: var(--text); }
+.signer.on .state { color: var(--green); font-weight: 500; }
 .kv dd.list-dd { display: flex; flex-direction: column; gap: 4px; }
 .kv dt.cont, .kv dt.cont + dd { border-top: 0; padding-top: 0; }
 
@@ -253,14 +264,14 @@ main > #v-wallet { min-height: 0; }
   }
   main > section:not(#v-wallet) .actions { background: linear-gradient(to bottom, transparent, var(--surface) 18px); }
   /* white on white: the inner cards and fields take the page grey instead */
-  main > section:not(#v-wallet) :is(.card, .qr, .steps, .panel, input, textarea, .unit, .chips button) { background: var(--bg); }
+  main > section:not(#v-wallet) :is(.card, .qr, .steps, .panel, .sig-status, input, textarea, .unit, .chips button) { background: var(--bg); }
   main > section:not(#v-wallet) .unit input { background: none; }
   main > section:not(#v-wallet) .qr { background: #fff; }
 }
 
 /* small monospaced text (BTC line, IDs, times, fee rates) in the regular
    weight; 500 stays for the amounts */
-.sub, .list .what small, .kv dd.mono, .chips button span, .field-hint code, #error small, .sig-status .chip { font-weight: 400; }
+.sub, .list .what small, .kv dd.mono, .chips button span, .field-hint code, #error small { font-weight: 400; }
 
 /* the wallet's header: wallet identity and network on the right */
 .wallet-id { display: inline-flex; align-items: center; gap: 6px; }
@@ -358,5 +369,6 @@ button.link.danger { color: var(--red); padding: 4px 0; font-size: 14px; justify
    behind the fish and the line (Dove's own hints stay grey) */
 :root { --gf-wash: rgba(255, 122, 47, .09); --gf-edge: rgba(255, 122, 47, .22); }
 .gf-hint { background: var(--gf-wash); border: 1px solid var(--gf-edge); color: var(--text-2); }
+#sign-part, #sh-part { font-variant-numeric: tabular-nums; }
 .caption.gf-cap { width: fit-content; margin: 10px auto 0; padding: 6px 14px 6px 10px; border-radius: 999px;
   background: var(--gf-wash); border: 1px solid var(--gf-edge); color: var(--text-2); font-size: 13px; }
