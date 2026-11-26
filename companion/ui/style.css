@@ -320,3 +320,10 @@ html, body { overflow-x: clip; }
 .gf-inline { width: 20px; }
 .kv dd.cosigner { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 .kv dd.cosigner svg { width: 14px; height: 14px; color: var(--accent); }
+
+/* Settings: Save belongs to the server fields; Forget is a quiet text action */
+#set-save { margin-top: 4px; }
+#set-form .ok { margin-top: 10px; }
+.danger-zone { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--border); }
+.danger-zone .hint { margin: 8px 0 4px; }
+button.link.danger { color: var(--red); padding: 4px 0; font-size: 14px; justify-content: flex-start; }

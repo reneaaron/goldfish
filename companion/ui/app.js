@@ -441,13 +441,13 @@ $("set-form").onsubmit = async (ev) => {
   } catch (_) {
     // shown in the error line
   } finally {
-    button($("set-save"), "Save server", false);
+    button($("set-save"), "Save", false);
   }
 };
 $("set-forget").onclick = async () => {
   if ($("set-forget").dataset.sure !== "1") {
     $("set-forget").dataset.sure = "1";
-    $("set-forget").textContent = "Forget it: tap again";
+    $("set-forget").textContent = "Tap again to forget";
     return;
   }
   await call("forget_wallet");

@@ -183,21 +183,19 @@
     <!-- Settings -->
     <section id="v-settings" hidden>
       <header class="bar"><button class="back" aria-label="Back"><svg><use href="#i-back"/></svg></button><h2>Settings</h2></header>
-      <form id="set-form" class="fill">
+      <form id="set-form">
         <label class="field"><span>Server</span><input id="set-url" spellcheck="false" autocomplete="off" placeholder=""></label>
-        <p class="field-hint">Your own node: an Electrum server as <code>ssl://host:50002</code> or <code>tcp://host:50001</code>, or an Esplora API as <code>https://…</code>. Empty uses a public server (Blockstream on mainnet, mempool.space on signet), which sees your addresses.</p>
+        <p class="field-hint">For more privacy, use your own node: an Electrum server like <code>ssl://host:50002</code>, or an Esplora address like <code>https://…</code>. Leave it empty to use a public server.</p>
         <label class="field"><span>Proxy</span><input id="set-proxy" spellcheck="false" autocomplete="off" placeholder="none"></label>
-        <p class="field-hint">For Tor with an Electrum server: <code>socks5://127.0.0.1:9050</code>. Esplora takes an HTTP proxy, such as Tor's HTTPTunnelPort.</p>
-        <div class="danger-zone">
-          <p class="label">This wallet</p>
-          <p class="hint">The watch-only key is saved on this computer so you don't have to link again. Goldfish keeps nothing.</p>
-          <button type="button" id="set-forget" class="secondary wide danger">Forget this wallet</button>
-        </div>
-        <div class="actions">
-          <p class="ok" id="set-ok" hidden></p>
-          <button id="set-save" class="primary wide"><span>Save server</span></button>
-        </div>
+        <p class="field-hint">Using Tor with an Electrum server? Enter <code>socks5://127.0.0.1:9050</code>.</p>
+        <button id="set-save" class="primary wide"><span>Save</span></button>
+        <p class="ok" id="set-ok" hidden></p>
       </form>
+      <div class="danger-zone">
+        <p class="label">This wallet</p>
+        <p class="hint">Bowl remembers it on this computer, so you don't have to link it again.</p>
+        <button type="button" id="set-forget" class="link danger">Forget this wallet</button>
+      </div>
     </section>
 
     <!-- Sign on Goldfish -->
