@@ -1,5 +1,6 @@
 """Touch guides: while a finger is down, a line across and a line down the
-whole screen cross where the touch is registered."""
+whole screen cross where the touch is registered. Off until switched on in
+Settings."""
 
 
 def lines(before, now):
@@ -12,6 +13,16 @@ def lines(before, now):
 
 def test_guides_cross_at_the_touch_and_follow_it(dev):
     before = dev.screenshot()
+    dev.cmd("press 70 100")                      # off at start: nothing shows
+    assert dev.screenshot() == before
+    dev.cmd("release")
+    version = min((w for w in dev.widgets() if w.kind == "label" and w.text and w.x1 > 120), key=lambda w: w.y1)
+    dev._tap(version)
+    assert "Off" in dev.texts()
+    dev.tap("Touch guides")
+    assert "On: lines at the touch" in dev.texts()
+    dev.back()
+    assert dev.screenshot() == before
     dev.cmd("press 70 100")                      # on nothing: the lines are all that changes
     assert lines(before, dev.screenshot()) == ([100], [70])
     dev.cmd("press 150 60")

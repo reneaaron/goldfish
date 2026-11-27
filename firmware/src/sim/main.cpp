@@ -277,6 +277,7 @@ static int run_shots(const char *dir) {
     ui_brightness_panel(false); pump(300);
     ui_screensaver(true); pump(3000); save(dir, "1d_screensaver");
     ui_screensaver(false); pump(300);
+    ui_goto(UI_SETTINGS); pump(300); save(dir, "1d_settings");
     ui_goto(UI_UPDATE); pump(300); save(dir, "1b_update");
     ui_goto(UI_SCAN_SEED);
     pump(300); save(dir, "2_scan_waiting");

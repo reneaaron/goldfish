@@ -28,8 +28,10 @@
 //        -> offline warning -> write down the words -> QR card? (whole SeedQR,
 //        each block, optional card check) -> Seed ready (not loaded) -> Home
 //   Wallet options -> Back up as QR -> the same card flow, scan optional
-//   Home -> tap the version -> Update firmware? -> Restart: the board's ROM
-//        bootloader, a USB drive for firmware.uf2 (only with no seed loaded)
+//   Home or Wallet -> tap the version -> Settings:
+//        Update firmware -> Restart: the board's ROM bootloader, a USB drive for
+//        firmware.uf2 (only with no seed loaded)
+//        Touch guides: on / off (off at start)
 //   Wallet options -> Child seed (BIP-85): child number -> the New seed
 //        card flow from the warning on (words, QR card?, Seed ready)
 
@@ -67,7 +69,8 @@ enum UiScreen {
     UI_PAGE_READING,     // progress while the page's words are read
     UI_PAGE_REVIEW,      // the words found, as one list to check against the backup
     UI_PAGE_WORD,        // one of them: its picture; change, remove, or add one before it
-    UI_UPDATE,           // restart into the USB bootloader, from the version on Home
+    UI_UPDATE,           // restart into the USB bootloader, from Settings
+    UI_SETTINGS,         // the version on Home or Wallet: Update firmware (no seed loaded) | Touch guides
 };
 
 void ui_build();               // shows the home screen
@@ -75,6 +78,8 @@ void ui_build();               // shows the home screen
 void platform_reboot_to_bootloader();
 // Backlight in percent (100 = full). One per target.
 void platform_backlight(int percent);
+// Touch guide lines on or off (off at start; RAM only, like every setting).
+void ui_set_guides(bool on);
 void ui_goto(UiScreen s);
 // Brightness panel (drag down from the top edge on any screen): open or close it.
 void ui_brightness_panel(bool open);

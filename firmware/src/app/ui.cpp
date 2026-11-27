@@ -270,6 +270,17 @@ static void kb_style(lv_obj_t *kb) {
     lv_obj_add_event_cb(kb, kb_draw_cb, LV_EVENT_DRAW_TASK_ADDED, nullptr);
 }
 
+// Which build this is, to compare with the one the flasher offers, in the top
+// right corner of Home and of Wallet. Tapping it opens Settings (with Update
+// firmware while no seed is loaded: the case has no BOOT button).
+static void version_link(lv_obj_t *scr) {
+    lv_obj_t *ver = text(scr, FW_VERSION, &inter_13, TEXT_3);
+    lv_obj_align(ver, LV_ALIGN_TOP_RIGHT, -8, 6);
+    lv_obj_add_flag(ver, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_ext_click_area(ver, 12);
+    lv_obj_add_event_cb(ver, go_cb, LV_EVENT_CLICKED, GO(UI_SETTINGS));
+}
+
 static void build_home() {
     lv_obj_t *scr = screen();
     lv_obj_t *logo = lv_image_create(scr);
@@ -278,13 +289,7 @@ static void build_home() {
     lv_obj_align(logo, LV_ALIGN_TOP_MID, 0, 30);
     lv_obj_align(text(scr, "goldfish", &rethink_32, TEXT), LV_ALIGN_TOP_MID, 0, 88);
     lv_obj_align(para(scr, "Sign and forget."), LV_ALIGN_TOP_MID, 0, 128);
-    // Which build this is, to compare with the one the flasher offers.
-    // Tapping it opens Update firmware: the case has no BOOT button.
-    lv_obj_t *ver = text(scr, FW_VERSION, &inter_13, TEXT_3);
-    lv_obj_align(ver, LV_ALIGN_TOP_RIGHT, -8, 6);
-    lv_obj_add_flag(ver, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_ext_click_area(ver, 12);
-    lv_obj_add_event_cb(ver, go_cb, LV_EVENT_CLICKED, GO(UI_UPDATE));
+    version_link(scr);
     // The board has no Wi-Fi or Bluetooth hardware, and this firmware has no USB stack
     // (USB is power only): say so where a phone shows its radios.
     lv_obj_t *radios = text(scr, ICON_WIFI_OFF "  " ICON_BT_OFF, &inter_13, TEXT_3);
@@ -710,6 +715,7 @@ static lv_obj_t *quiet_link(lv_obj_t *parent, const char *s, lv_event_cb_t cb, v
 // one step away.
 static void build_wallet() {
     lv_obj_t *scr = screen();
+    version_link(scr);
     bool pass = wallet_has_passphrase();
     const MsInfo *ms = multisig_info();   // a multisig wallet is loaded for this seed
     const char *note = fresh_backup ? (pass ? "Backup checked. The card has no passphrase."
@@ -1085,16 +1091,50 @@ static void build_wipe_confirm() {
 }
 
 // ---------------------------------------------------------------- update
-// The ROM bootloader instead of a BOOT button. Only reached from Home, so no
-// seed is in RAM; restarting clears RAM anyway.
+// The ROM bootloader instead of a BOOT button. Only reached with no seed
+// loaded (Settings from Home); restarting clears RAM anyway.
 static void reboot_cb(lv_event_t *) { platform_reboot_to_bootloader(); }
+
+// ---------------------------------------------------------------- settings
+// Behind the version on Home and on Wallet: what concerns the device, not the wallet.
+// Nothing here is saved; it all starts over when unplugged.
+static bool guides_on;
+void ui_set_guides(bool on) { guides_on = on; }
+static void guides_toggle_cb(lv_event_t *) {
+    guides_on = !guides_on;
+    ui_goto(UI_SETTINGS);
+}
+
+static void build_settings() {
+    lv_obj_t *scr = screen();
+    topbar(scr, "Settings", wallet_has_seed() ? to_wallet_cb : to_home_cb);
+    const int RH = 58;
+    struct Row { const char *icon, *title, *sub; lv_event_cb_t cb; void *ud; };
+    const Row rows[] = {
+        {ICON_ARROW_RIGHT, "Update firmware", "Restart as a USB drive", go_cb, GO(UI_UPDATE)},
+        {ICON_EYE, "Touch guides", guides_on ? "On: lines at the touch" : "Off", guides_toggle_cb, nullptr},
+    };
+    const int first = wallet_has_seed() ? 1 : 0, n = 2 - first;   // updating: only with no seed loaded
+    lv_obj_t *c = card(scr, CW, n * RH + n - 1);
+    lv_obj_set_style_pad_all(c, 0, 0);
+    lv_obj_set_style_clip_corner(c, true, 0);
+    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 8);
+    for (int i = 0; i < n; i++) {
+        if (i) divider(c, i * (RH + 1) - 1);
+        const Row &d = rows[first + i];
+        lv_obj_t *r = list_row(c, d.icon, d.title, d.sub, d.cb, d.ud);
+        lv_obj_set_height(r, RH);
+        lv_obj_align(r, LV_ALIGN_TOP_MID, 0, i * (RH + 1));
+    }
+    show(scr);
+}
 
 static void build_update() {
     lv_obj_t *scr = screen();
     lv_obj_align(text(scr, "Update firmware?", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 60);
     lv_obj_align(para(scr, "It restarts as a USB drive for firmware.uf2 or the flasher page. Unplug to cancel."),
                  LV_ALIGN_TOP_MID, 0, 100);
-    bottom_pair(btn_ghost(scr, "Cancel", go_cb, GO(UI_HOME), TEXT), btn_primary(scr, "Restart", reboot_cb));
+    bottom_pair(btn_ghost(scr, "Cancel", go_cb, GO(UI_SETTINGS), TEXT), btn_primary(scr, "Restart", reboot_cb));
     show(scr);
 }
 
@@ -3663,7 +3703,7 @@ void ui_goto(UiScreen s) {
     if (s != UI_PSBT_SIGNED && anim_timer) { lv_timer_delete(anim_timer); anim_timer = nullptr; }
     if (ready_timer) { lv_timer_delete(ready_timer); ready_timer = nullptr; }
     bool no_seed_yet = s == UI_HOME || s == UI_UPDATE || s == UI_SCAN_SEED || seed_entry_screen(s);
-    if (!no_seed_yet && !backup_screen(s) && !wallet_has_seed()) s = UI_HOME;
+    if (!no_seed_yet && s != UI_SETTINGS && !backup_screen(s) && !wallet_has_seed()) s = UI_HOME;
     if (no_seed_yet && wallet_has_seed()) { new_seed_wipe(); s = UI_WALLET; }
     current = s;
     switch (s) {
@@ -3701,6 +3741,7 @@ void ui_goto(UiScreen s) {
         case UI_PAGE_REVIEW: build_page_review(); break;
         case UI_PAGE_WORD: build_page_word(); break;
         case UI_UPDATE: build_update(); break;
+        case UI_SETTINGS: build_settings(); break;
     }
     apply_backlight();
 }
@@ -3712,7 +3753,7 @@ UiScreen ui_current() { return current; }
 // screen is small and a thumb covers what it presses; the lines show around
 // it, so a touch that landed beside its target is seen, and slid to the right
 // place or away before lifting. Drawn where LVGL reads the pointer, so they
-// follow every read; two thin strips to redraw.
+// follow every read; two thin strips to redraw. Off until switched on in Settings.
 constexpr int GUIDE_DEVS = 2;
 static lv_indev_t *guide_dev[GUIDE_DEVS];
 static lv_indev_read_cb_t guide_read[GUIDE_DEVS];
@@ -3731,7 +3772,7 @@ static lv_obj_t *guide_line(int w, int h) {
 static void guide_read_cb(lv_indev_t *in, lv_indev_data_t *d) {
     for (int i = 0; i < GUIDE_DEVS; i++)
         if (guide_dev[i] == in) guide_read[i](in, d);
-    bool down = d->state == LV_INDEV_STATE_PRESSED, shown = !lv_obj_has_flag(guide_h, LV_OBJ_FLAG_HIDDEN);
+    bool down = guides_on && d->state == LV_INDEV_STATE_PRESSED, shown = !lv_obj_has_flag(guide_h, LV_OBJ_FLAG_HIDDEN);
     if (down) {
         if (lv_obj_get_y(guide_h) != d->point.y) lv_obj_set_y(guide_h, d->point.y);
         if (lv_obj_get_x(guide_v) != d->point.x) lv_obj_set_x(guide_v, d->point.x);
