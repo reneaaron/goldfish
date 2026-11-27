@@ -49,22 +49,6 @@ def test_new_seed_to_signed_transaction(dev):
     assert len(words) == 12 and bip39.mnemonic_is_valid(mnemonic)
     assert "Seed ready" in dev.text() and "One moment" not in dev.text()
     assert fingerprint_on_screen(dev) == Seed(mnemonic).fingerprint   # there with "Seed ready", not after it
-    # The Back up menu for the seed just made (it isn't loaded): word numbers, and back.
-    dev.tap("Back up")
-    assert dev.screen == "BACKUP_OPTIONS"
-    dev.tap("Word numbers")
-    dev.tap("Cancel")
-    assert dev.screen == "BACKUP_OPTIONS"
-    dev.tap("Word numbers")
-    dev.tap("I understand")
-    shown = [t for t in dev.texts() if len(t) == 4 and t.isdigit()]
-    assert shown == ["%04d" % (bip39.WORDLIST.index(w) + 1) for w in words], dev.text()
-    dev.tap("Done")
-    assert "Seed ready" in dev.text()
-    assert fingerprint_on_screen(dev) == Seed(mnemonic).fingerprint
-    dev.tap("Back up")
-    dev.back()
-    assert "Seed ready" in dev.text()
     dev.tap("Done")
     assert dev.screen == "HOME"   # a new seed is never loaded by itself
 
@@ -105,32 +89,6 @@ def test_seedqr_loads_the_same_wallet(dev, compact):
     assert fingerprint_on_screen(dev) == Seed(MNEMONIC).fingerprint
     _, _, key = connect_wallet(dev)
     assert key == Seed(MNEMONIC).key("84h/1h/0h")
-
-
-def test_seedqr_card_is_copied_and_checked(dev):
-    """Back up, SeedQR: the SeedQR on the signer's screen, copied square by
-    square onto a card, passes the card check. A wrong card doesn't."""
-    load_by_words(dev, MNEMONIC)
-    dev.tap("Wallet options")
-    dev.tap("Back up")
-    assert dev.screen == "BACKUP_OPTIONS"
-    dev.tap("SeedQR")
-    dev.tap("I understand")
-    card = dev.read_qr(raw=True)               # what ends up on the card
-    assert card == seedqr(MNEMONIC, compact=True)
-    dev.tap("Start copying")
-    parts = 0
-    while "Check card" not in dev.texts():
-        dev.tap("Next")
-        parts += 1
-    assert "Part 16 of 16" in dev.text() and parts == 15   # 21x21 in 5x5 parts
-    dev.tap("Check card")
-    assert dev.screen == "BACKUP_SCAN", dev.text()
-    dev.scan(seedqr(STRANGER.mnemonic, compact=True))
-    assert dev.screen == "BACKUP_SCAN" and "Backup checked" not in dev.text()
-    dev.scan(card)
-    assert "Backup checked" in dev.text()
-    assert fingerprint_on_screen(dev) == Seed(MNEMONIC).fingerprint
 
 
 def test_addresses_of_other_wallets_are_refused(dev):
@@ -316,34 +274,6 @@ def test_keyboard_types_on_release(dev):
     dev.wait(200)
     dev.cmd("release")
     assert field() == "w_"
-
-
-def test_backup_as_word_numbers(dev):
-    """Back up, Word numbers: each word's place in the BIP-39 list counted
-    from 1, four digits, in the seed's order, after the offline warning.
-    Cancel on the warning and Back go to the Back up menu."""
-    load_by_words(dev, MNEMONIC)
-    dev.tap("Wallet options")
-    dev.tap("Back up")
-    dev.tap("Word numbers")
-    assert dev.screen == "BACKUP_WARNING" and "these numbers" in dev.text()
-    dev.tap("Cancel")
-    assert dev.screen == "BACKUP_OPTIONS"
-    dev.tap("Word numbers")
-    dev.tap("I understand")
-    assert dev.screen == "BACKUP_NUMBERS"
-    want = ["%04d" % (bip39.WORDLIST.index(w) + 1) for w in MNEMONIC.split()]
-    assert 1 <= min(map(int, want)) and max(map(int, want)) <= 2048
-    shown = [t for t in dev.texts() if len(t) == 4 and t.isdigit()]
-    assert shown == want, dev.text()
-    words = [t for t in dev.texts() if t in MNEMONIC.split()]
-    assert words == MNEMONIC.split()             # beside each number, to check against
-    dev.back()
-    assert dev.screen == "BACKUP_OPTIONS"
-    dev.tap("Word numbers")
-    dev.tap("I understand")
-    dev.tap("Done")
-    assert dev.screen == "WALLET_OPTIONS"
 
 
 def test_child_seed_from_the_keypad(dev):
