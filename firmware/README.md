@@ -261,11 +261,13 @@ can name any cosigner keys next to ours:
 
 - Wallet options -> Multisig is its own screen, not a mode: the rest of the
   device works as before, and one seed can hold a single-key wallet and be a
-  cosigner. With no multisig wallet loaded it has two rows:
+  cosigner. With no multisig wallet loaded it has three rows:
+  - Passphrase: the same setting as in Wallet options, first because the key
+    shown and the wallet loaded both depend on it
   - Show my key: this seed's key to add to a new wallet in the wallet app,
     `[fingerprint/48h/0h/0h/2h]Zpub…` (BIP-48, native segwit; `48h/1h/0h/2h`
     and `Vpub…` on testnet, from the Network setting). Only the standard path
-  - Scan wallet: the scanner, for the finished wallet's descriptor. Scan QR on
+  - Load multisig: the scanner, for the finished wallet's descriptor. Scan QR on
     the Wallet screen takes it too
   With a wallet in use it shows that wallet: M of N, every key's fingerprint
   with "This seed" marked, and the first address; Show my key, now the key at
@@ -285,8 +287,10 @@ can name any cosigner keys next to ours:
 - One wallet at a time: while one is in use the scanner doesn't take another
   descriptor ("A wallet is in use", leave it first) and says "Already in use"
   for the same one, so nothing quietly changes what the device signs for
-- A passphrase has to be entered before the descriptor is scanned: the
-  descriptor names the key the seed gives with it. When the seed isn't one of
+- A passphrase has to be entered before the descriptor is scanned or the key
+  is shown: the descriptor names the key the seed gives with it. So Passphrase
+  is the first row on the Multisig screen while no wallet is loaded (the same
+  setting as in Wallet options; it comes back to the Multisig screen). When the seed isn't one of
   the keys and no passphrase is set, the scanner asks once whether there is
   one, with a way to Passphrase and back to the scanner
 - From then on the Sign scanner takes that wallet's transactions (inputs and
@@ -462,7 +466,7 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
   signed; wallets the seed isn't in, a forged fingerprint, `multi`, keys
   without origin or with fingerprint `00000000`, a wrong
   checksum; change to another multisig; the descriptor gone after a wipe;
-  the Multisig screen (Scan wallet and back to it, the wallet in use, Leave
+  the Multisig screen (Load multisig and back to it, the wallet in use, Leave
   multisig: Cancel, then the descriptor gone with the seed still loaded);
   Show my key at the descriptor's path, not the standard one; a second
   descriptor refused while one is in use; the passphrase question, through

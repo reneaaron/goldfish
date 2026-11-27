@@ -62,7 +62,7 @@ signed with Sparrow, on mainnet too. The code hasn't been reviewed or audited.
 5. Child seed: derive a BIP-85 child seed and back it up as words and a QR
    card, like a new seed.
 6. Multisig: in Wallet options, Show my key gives this seed's key for a new
-   wallet; Scan wallet takes the wallet's descriptor QR to check on the
+   wallet; Load multisig takes the wallet's descriptor QR to check on the
    device. Then sign that wallet's transactions as one of its cosigners
    (native segwit `wsh(sortedmulti)`).
 
