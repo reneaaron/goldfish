@@ -55,35 +55,51 @@ pub fn download_latest(proxy: &str) -> Res<(Release, Vec<u8>)> {
         .ok_or("GitHub's answer has no release tag")?;
     let base = format!("https://github.com/{REPO}/releases/download/{tag}");
     let sums = String::from_utf8(get(&format!("{base}/SHA256SUMS"), proxy)?).map_err(|_| "SHA256SUMS is not text")?;
-    let uf2 = get(&format!("{base}/firmware.uf2"), proxy)?;
+    let (name, _) = listed_uf2(&sums)?;
+    let uf2 = get(&format!("{base}/{name}"), proxy)?;
     let sha256 = check(&uf2, &sums)?;
     let url = format!("https://github.com/{REPO}/releases/tag/{tag}");
     Ok((Release { tag, sha256, size: uf2.len(), url }, uf2))
 }
 
-/// The file's SHA-256 if SHA256SUMS lists it for firmware.uf2 and the file is
-/// a UF2 image for the RP2350 (Arm, secure), which is what Goldfish builds.
-pub fn check(uf2: &[u8], sums: &str) -> Res<String> {
-    let listed = sums
+/// The one .uf2 file SHA256SUMS lists, and its hash: the firmware's name
+/// comes from the release (firmware.uf2 in v0.1.0), not from here, so a
+/// later release can rename it.
+pub fn listed_uf2(sums: &str) -> Res<(String, String)> {
+    let mut found = sums
         .lines()
         .filter_map(|l| l.split_once(char::is_whitespace))
-        .find(|(_, name)| name.trim().trim_start_matches('*') == "firmware.uf2")
-        .map(|(hash, _)| hash.to_ascii_lowercase())
-        .ok_or("SHA256SUMS doesn't list firmware.uf2")?;
+        .map(|(hash, name)| (name.trim().trim_start_matches('*').to_string(), hash.to_ascii_lowercase()))
+        .filter(|(name, _)| name.ends_with(".uf2"));
+    let (name, hash) = found.next().ok_or("SHA256SUMS lists no .uf2 file")?;
+    if found.next().is_some() {
+        return Err("SHA256SUMS lists more than one .uf2 file".into());
+    }
+    // It goes into the download URL.
+    if !name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_')) {
+        return Err(format!("SHA256SUMS names the firmware oddly: {name}"));
+    }
+    Ok((name, hash))
+}
+
+/// The file's SHA-256 if it matches the .uf2 SHA256SUMS lists and is a UF2
+/// image for the RP2350 (Arm, secure), which is what Goldfish builds.
+pub fn check(uf2: &[u8], sums: &str) -> Res<String> {
+    let (name, listed) = listed_uf2(sums)?;
     let actual = sha256::Hash::hash(uf2).to_string();
     if actual != listed {
-        return Err(format!("firmware.uf2 doesn't match SHA256SUMS (got {actual}, listed {listed})"));
+        return Err(format!("{name} doesn't match SHA256SUMS (got {actual}, listed {listed})"));
     }
     if uf2.is_empty() || !uf2.len().is_multiple_of(512) {
-        return Err("firmware.uf2 is not a UF2 image".into());
+        return Err(format!("{name} is not a UF2 image"));
     }
     let word = |b: &[u8], at: usize| u32::from_le_bytes(b[at..at + 4].try_into().unwrap());
     for b in uf2.chunks(512) {
         if word(b, 0) != UF2_MAGIC0 || word(b, 4) != UF2_MAGIC1 || word(b, 508) != UF2_MAGIC_END {
-            return Err("firmware.uf2 is not a UF2 image".into());
+            return Err(format!("{name} is not a UF2 image"));
         }
         if word(b, 8) & UF2_FAMILY_PRESENT == 0 || word(b, 28) != RP2350_ARM_S {
-            return Err("firmware.uf2 is not for the RP2350".into());
+            return Err(format!("{name} is not for the RP2350"));
         }
     }
     Ok(actual)
@@ -147,7 +163,15 @@ mod tests {
         let mut changed = uf2.clone();
         changed[100] ^= 1;
         assert!(check(&changed, &sums(&uf2)).unwrap_err().contains("doesn't match"));
-        assert!(check(&uf2, "abcd  other.bin\n").unwrap_err().contains("doesn't list"));
+        assert!(check(&uf2, "abcd  other.bin\n").unwrap_err().contains("no .uf2"));
+
+        // a later release's own name; SHA256SUMS may list other files too
+        let hash = sha256::Hash::hash(&uf2);
+        let renamed = format!("abcd  dove-0.1.0-amd64.deb\n{hash}  goldfish-0.2.0.uf2\n");
+        assert_eq!(listed_uf2(&renamed).unwrap().0, "goldfish-0.2.0.uf2");
+        assert!(check(&uf2, &renamed).is_ok());
+        assert!(listed_uf2(&format!("{hash}  a.uf2\n{hash}  b.uf2\n")).unwrap_err().contains("more than one"));
+        assert!(listed_uf2(&format!("{hash}  ../x.uf2\n")).unwrap_err().contains("oddly"));
 
         let rp2040 = block(0xE48B_FF56);
         assert!(check(&rp2040, &sums(&rp2040)).unwrap_err().contains("not for the RP2350"));
