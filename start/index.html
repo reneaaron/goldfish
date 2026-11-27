@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>First use · Goldfish</title>
-<meta name="description" content="Using a Goldfish signer for the first time: set up a seed, connect it to Sparrow, verify a receive address, and sign a transaction.">
+<meta name="description" content="Using a Goldfish signer for the first time, on its own or as one signer of a multisig wallet: set up a seed, connect it to Sparrow, verify a receive address, and sign a transaction.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' shape-rendering='crispEdges'%3E%3Crect x='8' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='11' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='8' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='20' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='26' y='11' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='2' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='20' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='23' y='14' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='20' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='26' y='17' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='8' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='11' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='14' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='17' y='20' width='3' height='3' fill='%23FF7A2F'/%3E%3Crect x='5' y='11' width='9' height='9' fill='%2314222B'/%3E%3Crect x='6' y='12' width='7' height='7' fill='%23FFFFFF'/%3E%3Crect x='8' y='14' width='3' height='3' fill='%2314222B'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -76,6 +76,26 @@
   .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
   .pair figure { margin: 0; }
   @media (max-width: 520px) { .pair { grid-template-columns: 1fr; } }
+
+  /* ---- single-sig or multisig, and for multisig a new wallet or one that exists: radio buttons
+     that hide the other variant's steps and lines (the step numbers are CSS counters, so they
+     follow). The script at the end only keeps the choice in the address. */
+  .seg { border: 0; padding: 0; margin: 28px 0 0; min-width: 0; }
+  .seg legend { padding: 0; margin: 0 0 8px; color: var(--faint); font-size: 14px; font-weight: 500; }
+  .seg div { display: inline-flex; gap: 4px; padding: 4px; border-radius: 14px; background: var(--raised); }
+  .seg label { display: flex; align-items: center; height: 40px; padding: 0 16px; border-radius: 10px; cursor: pointer;
+               color: var(--muted); font-size: 16px; font-weight: 600; white-space: nowrap; }
+  .seg label:hover { color: var(--text); }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg label:has(:checked) { background: var(--text); color: var(--bg); }
+  .seg label:has(:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+  main:has(#w-single:checked) .multi, main:has(#w-multi:checked) .single,
+  main:has(#u-first:checked) .again, main:has(#u-again:checked) .first { display: none; }
+  .steps > li.choice { counter-increment: none; }
+  .steps > li.choice::before { content: ""; left: 10px; top: 10px; width: 12px; height: 12px; background: var(--rule); }
+  .steps > li.choice::after { top: 30px; }
+  .steps > li.choice .seg { margin: 0 0 10px; }
+  .steps > li.choice p { font-size: 16px; }
 
   /* ---- build steps: the same bar and Back/Next on parts, flasher, assemble, cards and start
      (flasher and cards show them only when opened with ?build). Keep the five copies in step. */
@@ -159,6 +179,14 @@
      builds the transactions.</p>
   <p class="note">Goldfish is early software. Try it with test coins, not real funds.</p>
 
+  <fieldset class="seg">
+    <legend>Your wallet</legend>
+    <div>
+      <label><input type="radio" name="wallet" id="w-single" value="single" checked>Single-sig</label>
+      <label><input type="radio" name="wallet" id="w-multi" value="multisig">Multisig</label>
+    </div>
+  </fieldset>
+
   <ol class="steps">
     <li>
       <h2>Set up a seed</h2>
@@ -180,8 +208,76 @@
       </ol>
       <p>With a seed loaded, the screen says <b>Ready to sign</b> and shows the seed's fingerprint.
          Unplugging forgets the seed, so you load it from your backup each time you use the device.</p>
+      <p class="multi">In a multisig wallet this seed is one of several keys, and Goldfish signs
+         with this one only. The other signers hold the others.</p>
     </li>
-    <li>
+    <li class="choice multi">
+      <fieldset class="seg">
+        <legend>The multisig wallet</legend>
+        <div>
+          <label><input type="radio" name="use" id="u-first" value="first" checked>First time</label>
+          <label><input type="radio" name="use" id="u-again" value="again">Subsequent use</label>
+        </div>
+      </fieldset>
+      <p class="first">You are creating the wallet in Sparrow now, with this seed as one of its keys.</p>
+      <p class="again">The wallet already exists in Sparrow, and this seed is one of its keys.</p>
+    </li>
+    <li class="multi first">
+      <h2>Show your multisig key</h2>
+      <p>Using test coins? First set <b>Network</b> in Wallet options to <b>Testnet</b>: the key
+         it shows is for one network only.</p>
+      <ol>
+        <li>On Goldfish, tap <b>Wallet options</b>, then <b>Connect wallet</b>.</li>
+        <li>The <b>Watch-only wallet</b> screen opens on <b>Your public key</b>. That is the key for a
+            single-sig wallet, and a multisig wallet can't use it. Tap <b>For a multisig wallet</b>
+            under the QR code.</li>
+        <li>The screen now says <b>Your multisig key</b>. This QR code is the one to scan: the public
+            key this seed adds to a multisig wallet. It can't spend.</li>
+      </ol>
+      <div class="shots">
+        <figure><img src="../img/screens/3_seed_loaded.png" alt="Ready to sign screen with the fingerprint, Wallet options and Scan QR" loading="lazy"><figcaption>Wallet options</figcaption></figure>
+        <figure><img src="../img/screens/4_seed_menu.png" alt="Options list with Connect wallet at the top" loading="lazy"><figcaption>Connect wallet</figcaption></figure>
+        <figure><img src="../img/screens/5_export_xpub.png" alt="Watch-only wallet screen showing Your public key, with the link For a multisig wallet under the QR code" loading="lazy"><figcaption>Tap For a multisig wallet</figcaption></figure>
+        <figure><img src="../img/screens/5e_export_multisig.png" alt="Watch-only wallet screen showing the QR code of Your multisig key, with the link For a single-key wallet below it" loading="lazy"><figcaption>Your multisig key</figcaption></figure>
+      </div>
+    </li>
+    <li class="multi first">
+      <h2>Create the wallet in Sparrow</h2>
+      <p>Goldfish works together with a wallet app, sometimes called a coordinator. This guide uses
+         <a href="https://sparrowwallet.com/">Sparrow Wallet</a> on a computer with a webcam.</p>
+      <ol>
+        <li>In Sparrow, <b>create a new wallet</b>.</li>
+        <li>Set the policy type to <b>multi signature</b> and the script type to <b>native segwit</b>,
+            then choose how many signers the wallet has and how many of them must sign, for example 2 of 3.</li>
+        <li>For Goldfish's key, choose <b>watch-only wallet</b>. Press the <b>camera button</b> and hold
+            the Goldfish screen up to your webcam.</li>
+        <li>Check that the fingerprint in Sparrow is the one on the Goldfish screen.</li>
+        <li>Add the other signers' keys, each in its own way, and apply.</li>
+      </ol>
+    </li>
+    <li class="multi">
+      <h2>Show Goldfish the wallet</h2>
+      <p>Goldfish has to know the whole wallet, not only its own key, before it verifies an
+         address or signs. Sparrow has that as the wallet's descriptor. Goldfish forgets it with
+         the seed, so you scan it each time, right after loading the seed.</p>
+      <ol>
+        <li>In Sparrow, open the wallet's <b>Settings</b> tab. Under <b>Script Policy</b>, next to the
+            <b>descriptor</b>, click <b>show as QR code</b> and choose <b>low density</b>.
+            If Sparrow offers UR or BBQr, pick UR.</li>
+        <li>On Goldfish, tap <b>Scan QR</b> and hold it up to the code.</li>
+        <li>Goldfish shows the wallet, for example <b>2 of 3 multisig</b>, with the fingerprint of
+            every key. Yours is the one marked <b>This seed</b>. Check the fingerprints and the
+            first address against Sparrow.</li>
+        <li>Tap <b>Use wallet</b>. The Ready to sign screen now carries the wallet's tag, such as 2 OF 3.</li>
+      </ol>
+      <div class="shots">
+        <figure><img src="../img/screens/3_seed_loaded.png" alt="Ready to sign screen with the fingerprint, Wallet options and the Scan QR button at the bottom" loading="lazy"><figcaption>Tap Scan QR</figcaption></figure>
+        <figure><img src="../img/screens/44_multisig_wallet.png" alt="2 of 3 multisig screen: Check it against your wallet app, three key fingerprints with This seed in green, the first address, and the buttons Cancel and Use wallet" loading="lazy"><figcaption>Check it, then Use wallet</figcaption></figure>
+        <figure><img src="../img/screens/49_menu_multisig.png" alt="Ready to sign screen with the fingerprint and a 2 OF 3 tag under it" loading="lazy"><figcaption>The wallet's tag</figcaption></figure>
+      </div>
+      <p><b>Wrong descriptor</b> means the seed you loaded isn't one of this wallet's keys.</p>
+    </li>
+    <li class="single">
       <h2>Show your public key</h2>
       <p>Using test coins? First set <b>Network</b> in Wallet options to <b>Testnet</b>: the key
          it shows is for one network only.</p>
@@ -194,7 +290,7 @@
         <figure><img src="../img/screens/5_export_xpub.png" alt="Watch-only wallet screen showing a QR code of the public key" loading="lazy"><figcaption>The QR to scan</figcaption></figure>
       </div>
     </li>
-    <li>
+    <li class="single">
       <h2>Scan it with a wallet app</h2>
       <p>Goldfish works together with a wallet app, sometimes called a coordinator. This guide uses
          <a href="https://sparrowwallet.com/">Sparrow Wallet</a> on a computer with a webcam.
@@ -208,16 +304,22 @@
     </li>
     <li>
       <h2>Receive a test amount</h2>
-      <p>Your new wallet can receive. Before you use an address, let Goldfish confirm that it
+      <p class="single">Your new wallet can receive. Before you use an address, let Goldfish confirm that it
          belongs to your seed.</p>
+      <p class="multi">The wallet can receive. Before you use an address, let Goldfish confirm that it
+         belongs to the wallet.</p>
       <ol>
         <li>In Sparrow, open a receive address. There is a QR code next to it.</li>
         <li>On Goldfish, tap <b>Scan QR</b> and scan that code. <b>Address verified</b> means
             the address belongs to your wallet.</li>
+        <li class="multi">Check the same address on <b>all</b> your signers, each on its own device.
+            Use it only if every one of them accepts it.</li>
         <li>From another wallet, send a small test amount to the address, ideally
             <b>1,000 to 10,000 sats</b>.</li>
       </ol>
       <div class="shots">
+        <figure class="single"><img src="../img/screens/3_seed_loaded.png" alt="Ready to sign screen with the fingerprint, Wallet options and the Scan QR button at the bottom" loading="lazy"><figcaption>Tap Scan QR</figcaption></figure>
+        <figure class="multi"><img src="../img/screens/49_menu_multisig.png" alt="Ready to sign screen with the 2 OF 3 tag, Wallet options and the Scan QR button at the bottom" loading="lazy"><figcaption>Tap Scan QR</figcaption></figure>
         <figure><img src="../img/screens/13_verify_found.png" alt="Goldfish showing Address verified with the address and its receive number" loading="lazy"><figcaption>Address verified</figcaption></figure>
       </div>
     </li>
@@ -228,7 +330,8 @@
       <h3>From Sparrow to Goldfish</h3>
       <ol>
         <li>In Sparrow, paste the address you want to send to and prepare the transaction.</li>
-        <li>Press <b>Show QR</b> and choose <b>low density</b>. That makes an animated QR code
+        <li>Press <b>Show QR</b><span class="multi">, not Sign: the key is on Goldfish, not in Sparrow.
+            Then</span><span class="single"> and</span> choose <b>low density</b>. That makes an animated QR code
             that Goldfish can scan more easily.</li>
         <li>On Goldfish, tap <b>Scan QR</b> and hold it up to the code until it has all the parts.</li>
       </ol>
@@ -247,7 +350,9 @@
       <ol>
         <li>Goldfish now shows the signed transaction as an animated QR code.</li>
         <li>In Sparrow, click the <b>scan</b> button and hold the Goldfish screen up to your webcam.</li>
-        <li>Sparrow now has the signed transaction and can send it.</li>
+        <li class="single">Sparrow now has the signed transaction and can send it.</li>
+        <li class="multi">Sparrow now has Goldfish's signature. Goldfish adds one signature only, so
+            sign with your other signers until Sparrow has as many as the wallet asks for. Then it can send.</li>
       </ol>
     </li>
   </ol>
@@ -257,6 +362,22 @@
     <div class="go"><p>That was the whole loop. See everything else the device does.</p><a class="fwd" href="../#how">How it works →</a></div>
   </div>
 </main>
+
+<script>
+  // Keep the two choices in the address (?wallet=multisig&use=again), so a link or a reload opens the same steps.
+  (function () {
+    var q = new URLSearchParams(location.search);
+    document.querySelectorAll('.seg input').forEach(function (r) {
+      if (q.get(r.name) === r.value) r.checked = true;
+      r.addEventListener('change', function () {
+        var u = new URLSearchParams(location.search);
+        if (r.defaultChecked) u.delete(r.name); else u.set(r.name, r.value);
+        var s = u.toString();
+        try { history.replaceState(null, '', location.pathname + (s ? '?' + s : '') + location.hash); } catch (e) {}
+      });
+    });
+  })();
+</script>
 
 </body>
 </html>
