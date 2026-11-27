@@ -318,7 +318,7 @@ static void life_zoom_cb(lv_event_t *e) {
         lv_image_dsc_t dsc;
         uint8_t px[4 * sizeof(p->px)];
     };
-    if (Big *b = (Big *)lv_malloc(sizeof(Big))) {
+    if (Big *b = (Big *)malloc(sizeof(Big))) {
         const int S = LIFEHASH_SIDE;
         for (int y = 0; y < 2 * S; y++)
             for (int x = 0; x < 2 * S; x++) memcpy(b->px + (y * 2 * S + x) * 2, p->px + (y / 2 * S + x / 2) * 2, 2);
@@ -331,7 +331,7 @@ static void life_zoom_cb(lv_event_t *e) {
         lv_image_set_src(img, &b->dsc);
         lv_obj_add_flag(img, LV_OBJ_FLAG_USER_1);
         lv_obj_align(img, LV_ALIGN_TOP_MID, 0, 4);
-        lv_obj_add_event_cb(img, [](lv_event_t *e) { lv_free(lv_event_get_user_data(e)); }, LV_EVENT_DELETE, b);
+        lv_obj_add_event_cb(img, [](lv_event_t *e) { free(lv_event_get_user_data(e)); }, LV_EVENT_DELETE, b);
     }
     char fp[12];
     snprintf(fp, sizeof(fp), "%02x%02x %02x%02x", p->fp[0], p->fp[1], p->fp[2], p->fp[3]);
@@ -341,10 +341,12 @@ static void life_zoom_cb(lv_event_t *e) {
 // The picture for a fingerprint, `side` pixels square. nullptr when there is
 // no memory for it: the fingerprint's digits are still there.
 static lv_obj_t *life_pic(lv_obj_t *parent, const uint8_t fp[4], int side = LIFEHASH_SIDE) {
-    LifePic *p = (LifePic *)lv_malloc(sizeof(LifePic));
+    // From the app's heap, not LVGL's pool: that one has to keep a large block
+    // free for drawing, and a row of pictures would take it.
+    LifePic *p = (LifePic *)malloc(sizeof(LifePic));
     uint8_t *rgb = (uint8_t *)malloc(LIFEHASH_RGB);
     if (!p || !rgb || !lifehash_v2(fp, 4, rgb)) {
-        if (p) lv_free(p);
+        free(p);
         free(rgb);
         return nullptr;
     }
@@ -368,7 +370,7 @@ static lv_obj_t *life_pic(lv_obj_t *parent, const uint8_t fp[4], int side = LIFE
     lv_obj_add_event_cb(img, life_zoom_cb, LV_EVENT_CLICKED, p);
     lv_obj_add_event_cb(img, [](lv_event_t *e) {
         life_zoom_close();                                // it shows these pixels
-        lv_free(lv_event_get_user_data(e));
+        free(lv_event_get_user_data(e));
     }, LV_EVENT_DELETE, p);
     return img;
 }
