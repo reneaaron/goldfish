@@ -179,13 +179,22 @@ fn backup(state: &State<Shared>, date: &str) -> Res<BackupSheet> {
     backup_sheet(loaded(&mut app)?.0, date)
 }
 
+/// The save dialog doesn't always add the filter's extension; the sheet
+/// needs `.html` to open in the browser.
+fn with_extension(path: String, ext: &str) -> PathBuf {
+    let p = PathBuf::from(path);
+    if p.extension().is_some() { p } else { p.with_extension(ext) }
+}
+
 #[tauri::command]
 fn save_descriptor(path: String, state: State<Shared>) -> Res<()> {
+    let path = with_extension(path, "txt");
     std::fs::write(&path, backup(&state, "")?.text()).map_err(|e| format!("Couldn't save the file: {e}"))
 }
 
 #[tauri::command]
 fn save_backup_sheet(path: String, date: String, state: State<Shared>) -> Res<()> {
+    let path = with_extension(path, "html");
     std::fs::write(&path, backup(&state, &date)?.html()).map_err(|e| format!("Couldn't save the file: {e}"))?;
     tauri_plugin_opener::open_path(&path, None::<&str>).map_err(|e| format!("Saved, but couldn't open it: {e}"))
 }

@@ -1014,7 +1014,8 @@ $("unlock-reset").onclick = async () => {
 for (const b of document.querySelectorAll("button[data-backup]")) {
   b.onclick = async () => {
     const sheet = b.dataset.backup === "sheet";
-    const date = new Date().toLocaleDateString("sv"); // YYYY-MM-DD, local
+    const d = new Date();
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; // local day
     try {
       const path = await window.__TAURI__.dialog.save(
         sheet
@@ -1027,8 +1028,8 @@ for (const b of document.querySelectorAll("button[data-backup]")) {
       const was = label.dataset.was || (label.dataset.was = label.textContent);
       label.textContent = sheet ? "Saved: print it from your browser" : "Saved";
       setTimeout(() => (label.textContent = was), 2400);
-    } catch (_) {
-      // shown in the error line
+    } catch (e) {
+      error(e); // the dialog's own errors; call() has shown its already
     }
   };
 }
