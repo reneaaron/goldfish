@@ -49,6 +49,14 @@ the guides still use Sparrow.
   normal. Empty means a public Electrum server (Blockstream on mainnet,
   mempool.space on signet): Esplora on mempool.space hangs on `/blocks` in
   the client's HTTP library.
+- Receive shows the newest address handed out until coins reach it, then
+  the next one; New address hands out a fresh one for each payer, so two
+  payments can't be linked by their address. The newest one handed out is
+  saved with the settings, so a restart doesn't show an older one again.
+  New address stops at 20 unused in a row (`GAP_LIMIT`): wallets restoring
+  from the seed (Sparrow by default) stop looking after 20 unused addresses
+  in a row, so coins sent beyond that could be missed. Dove's own sync
+  looks through every address it handed out, plus 20 more.
 - Multisig: link from the wallet's descriptor (`<0;1>`, `{0,1}` or `0`
   children, checksum checked when present) or from the cosigners' keys plus
   the signatures needed; Goldfish's multisig Connect wallet key (`Vpub`) is

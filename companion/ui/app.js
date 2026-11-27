@@ -519,12 +519,18 @@ async function sync() {
 }
 $("w-sync").onclick = sync;
 $("w-receive").onclick = async () => {
-  const r = await call("receive_address");
+  showReceive(await call("receive_address"));
   show("receive");
+};
+// a fresh address for each payer, so two payments can't be linked by it
+$("r-new").onclick = async () => showReceive(await call("new_receive_address"));
+function showReceive(r) {
   $("r-label").textContent = `Address #${r.index}`;
   renderAddress(r, "r-qr", "r-addr");
   $("r-copy").dataset.text = r.address;
-};
+  $("r-new").disabled = !r.more;
+  $("r-full").hidden = r.more;
+}
 function renderAddress(r, qr, addr) {
   $(qr).innerHTML = r.qr; // SVG made by the qrcode crate from our own address
   // groups of four, every other one lighter, to compare against Goldfish's screen
