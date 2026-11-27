@@ -341,12 +341,34 @@ static void kb_style(lv_obj_t *kb) {
 // keystore's master fingerprint (lifehash.h), so the two can be held side by
 // side. Shown at its own 32 pixels (or smaller in a row); a tap shows it at
 // double size with the fingerprint under it, a tap anywhere puts that away.
+//
+// The pixels (2 KB a picture) come from the app's heap, not LVGL's pool: that
+// one has to keep a large block free for drawing. The scanner needs the same
+// heap when it starts, and the screen left behind lives on while it fades, so
+// every picture gives its pixels back the moment the screen changes
+// (life_pics_release), before the next screen is built. Nothing of a picture
+// stays in that heap then: a small block left in the middle of it is enough to
+// keep the scanner from getting its one large one. (The few bytes that say
+// where the pixels are live in LVGL's pool, with the image object.)
+constexpr size_t LIFE_PX = LIFEHASH_SIDE * LIFEHASH_SIDE * 2;   // RGB565, as the screen has it
 struct LifePic {
     lv_image_dsc_t dsc;
     uint8_t fp[4];
-    uint8_t px[LIFEHASH_SIDE * LIFEHASH_SIDE * 2];   // RGB565, as the screen has it
+    uint8_t *px;          // nullptr once given back
+    lv_obj_t *img;
+    LifePic *next;
 };
+static LifePic *life_pics;
 static lv_obj_t *life_zoom;
+
+static void life_pics_release() {
+    for (LifePic *p = life_pics; p; p = p->next) {
+        if (!p->px) continue;
+        lv_image_set_src(p->img, nullptr);   // keeps its place and size, shows nothing
+        free(p->px);
+        p->px = nullptr;
+    }
+}
 
 static void life_zoom_close() {
     if (!life_zoom) return;
@@ -365,6 +387,7 @@ static lv_obj_t *life_image(lv_obj_t *parent, const LifePic *p, int side) {
 
 static void life_zoom_cb(lv_event_t *e) {
     const LifePic *p = (const LifePic *)lv_event_get_user_data(e);
+    if (!p->px) return;
     life_zoom_close();
     life_zoom = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(life_zoom);
@@ -381,7 +404,7 @@ static void life_zoom_cb(lv_event_t *e) {
     // open): scaled by the image widget the edges come out soft and a little off.
     struct Big {
         lv_image_dsc_t dsc;
-        uint8_t px[4 * sizeof(p->px)];
+        uint8_t px[4 * LIFE_PX];
     };
     if (Big *b = (Big *)malloc(sizeof(Big))) {
         const int S = LIFEHASH_SIDE;
@@ -406,15 +429,15 @@ static void life_zoom_cb(lv_event_t *e) {
 // The picture for a fingerprint, `side` pixels square. nullptr when there is
 // no memory for it: the fingerprint's digits are still there.
 static lv_obj_t *life_pic(lv_obj_t *parent, const uint8_t fp[4], int side = LIFEHASH_SIDE) {
-    // From the app's heap, not LVGL's pool: that one has to keep a large block
-    // free for drawing, and a row of pictures would take it.
-    LifePic *p = (LifePic *)malloc(sizeof(LifePic));
-    uint8_t *rgb = (uint8_t *)malloc(LIFEHASH_RGB);
-    if (!p || !rgb || !lifehash_v2(fp, 4, rgb)) {
-        free(p);
+    LifePic *p = (LifePic *)lv_malloc(sizeof(LifePic));
+    uint8_t *px = (uint8_t *)malloc(LIFE_PX), *rgb = (uint8_t *)malloc(LIFEHASH_RGB);
+    if (!p || !px || !rgb || !lifehash_v2(fp, 4, rgb)) {
+        if (p) lv_free(p);
+        free(px);
         free(rgb);
         return nullptr;
     }
+    p->px = px;
     for (int i = 0; i < LIFEHASH_SIDE * LIFEHASH_SIDE; i++) {
         uint16_t c = uint16_t((rgb[3 * i] >> 3) << 11 | (rgb[3 * i + 1] >> 2) << 5 | rgb[3 * i + 2] >> 3);
         p->px[2 * i] = uint8_t(c);
@@ -428,14 +451,21 @@ static lv_obj_t *life_pic(lv_obj_t *parent, const uint8_t fp[4], int side = LIFE
     p->dsc.header.w = p->dsc.header.h = LIFEHASH_SIDE;
     p->dsc.header.stride = LIFEHASH_SIDE * 2;
     p->dsc.data = p->px;
-    p->dsc.data_size = sizeof(p->px);
+    p->dsc.data_size = LIFE_PX;
     lv_obj_t *img = life_image(parent, p, side);
+    p->img = img;
+    p->next = life_pics;
+    life_pics = p;
     lv_obj_add_flag(img, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_ext_click_area(img, 6);
     lv_obj_add_event_cb(img, life_zoom_cb, LV_EVENT_CLICKED, p);
     lv_obj_add_event_cb(img, [](lv_event_t *e) {
+        LifePic *gone = (LifePic *)lv_event_get_user_data(e);
         life_zoom_close();                                // it shows these pixels
-        free(lv_event_get_user_data(e));
+        for (LifePic **at = &life_pics; *at; at = &(*at)->next)
+            if (*at == gone) { *at = gone->next; break; }
+        free(gone->px);
+        lv_free(gone);
     }, LV_EVENT_DELETE, p);
     return img;
 }
@@ -3570,9 +3600,10 @@ static void build_multisig() {
     lv_obj_align(text(scr, "Check it against your wallet app", &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, BAR + 2);
 
     lv_obj_t *area = scroll_area(scr, BAR + 28);
-    // A row per key: its picture, whose it is, its fingerprint.
-    const int RH = 36, PIC = 24;
-    lv_obj_t *kc = card(area, CW, ms->n * RH - 4 + 2 * CARD_PY);
+    // A row per key: its picture, and beside it whose it is over its
+    // fingerprint. (Side by side on one line the two texts run into each other.)
+    const int RH = 44, PIC = LIFEHASH_SIDE;
+    lv_obj_t *kc = card(area, CW, ms->n * RH - (RH - PIC) + 2 * CARD_PY);
     lv_obj_remove_flag(kc, LV_OBJ_FLAG_SCROLLABLE);
     for (int i = 0; i < ms->n; i++) {
         const uint8_t *f = ms->fingerprint[i];
@@ -3580,12 +3611,11 @@ static void build_multisig() {
         if (i == ms->ours) snprintf(key, sizeof(key), "This seed");
         else snprintf(key, sizeof(key), "Key %d", i + 1);
         snprintf(fp, sizeof(fp), "%02x%02x %02x%02x", f[0], f[1], f[2], f[3]);
-        int y = i * RH;
-        if (i) divider(kc, y - 2);
-        lv_obj_t *pic = life_pic(kc, f, PIC);
-        if (pic) lv_obj_align(pic, LV_ALIGN_TOP_LEFT, 0, y + (RH - 4 - PIC) / 2);
-        lv_obj_align(text(kc, key, &inter_13, TEXT_2, LV_TEXT_ALIGN_LEFT), LV_ALIGN_TOP_LEFT, pic ? PIC + 6 : 0, y + 8);
-        lv_obj_align(text(kc, fp, &mono_16, i == ms->ours ? GREEN : TEXT, LV_TEXT_ALIGN_RIGHT), LV_ALIGN_TOP_RIGHT, 0, y + 6);
+        int y = i * RH, x = PIC + 10;
+        if (i) divider(kc, y - (RH - PIC) / 2);
+        if (lv_obj_t *pic = life_pic(kc, f, PIC)) lv_obj_align(pic, LV_ALIGN_TOP_LEFT, 0, y);
+        lv_obj_align(text(kc, key, &inter_13, TEXT_2, LV_TEXT_ALIGN_LEFT), LV_ALIGN_TOP_LEFT, x, y - 1);
+        lv_obj_align(text(kc, fp, &mono_16, i == ms->ours ? GREEN : TEXT, LV_TEXT_ALIGN_LEFT), LV_ALIGN_TOP_LEFT, x, y + 14);
     }
     lv_obj_update_layout(kc);
 
@@ -3975,6 +4005,7 @@ static void idle_tick(lv_timer_t *) {
 void ui_goto(UiScreen s) {
     ask_close();
     life_zoom_close();
+    life_pics_release();
     ui_screensaver(false);
     if (ui_current() == UI_PAGE_REVIEW) page_review_y = lv_obj_get_scroll_y(page_review_list);
     // (Words found shows preview_buf: the photo, kept there; scanning stopped before it)
