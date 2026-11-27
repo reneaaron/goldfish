@@ -129,7 +129,7 @@ Goldfish's, whose tags are `v*`. These builds aren't reproducible, unlike the
 firmware.
 
 ```bash
-gh attestation verify Dove_0.1.0_amd64.AppImage --repo reneaaron/goldfish \
+gh attestation verify dove-0.1.0-x86_64.AppImage --repo reneaaron/goldfish \
   --signer-workflow reneaaron/goldfish/.github/workflows/companion-release.yml --source-ref refs/tags/dove-v0.1.0
 ```
 
