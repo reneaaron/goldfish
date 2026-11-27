@@ -23,7 +23,8 @@ the guides still use Sparrow.
 ## What it does
 
 - First use is a short wizard: welcome, one signer or multisig, link (scan
-  or paste), server (public or your own node, checked before it's saved),
+  or paste), for multisig a backup step (the descriptor as text with a Copy
+  button: the seeds alone don't bring a multisig wallet back), server (public or your own node, checked before it's saved),
   then a check on Goldfish: the first address for one signer, the
   descriptor for multisig.
 - The watch-only key and the server are saved in `settings.json` in the app's

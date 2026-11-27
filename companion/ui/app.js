@@ -241,8 +241,10 @@ function linked(o) {
   sync();
 }
 
-// ---- first use: welcome, how many signers, link, server, password, check on Goldfish
-const STEPS = ["welcome", "type", "link", "server", "password", "done"];
+// ---- first use: welcome, how many signers, link, backup (multisig), server, password, check on Goldfish
+const STEPS = ["welcome", "type", "link", "backup", "server", "password", "done"];
+// one signer has nothing to back up here: its seed is the backup
+const flow = () => STEPS.filter((s) => s !== "backup" || wzMultisig);
 let wzStep = "welcome";
 let wzMultisig = false;
 let wzServer = "public";
@@ -252,13 +254,14 @@ function step(name) {
   if (scanning) stopScan();
   error("");
   for (const s of STEPS) $("wz-" + s).hidden = s !== name;
-  const i = STEPS.indexOf(name);
+  const steps = flow();
+  const i = steps.indexOf(name);
   // a dot for each step after the welcome
   $("wz-dots").hidden = i === 0;
-  [...$("wz-dots").children].forEach((d, j) => d.classList.toggle("on", j < i));
+  $("wz-dots").replaceChildren(...steps.slice(1).map((_, j) => Object.assign(document.createElement("i"), { className: j < i ? "on" : "" })));
   $("wz-back").hidden = i === 0;
-  $("wz-next").hidden = !["welcome", "server", "password", "done"].includes(name);
-  button($("wz-next"), { welcome: "Get started", server: "Continue", password: "Set password", done: "Open wallet" }[name] || "", false);
+  $("wz-next").hidden = !["welcome", "backup", "server", "password", "done"].includes(name);
+  button($("wz-next"), { welcome: "Get started", backup: "I saved it", server: "Continue", password: "Set password", done: "Open wallet" }[name] || "", false);
   $("wz-skip").hidden = name !== "password";
   if (name === "password") {
     $("wz-pw").value = $("wz-pw-again").value = "";
@@ -272,16 +275,19 @@ function step(name) {
     $("wz-proxy").value = server.proxy;
     pickServer(server.url || server.proxy ? "own" : "public");
   }
+  if (name === "backup") showBackup();
   if (name === "done") showDone();
   window.scrollTo(0, 0);
 }
 $("wz-back").onclick = () => {
   if (wzStep === "link" && !$("link-paste").hidden) return linkPanel(null);
   // the password step is passed over once there is one
-  step(wzStep === "done" && hasPassword ? "server" : STEPS[STEPS.indexOf(wzStep) - 1]);
+  const steps = flow();
+  step(wzStep === "done" && hasPassword ? "server" : steps[steps.indexOf(wzStep) - 1]);
 };
 $("wz-next").onclick = async () => {
   if (wzStep === "welcome") step("type");
+  else if (wzStep === "backup") step("server");
   else if (wzStep === "server") saveServer();
   else if (wzStep === "password") savePassword();
   else if (wzStep === "done") linked(current);
@@ -334,6 +340,14 @@ async function saveServer() {
   }
   step(hasPassword ? "done" : "password");
 }
+// Multisig: the descriptor as text, to keep with the seed backups
+async function showBackup() {
+  $("backup-text").textContent = "";
+  const w = await call("wallet_descriptor");
+  if (wzStep !== "backup") return;
+  $("backup-text").textContent = w.descriptor;
+  $("backup-copy").dataset.text = w.descriptor;
+}
 // The last step: for one signer, the first address to check on Goldfish;
 // for multisig, the wallet for each Goldfish to scan.
 async function showDone() {
@@ -368,10 +382,11 @@ function linkPanel(name) {
   $("link-alt").hidden = !!name;
 }
 $("link-paste-toggle").onclick = () => linkPanel("paste");
-// linked: render it, then on to the server step
+// linked: render it, then on to the backup (multisig) or server step
 function linkedFirst(o) {
   renderOverview(o);
-  step("server");
+  wzMultisig = !!o.multisig; // a descriptor pasted as one signer's key is multisig too
+  step(wzMultisig ? "backup" : "server");
 }
 $("link-import").onclick = async () => linkedFirst(await call("import_key", { text: $("link-text").value }));
 listen("key", (e) => {
