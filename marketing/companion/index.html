@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bowl brand</title>
+<title>Dove brand</title>
 <link href="https://fonts.googleapis.com/css2?family=Rethink+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
   /* Goldfish tokens (marketing/README.md) plus the case blue (landing/brand.css). */
@@ -14,11 +14,11 @@
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--white); color: var(--ink); font: 17px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
-  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
-  header { padding: 56px 0 24px; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+  header { padding: 48px 0 24px; }
   .kicker { color: var(--orange-text); font-weight: 600; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; }
   h1 { display: flex; align-items: center; gap: 18px; font-size: clamp(40px, 6vw, 60px); line-height: 1.05; letter-spacing: -0.02em; margin: 8px 0 12px; }
-  h1 img { height: 1.15em; }
+  h1 img { height: 1.1em; }
   h2 { font-size: 26px; letter-spacing: -0.01em; margin: 56px 0 6px; }
   p.lead { color: var(--muted); font-size: 19px; max-width: 640px; margin: 0; }
   p.note { color: var(--muted); margin: 0 0 20px; max-width: 680px; }
@@ -28,31 +28,19 @@
   .card.ink { background: var(--ink); border-color: transparent; color: var(--white); }
   .card small { color: var(--muted); font-size: 13px; text-align: center; }
   .card.ink small { color: #9FB0BA; }
-  /* marks at the same module size: 1 SVG unit = --u (goldfish-mark is 94 units wide, bowl-mark 93) */
-  .gf { width: calc(94 * var(--u)); } .bw { width: calc(93 * var(--u)); }
+  /* marks at the same module size: 1 SVG unit = --u (goldfish-mark is 94 units wide, dove-mark 93) */
+  .gf { width: calc(94 * var(--u)); } .dv { width: calc(93 * var(--u)); }
   .big { --u: 1.8px; } .hdr { --u: calc(40px / 94); }
   .icons { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; justify-content: center; }
   .lockup { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.01em; }
-  .lockup.big { font-size: 48px; gap: 20px; letter-spacing: -0.02em; --u: 0.93px; } /* header ratio: 40px fish per 22px name, scaled to 48px */
+  .lockup.big { font-size: 48px; gap: 20px; letter-spacing: -0.02em; --u: 0.93px; }
   .lockup.hdr { font-size: 22px; }
   .ink .lockup { color: var(--white); }
   .pair { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; justify-content: center; }
-
-  .swatches { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
-  .sw { border-radius: 14px; overflow: hidden; border: 1px solid var(--border); }
-  .sw div { height: 72px; }
-  .sw p { margin: 0; padding: 10px 12px; font-size: 14px; }
-  .sw code { font-family: var(--mono); font-size: 12px; color: var(--muted); display: block; }
-  .taglines { display: grid; gap: 10px; }
-  .tag { border: 1px solid var(--border); border-radius: 14px; padding: 16px 20px; display: flex; justify-content: space-between; gap: 16px; align-items: baseline; flex-wrap: wrap; }
-  .tag b { font-size: 22px; letter-spacing: -0.01em; }
-  .tag.pick { border-color: var(--blue); }
-  .tag span { color: var(--muted); font-size: 14px; }
+  code { font-family: var(--mono); font-size: .85em; }
   ul.rules { padding-left: 20px; color: var(--muted); max-width: 720px; }
   ul.rules li { margin: 6px 0; } ul.rules b { color: var(--ink); }
-  code { font-family: var(--mono); font-size: .85em; }
   footer { padding: 56px 0 72px; color: var(--muted); font-size: 14px; }
-  footer a { color: var(--orange-text); }
 </style>
 </head>
 <body>
@@ -60,61 +48,43 @@
 
 <header>
   <div class="kicker">Draft · companion app</div>
-  <h1><img src="bowl-mark.svg" alt="">bowl</h1>
-  <p class="lead">The watch-only app for Goldfish setups. Bowl holds the wallet: descriptor, addresses, history; it builds the transaction and broadcasts it. The fish signs. The bowl never holds the keys.</p>
+  <h1><img src="dove-mark.svg" alt="">dove</h1>
+  <p class="lead">The online half of a Goldfish setup: it watches the wallet, builds the transaction and carries the signed one out, like a carrier pigeon. It never holds the keys.</p>
 </header>
 
 <h2>Mark</h2>
-<p class="note">A fishbowl of QR modules on a 9 × 9 grid: lip, neck, round body. Same module as the Goldfish mark (9 units on a 10-unit grid, corner radius 2), same width (9 modules), and the Goldfish eye exactly (29 / 19 / 9 units) in the fish's orange with a white ring: the fish in the bowl. Goldfish is orange; Bowl is blue with an orange eye.</p>
+<p class="note">A standing pigeon (the rock dove, the carrier pigeon's species) on a 9 × 9 grid: same module as the fish (9 on a 10 pitch, corner radius 2) and the Goldfish eye exactly, ink ring as on the fish, here as the head. Puffed chest, tail down, orange feet. Blue, so it never competes with the orange fish.</p>
 <div class="grid">
-  <div class="card big"><img class="bw" src="bowl-mark.svg" alt="Bowl mark"><small>bowl-mark.svg</small></div>
-  <div class="card paper big"><div class="pair"><img class="gf" src="../mascot/goldfish-mark.svg" alt=""><img class="bw" src="bowl-mark.svg" alt=""></div><small>with goldfish-mark.svg, same module size</small></div>
+  <div class="card big"><img class="dv" src="dove-mark.svg" alt="Dove mark"><small>dove-mark.svg</small></div>
+  <div class="card paper big"><div class="pair"><img class="gf" src="../mascot/goldfish-mark.svg" alt=""><img class="dv" src="dove-mark.svg" alt=""></div><small>with goldfish-mark.svg, same module size</small></div>
 </div>
 
 <h2>App icon</h2>
-<p class="note">Built like goldfish-icon.svg: 128 tile, corner radius 30, mark at scale 1, so a module is the same size in both icons at every size. On the dark tile the bowl is blue and the eye's ring is ink.</p>
+<p class="note">128 tile, corner radius 30, like goldfish-icon.svg. The pigeon fills the 9 × 9 grid, so it sits at scale 1, centred: a module is the same size in both icons at every size.</p>
 <div class="grid">
-  <div class="card"><div class="icons"><img src="bowl-icon.svg" width="128" alt=""><img src="bowl-icon.svg" width="64" alt=""><img src="bowl-icon.svg" width="32" alt=""><img src="bowl-icon.svg" width="20" alt=""><img src="bowl-icon.svg" width="16" alt=""></div><small>bowl-icon.svg · primary</small></div>
-  <div class="card"><div class="icons"><img src="bowl-icon-dark.svg" width="128" alt=""><img src="bowl-icon-dark.svg" width="32" alt=""><img src="bowl-icon-dark.svg" width="16" alt=""></div><small>bowl-icon-dark.svg</small></div>
-  <div class="card paper"><div class="icons"><img src="../mascot/goldfish-icon.svg" width="96" alt=""><img src="bowl-icon.svg" width="96" alt=""></div><small>Goldfish + Bowl</small></div>
+  <div class="card"><div class="icons"><img src="dove-icon.svg" width="128" alt=""><img src="dove-icon.svg" width="64" alt=""><img src="dove-icon.svg" width="32" alt=""><img src="dove-icon.svg" width="20" alt=""><img src="dove-icon.svg" width="16" alt=""></div><small>dove-icon.svg · primary</small></div>
+  <div class="card"><div class="icons"><img src="dove-icon-dark.svg" width="128" alt=""><img src="dove-icon-dark.svg" width="32" alt=""><img src="dove-icon-dark.svg" width="16" alt=""></div><small>dove-icon-dark.svg</small></div>
+  <div class="card paper"><div class="icons"><img src="../mascot/goldfish-icon.svg" width="96" alt=""><img src="dove-icon.svg" width="96" alt=""></div><small>Goldfish + Dove</small></div>
 </div>
 
-<h2>Wordmark</h2>
-<p class="note">Mark, then the name in lowercase Rethink Sans 700, like <code>goldfish</code> in the site header and on the device. The mark keeps the same module size as the fish next to the name, so the bowl stands almost twice as tall as the fish; don't shrink it to the fish's height.</p>
+<h2>Lockup</h2>
+<p class="note">Mark, then the name in lowercase Rethink Sans 700, like <code>goldfish</code>. Same module size as the fish next to it.</p>
 <div class="grid">
-  <div class="card"><div class="lockup big"><img class="bw" src="bowl-mark.svg" alt="">bowl</div><small>large</small></div>
-  <div class="card paper"><div class="pair"><span class="lockup hdr"><img class="gf" src="../mascot/goldfish-mark.svg" alt="">goldfish</span><span class="lockup hdr"><img class="bw" src="bowl-mark.svg" alt="">bowl</span></div><small>site header, 22 px name</small></div>
-  <div class="card ink"><div class="lockup big"><img class="bw" src="bowl-mark.svg" alt="">bowl</div><small>on ink</small></div>
-</div>
-
-<h2>Colour</h2>
-<p class="note">No new colours: blue is the Goldfish case blue. Orange appears only in the eye, as the fish.</p>
-<div class="swatches">
-  <div class="sw"><div style="background:var(--blue)"></div><p>Bowl blue (case blue)<code>#0A7ED0</code></p></div>
-  <div class="sw"><div style="background:var(--ink)"></div><p>Ink · text<code>#14222B</code></p></div>
-  <div class="sw"><div style="background:var(--white)"></div><p>White · eye ring<code>#FFFFFF</code></p></div>
-  <div class="sw"><div style="background:var(--paper)"></div><p>Paper<code>#EDF2F4</code></p></div>
-  <div class="sw"><div style="background:var(--muted)"></div><p>Grey text<code>#5A6B75</code></p></div>
-  <div class="sw"><div style="background:var(--orange)"></div><p>Fish orange · the eye<code>#FF7A2F</code></p></div>
-</div>
-
-<h2>Tagline</h2>
-<p class="note">Goldfish says <b>Sign and forget.</b> Bowl should answer it, and must not suggest custody.</p>
-<div class="taglines">
-  <div class="tag pick"><b>Where your Goldfish lives.</b><span>pick · says what it is, not what it holds</span></div>
-  <div class="tag"><b>The fish signs. The bowl remembers.</b><span>tells the split; long</span></div>
-  <div class="tag"><b>Watch, build, broadcast.</b><span>plain features; no fish</span></div>
+  <div class="card"><div class="lockup big"><img class="dv" src="dove-mark.svg" alt="">dove</div><small>large</small></div>
+  <div class="card paper"><div class="pair"><span class="lockup hdr"><img class="gf" src="../mascot/goldfish-mark.svg" alt="">goldfish</span><span class="lockup hdr"><img class="dv" src="dove-mark.svg" alt="">dove</span></div><small>site header, 22 px name</small></div>
+  <div class="card ink"><div class="lockup big"><img class="dv" src="dove-mark-dark.svg" alt="">dove</div><small>on ink: dove-mark-dark.svg, light blue body #4FA8EC, white eye ring</small></div>
 </div>
 
 <h2>Rules</h2>
 <ul class="rules">
-  <li><b>Don't redraw the eye.</b> It's the Goldfish eye: same geometry, orange with a white ring (ink ring on ink tiles).</li>
+  <li><b>Don't redraw the eye.</b> It's the Goldfish eye: ink ring on light, white ring on ink.</li>
   <li><b>Same module size as the fish</b> whenever the two appear together.</li>
-  <li><b>Bowl is blue, Goldfish is orange.</b> In Bowl, orange is only the eye; never orange modules.</li>
-  <li><b>Never draw keys, locks or a vault</b> with the mark. Bowl is watch-only.</li>
+  <li><b>Blue bird, orange feet.</b> The feet are the only orange; never orange in the body.</li>
+  <li><b>On ink, the body is light blue <code>#4FA8EC</code>.</b> Case blue is too dark there; the light blue has the same contrast on ink as the fish orange (6.3:1).</li>
+  <li><b>Nothing in its beak or on its legs.</b> No letter, no capsule, no keys, no coins: the name and copy carry the carrier story.</li>
 </ul>
 
-<footer>Draft for review. Files: <code>marketing/companion/bowl-mark.svg</code>, <code>bowl-icon.svg</code>, <code>bowl-icon-dark.svg</code>. Name not yet checked for app-store, domain or trademark clashes.</footer>
+<footer>Draft for review. Files: <code>marketing/companion/dove-mark.svg</code>, <code>dove-icon.svg</code>, <code>dove-icon-dark.svg</code>, <code>dove-mark-dark.svg</code>. Name not yet checked for app-store, domain or trademark clashes.</footer>
 </div>
 </body>
 </html>
