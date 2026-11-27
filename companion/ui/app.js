@@ -30,6 +30,7 @@ function layout() {
 wide.addEventListener("change", layout);
 $("backdrop").onclick = () => show("wallet");
 document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !$("sign-menu").hidden) return menu(false);
   if (e.key === "Escape" && document.body.classList.contains("dialog-open")) show("wallet");
 });
 
@@ -737,6 +738,7 @@ function showReview(r) {
   );
   $("sign-progress").hidden = true;
   $("sign-paste").hidden = true;
+  menu(false);
   button($("sign-scan"), "Scan signed QR", false);
   $("sign-who").textContent = "Scan with Goldfish";
   $("sign-fish").hidden = false;
@@ -803,31 +805,48 @@ $("sign-scan").onclick = async () => {
   await startScan("psbt");
   button($("sign-scan"), "Reading the QR…", true);
 };
-$("sign-paste-toggle").onclick = () => ($("sign-paste").hidden = !$("sign-paste").hidden);
 $("sign-use").onclick = async () => {
   for (const line of $("sign-text").value.split(/\s+/).filter(Boolean)) onScan(await call("scan_text", { text: line }));
 };
 listen("scan", (e) => onScan(e.payload));
 
-// Another signer (Sparrow with a Trezor or Ledger, a Coldcard's SD card): the
-// PSBT with the signatures so far, as text or a .psbt file, and its signed file back
-function flash(b, text) {
-  const label = b.querySelector("span");
-  const was = label.dataset.was || (label.dataset.was = label.textContent);
-  label.textContent = text;
-  setTimeout(() => (label.textContent = was), 1600);
+// Another signer (Sparrow with a Trezor or Ledger, a Coldcard's SD card), from
+// the ⋯ menu: the PSBT with the signatures so far as text or a .psbt file, and
+// the signed one back as a file or pasted
+function menu(open) {
+  $("sign-menu").hidden = !open;
+  $("sign-more").setAttribute("aria-expanded", open);
 }
+$("sign-more").onclick = (e) => {
+  e.stopPropagation();
+  menu($("sign-menu").hidden);
+};
+document.addEventListener("click", (e) => {
+  if (!$("sign-menu").hidden && !$("sign-menu").contains(e.target)) menu(false);
+});
 const psbtFilter = [{ name: "PSBT", extensions: ["psbt", "txt"] }];
-$("sign-copy").onclick = async () => flash($("sign-copy"), (await copyText(await call("psbt_text"))) ? "Copied" : "Couldn't copy");
+$("sign-copy").onclick = async () => {
+  const label = $("sign-copy").querySelector("span");
+  label.textContent = (await copyText(await call("psbt_text"))) ? "Copied" : "Couldn't copy";
+  setTimeout(() => {
+    menu(false);
+    label.textContent = "Copy transaction";
+  }, 700);
+};
 $("sign-save").onclick = async () => {
+  menu(false);
   const path = await window.__TAURI__.dialog.save({ defaultPath: "dove.psbt", filters: psbtFilter });
-  if (!path) return;
-  await call("save_psbt", { path });
-  flash($("sign-save"), "Saved");
+  if (path) await call("save_psbt", { path });
 };
 $("sign-open").onclick = async () => {
+  menu(false);
   const path = await window.__TAURI__.dialog.open({ filters: psbtFilter });
   if (path) onScan(await call("open_psbt", { path }));
+};
+$("sign-paste-item").onclick = () => {
+  menu(false);
+  $("sign-paste").hidden = false;
+  $("sign-text").focus();
 };
 
 // ---- broadcast

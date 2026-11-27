@@ -117,7 +117,17 @@ input:focus, textarea:focus { border-color: var(--text-2); }
 .unit input { border: 0; background: none; }
 .unit b, .unit i { font: 500 15px/1 var(--mono); color: var(--text-3); padding: 0 14px; font-style: normal; }
 .unit b { padding-right: 0; }
-.other-signer { display: flex; flex-wrap: wrap; gap: 0 14px; }
+.menu-wrap { position: relative; }
+.menu {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 240px; padding: 6px;
+  display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: 0 12px 32px rgba(20, 34, 43, .14);
+}
+.menu[hidden] { display: none; }
+.menu button { height: 40px; padding: 0 10px; justify-content: flex-start; background: none; border-radius: 9px; font-weight: 500; font-size: 15px; white-space: nowrap; }
+.menu button:hover, .menu button:focus-visible { background: var(--surface-2); outline: none; }
+.menu svg { width: 16px; height: 16px; color: var(--text-2); }
+.menu hr { border: 0; border-top: 1px solid var(--border); margin: 6px 4px; }
 .paste { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
 
 .badge { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; margin: 32px auto 0; }
