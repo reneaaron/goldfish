@@ -240,6 +240,144 @@ impl Account {
     }
 }
 
+// ------------------------------------------------------------ backup
+
+/// One cosigner's key, as a backup lists it.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct Cosigner {
+    pub fingerprint: String,
+    /// `m/48h/1h/0h/2h`
+    pub path: String,
+    /// xpub (mainnet) or tpub (test networks) spelling
+    pub xpub: String,
+}
+
+/// What a multisig wallet's backup holds, beside the seeds: everything a
+/// wallet app needs to find the coins again, and nothing that spends them.
+#[derive(Serialize, Clone, Debug)]
+pub struct BackupSheet {
+    pub threshold: usize,
+    pub cosigners: Vec<Cosigner>,
+    /// "Mainnet" or "Signet"
+    pub network: String,
+    pub descriptor: String,
+    pub first_address: String,
+    /// the day the sheet was made, `YYYY-MM-DD`
+    pub date: String,
+}
+
+/// The backup of a multisig `account`, made on `date`.
+pub fn backup_sheet(account: &Account, date: &str) -> Res<BackupSheet> {
+    if !account.is_multisig() {
+        return Err("one signer's seed is its own backup: there's nothing else to save".into());
+    }
+    let body = account.descriptor.split('#').next().unwrap_or_default();
+    let inner = body.strip_prefix("wsh(sortedmulti(").and_then(|b| b.strip_suffix("))")).ok_or("not a sortedmulti descriptor")?;
+    let cosigners = inner
+        .split(',')
+        .skip(1)
+        .map(|k| {
+            let k = Key::parse(k)?;
+            Ok(Cosigner { fingerprint: k.fingerprint, path: format!("m/{}", k.path), xpub: k.xpub.to_string() })
+        })
+        .collect::<Res<Vec<_>>>()?;
+    let first_address = account.wallet()?.peek_address(KeychainKind::External, 0).address.to_string();
+    Ok(BackupSheet {
+        threshold: account.threshold,
+        cosigners,
+        network: if account.network == Network::Bitcoin { "Mainnet" } else { "Signet" }.into(),
+        descriptor: account.descriptor.clone(),
+        first_address,
+        date: date.to_string(),
+    })
+}
+
+fn escape(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+}
+
+impl BackupSheet {
+    /// The descriptor file: one line, with its checksum, the way wallet apps
+    /// import it.
+    pub fn text(&self) -> String {
+        format!("{}\n", self.descriptor)
+    }
+
+    /// A page to print: self-contained, no requests, black on white.
+    pub fn html(&self) -> String {
+        let (m, n) = (self.threshold, self.cosigners.len());
+        let rows: String = self
+            .cosigners
+            .iter()
+            .enumerate()
+            .map(|(i, c)| {
+                format!(
+                    "<tr><td>{}</td><td class=mono>{}</td><td class=mono>{}</td><td class=\"mono key\">{}</td></tr>",
+                    i + 1,
+                    escape(&c.fingerprint),
+                    escape(&c.path),
+                    escape(&c.xpub)
+                )
+            })
+            .collect();
+        // the descriptor's QR, to scan it back in; a very long one may not fit a code
+        let qr = qr_svg(&self.descriptor).map(|s| format!("<div class=qr>{s}</div>")).unwrap_or_default();
+        format!(
+            r#"<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Multisig wallet backup ({m} of {n})</title>
+<style>
+@page {{ size: A4; margin: 16mm; }}
+body {{ font: 11pt/1.45 system-ui, sans-serif; color: #000; background: #fff; max-width: 180mm; margin: 24px auto; padding: 0 16px; }}
+h1 {{ font-size: 20pt; margin: 0 0 4px; }}
+h2 {{ font-size: 12pt; margin: 22px 0 6px; }}
+.mono {{ font-family: ui-monospace, "DejaVu Sans Mono", monospace; font-size: 9pt; word-break: break-all; }}
+.note {{ border: 2px solid #000; padding: 10px 14px; margin: 14px 0; }}
+table {{ border-collapse: collapse; width: 100%; }}
+th, td {{ border: 1px solid #999; padding: 5px 7px; text-align: left; vertical-align: top; }}
+th {{ font-size: 9pt; }}
+td.key {{ width: 55%; }}
+dl {{ display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; }}
+dt {{ font-weight: 600; }} dd {{ margin: 0; }}
+.desc {{ display: flex; gap: 16px; align-items: flex-start; }}
+.desc p {{ flex: 1; margin: 0; }}
+.qr svg {{ width: 48mm; height: auto; display: block; }}
+ol {{ padding-left: 20px; }} li {{ margin: 3px 0; }}
+</style></head><body>
+<h1>Multisig wallet backup</h1>
+<p>{m} of {n} multisig &middot; {network} &middot; made {date}</p>
+<div class="note"><b>No seed or private key is on this sheet: it can't spend your coins.</b> It does show your balance and every payment to anyone who reads it, so keep it private. Keep a copy with each of your seed backups.</div>
+<h2>Wallet</h2>
+<dl>
+<dt>Type</dt><dd>{m} of {n} multisig, native segwit (<span class=mono>wsh(sortedmulti)</span>)</dd>
+<dt>Network</dt><dd>{network}</dd>
+<dt>First address</dt><dd class=mono>{address}</dd>
+</dl>
+<h2>Signers</h2>
+<table><tr><th>#</th><th>Fingerprint</th><th>Path</th><th>Public key</th></tr>{rows}</table>
+<h2>Descriptor</h2>
+<div class="desc"><p class=mono>{descriptor}</p>{qr}</div>
+<h2>To get your coins back</h2>
+<ol>
+<li>Install a wallet app that takes a multisig descriptor, such as Dove or Sparrow.</li>
+<li>Add the wallet from the descriptor above: type it in or scan its QR code. Check that the first address matches.</li>
+<li>To spend, sign with any {m} of the {n} seeds.</li>
+</ol>
+{fewer}</body></html>
+"#,
+            fewer = if m < n {
+                format!("<p>With only {m} of the {n} seeds you need this sheet too: those seeds alone can't bring this wallet back.</p>\n")
+            } else {
+                String::new()
+            },
+            network = self.network,
+            date = escape(&self.date),
+            address = escape(&self.first_address),
+            descriptor = escape(&self.descriptor),
+        )
+    }
+}
+
 // ------------------------------------------------------------ chain
 
 /// Where the wallet syncs and broadcasts: an Esplora API (`https://…`) or an
@@ -1130,6 +1268,41 @@ mod tests {
         let bare = keys[1].split(']').nth(1).unwrap();
         assert!(multisig_from_keys(2, &[keys[0], bare]).unwrap_err().contains("fingerprint"));
         assert!(parse_key_export(keys[0]).unwrap_err().contains("multisig"));
+    }
+
+    #[test]
+    fn multisig_backup_lists_every_cosigner() {
+        let c = three_cosigners();
+        let keys: Vec<&str> = c.iter().map(|(_, k)| k.as_str()).collect();
+        let a = multisig_from_keys(2, &keys).unwrap();
+        let b = backup_sheet(&a, "2026-11-28").unwrap();
+        assert_eq!((b.threshold, b.cosigners.len(), b.network.as_str()), (2, 3, "Signet"));
+        assert_eq!(b.first_address, a.wallet().unwrap().peek_address(KeychainKind::External, 0).address.to_string());
+        for (i, k) in keys.iter().enumerate() {
+            let cs = &b.cosigners[i];
+            assert!(cs.xpub.starts_with("tpub") && cs.path == "m/48h/1h/0h/2h", "{cs:?}");
+            assert!(a.descriptor.contains(&format!("[{}/{}]{}/<0;1>/*", cs.fingerprint, &cs.path[2..], cs.xpub)));
+            assert!(k.starts_with(&format!("[{}/", cs.fingerprint)));
+        }
+
+        // the file is the descriptor with its checksum, and reads back as the same wallet
+        assert_eq!(b.text().trim(), a.descriptor);
+        assert_eq!(parse_wallet(&b.text()).unwrap().descriptor, a.descriptor);
+
+        // the sheet: every key, the first address, the descriptor (its <0;1> escaped), no secrets
+        let html = b.html();
+        for cs in &b.cosigners {
+            assert!(html.contains(&cs.fingerprint) && html.contains(&cs.xpub));
+        }
+        assert!(html.contains(&b.first_address) && html.contains("2026-11-28") && html.contains("2 of 3 multisig"));
+        assert!(html.contains(&a.descriptor.replace('<', "&lt;").replace('>', "&gt;")) && !html.contains("<0;1>"));
+        assert!(html.contains("No seed or private key") && html.contains("only 2 of the 3 seeds") && html.contains("<svg"));
+        assert!(!html.contains("tprv") && !html.contains("src=") && !html.contains("<link"));
+
+        // n of n: no "only" line; one signer: nothing to back up
+        let all = backup_sheet(&multisig_from_keys(3, &keys).unwrap(), "2026-11-28").unwrap();
+        assert!(!all.html().contains("only 3 of the 3"));
+        assert!(backup_sheet(&abandon_account(), "2026-11-28").is_err());
     }
 
     #[test]

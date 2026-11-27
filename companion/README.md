@@ -23,10 +23,18 @@ the guides still use Sparrow.
 ## What it does
 
 - First use is a short wizard: welcome, one signer or multisig, link (scan
-  or paste), for multisig a backup step (the descriptor as text with a Copy
-  button: the seeds alone don't bring a multisig wallet back), server (public or your own node, checked before it's saved),
+  or paste), for multisig a backup step (the seeds alone don't bring a
+  multisig wallet back), server (public or your own node, checked before it's saved),
   then a check on Goldfish: the first address for one signer, the
   descriptor for multisig.
+- Multisig backup, in that wizard step and in Settings → Backup: copy the
+  descriptor, save it as a `.txt` (one line, with its checksum, the way wallet
+  apps import it), or save a backup sheet to print: an HTML page that opens
+  in the browser, with the wallet type (M of N, `wsh(sortedmulti)`), the
+  network, each cosigner's fingerprint, path and xpub, the descriptor and its
+  QR, the first receive address, the day it was made and short recovery
+  steps. It holds no seed or private key but shows the balance and history,
+  and says so.
 - The watch-only key and the server are saved in `settings.json` in the app's
   data folder (`~/.local/share/dev.goldfish.companion/` on Linux), so the
   wallet reopens on start. Settings → Forget this wallet removes the key.

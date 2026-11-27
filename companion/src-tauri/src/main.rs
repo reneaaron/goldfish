@@ -171,6 +171,25 @@ fn wallet_descriptor(state: State<Shared>) -> Res<ShowWallet> {
     Ok(ShowWallet { descriptor: a.descriptor.clone(), kind: a.kind(), fingerprints: a.fingerprints.clone(), first_address, qr })
 }
 
+/// Multisig backup, saved at `path`: the descriptor as a text file, or the
+/// sheet to print (`date` is today's, from the page), which then opens in
+/// the browser.
+fn backup(state: &State<Shared>, date: &str) -> Res<BackupSheet> {
+    let mut app = state.lock().unwrap();
+    backup_sheet(loaded(&mut app)?.0, date)
+}
+
+#[tauri::command]
+fn save_descriptor(path: String, state: State<Shared>) -> Res<()> {
+    std::fs::write(&path, backup(&state, "")?.text()).map_err(|e| format!("Couldn't save the file: {e}"))
+}
+
+#[tauri::command]
+fn save_backup_sheet(path: String, date: String, state: State<Shared>) -> Res<()> {
+    std::fs::write(&path, backup(&state, &date)?.html()).map_err(|e| format!("Couldn't save the file: {e}"))?;
+    tauri_plugin_opener::open_path(&path, None::<&str>).map_err(|e| format!("Saved, but couldn't open it: {e}"))
+}
+
 #[tauri::command]
 fn next_wallet_frame(state: State<Shared>) -> Res<Frame> {
     let mut app = state.lock().unwrap();
@@ -588,6 +607,8 @@ fn main() {
             link_multisig,
             wallet_descriptor,
             next_wallet_frame,
+            save_descriptor,
+            save_backup_sheet,
             set_server,
             fee_rates,
             create_bump,
