@@ -388,6 +388,43 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
                 int mh = (p.v1 - p.v0) < (q.v1 - q.v0) ? (p.v1 - p.v0) : (q.v1 - q.v0);
                 if (ov * 5 >= mh * 2) lunite(i, j);
             }
+        // Letter boxes (a card with a box per letter) put each letter a box
+        // apart, up to about twice a letter's height. A letter still alone
+        // with another one like it that far along its line is in such a row:
+        // it joins its neighbours there, even pieces the box lines joined
+        // with a few dots. A lone row number ("7." between two columns) has
+        // no lone letter next to it, so it stays apart.
+        {
+            uint8_t *alone = (uint8_t *)calloc(nl, 1);   // 0 in a word, 1 alone, 2 alone in a spaced row
+            if (!alone) goto done;
+            auto spaced = [&](int i, int j) {   // j a box to the right of i, on its line
+                const Blob &p = letters[i], &q = letters[j];
+                int gap = q.u0 - p.u1;
+                if (i == j || gap <= lh * 9 / 10 || gap * 5 > lh * 11) return false;
+                int ph = p.v1 - p.v0, qh = q.v1 - q.v0;
+                if (ph * 2 < lh || qh * 2 < lh) return false;   // letters, not specks
+                int ov = (p.v1 < q.v1 ? p.v1 : q.v1) - (p.v0 > q.v0 ? p.v0 : q.v0);
+                // on one line: sitting on it or hanging from it (not a loop of joined-up writing)
+                return ov * 5 >= (ph < qh ? ph : qh) * 3 && (abs(p.v0 - q.v0) * 2 <= lh || abs(p.v1 - q.v1) * 2 <= lh);
+            };
+            auto letter_sized = [&](int i) {
+                const Blob &b = letters[i];
+                return (b.v1 - b.v0) * 2 <= lh * 3 && (b.u1 - b.u0) * 2 <= lh * 3;
+            };
+            for (int i = 0; i < nl; i++) {
+                int r = lfind(i);
+                if (alone[r] < 2) alone[r]++;
+            }
+            for (int i = 0; i < nl; i++) alone[i] = lfind(i) == i && alone[i] == 1 && letter_sized(i);
+            for (int i = 0; i < nl; i++)
+                for (int j = 0; j < nl; j++)
+                    if (alone[i] && alone[j] && (spaced(i, j) || spaced(j, i))) alone[i] = 2;
+            for (int i = 0; i < nl; i++)
+                for (int j = 0; j < nl; j++)
+                    if ((alone[i] == 2 || alone[j] == 2) && spaced(i, j)) lunite(i, j);
+            secure_zero(alone, nl);
+            free(alone);
+        }
         // A letter next to the table round the page (see the corners, below).
         auto at_edge = [&](const Blob &q) {
             const int pad = BLK / 2;   // the corner's shadow reaches past the block
