@@ -31,7 +31,7 @@ The seed lives in RAM only: Forget seed or unplugging removes it.
    a chip for a passphrase or a multisig wallet). A fingerprint icon marks the
    fingerprint on every screen that shows one. Scan QR for everyday use, and
    Wallet options for the rest:
-   Connect wallet and Back up as QR, then Passphrase, Child seed and Network,
+   Connect wallet and Back up, then Passphrase, Child seed and Network,
    then Forget seed on its own; the list scrolls
 3. Scan QR: one scanner for a transaction to sign, an address to verify, or a
    multisig descriptor; the device tells them apart by their format
@@ -158,7 +158,7 @@ returns to Wallet with the fingerprint of seed plus passphrase, to check
 against the wallet app. An empty passphrase removes it. The
 device keeps only the derived key, not the passphrase; both go with Forget seed
 or unplugging. Signing, Verify address, Connect wallet and Child seed
-then all use the passphrase wallet. Back up as QR still writes the seed alone:
+then all use the passphrase wallet. Back up still writes the seed alone:
 the passphrase is never part of a backup. Characters outside ASCII and a
 passphrase QR aren't supported.
 
@@ -201,7 +201,17 @@ Then an offline warning, the words to write down on one scrolling list ("Written
 it has been scrolled to its end), and the fingerprint to write on the backup ("One moment" while it is derived, a few seconds on the board; "Seed ready" only shows with it); leaving it wipes the seed.
 The new seed isn't loaded: scan or type what you wrote to load it, which also checks the backup.
 
-Back up as QR (Wallet options) copies whatever seed is loaded onto a paper
+Back up lists the ways to copy a seed off the device: SeedQR and Word
+numbers. It is in Wallet options for whatever seed is loaded, and on Seed ready
+for a seed just made (beside Done; the seed still isn't loaded, and Done
+forgets it). Each way starts with the offline warning.
+
+Word numbers shows every word as its place in the BIP-39 list, counted from 1
+(`abandon` is 0001, `zoo` is 2048) and always four digits, with the word beside
+it to check against: for stamping numbers into metal. They are not the numbers
+inside a SeedQR, which count from 0.
+
+SeedQR copies the seed onto a paper
 QR card: a Compact SeedQR (21×21 for 12 words, 25×25 for 24)
 shown whole, then copied one part (5×5 squares) at a time, labelled with column letters
 and row numbers like the card's grid (21×21 splits 5+5+5+6, so no thin

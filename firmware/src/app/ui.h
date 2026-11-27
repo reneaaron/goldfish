@@ -8,7 +8,7 @@
 //   Wallet -> Scan QR: one scanner for a transaction or an address
 //        transaction -> Review -> each output -> Swipe to sign -> Signed QR -> Wallet
 //        address -> searching -> verified / not from this seed
-//   Wallet -> Wallet options -> Connect wallet | Back up as QR | Passphrase | Child seed | Wipe
+//   Wallet -> Wallet options -> Connect wallet | Back up | Passphrase | Child seed | Wipe
 //   Passphrase (optional, BIP-39) -> keyboard -> Wallet with the passphrase's fingerprint
 //   Connect wallet: the key's QR; tap it for fingerprint, path and the whole
 //        key; "For a multisig wallet" switches to the BIP-48 key, RAM only
@@ -26,8 +26,10 @@
 //   Home -> New seed (12 words) -> dice rolls | coin flips | draw words + coins for the last
 //        -> (rolls or flips look made up? start over, or "I really rolled these")
 //        -> offline warning -> write down the words -> Seed ready (not loaded) -> Home
-//   Wallet options -> Back up as QR -> a QR card: whole SeedQR, each block,
+//        Seed ready -> Back up: the same menu as in Wallet options, for the new seed
+//   Wallet options (or Seed ready) -> Back up -> SeedQR -> a QR card: whole SeedQR, each block,
 //        optional card check
+//        -> Word numbers -> each word's place in the BIP-39 list (1 to 2048), for metal
 //   Home -> tap the version -> Update firmware? -> Restart: the board's ROM
 //        bootloader, a USB drive for firmware.uf2 (only with no seed loaded)
 //   Wallet options -> Child seed (BIP-85): child number -> the New seed
@@ -59,6 +61,8 @@ enum UiScreen {
     UI_BACKUP_QR,        // the whole SeedQR
     UI_BACKUP_BLOCK,     // one 5x5 block per screen
     UI_BACKUP_SCAN,      // scan the hand-made card; must hold the same seed
+    UI_BACKUP_OPTIONS,   // Back up: SeedQR | Word numbers
+    UI_BACKUP_NUMBERS,   // each word's place in the BIP-39 list, 1 to 2048
     UI_SEED_READY,       // end of New seed: fingerprint, nothing loaded
     UI_CHILD_INDEX,      // BIP-85 child seed: child number keypad, 12 words
     UI_MULTISIG,         // a scanned multisig descriptor, to check before it is used
@@ -90,7 +94,9 @@ void ui_multisig_use();        // "Use wallet" on the Multisig wallet screen
 void ui_key_details();         // tap the Connect wallet card: QR <-> its text
 // Start UI_ENTROPY_DICE, _COINS or UI_ENTER_WORDS; draw: the words are a new seed (last word from coins).
 void ui_seed_entry(UiScreen method, int words, bool draw = false);
-void ui_backup_loaded();       // "Back up as QR" in the seed menu
+void ui_backup_options();      // Wallet options -> Back up
+void ui_backup_loaded();       // Back up -> SeedQR
+void ui_backup_numbers();      // Back up -> Word numbers
 void ui_entropy_input(char c); // a dice key ('1'..'6') or coin key ('1' heads, '0' tails)
 void ui_entropy_accept();      // "I really rolled these" on the made-up warning
 void ui_entropy_restart();     // "Start over" there

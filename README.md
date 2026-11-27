@@ -50,7 +50,9 @@ signed with Sparrow, on mainnet too. The code hasn't been reviewed or audited.
    word from coin flips), warns when the rolls or flips look made up
    (advice only) and shows the words to write down. Blank word cards for
    12-word seeds to print are in [`cards/`](cards). Any loaded seed can
-   also be copied onto a paper QR card, square by square (Back up as QR).
+   also be copied onto a paper QR card, square by square, or shown as word
+   numbers (1 to 2048) for a metal backup (Back up, in Wallet options and
+   after a new seed).
 2. Connect wallet (in Wallet options): show the public key as a QR, so
    Sparrow (or another wallet app) can set up a watch-only wallet that tracks
    your balance and builds transactions.
