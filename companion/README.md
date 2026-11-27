@@ -29,7 +29,8 @@ the guides still use Sparrow.
 - The watch-only key and the server are saved in `settings.json` in the app's
   data folder (`~/.local/share/dev.goldfish.companion/` on Linux), so the
   wallet reopens on start. Settings → Forget this wallet removes the key.
-- Optional password (Settings → Password): the key and the server then go to
+- Optional password (offered in the first-use wizard after the server, or
+  Settings → Password): the key and the server then go to
   `settings.age` instead, encrypted in the [age](https://age-encryption.org)
   format with a scrypt passphrase, and `settings.json` is deleted. Dove asks for the password on start and keeps it in memory
   while it runs, to encrypt again on each save. Forgot it? "Start over" on

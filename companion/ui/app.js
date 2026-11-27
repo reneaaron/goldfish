@@ -241,8 +241,8 @@ function linked(o) {
   sync();
 }
 
-// ---- first use: welcome, how many signers, link, server, check on Goldfish
-const STEPS = ["welcome", "type", "link", "server", "done"];
+// ---- first use: welcome, how many signers, link, server, password, check on Goldfish
+const STEPS = ["welcome", "type", "link", "server", "password", "done"];
 let wzStep = "welcome";
 let wzMultisig = false;
 let wzServer = "public";
@@ -253,12 +253,17 @@ function step(name) {
   error("");
   for (const s of STEPS) $("wz-" + s).hidden = s !== name;
   const i = STEPS.indexOf(name);
-  // four dots for the steps after the welcome
+  // a dot for each step after the welcome
   $("wz-dots").hidden = i === 0;
   [...$("wz-dots").children].forEach((d, j) => d.classList.toggle("on", j < i));
   $("wz-back").hidden = i === 0;
-  $("wz-next").hidden = !["welcome", "server", "done"].includes(name);
-  button($("wz-next"), { welcome: "Get started", server: "Continue", done: "Open wallet" }[name] || "", false);
+  $("wz-next").hidden = !["welcome", "server", "password", "done"].includes(name);
+  button($("wz-next"), { welcome: "Get started", server: "Continue", password: "Set password", done: "Open wallet" }[name] || "", false);
+  $("wz-skip").hidden = name !== "password";
+  if (name === "password") {
+    $("wz-pw").value = $("wz-pw-again").value = "";
+    $("wz-pw").focus();
+  }
   $("link-scan").hidden = $("link-alt").hidden = true;
   if (name === "link") linkPanel(wzMultisig ? "ms" : null);
   // a server saved before (it stays when a wallet is forgotten) is kept, not swapped for the public one
@@ -272,13 +277,32 @@ function step(name) {
 }
 $("wz-back").onclick = () => {
   if (wzStep === "link" && !$("link-paste").hidden) return linkPanel(null);
-  step(STEPS[STEPS.indexOf(wzStep) - 1]);
+  // the password step is passed over once there is one
+  step(wzStep === "done" && hasPassword ? "server" : STEPS[STEPS.indexOf(wzStep) - 1]);
 };
 $("wz-next").onclick = async () => {
   if (wzStep === "welcome") step("type");
   else if (wzStep === "server") saveServer();
+  else if (wzStep === "password") savePassword();
   else if (wzStep === "done") linked(current);
 };
+$("wz-skip").onclick = () => step("done");
+$("wz-password").onsubmit = (ev) => {
+  ev.preventDefault();
+  savePassword();
+};
+async function savePassword() {
+  if (!$("wz-pw").value) return error("Enter a password, or skip this step.");
+  if ($("wz-pw").value !== $("wz-pw-again").value) return error("The two passwords don't match.");
+  button($("wz-next"), "Locking…", true);
+  try {
+    await call("set_password", { password: $("wz-pw").value });
+  } catch (_) {
+    return button($("wz-next"), "Set password", false); // shown in the error line
+  }
+  hasPassword = true;
+  step("done");
+}
 for (const b of document.querySelectorAll("[data-type]"))
   b.onclick = () => {
     wzMultisig = b.dataset.type === "ms";
@@ -308,7 +332,7 @@ async function saveServer() {
       return button($("wz-next"), "Continue", false); // shown in the error line
     }
   }
-  step("done");
+  step(hasPassword ? "done" : "password");
 }
 // The last step: for one signer, the first address to check on Goldfish;
 // for multisig, the wallet for each Goldfish to scan.

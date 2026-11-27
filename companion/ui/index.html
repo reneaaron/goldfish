@@ -51,11 +51,11 @@
       </div>
     </section>
 
-    <!-- First use: welcome, how many signers, link, server, check -->
+    <!-- First use: welcome, how many signers, link, server, password, check -->
     <section id="v-link" class="onboard">
       <div class="onboard-top">
         <span class="lockup"><img src="dove.svg" alt="">dove</span>
-        <div id="wz-dots" class="wz-dots" aria-hidden="true" hidden><i></i><i></i><i></i><i></i></div>
+        <div id="wz-dots" class="wz-dots" aria-hidden="true" hidden><i></i><i></i><i></i><i></i><i></i></div>
       </div>
       <div class="onboard-body">
         <div id="wz-welcome">
@@ -88,6 +88,13 @@
             <p class="field-hint">Using Tor with an Electrum server? Enter <code>socks5://127.0.0.1:9050</code>.</p>
           </div>
         </div>
+        <form id="wz-password" hidden>
+          <h1 class="display">Lock Dove?</h1>
+          <p class="para">Optional. With a password, Dove locks your wallet and server on this computer and asks for it when it opens.</p>
+          <label class="field"><span>Password</span><input id="wz-pw" type="password" autocomplete="new-password"></label>
+          <label class="field"><span>Again</span><input id="wz-pw-again" type="password" autocomplete="new-password"></label>
+          <p class="field-hint">Forgot it? Link the wallet again from your signer; your coins stay where they are.</p>
+        </form>
         <div id="wz-done" hidden>
           <h1 class="display" id="done-title"></h1>
           <p class="gf-hint"><img class="gf" src="goldfish.svg" alt="On Goldfish"><span id="done-hint"></span></p>
@@ -132,6 +139,7 @@
           <button id="link-paste-toggle" class="link">Paste key instead</button>
         </div>
         <button id="wz-next" class="primary wide"><span>Get started</span></button>
+        <button id="wz-skip" class="link center-block" hidden>Skip for now</button>
         <button id="wz-back" class="link center-block" hidden>Back</button>
       </div>
     </section>
