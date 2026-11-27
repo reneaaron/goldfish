@@ -27,18 +27,20 @@ the guides still use Sparrow.
   button: the seeds alone don't bring a multisig wallet back), server (public or your own node, checked before it's saved),
   then a check on Goldfish: the first address for one signer, the
   descriptor for multisig.
-- The watch-only key and the server are saved in `settings.json` in the app's
-  data folder (`~/.local/share/dev.goldfish.companion/` on Linux), so the
-  wallet reopens on start. Settings → Forget this wallet removes the key.
+- The watch-only key, the server and what the last sync found (the wallet's
+  transactions and the last block synced) are saved in `settings.json` in
+  the app's data folder (`~/.local/share/dev.goldfish.companion/` on Linux),
+  so the wallet reopens on start with its history. Settings → Forget this
+  wallet removes the key and the history.
 - Optional password (offered in the first-use wizard after the server, or
-  Settings → Password): the key and the server then go to
+  Settings → Password): the settings then go to
   `settings.age` instead, encrypted in the [age](https://age-encryption.org)
   format with a scrypt passphrase, and `settings.json` is deleted. Dove asks for the password on start and keeps it in memory
   while it runs, to encrypt again on each save. Forgot it? "Start over" on
   the unlock screen deletes `settings.age`; link the wallet again from the
   signer. What the password protects is privacy (balance, addresses, history
   for anyone who gets the disk), not coins: the file only ever holds a
-  watch-only key. It does not hide anything from the server, which still sees
+  watch-only key and what anyone with that key can look up. It does not hide anything from the server, which still sees
   every address Dove asks about, and a deleted `settings.json` may stay
   readable in the disk's free space.
 - Server: your own Electrum server (`ssl://host:50002`, `tcp://host:50001`) or
@@ -49,6 +51,24 @@ the guides still use Sparrow.
   normal. Empty means a public Electrum server (Blockstream on mainnet,
   mempool.space on signet): Esplora on mempool.space hangs on `/blocks` in
   the client's HTTP library.
+- Peer-to-peer (a spike, `src/p2p.rs`): `p2p://` syncs from Bitcoin's
+  peer-to-peer network with compact block filters (BIP157/158, bdk_kyoto),
+  so no server learns the wallet's addresses: peers send a filter per block,
+  Dove checks it itself and downloads only the whole blocks that match.
+  `p2p://host:8333` uses only your own node (Bitcoin Core with
+  `blockfilterindex=1` and `peerblockfilters=1`; a pruned node should work
+  for the blocks it still has, untested). Tor: proxy `tor` uses Tor built
+  into Dove (arti, `src/tor.rs`; nothing to install, a few seconds to start,
+  its directory cached in the app's data folder under `tor/`), or
+  `socks5://127.0.0.1:9050` for a Tor you run; DNS seeds are looked up
+  through Tor too. Proxy `tor` works for Electrum servers as well. A
+  wallet's first sync scans from genesis on test networks and from segwit's
+  activation on mainnet, which takes long; after that Dove keeps what it
+  found (see Settings), so later syncs, after a restart too, check only
+  blocks since the last one. No
+  mempool: an incoming payment shows once it is in a block. Fee suggestions
+  are what the last three blocks paid on average. Each sync, broadcast and
+  fee lookup runs a node only for as long as it needs.
 - Multisig: link from the wallet's descriptor (`<0;1>`, `{0,1}` or `0`
   children, checksum checked when present) or from the cosigners' keys plus
   the signatures needed; Goldfish's multisig Connect wallet key (`Vpub`) is

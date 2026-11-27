@@ -1,0 +1,150 @@
+//! Tor built in, with arti (the Tor Project's Tor in Rust): nothing to
+//! install. It starts on first use and runs until Dove quits, behind a
+//! SOCKS5 proxy on a random localhost port that the p2p node and the
+//! Electrum client use like any other proxy (proxy setting `tor`).
+
+use std::net::{IpAddr, SocketAddr};
+use std::path::PathBuf;
+use std::sync::{mpsc, Mutex, OnceLock};
+use std::time::Duration;
+
+use arti_client::{config::TorClientConfigBuilder, DangerouslyIntoTorAddr, IntoTorAddr, TorAddr, TorClient};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
+
+use crate::Res;
+
+/// Where arti keeps its state and its copy of the network's directory, so
+/// later starts are quicker. Set once at startup.
+static DIR: OnceLock<PathBuf> = OnceLock::new();
+static PROXY: Mutex<Option<SocketAddr>> = Mutex::new(None);
+
+const BOOTSTRAP_TIMEOUT: Duration = Duration::from_secs(120);
+
+pub fn set_dir(dir: PathBuf) {
+    let _ = DIR.set(dir);
+}
+
+/// The local SOCKS5 address of the built-in Tor, starting it if it isn't
+/// running yet (that takes a few seconds, longer the first time).
+pub fn proxy() -> Res<SocketAddr> {
+    let mut running = PROXY.lock().unwrap();
+    if let Some(addr) = *running {
+        return Ok(addr);
+    }
+    let dir = DIR.get().cloned().ok_or("Tor: no folder for its state")?;
+    let (tx, rx) = mpsc::channel::<Res<SocketAddr>>();
+    std::thread::Builder::new()
+        .name("tor".into())
+        .spawn(move || {
+            let rt = match tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build() {
+                Ok(rt) => rt,
+                Err(e) => return drop(tx.send(Err(e.to_string()))),
+            };
+            rt.block_on(serve(dir, tx));
+        })
+        .map_err(|e| e.to_string())?;
+    let addr = rx
+        .recv_timeout(BOOTSTRAP_TIMEOUT)
+        .map_err(|_| "Tor didn't connect in time".to_string())??;
+    *running = Some(addr);
+    Ok(addr)
+}
+
+async fn serve(dir: PathBuf, ready: mpsc::Sender<Res<SocketAddr>>) {
+    let config = match TorClientConfigBuilder::from_directories(dir.join("state"), dir.join("cache")).build() {
+        Ok(c) => c,
+        Err(e) => return drop(ready.send(Err(format!("Tor: {e}")))),
+    };
+    let tor = match TorClient::create_bootstrapped(config).await {
+        Ok(t) => t,
+        Err(e) => return drop(ready.send(Err(format!("Tor: {e}")))),
+    };
+    let listener = match TcpListener::bind("127.0.0.1:0").await {
+        Ok(l) => l,
+        Err(e) => return drop(ready.send(Err(e.to_string()))),
+    };
+    let _ = ready.send(listener.local_addr().map_err(|e| e.to_string()));
+    while let Ok((stream, _)) = listener.accept().await {
+        let tor = tor.clone();
+        tokio::spawn(async move {
+            if let Err(e) = socks5(stream, &tor).await {
+                eprintln!("tor: {e}");
+            }
+        });
+    }
+}
+
+/// Just enough SOCKS5 (RFC 1928) for our own clients: no authentication,
+/// CONNECT, and Tor's RESOLVE (0xF0), which the p2p node uses to look up its
+/// DNS seeds through Tor.
+async fn socks5(mut s: TcpStream, tor: &TorClient<tor_rtcompat::PreferredRuntime>) -> Res<()> {
+    let e = |e: std::io::Error| e.to_string();
+    let mut head = [0u8; 2];
+    s.read_exact(&mut head).await.map_err(e)?;
+    let mut methods = vec![0u8; head[1] as usize];
+    s.read_exact(&mut methods).await.map_err(e)?;
+    if head[0] != 5 || !methods.contains(&0) {
+        s.write_all(&[5, 0xff]).await.map_err(e)?;
+        return Err("SOCKS: no supported method".into());
+    }
+    s.write_all(&[5, 0]).await.map_err(e)?;
+    let mut req = [0u8; 4];
+    s.read_exact(&mut req).await.map_err(e)?;
+    if req[0] == 5 && req[1] == 0xF0 && req[3] == 3 {
+        let len = s.read_u8().await.map_err(e)? as usize;
+        let mut name = vec![0u8; len];
+        s.read_exact(&mut name).await.map_err(e)?;
+        let _port = s.read_u16().await.map_err(e)?;
+        let name = String::from_utf8(name).map_err(|_| "SOCKS: bad host name".to_string())?;
+        let ips = tor.resolve(&name).await.map_err(|e| e.to_string());
+        let reply = match ips.as_deref() {
+            Ok([IpAddr::V4(ip), ..]) => [&[5, 0, 0, 1][..], &ip.octets(), &[0, 0]].concat(),
+            Ok([IpAddr::V6(ip), ..]) => [&[5, 0, 0, 4][..], &ip.octets(), &[0, 0]].concat(),
+            _ => vec![5, 4, 0, 1, 0, 0, 0, 0, 0, 0],
+        };
+        s.write_all(&reply).await.map_err(e)?;
+        return ips.map(|_| ());
+    }
+    if req[0] != 5 || req[1] != 1 {
+        s.write_all(&[5, 7, 0, 1, 0, 0, 0, 0, 0, 0]).await.map_err(e)?;
+        return Err("SOCKS: only CONNECT".into());
+    }
+    let target: Res<TorAddr> = match req[3] {
+        1 | 4 => {
+            let mut ip = vec![0u8; if req[3] == 1 { 4 } else { 16 }];
+            s.read_exact(&mut ip).await.map_err(e)?;
+            let port = s.read_u16().await.map_err(e)?;
+            let ip: IpAddr = if ip.len() == 4 {
+                <[u8; 4]>::try_from(ip).unwrap().into()
+            } else {
+                <[u8; 16]>::try_from(ip).unwrap().into()
+            };
+            // a peer's address, not a name we looked up ourselves
+            (ip, port).into_tor_addr_dangerously().map_err(|e| e.to_string())
+        }
+        3 => {
+            let len = s.read_u8().await.map_err(e)? as usize;
+            let mut name = vec![0u8; len];
+            s.read_exact(&mut name).await.map_err(e)?;
+            let port = s.read_u16().await.map_err(e)?;
+            let name = String::from_utf8(name).map_err(|_| "SOCKS: bad host name".to_string())?;
+            (name, port).into_tor_addr().map_err(|e| e.to_string())
+        }
+        _ => Err("SOCKS: unknown address type".into()),
+    };
+    let stream = match target {
+        Ok(t) => tor.connect(t).await.map_err(|e| e.to_string()),
+        Err(err) => Err(err),
+    };
+    let mut stream = match stream {
+        Ok(st) => st,
+        Err(err) => {
+            let _ = s.write_all(&[5, 4, 0, 1, 0, 0, 0, 0, 0, 0]).await; // host unreachable
+            return Err(err);
+        }
+    };
+    s.write_all(&[5, 0, 0, 1, 0, 0, 0, 0, 0, 0]).await.map_err(e)?;
+    let _ = tokio::io::copy_bidirectional(&mut s, &mut stream).await;
+    Ok(())
+}
