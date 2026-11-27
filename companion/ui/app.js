@@ -868,12 +868,23 @@ function openReady() {
   show("ready");
   $("ready-txid").textContent = shortId(waiting);
   $("ready-txid").title = waiting;
+  $("ready-server").hidden = true;
 }
 $("w-waiting").onclick = openReady;
-$("ready-send").onclick = async () => {
-  $("ready-send").disabled = true;
+// viaServer: after Tor or its peers failed, through the wallet's server after all
+async function broadcast(viaServer) {
+  const buttons = [$("ready-send"), $("ready-server")];
+  buttons.forEach((b) => (b.disabled = true));
+  const status = $("ready-sending");
+  status.hidden = false;
+  let tor = false;
   try {
-    const txid = await call("broadcast_signed");
+    if (!viaServer) {
+      status.textContent = "Connecting to Tor…";
+      tor = await call("tor_ready");
+    }
+    status.textContent = tor ? "Sending over Tor. This can take a minute or two." : "Sending…";
+    const txid = await call("broadcast_signed", { viaServer });
     waiting = null;
     show("sent");
     $("sent-txid").textContent = groups(txid);
@@ -882,11 +893,15 @@ $("ready-send").onclick = async () => {
     $("sent-explorer").onclick = () => window.__TAURI__.opener.openUrl(base + txid).catch(error);
     sync();
   } catch (_) {
-    // shown in the error line
+    // shown in the error line; Tor may be blocked here, so offer the server
+    if (!viaServer) $("ready-server").hidden = false;
   } finally {
-    $("ready-send").disabled = false;
+    buttons.forEach((b) => (b.disabled = false));
+    status.hidden = true;
   }
-};
+}
+$("ready-send").onclick = () => broadcast(false);
+$("ready-server").onclick = () => broadcast(true);
 
 async function copyText(text) {
   try {
