@@ -140,7 +140,7 @@ static void child_start_cb(lv_event_t *);
 // follows the finger:
 // - onto another key: that one is held instead, so a wrong key is corrected
 //   by sliding;
-// - onto a key that is off: the held key stays;
+// - onto a key that is off, or onto OK: the held key stays;
 // - well above the keyboard: the press is called off.
 // A lifting finger rolls and often reports a last position on the next key,
 // so a key held for less than KB_SETTLE ms when the finger lifts gives way to
@@ -174,7 +174,7 @@ static void kb_touch_cb(lv_event_t *e) {
             lv_obj_send_event(kb, LV_EVENT_PRESSED, lv_event_get_indev(e));   // the key under the finger
             kb_sliding = false;
             b = lv_buttonmatrix_get_selected_button(kb);
-            if (!kb_is_char(kb, b)) b = kb_held;
+            if (!kb_is_char(kb, b) || !strcmp(lv_buttonmatrix_get_button_text(kb, b), "OK")) b = kb_held;
         }
         lv_buttonmatrix_set_selected_button(kb, b);
         if (b != kb_held) {
@@ -820,7 +820,7 @@ static void pass_set_layer(int layer) {
     // repeating letter would add characters unnoticed, a repeating Del would
     // take more than was meant (Clear empties the field), a repeating layer
     // key would flip layers, and an OK touched by mistake can be slid off.
-    // Single characters get the popover (KB_CHAR).
+    // Every key gets the popover (KB_CHAR).
     static lv_buttonmatrix_ctrl_t ctrl[36];
     int b = 0;
     for (int i = 0; map[i][0]; i++) {

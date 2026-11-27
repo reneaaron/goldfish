@@ -384,7 +384,8 @@ def test_passphrase_gives_its_own_wallet(dev):
 def test_passphrase_layer_keys_and_ok_act_on_release(dev):
     """The layer keys and OK are keys like the rest: nothing happens while one
     is held, sliding off the keyboard calls it off, and lifting the finger
-    acts once. Switching layers types nothing."""
+    acts once. Switching layers types nothing. A letter slid onto OK stays the
+    letter."""
     load_by_words(dev, MNEMONIC)
     dev.tap("Wallet options")
     dev.tap("Passphrase")
@@ -410,6 +411,13 @@ def test_passphrase_layer_keys_and_ok_act_on_release(dev):
     dev.wait(200)
     dev.cmd("release")
     assert dev.screen == "PASSPHRASE" and field() == "x_"
+
+    dev.cmd("press %d %d" % mid("m"))            # slid onto OK: the letter, not OK
+    dev.wait(200)
+    dev.cmd("press %d %d" % mid("OK"))
+    dev.wait(200)
+    dev.cmd("release")
+    assert dev.screen == "PASSPHRASE" and field() == "xm_"
     dev.key("OK")
     assert dev.screen == "WALLET", dev.text()
 
