@@ -614,12 +614,12 @@ $("b-form").onsubmit = async (ev) => {
 let setServer = "public";
 function pickSetServer(kind) {
   setServer = kind;
-  for (const o of document.querySelectorAll("[data-set-server]")) o.setAttribute("aria-pressed", String(o.dataset.setServer === kind));
+  for (const r of document.querySelectorAll("[name=set-mode]")) r.checked = r.value === kind;
   $("set-own").hidden = kind !== "own";
 }
-for (const b of document.querySelectorAll("[data-set-server]"))
-  b.onclick = () => {
-    pickSetServer(b.dataset.setServer);
+for (const r of document.querySelectorAll("[name=set-mode]"))
+  r.onchange = () => {
+    pickSetServer(r.value);
     if (setServer === "own") $("set-url").focus();
   };
 $("set-form").onsubmit = async (ev) => {

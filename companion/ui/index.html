@@ -246,10 +246,10 @@
       <header class="bar"><button class="back" aria-label="Back"><svg><use href="#i-back"/></svg></button><h2>Settings</h2></header>
       <form id="set-form">
         <p class="label">Find payments</p>
-        <div class="choices set-choices">
-          <button type="button" class="choice" data-set-server="private"><span class="ic"><svg><use href="#i-shield"/></svg></span><span><b>Private</b><small>The Bitcoin network, through Tor. No server sees your addresses.</small></span></button>
-          <button type="button" class="choice" data-set-server="own"><span class="ic"><svg><use href="#i-settings"/></svg></span><span><b>My own node</b><small>Electrum, Esplora or Bitcoin Core you run.</small></span></button>
-          <button type="button" class="choice" data-set-server="public"><span class="ic"><svg><use href="#i-zap"/></svg></span><span><b>Public server</b><small>Quickest, but it sees your addresses.</small></span></button>
+        <div class="card radios">
+          <label class="radio"><input type="radio" name="set-mode" value="private"><span><b>Private</b><small>Through Tor. No server sees your addresses.</small></span></label>
+          <label class="radio"><input type="radio" name="set-mode" value="own"><span><b>My own node</b><small>Electrum, Esplora or Bitcoin Core you run.</small></span></label>
+          <label class="radio"><input type="radio" name="set-mode" value="public"><span><b>Public server</b><small>Quickest, but it sees your addresses.</small></span></label>
         </div>
         <div id="set-own" hidden>
           <label class="field"><span>Server</span><input id="set-url" spellcheck="false" autocomplete="off" placeholder="ssl://host:50002, https://… or p2p://host:8333"></label>
