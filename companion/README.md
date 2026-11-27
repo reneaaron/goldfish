@@ -22,9 +22,24 @@ the guides still use Sparrow.
 
 ## What it does
 
+- First use is a short wizard: welcome, one signer or multisig, link (scan
+  or paste), server (public or your own node, checked before it's saved),
+  then a check on Goldfish: the first address for one signer, the
+  descriptor for multisig.
 - The watch-only key and the server are saved in `settings.json` in the app's
   data folder (`~/.local/share/dev.goldfish.companion/` on Linux), so the
   wallet reopens on start. Settings → Forget this wallet removes the key.
+- Optional password (offered in the first-use wizard after the server, or
+  Settings → Password): the key and the server then go to
+  `settings.age` instead, encrypted in the [age](https://age-encryption.org)
+  format with a scrypt passphrase, and `settings.json` is deleted. Dove asks for the password on start and keeps it in memory
+  while it runs, to encrypt again on each save. Forgot it? "Start over" on
+  the unlock screen deletes `settings.age`; link the wallet again from the
+  signer. What the password protects is privacy (balance, addresses, history
+  for anyone who gets the disk), not coins: the file only ever holds a
+  watch-only key. It does not hide anything from the server, which still sees
+  every address Dove asks about, and a deleted `settings.json` may stay
+  readable in the disk's free space.
 - Server: your own Electrum server (`ssl://host:50002`, `tcp://host:50001`) or
   Esplora API (`https://…`), optionally through a proxy. Tor:
   `socks5://127.0.0.1:9050` for Electrum; the Esplora client takes only an
@@ -79,6 +94,11 @@ cargo run                 # the app; GOLDFISH_CAMERA=/dev/video2 for another cam
 cargo test                # logic tests
 cd .. && uv run --with-requirements ../firmware/e2e/requirements.txt pytest e2e   # with the simulator
 ```
+
+The dock shows a generic icon until a desktop entry names the app: run
+`./desktop-entry.sh` once (it writes `goldfish-companion.desktop` and the icon
+into `~/.local/share`, launching the debug build of this checkout, so run it
+from the main checkout rather than a worktree).
 
 ## Not done yet
 
