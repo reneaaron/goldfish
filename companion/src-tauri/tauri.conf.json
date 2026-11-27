@@ -26,6 +26,13 @@
     "targets": ["deb", "appimage"],
     "icon": ["icons/icon.png"],
     "category": "Finance",
-    "shortDescription": "Watch-only wallet for Goldfish"
+    "shortDescription": "Watch-only wallet for Goldfish",
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "PUBKEY",
+      "endpoints": ["https://reneaaron.github.io/goldfish/wallet/latest.json"]
+    }
   }
 }

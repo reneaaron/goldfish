@@ -75,6 +75,15 @@ the guides still use Sparrow.
   onto. The board restarts as soon as the last block is in, so a final flush
   that fails because the drive is gone counts as done. An HTTP proxy in
   Settings is used; a SOCKS one refuses, rather than going around it.
+- Updating Dove itself: an installed `.deb` or AppImage looks for a newer
+  version once per start, when the wallet screen opens (after unlock, so the
+  proxy in Settings applies; with a SOCKS proxy it doesn't look at all). The
+  feed is `https://reneaaron.github.io/goldfish/wallet/latest.json`: GitHub
+  sees your IP address (or the proxy's) and that a Dove started. A newer version shows as a banner, and
+  nothing is downloaded until you click it. Tauri's updater then checks the
+  file's signature against the public key in `tauri.conf.json`, installs it
+  (the AppImage in place; the `.deb` with `pkexec dpkg -i`, which asks for
+  your system password) and restarts. A `cargo run` build never looks.
 - Look: the draft brand, Dove (mark, wordmark and app icon); its blue (the
   case blue) where Goldfish's screen uses orange, which is otherwise only in
   the mark's feet; and
@@ -124,7 +133,13 @@ it checks the tag against the version in `Cargo.toml` and `tauri.conf.json`
 (bump both, and `Cargo.lock`, first), runs the tests, builds the `.deb` and
 the AppImage with `cargo tauri build` (the tools Tauri downloads for the
 AppImage are fetched first and checked against `appimage-tools.sha256`), and
-publishes them with `SHA256SUMS` and a build provenance attestation per file. The release is never marked
+publishes them with `SHA256SUMS` and a build provenance attestation per file.
+Tauri signs both with the updater key (repo secrets
+`TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; the
+build fails without them), and the release's `latest.json` lists them with
+their signatures; the website workflow then serves the newest one at
+`/wallet/latest.json`. Lose the key and installed copies can't update any
+more: keep a backup outside GitHub. The release is never marked
 latest: Dove's Update Goldfish and the website take the latest release as
 Goldfish's, whose tags are `v*`. These builds aren't reproducible, unlike the
 firmware.
