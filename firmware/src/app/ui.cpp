@@ -2797,7 +2797,7 @@ static void build_seed_ready() {
     lv_obj_t *scr = screen();
     if (!ready_fp[0]) {
         lv_obj_align(text(scr, "One moment" "\xE2\x80\xA6", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 118);
-        lv_obj_align(para(scr, "Deriving the seed's fingerprint.\nThis takes a few seconds."), LV_ALIGN_TOP_MID, 0, 154);
+        lv_obj_align(para(scr, "Preparing your seed.\nThis takes a few seconds."), LV_ALIGN_TOP_MID, 0, 154);
         show(scr);
         ready_timer = lv_timer_create(ready_tick, 200, nullptr);   // after the fade-in
         lv_timer_set_repeat_count(ready_timer, 1);
