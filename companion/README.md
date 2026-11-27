@@ -6,7 +6,7 @@ transactions as PSBTs, shows them to Goldfish as QR codes, reads the signed
 PSBT back from Goldfish's screen and broadcasts it. Draft brand name **Dove**
 (`marketing/companion/`).
 
-Status: a spike in Tauri 2, Linux desktop only: single-sig native segwit
+Status: 0.1, in Tauri 2, Linux desktop only: single-sig native segwit
 (`84h`) or `wsh(sortedmulti)` multisig, signet or mainnet. Not for real funds;
 the guides still use Sparrow.
 
@@ -115,6 +115,22 @@ The dock shows a generic icon until a desktop entry names the app: run
 `./desktop-entry.sh` once (it writes `goldfish-companion.desktop` and the icon
 into `~/.local/share`, launching the debug build of this checkout, so run it
 from the main checkout rather than a worktree).
+
+## Release
+
+A `dove-v*` tag (`dove-v0.1.0`) runs `.github/workflows/companion-release.yml`:
+it checks the tag against the version in `Cargo.toml` and `tauri.conf.json`
+(bump both, and `Cargo.lock`, first), runs the tests, builds the `.deb` and
+the AppImage with `cargo tauri build`, and publishes them with `SHA256SUMS`
+and a build provenance attestation per file. The release is never marked
+latest: Dove's Update Goldfish and the website take the latest release as
+Goldfish's, whose tags are `v*`. These builds aren't reproducible, unlike the
+firmware.
+
+```bash
+gh attestation verify Dove_0.1.0_amd64.AppImage --repo reneaaron/goldfish \
+  --signer-workflow reneaaron/goldfish/.github/workflows/companion-release.yml --source-ref refs/tags/dove-v0.1.0
+```
 
 ## Not done yet
 

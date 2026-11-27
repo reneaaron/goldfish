@@ -1,8 +1,9 @@
 # PlatformIO pre-build script: writes include/version.h with FW_VERSION, the
 # version the home screen shows. A build of a tagged commit is that tag
-# (v0.1.0); anything else is the short commit hash. "+" marks uncommitted
-# changes. The file is only rewritten when the version changes, so a normal
-# rebuild doesn't recompile ui.cpp.
+# (v0.1.0; dove-v* tags are the companion's and don't count); anything else
+# is the short commit hash. "+" marks uncommitted changes. The file is only
+# rewritten when the version changes, so a normal rebuild doesn't recompile
+# ui.cpp.
 import os
 import subprocess
 
@@ -17,7 +18,7 @@ def git(*args):
         return ""
 
 
-version = git("describe", "--tags", "--exact-match") or git("rev-parse", "--short=7", "HEAD") or "unknown"
+version = git("describe", "--tags", "--exact-match", "--match", "v*") or git("rev-parse", "--short=7", "HEAD") or "unknown"
 if git("status", "--porcelain", "--untracked-files=no"):
     version += "+"
 

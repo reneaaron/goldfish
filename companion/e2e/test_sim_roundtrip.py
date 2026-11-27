@@ -31,7 +31,7 @@ def cli(*args, stdin=None):
 
 def test_companion_psbt_is_signed_by_goldfish(tmp_path):
     subprocess.run(["pio", "run", "-e", "sim", "-s"], cwd=FIRMWARE, check=True)
-    subprocess.run(["cargo", "build", "-q", "--bin", "companion-cli"], cwd=COMPANION / "src-tauri", check=True)
+    subprocess.run(["cargo", "build", "-q", "--features", "cli", "--bin", "companion-cli"], cwd=COMPANION / "src-tauri", check=True)
     assert BINARY.exists()
     dev = Device(tmp_path)
     try:
@@ -83,7 +83,7 @@ def test_companion_multisig_two_of_three(tmp_path):
     from embit.psbt import PSBT
 
     subprocess.run(["pio", "run", "-e", "sim", "-s"], cwd=FIRMWARE, check=True)
-    subprocess.run(["cargo", "build", "-q", "--bin", "companion-cli"], cwd=COMPANION / "src-tauri", check=True)
+    subprocess.run(["cargo", "build", "-q", "--features", "cli", "--bin", "companion-cli"], cwd=COMPANION / "src-tauri", check=True)
     cosigners = [Seed("zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong"),
                  Seed("legal winner thank year wave sausage worth useful legal winner thank yellow")]
     dev = Device(tmp_path)
