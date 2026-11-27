@@ -29,7 +29,13 @@ The seed lives in RAM only: Forget seed or unplugging removes it.
 2. Wallet: the home screen once a seed is loaded, shaped like Home: the logo,
    "Ready to sign", and the fingerprint to check against your wallet app (with
    a chip for a passphrase or a multisig wallet). A fingerprint icon marks the
-   fingerprint on every screen that shows one. Scan QR for everyday use, and
+   fingerprint on every screen that shows one, and beside it is its LifeHash:
+   a small picture made from the fingerprint, easier to recognise and compare
+   than eight hex digits. It is the picture Sparrow shows beside a keystore's
+   master fingerprint (LifeHash version 2 of the fingerprint's 4 bytes), so it
+   changes with the passphrase as the fingerprint does. Tap it for double size.
+   It is on Wallet, Seed ready, the key details, Forget seed and each key of a
+   multisig wallet. Scan QR for everyday use, and
    Wallet options for the rest:
    Connect wallet and Back up as QR, then Passphrase, Child seed and Network,
    then Forget seed on its own; the list scrolls
@@ -378,6 +384,9 @@ pio test -e test
 - Verify address: BIP84's three addresses (receive 0 and 1, change 0), URIs and their
   amounts, testnet, foreign addresses, and a different seed loaded afterwards;
   multisig receive and change addresses, with and without the descriptor
+- LifeHash: version 2 pictures, pixel for pixel, against ones made by Sparrow's
+  Java library (toucan 0.9.0): the fingerprints of public test seeds with and
+  without passphrases, 300 more, and toucan's own "Hello" test
 - Amounts: BIP177 and legacy BTC formatting from ₿0 to the 21M cap
 - Made-up rolls: fair dice and coin sequences (rolled once, pasted in) pass;
   counting 123456…, no face twice in a row, too-even face counts, one face

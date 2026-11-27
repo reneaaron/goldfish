@@ -16,6 +16,7 @@
 #include "psbt_review.h"
 #include "seed_create.h"
 #include "entropy_check.h"
+#include "lifehash.h"
 #include "qrscan.h"
 #include "seedqr.h"
 #include "theme.h"
@@ -267,6 +268,129 @@ static void kb_style(lv_obj_t *kb) {
     lv_obj_remove_flag(kb, LV_OBJ_FLAG_SCROLLABLE);   // a slide over the keys is not a scroll
     lv_obj_add_flag(kb, LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);
     lv_obj_add_event_cb(kb, kb_draw_cb, LV_EVENT_DRAW_TASK_ADDED, nullptr);
+}
+
+// ---------------------------------------------------------------- lifehash
+// A fingerprint's LifeHash: a small picture that is easier to recognise and to
+// compare than eight hex digits. It is the one Sparrow shows beside a
+// keystore's master fingerprint (lifehash.h), so the two can be held side by
+// side. Shown at its own 32 pixels (or smaller in a row); a tap shows it at
+// double size with the fingerprint under it, a tap anywhere puts that away.
+struct LifePic {
+    lv_image_dsc_t dsc;
+    uint8_t fp[4];
+    uint8_t px[LIFEHASH_SIDE * LIFEHASH_SIDE * 2];   // RGB565, as the screen has it
+};
+static lv_obj_t *life_zoom;
+
+static void life_zoom_close() {
+    if (!life_zoom) return;
+    lv_obj_delete(life_zoom);
+    life_zoom = nullptr;
+}
+
+static lv_obj_t *life_image(lv_obj_t *parent, const LifePic *p, int side) {
+    lv_obj_t *img = lv_image_create(parent);
+    lv_image_set_src(img, &p->dsc);
+    lv_obj_set_size(img, side, side);
+    lv_image_set_inner_align(img, LV_IMAGE_ALIGN_STRETCH);
+    lv_obj_add_flag(img, LV_OBJ_FLAG_USER_1);            // the simulator's control names these "lifehash"
+    return img;
+}
+
+static void life_zoom_cb(lv_event_t *e) {
+    const LifePic *p = (const LifePic *)lv_event_get_user_data(e);
+    life_zoom_close();
+    life_zoom = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(life_zoom);
+    lv_obj_set_size(life_zoom, W, H);
+    lv_obj_set_style_bg_color(life_zoom, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(life_zoom, LV_OPA_50, 0);
+    lv_obj_add_flag(life_zoom, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(life_zoom, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(life_zoom, [](lv_event_t *) { life_zoom_close(); }, LV_EVENT_CLICKED, nullptr);
+    lv_obj_t *c = card(life_zoom, 2 * LIFEHASH_SIDE + 48, 2 * LIFEHASH_SIDE + 64);
+    lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);         // a tap on it closes too
+    lv_obj_center(c);
+    // Every pixel as a 2x2 square, in a picture of its own (8 KB while it is
+    // open): scaled by the image widget the edges come out soft and a little off.
+    struct Big {
+        lv_image_dsc_t dsc;
+        uint8_t px[4 * sizeof(p->px)];
+    };
+    if (Big *b = (Big *)lv_malloc(sizeof(Big))) {
+        const int S = LIFEHASH_SIDE;
+        for (int y = 0; y < 2 * S; y++)
+            for (int x = 0; x < 2 * S; x++) memcpy(b->px + (y * 2 * S + x) * 2, p->px + (y / 2 * S + x / 2) * 2, 2);
+        b->dsc = p->dsc;
+        b->dsc.header.w = b->dsc.header.h = 2 * S;
+        b->dsc.header.stride = 4 * S;
+        b->dsc.data = b->px;
+        b->dsc.data_size = sizeof(b->px);
+        lv_obj_t *img = lv_image_create(c);
+        lv_image_set_src(img, &b->dsc);
+        lv_obj_add_flag(img, LV_OBJ_FLAG_USER_1);
+        lv_obj_align(img, LV_ALIGN_TOP_MID, 0, 4);
+        lv_obj_add_event_cb(img, [](lv_event_t *e) { lv_free(lv_event_get_user_data(e)); }, LV_EVENT_DELETE, b);
+    }
+    char fp[12];
+    snprintf(fp, sizeof(fp), "%02x%02x %02x%02x", p->fp[0], p->fp[1], p->fp[2], p->fp[3]);
+    lv_obj_align(text(c, fp, &mono_16, TEXT), LV_ALIGN_BOTTOM_MID, 0, -2);
+}
+
+// The picture for a fingerprint, `side` pixels square. nullptr when there is
+// no memory for it: the fingerprint's digits are still there.
+static lv_obj_t *life_pic(lv_obj_t *parent, const uint8_t fp[4], int side = LIFEHASH_SIDE) {
+    LifePic *p = (LifePic *)lv_malloc(sizeof(LifePic));
+    uint8_t *rgb = (uint8_t *)malloc(LIFEHASH_RGB);
+    if (!p || !rgb || !lifehash_v2(fp, 4, rgb)) {
+        if (p) lv_free(p);
+        free(rgb);
+        return nullptr;
+    }
+    for (int i = 0; i < LIFEHASH_SIDE * LIFEHASH_SIDE; i++) {
+        uint16_t c = uint16_t((rgb[3 * i] >> 3) << 11 | (rgb[3 * i + 1] >> 2) << 5 | rgb[3 * i + 2] >> 3);
+        p->px[2 * i] = uint8_t(c);
+        p->px[2 * i + 1] = uint8_t(c >> 8);
+    }
+    free(rgb);
+    memcpy(p->fp, fp, 4);
+    memset(&p->dsc, 0, sizeof(p->dsc));
+    p->dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
+    p->dsc.header.cf = LV_COLOR_FORMAT_RGB565;
+    p->dsc.header.w = p->dsc.header.h = LIFEHASH_SIDE;
+    p->dsc.header.stride = LIFEHASH_SIDE * 2;
+    p->dsc.data = p->px;
+    p->dsc.data_size = sizeof(p->px);
+    lv_obj_t *img = life_image(parent, p, side);
+    lv_obj_add_flag(img, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_ext_click_area(img, 6);
+    lv_obj_add_event_cb(img, life_zoom_cb, LV_EVENT_CLICKED, p);
+    lv_obj_add_event_cb(img, [](lv_event_t *e) {
+        life_zoom_close();                                // it shows these pixels
+        lv_free(lv_event_get_user_data(e));
+    }, LV_EVENT_DELETE, p);
+    return img;
+}
+// From the eight hex digits the screens have.
+static lv_obj_t *life_pic_hex(lv_obj_t *parent, const char *hex8, int side = LIFEHASH_SIDE) {
+    uint8_t fp[4];
+    size_t n = 0;
+    if (strlen(hex8) != 8 || wally_hex_to_bytes(hex8, fp, sizeof(fp), &n) != WALLY_OK || n != 4) return nullptr;
+    return life_pic(parent, fp, side);
+}
+
+// The fingerprint's pill with its picture before it, as one row.
+static lv_obj_t *fingerprint_row(lv_obj_t *parent, const char *hex8, const char *spaced, lv_obj_t **label = nullptr) {
+    lv_obj_t *row = lv_obj_create(parent);
+    lv_obj_remove_style_all(row);
+    lv_obj_set_size(row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(row, 8, 0);
+    if (hex8) life_pic_hex(row, hex8);
+    fingerprint_pill(row, spaced, label);
+    return row;
 }
 
 static void build_home() {
@@ -789,7 +913,7 @@ static void build_wallet() {
     char fp[9], spaced[12];
     wallet_fingerprint_hex(fp);
     snprintf(spaced, sizeof(spaced), "%.4s %.4s", fp, fp + 4);
-    lv_obj_align(fingerprint_pill(scr, spaced), LV_ALIGN_TOP_MID, 0, y + 118);
+    lv_obj_align(fingerprint_row(scr, fp, spaced), LV_ALIGN_TOP_MID, 0, y + 117);
 
     // What the fingerprint stands for, when it isn't just the seed; otherwise
     // what happens to it.
@@ -1064,6 +1188,7 @@ static void build_export_xpub() {
         snprintf(line, sizeof(line), ICON_FINGERPRINT " %.4s %.4s", fp, fp + 4);
         lv_obj_align(text(c, line, &inter_15, TEXT, LV_TEXT_ALIGN_LEFT), LV_ALIGN_TOP_LEFT, 0, 0);
         lv_obj_align(text(c, path, &inter_15, TEXT_2, LV_TEXT_ALIGN_LEFT), LV_ALIGN_TOP_LEFT, 0, 20);
+        if (lv_obj_t *pic = life_pic_hex(c, fp)) lv_obj_align(pic, LV_ALIGN_TOP_RIGHT, 0, 3);
         lv_obj_t *box = lv_obj_create(c);   // address_chunks puts its caption room at the top
         lv_obj_remove_style_all(box);
         lv_obj_set_size(box, lv_pct(100), LV_SIZE_CONTENT);
@@ -1142,6 +1267,7 @@ static void build_wipe_confirm() {
     wallet_fingerprint_hex(fp);
     snprintf(msg, sizeof(msg), "Removes " ICON_FINGERPRINT " %.4s %.4s until you load it again.", fp, fp + 4);
     lv_obj_align(para(scr, msg), LV_ALIGN_TOP_MID, 0, 162);
+    if (lv_obj_t *pic = life_pic_hex(scr, fp)) lv_obj_align(pic, LV_ALIGN_TOP_MID, 0, 208);
     bottom_pair(btn_ghost(scr, "Cancel", go_cb, GO(UI_WALLET_OPTIONS), TEXT), btn_danger(scr, "Forget", wipe_cb));
     show(scr);
 }
@@ -2703,6 +2829,8 @@ static void ready_tick(lv_timer_t *t) {
     seed_fingerprint_hex(pending, fp);
     snprintf(spaced, sizeof(spaced), "%.4s %.4s", fp, fp + 4);
     lv_label_set_text(l, spaced);
+    // Its picture, before the pill in their row.
+    if (lv_obj_t *pic = life_pic_hex(lv_obj_get_parent(lv_obj_get_parent(l)), fp)) lv_obj_move_to_index(pic, 0);
 }
 
 static void build_seed_ready() {
@@ -2713,7 +2841,7 @@ static void build_seed_ready() {
     else snprintf(title, sizeof(title), "Seed ready");
     lv_obj_align(text(scr, title, &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 92);
     lv_obj_t *fp;
-    lv_obj_align(fingerprint_pill(scr, "\xE2\x80\xA6", &fp), LV_ALIGN_TOP_MID, 0, 136);
+    lv_obj_align(fingerprint_row(scr, nullptr, "\xE2\x80\xA6", &fp), LV_ALIGN_TOP_MID, 0, 135);
     char note[96];
     if (child_seed) snprintf(note, sizeof(note), "Note #%s and this fingerprint with your main seed's backup.", child_num);
     else snprintf(note, sizeof(note), "Write this fingerprint on your backup. The seed is forgotten when you tap Done.");
@@ -3298,16 +3426,23 @@ static void build_multisig() {
     lv_obj_align(text(scr, "Check it against your wallet app", &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, BAR + 2);
 
     lv_obj_t *area = scroll_area(scr, BAR + 28);
-    static char keys[MS_MAX_KEYS][20], fps[MS_MAX_KEYS][12];
-    KvRow rows[MS_MAX_KEYS];
+    // A row per key: its picture, whose it is, its fingerprint.
+    const int RH = 36, PIC = 24;
+    lv_obj_t *kc = card(area, CW, ms->n * RH - 4 + 2 * CARD_PY);
+    lv_obj_remove_flag(kc, LV_OBJ_FLAG_SCROLLABLE);
     for (int i = 0; i < ms->n; i++) {
         const uint8_t *f = ms->fingerprint[i];
-        if (i == ms->ours) snprintf(keys[i], sizeof(keys[i]), ICON_FINGERPRINT "  This seed");
-        else snprintf(keys[i], sizeof(keys[i]), ICON_FINGERPRINT "  Key %d", i + 1);
-        snprintf(fps[i], sizeof(fps[i]), "%02x%02x %02x%02x", f[0], f[1], f[2], f[3]);
-        rows[i] = {keys[i], fps[i], i == ms->ours ? GREEN : TEXT, i > 0};
+        char key[20], fp[12];
+        if (i == ms->ours) snprintf(key, sizeof(key), "This seed");
+        else snprintf(key, sizeof(key), "Key %d", i + 1);
+        snprintf(fp, sizeof(fp), "%02x%02x %02x%02x", f[0], f[1], f[2], f[3]);
+        int y = i * RH;
+        if (i) divider(kc, y - 2);
+        lv_obj_t *pic = life_pic(kc, f, PIC);
+        if (pic) lv_obj_align(pic, LV_ALIGN_TOP_LEFT, 0, y + (RH - 4 - PIC) / 2);
+        lv_obj_align(text(kc, key, &inter_13, TEXT_2, LV_TEXT_ALIGN_LEFT), LV_ALIGN_TOP_LEFT, pic ? PIC + 6 : 0, y + 8);
+        lv_obj_align(text(kc, fp, &mono_16, i == ms->ours ? GREEN : TEXT, LV_TEXT_ALIGN_RIGHT), LV_ALIGN_TOP_RIGHT, 0, y + 6);
     }
-    lv_obj_t *kc = kv_card(area, rows, ms->n, &mono_16);
     lv_obj_update_layout(kc);
 
     char first[96] = "";
@@ -3694,6 +3829,7 @@ static void idle_tick(lv_timer_t *) {
 }
 
 void ui_goto(UiScreen s) {
+    life_zoom_close();
     ui_screensaver(false);
     if (ui_current() == UI_PAGE_REVIEW) page_review_y = lv_obj_get_scroll_y(page_review_list);
     // (Words found shows preview_buf: the photo, kept there; scanning stopped before it)

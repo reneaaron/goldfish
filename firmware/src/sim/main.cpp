@@ -690,7 +690,8 @@ static void dump_widgets(lv_obj_t *o, lv_area_t clip) {
     bool on = lv_area_intersect(&vis, &a, &clip);
     const char *kind = lv_obj_check_type(o, &lv_label_class) ? "label"
                      : lv_obj_check_type(o, &lv_slider_class) ? "slider"
-                     : lv_obj_check_type(o, &lv_qrcode_class) ? "qr" : nullptr;
+                     : lv_obj_check_type(o, &lv_qrcode_class) ? "qr"
+                     : lv_obj_check_type(o, &lv_image_class) && lv_obj_has_flag(o, LV_OBJ_FLAG_USER_1) ? "lifehash" : nullptr;
     if (kind) {
         printf("%s\t%d\t%d\t%d\t%d\t%s\t", kind, (int)a.x1, (int)a.y1, (int)a.x2, (int)a.y2, on ? "-" : "off");
         if (kind[0] == 'l') dump_text(lv_label_get_text(o));
