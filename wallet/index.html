@@ -62,21 +62,23 @@
   section { padding: 72px 0; border-top: 1px solid var(--line); }
   .hero + section { border-top: 0; }
 
-  /* the round trip */
-  .trip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 32px; }
-  .step { background: var(--raised); border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+  /* the round trip: one row per step, a line through the numbers */
+  .trip { margin-top: 40px; position: relative; }
+  .trip::before { content: ""; position: absolute; left: 17px; top: 18px; bottom: 18px; width: 2px; background: var(--line); }
+  .step { display: grid; grid-template-columns: 36px 1fr 1fr; gap: 0 28px; align-items: center; padding: 20px 0; }
+  .step .n { position: relative; width: 36px; height: 36px; border-radius: 50%; background: var(--text); color: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 15px; }
+  .step .txt { display: flex; flex-direction: column; gap: 10px; }
   .step .who { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; }
   /* same module size for both marks (marketing/companion/index.html): 1 SVG unit = --u; the fish is 94 units wide, the dove 93 */
   .step .who { --u: .34px; }
   .step .who img { width: calc(93 * var(--u)); height: auto; }
   .step .who img.fish { width: calc(94 * var(--u)); }
-  .step p { color: var(--muted); font-size: 16px; }
-  .step .n { font-size: 13px; font-weight: 600; color: var(--faint); }
-  .step .shot { margin-top: auto; padding-top: 8px; }
+  .step p { color: var(--muted); font-size: 17px; max-width: 34ch; }
+  .step .shot { background: var(--raised); border-radius: 18px; padding: 24px; display: grid; place-items: center; min-height: 260px; }
   /* the dialogs come with their own rounded, transparent corners */
-  .step .shot img { filter: drop-shadow(0 4px 12px rgba(20,34,43,.08)); }
-  .step .shot img.gf { width: 150px; margin: 0 auto; border: 6px solid var(--text); border-radius: 14px; }
-  @media (max-width: 760px) { .trip { grid-template-columns: 1fr; } }
+  .step .shot img { max-width: 340px; width: 100%; filter: drop-shadow(0 4px 12px rgba(20,34,43,.08)); }
+  .step .shot img.gf { width: 170px; border: 6px solid var(--text); border-radius: 14px; }
+  @media (max-width: 760px) { .step { grid-template-columns: 36px 1fr; gap: 16px; } .step .shot { grid-column: 2; min-height: 0; } }
 
   /* more screens */
   .shots { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; margin-top: 32px; }
@@ -153,11 +155,13 @@
       <h2>One round trip, all by QR</h2>
       <p class="lede">Goldfish stays offline. Dove does everything that needs the internet.</p>
       <div class="trip">
-        <div class="step"><span class="n">1</span><div class="who"><img src="dove-mark.svg" alt="">dove</div><h3>Builds the transaction</h3><p>Pick the amount and the address. Dove shows the unsigned transaction as a moving QR code.</p>
+        <div class="step"><span class="n">1</span><div class="txt"><div class="who"><img src="dove-mark.svg" alt="">dove</div><h3>Builds the transaction</h3><p>Pick the amount and the address. Dove shows the unsigned transaction as a moving QR code.</p></div>
           <div class="shot"><img src="img/sign_dialog.webp" width="1600" height="1036" alt="Dove's review screen: the amount, fee and change next to a QR code to scan with Goldfish" loading="lazy"></div></div>
-        <div class="step"><span class="n">2</span><div class="who"><img class="fish" src="goldfish-mark.svg" alt="">goldfish</div><h3>You check it and sign</h3><p>Goldfish scans it, shows where the money goes, and signs when you swipe. Then it forgets.</p>
+        <div class="step"><span class="n">2</span><div class="txt"><div class="who"><img class="fish" src="goldfish-mark.svg" alt="">goldfish</div><h3>You check it and sign</h3><p>Goldfish scans it, shows where the money goes, and signs when you swipe.</p></div>
           <div class="shot"><img class="gf" src="img/goldfish_review.png" width="240" height="320" alt="Goldfish's screen reviewing the same transaction: ₿30,000 to one recipient, fee ₿281" loading="lazy"></div></div>
-        <div class="step"><span class="n">3</span><div class="who"><img src="dove-mark.svg" alt="">dove</div><h3>Carries it out</h3><p>Hold Goldfish's screen up to the webcam. Dove reads the signed transaction and broadcasts it.</p>
+        <div class="step"><span class="n">3</span><div class="txt"><div class="who"><img class="fish" src="goldfish-mark.svg" alt="">goldfish</div><h3>Shows it back</h3><p>The signed transaction comes back as a moving QR code. Then Goldfish forgets it.</p></div>
+          <div class="shot"><img class="gf" src="img/goldfish_signed.png" width="240" height="320" alt="Goldfish's Signed screen: the signed transaction as a moving QR code" loading="lazy"></div></div>
+        <div class="step"><span class="n">4</span><div class="txt"><div class="who"><img src="dove-mark.svg" alt="">dove</div><h3>Scans it and sends it</h3><p>Hold Goldfish's screen up to the webcam. Dove reads the signed transaction and broadcasts it.</p></div>
           <div class="shot"><img src="img/ready_dialog.webp" width="960" height="796" alt="Dove's Signed screen: the transaction ID and a Broadcast button" loading="lazy"></div></div>
       </div>
     </div>
