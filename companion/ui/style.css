@@ -336,7 +336,10 @@ html, body { overflow-x: clip; }
 /* Settings: Save belongs to the server fields; Forget is a quiet text action */
 #set-save { margin-top: 4px; }
 #set-form .ok { margin-top: 10px; }
-.danger-zone { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--border); }
+.danger-zone, .pw-zone { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--border); }
+.pw-zone .hint { margin: 8px 0 14px; }
+.pw-zone #pw-remove { margin-top: 10px; }
+#unlock-reset-hint { text-align: center; margin: 0; }
 .danger-zone .hint { margin: 8px 0 4px; }
 button.link.danger { color: var(--red); padding: 4px 0; font-size: 14px; justify-content: flex-start; }
 #v-receive .addr-block { margin-top: 12px; }

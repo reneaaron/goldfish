@@ -4,11 +4,12 @@ const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 
 const $ = (id) => document.getElementById(id);
-const VIEWS = ["link", "wallet", "receive", "send", "bump", "settings", "show", "sign", "ready", "sent"];
+const VIEWS = ["unlock", "link", "wallet", "receive", "send", "bump", "settings", "show", "sign", "ready", "sent"];
 let waiting = null; // txid of a signed transaction not broadcast yet
 let current = null; // the linked wallet's overview
 let showTimer = null;
 let server = { url: "", proxy: "" };
+let hasPassword = false;
 let frameTimer = null;
 let scanning = false;
 
@@ -240,8 +241,8 @@ function linked(o) {
   sync();
 }
 
-// ---- first use: welcome, how many signers, link, server, check on Goldfish
-const STEPS = ["welcome", "type", "link", "server", "done"];
+// ---- first use: welcome, how many signers, link, server, password, check on Goldfish
+const STEPS = ["welcome", "type", "link", "server", "password", "done"];
 let wzStep = "welcome";
 let wzMultisig = false;
 let wzServer = "public";
@@ -252,12 +253,17 @@ function step(name) {
   error("");
   for (const s of STEPS) $("wz-" + s).hidden = s !== name;
   const i = STEPS.indexOf(name);
-  // four dots for the steps after the welcome
+  // a dot for each step after the welcome
   $("wz-dots").hidden = i === 0;
   [...$("wz-dots").children].forEach((d, j) => d.classList.toggle("on", j < i));
   $("wz-back").hidden = i === 0;
-  $("wz-next").hidden = !["welcome", "server", "done"].includes(name);
-  button($("wz-next"), { welcome: "Get started", server: "Continue", done: "Open wallet" }[name] || "", false);
+  $("wz-next").hidden = !["welcome", "server", "password", "done"].includes(name);
+  button($("wz-next"), { welcome: "Get started", server: "Continue", password: "Set password", done: "Open wallet" }[name] || "", false);
+  $("wz-skip").hidden = name !== "password";
+  if (name === "password") {
+    $("wz-pw").value = $("wz-pw-again").value = "";
+    $("wz-pw").focus();
+  }
   $("link-scan").hidden = $("link-alt").hidden = true;
   if (name === "link") linkPanel(wzMultisig ? "ms" : null);
   // a server saved before (it stays when a wallet is forgotten) is kept, not swapped for the public one
@@ -271,13 +277,32 @@ function step(name) {
 }
 $("wz-back").onclick = () => {
   if (wzStep === "link" && !$("link-paste").hidden) return linkPanel(null);
-  step(STEPS[STEPS.indexOf(wzStep) - 1]);
+  // the password step is passed over once there is one
+  step(wzStep === "done" && hasPassword ? "server" : STEPS[STEPS.indexOf(wzStep) - 1]);
 };
 $("wz-next").onclick = async () => {
   if (wzStep === "welcome") step("type");
   else if (wzStep === "server") saveServer();
+  else if (wzStep === "password") savePassword();
   else if (wzStep === "done") linked(current);
 };
+$("wz-skip").onclick = () => step("done");
+$("wz-password").onsubmit = (ev) => {
+  ev.preventDefault();
+  savePassword();
+};
+async function savePassword() {
+  if (!$("wz-pw").value) return error("Enter a password, or skip this step.");
+  if ($("wz-pw").value !== $("wz-pw-again").value) return error("The two passwords don't match.");
+  button($("wz-next"), "Locking…", true);
+  try {
+    await call("set_password", { password: $("wz-pw").value });
+  } catch (_) {
+    return button($("wz-next"), "Set password", false); // shown in the error line
+  }
+  hasPassword = true;
+  step("done");
+}
 for (const b of document.querySelectorAll("[data-type]"))
   b.onclick = () => {
     wzMultisig = b.dataset.type === "ms";
@@ -307,7 +332,7 @@ async function saveServer() {
       return button($("wz-next"), "Continue", false); // shown in the error line
     }
   }
-  step("done");
+  step(hasPassword ? "done" : "password");
 }
 // The last step: for one signer, the first address to check on Goldfish;
 // for multisig, the wallet for each Goldfish to scan.
@@ -499,6 +524,7 @@ $("w-settings").onclick = () => {
   $("set-proxy").value = server.proxy;
   $("set-url").placeholder = "Public server (default)";
   $("set-ok").hidden = true;
+  passwordSection();
 };
 
 // ---- fee suggestions: chips that fill the fee field
@@ -746,16 +772,102 @@ for (const b of document.querySelectorAll("button.copy")) {
   };
 }
 
+// ---- password: locks the saved wallet and server on this computer
+function passwordSection() {
+  $("pw-hint").textContent = hasPassword
+    ? "Dove asks for it when it opens. Forgot it? Link the wallet again from your signer."
+    : "Lock this wallet and the server on this computer. Dove asks for it when it opens.";
+  $("pw-new-label").textContent = hasPassword ? "New password" : "Password";
+  button($("pw-save"), hasPassword ? "Change password" : "Set password", false);
+  $("pw-remove").hidden = !hasPassword;
+  $("pw-remove").dataset.sure = "";
+  $("pw-remove").textContent = "Remove password";
+  $("pw-new").value = $("pw-again").value = "";
+  $("pw-ok").hidden = true;
+}
+$("pw-form").onsubmit = async (ev) => {
+  ev.preventDefault();
+  $("pw-ok").hidden = true;
+  if (!$("pw-new").value) return error("Enter a password first.");
+  if ($("pw-new").value !== $("pw-again").value) return error("The two passwords don't match.");
+  button($("pw-save"), "Locking…", true);
+  try {
+    await call("set_password", { password: $("pw-new").value });
+    hasPassword = true;
+    passwordSection();
+    $("pw-ok").textContent = "Password set. Dove asks for it next time.";
+    $("pw-ok").hidden = false;
+  } catch (_) {
+    button($("pw-save"), hasPassword ? "Change password" : "Set password", false);
+  }
+};
+$("pw-remove").onclick = async () => {
+  if ($("pw-remove").dataset.sure !== "1") {
+    $("pw-remove").dataset.sure = "1";
+    $("pw-remove").textContent = "Tap again to remove";
+    return;
+  }
+  try {
+    await call("set_password", { password: "" });
+  } catch (_) {
+    passwordSection(); // back to asking twice; the error says what failed
+    return;
+  }
+  hasPassword = false;
+  passwordSection();
+  $("pw-ok").textContent = "Password removed.";
+  $("pw-ok").hidden = false;
+};
+
+function started(s) {
+  server = s.server;
+  hasPassword = s.has_password;
+  if (s.locked) {
+    show("unlock");
+    $("unlock-pw").focus();
+  } else if (s.wallet) linked(s.wallet);
+  else {
+    show("link");
+    step("welcome");
+  }
+}
+$("unlock-form").onsubmit = async (ev) => {
+  ev.preventDefault();
+  button($("unlock-go"), "Unlocking…", true);
+  try {
+    started(await call("unlock", { password: $("unlock-pw").value }));
+    $("unlock-pw").value = "";
+  } catch (_) {
+    $("unlock-pw").select();
+  } finally {
+    button($("unlock-go"), "Unlock", false);
+  }
+};
+$("unlock-reset").onclick = async () => {
+  if ($("unlock-reset").dataset.sure !== "1") {
+    $("unlock-reset").dataset.sure = "1";
+    $("unlock-reset").textContent = "Start over";
+    $("unlock-reset").classList.add("danger");
+    $("unlock-reset-hint").hidden = false;
+    return;
+  }
+  try {
+    await call("start_over");
+  } catch (_) {
+    $("unlock-reset").dataset.sure = "";
+    $("unlock-reset").textContent = "Forgot password?";
+    $("unlock-reset").classList.remove("danger");
+    $("unlock-reset-hint").hidden = true;
+    return;
+  }
+  hasPassword = false;
+  show("link");
+  step("welcome");
+};
+
 // ---- start: reopen the saved wallet, if any
 invoke("startup")
-  .then((s) => {
-    server = s.server;
-    if (s.wallet) linked(s.wallet);
-    else {
-      show("link");
-      step("welcome");
-    }
-  })
+  .then(started)
   .catch((e) => {
     show("link");
     step("welcome");
