@@ -59,18 +59,20 @@ the guides still use Sparrow.
 - Fees: Fast / Normal / Slow suggestions from the server (next block, ~1 hour,
   ~1 day), fractional sat/vB, and Speed up (RBF) on a pending send, which
   Goldfish signs like any other transaction.
-- Firmware update (Settings → Goldfish firmware): nothing goes to GitHub until
-  Check for update. It downloads the latest release's `firmware.uf2` by tag
-  and installs it only if it matches the release's `SHA256SUMS` and is a UF2
-  image for the RP2350, and shows the tag and SHA-256 to compare. That proves
-  the file is the one the release lists, not who built it (the build
-  attestation isn't checked here; the flasher page's workflow does). The
-  board can't tell Dove its version (no USB stack), so you compare the tag
-  with the corner of Goldfish's home screen; tapping it there restarts
-  Goldfish as the `RP2350` drive, which Dove finds (`INFO_UF2.TXT` under
-  `/run/media/$USER`, `/media/$USER` or `/media`) and copies the file onto.
-  An HTTP proxy in Settings is used; a SOCKS one refuses, rather than going
-  around it.
+- Update Goldfish (Settings → Update Goldfish), a screen of its own in three
+  steps. Check for update downloads the latest release's `firmware.uf2` by
+  tag (nothing goes to GitHub before that) and accepts it only if it matches
+  the release's `SHA256SUMS` and is a UF2 image for the RP2350; the tag and
+  SHA-256 are shown. That proves the file is the one the release lists, not
+  who built it (the build attestation isn't checked here; the flasher page's
+  workflow does). The board can't tell Dove its version (no USB stack), so
+  you compare the tag with the corner of Goldfish's home screen. Then the
+  update-mode steps: plug it into this computer, tap the version, Restart;
+  Goldfish comes up as the `RP2350` drive, which Dove finds (`INFO_UF2.TXT`
+  under `/run/media/$USER`, `/media/$USER` or `/media`) and copies the file
+  onto. The board restarts as soon as the last block is in, so a final flush
+  that fails because the drive is gone counts as done. An HTTP proxy in
+  Settings is used; a SOCKS one refuses, rather than going around it.
 - Look: the draft brand, Dove (mark, wordmark and app icon); its blue (the
   case blue) where Goldfish's screen uses orange, which is otherwise only in
   the mark's feet; and

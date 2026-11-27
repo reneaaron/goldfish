@@ -269,18 +269,49 @@
       </form>
       <div class="fw-zone">
         <p class="label">Goldfish firmware</p>
-        <p class="hint" id="fw-hint"></p>
-        <dl class="card kv" id="fw-info" hidden>
-          <dt>Latest</dt><dd><button type="button" id="fw-tag" class="link"></button></dd>
-          <dt>SHA-256</dt><dd class="mono" id="fw-sha"></dd>
-        </dl>
-        <button type="button" id="fw-btn" class="secondary wide"><span>Check for update</span></button>
-        <p class="ok" id="fw-ok" hidden></p>
+        <p class="hint">Put the newest Goldfish firmware on your signer from this computer.</p>
+        <button type="button" id="set-update" class="secondary wide"><span>Update Goldfish</span></button>
       </div>
       <div class="danger-zone">
         <p class="label">This wallet</p>
         <p class="hint">Dove remembers it on this computer, so you don't have to link it again.</p>
         <button type="button" id="set-forget" class="link danger">Forget this wallet</button>
+      </div>
+    </section>
+
+    <!-- Update Goldfish: check, update mode, install -->
+    <section id="v-update" hidden>
+      <header class="bar"><button class="back" aria-label="Back"><svg><use href="#i-back"/></svg></button><h2>Update Goldfish</h2></header>
+      <div class="up-body">
+        <div id="up-check">
+          <h1 class="display">Get the newest firmware</h1>
+          <p class="para">Dove downloads it from GitHub and checks it against the release's SHA256SUMS. Nothing goes to GitHub until you tap <b>Check for update</b>.</p>
+        </div>
+        <div id="up-found" hidden>
+          <h1 class="display" id="up-title"></h1>
+          <dl class="card kv">
+            <dt>Newest</dt><dd><button type="button" id="up-tag" class="link"></button></dd>
+            <dt>SHA-256</dt><dd class="mono" id="up-sha"></dd>
+          </dl>
+          <p class="gf-hint"><img class="gf" src="goldfish.svg" alt="On Goldfish"><span>Goldfish shows its version in the top-right corner of its home screen. Same one? You're up to date.</span></p>
+        </div>
+        <div id="up-connect" hidden>
+          <h1 class="display">Put Goldfish in update mode</h1>
+          <ol class="steps">
+            <li><span>Plug Goldfish into this computer with a USB cable.</span></li>
+            <li><span>On its home screen, tap the version in the top-right corner.</span></li>
+            <li><span>Tap <b>Restart</b>. Goldfish shows up here as a drive called <b>RP2350</b>.</span></li>
+          </ol>
+          <p class="up-status" id="up-status" role="status"></p>
+        </div>
+        <div id="up-done" class="status-body" hidden>
+          <div class="badge green"><svg><use href="#i-check"/></svg></div>
+          <h1 class="display">Copied</h1>
+          <p class="para" id="up-done-text"></p>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="up-btn" class="primary wide"><span></span></button>
       </div>
     </section>
 

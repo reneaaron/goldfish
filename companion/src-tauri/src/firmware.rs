@@ -109,12 +109,17 @@ pub fn find_drive(roots: &[PathBuf]) -> Option<PathBuf> {
 }
 
 /// Copy onto the drive and flush. The board restarts into the new firmware
-/// once the last block is in.
+/// once the last block is in, so the drive can vanish under the final flush:
+/// a failed flush with the drive gone counts as done (the user then checks
+/// the version on Goldfish); one with the drive still there doesn't.
 pub fn write(drive: &Path, uf2: &[u8]) -> Res<()> {
     use std::io::Write;
     let mut f = std::fs::File::create(drive.join("firmware.uf2")).map_err(|e| e.to_string())?;
     f.write_all(uf2).map_err(|e| e.to_string())?;
-    f.sync_all().map_err(|e| e.to_string())
+    match f.sync_all() {
+        Err(e) if drive.join("INFO_UF2.TXT").exists() => Err(e.to_string()),
+        _ => Ok(()),
+    }
 }
 
 #[cfg(test)]

@@ -4,7 +4,7 @@ const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 
 const $ = (id) => document.getElementById(id);
-const VIEWS = ["unlock", "link", "wallet", "receive", "send", "bump", "settings", "show", "sign", "ready", "sent"];
+const VIEWS = ["unlock", "link", "wallet", "receive", "send", "bump", "settings", "update", "show", "sign", "ready", "sent"];
 let waiting = null; // txid of a signed transaction not broadcast yet
 let current = null; // the linked wallet's overview
 let showTimer = null;
@@ -12,7 +12,7 @@ let server = { url: "", proxy: "" };
 let hasPassword = false;
 let frameTimer = null;
 let scanning = false;
-let fwTimer = null; // looks for Goldfish's RP2350 drive while Settings is open
+let fwTimer = null; // looks for Goldfish's RP2350 drive while Update is open
 let fwRelease = null; // the checked release, once downloaded
 
 // On a wide window the wallet stays put and every other screen opens as a
@@ -37,7 +37,7 @@ function show(view) {
   layout();
   if (view !== "sign") stopFrames();
   if (view !== "show") clearInterval(showTimer);
-  if (view !== "settings") clearInterval(fwTimer);
+  if (view !== "update") clearInterval(fwTimer);
   if (view === "wallet") $("w-waiting").hidden = !waiting;
   if (scanning) stopScan();
   error("");
@@ -528,8 +528,6 @@ $("w-settings").onclick = () => {
   $("set-url").placeholder = "Public server (default)";
   $("set-ok").hidden = true;
   passwordSection();
-  if (fwRelease) waitDrive();
-  else firmwareSection();
 };
 
 // ---- fee suggestions: chips that fill the fee field
@@ -611,52 +609,64 @@ $("set-forget").onclick = async () => {
 };
 for (const b of document.querySelectorAll(".back")) b.onclick = () => show("wallet");
 
-// ---- firmware update: nothing goes to GitHub until Check is pressed
-function firmwareSection() {
-  $("fw-hint").textContent = "Gets the newest Goldfish firmware from GitHub and checks it against the release's SHA256SUMS.";
-  $("fw-info").hidden = true;
-  $("fw-ok").hidden = true;
-  $("fw-btn").hidden = false;
-  button($("fw-btn"), "Check for update", false);
-}
-function waitDrive() {
-  const poll = async () => {
-    const drive = await invoke("firmware_drive");
-    button($("fw-btn"), drive ? `Install ${fwRelease.tag}` : "Waiting for Goldfish…", !drive);
-  };
+// ---- update Goldfish: check, update mode, install. Nothing goes to GitHub
+// until Check for update.
+const UP_STEPS = ["check", "found", "connect", "done"];
+let upStep = "check";
+function upGo(name) {
+  upStep = name;
   clearInterval(fwTimer);
-  poll();
-  fwTimer = setInterval(poll, 1000);
+  for (const s of UP_STEPS) $("up-" + s).hidden = s !== name;
+  $("up-btn").hidden = false;
+  if (name === "check") button($("up-btn"), "Check for update", false);
+  if (name === "found") button($("up-btn"), "Continue", false);
+  if (name === "done") button($("up-btn"), "Done", false);
+  if (name === "connect") {
+    const poll = async () => {
+      const drive = await invoke("firmware_drive");
+      $("up-status").textContent = drive ? "Found Goldfish in update mode." : "Looking for Goldfish…";
+      $("up-status").classList.toggle("found", !!drive);
+      button($("up-btn"), `Install ${fwRelease.tag}`, !drive);
+    };
+    poll();
+    fwTimer = setInterval(poll, 1000);
+  }
 }
-$("fw-tag").onclick = () => window.__TAURI__.opener.openUrl(fwRelease.url).catch(error);
-$("fw-btn").onclick = async () => {
-  if (!fwRelease) {
-    button($("fw-btn"), "Downloading…", true);
+$("set-update").onclick = () => {
+  show("update");
+  upGo(fwRelease ? "found" : "check");
+};
+$("up-tag").onclick = () => window.__TAURI__.opener.openUrl(fwRelease.url).catch(error);
+$("up-btn").onclick = async () => {
+  if (upStep === "check") {
+    button($("up-btn"), "Downloading…", true);
     try {
       fwRelease = await call("firmware_check");
     } catch (_) {
-      button($("fw-btn"), "Check for update", false);
+      button($("up-btn"), "Check for update", false);
       return;
     }
-    $("fw-tag").textContent = fwRelease.tag;
-    $("fw-sha").textContent = fwRelease.sha256;
-    $("fw-info").hidden = false;
-    $("fw-hint").textContent = "Same as the version in the corner of Goldfish's home screen? Then you're up to date. To install, tap that version on Goldfish, then Restart.";
-    waitDrive();
-    return;
+    $("up-title").textContent = `Goldfish ${fwRelease.tag}`;
+    $("up-tag").textContent = fwRelease.tag;
+    $("up-sha").textContent = fwRelease.sha256;
+    upGo("found");
+  } else if (upStep === "found") {
+    upGo("connect");
+  } else if (upStep === "connect") {
+    clearInterval(fwTimer);
+    button($("up-btn"), "Installing…", true);
+    $("up-status").textContent = "Keep Goldfish plugged in.";
+    try {
+      await call("firmware_install");
+    } catch (_) {
+      upGo("connect");
+      return;
+    }
+    $("up-done-text").textContent = `Goldfish restarts by itself. Its home screen should now show ${fwRelease.tag} in the corner.`;
+    upGo("done");
+  } else {
+    show("wallet");
   }
-  clearInterval(fwTimer);
-  button($("fw-btn"), "Installing…", true);
-  try {
-    await call("firmware_install");
-  } catch (_) {
-    waitDrive();
-    return;
-  }
-  $("fw-btn").hidden = true;
-  $("fw-ok").textContent = `Installed. Goldfish restarts with ${fwRelease.tag}.`;
-  $("fw-ok").hidden = false;
-  fwRelease = null;
 };
 
 // ---- send
