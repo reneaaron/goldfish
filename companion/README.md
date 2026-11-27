@@ -95,6 +95,11 @@ cargo test                # logic tests
 cd .. && uv run --with-requirements ../firmware/e2e/requirements.txt pytest e2e   # with the simulator
 ```
 
+The dock shows a generic icon until a desktop entry names the app: run
+`./desktop-entry.sh` once (it writes `goldfish-companion.desktop` and the icon
+into `~/.local/share`, launching the debug build of this checkout, so run it
+from the main checkout rather than a worktree).
+
 ## Not done yet
 
 Android/iOS builds, CPFP, coin control and labels, multisig descriptors as
