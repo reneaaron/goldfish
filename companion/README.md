@@ -57,6 +57,29 @@ the guides still use Sparrow.
   normal. Empty means a public Electrum server (Blockstream on mainnet,
   mempool.space on signet): Esplora on mempool.space hangs on `/blocks` in
   the client's HTTP library.
+- Receive shows the newest address handed out until coins reach it, then
+  the next one; New address hands out a fresh one for each payer, so two
+  payments can't be linked by their address. The newest one handed out is
+  saved with the settings, so a restart doesn't show an older one again.
+  New address stops at 20 unused in a row (`GAP_LIMIT`): wallets restoring
+  from the seed (Sparrow by default) stop looking after 20 unused addresses
+  in a row, so coins sent beyond that could be missed. Dove's own sync
+  looks through every address it handed out, plus 20 more.
+- Broadcast: not through that server, but straight to Bitcoin's p2p
+  network over Tor built into Dove, so peers and anyone watching the network
+  can't tell which IP it came from. The server still sees it at the next
+  sync, since it knows the wallet's addresses. Tor is arti (it keeps its
+  state in the app's data folder, `tor/`); it starts when a payment is made,
+  so it's up by the time the signed PSBT comes back, and never for a wallet
+  that's only looked at. The broadcast runs a short-lived bdk_kyoto node
+  that follows headers from the wallet's last block. Each peer connection
+  gets its own Tor circuit. The transaction goes to one random peer; it
+  counts as sent once it comes back over a second connection that listens
+  to what the network relays, and goes out again to a random peer otherwise
+  (three rounds of a minute). If Tor or the peers can't be reached, Dove
+  says so, keeps the transaction, and offers to send it through the server
+  instead. Your own server (.onion, .local or a private address) and regtest
+  get it directly, without Tor.
 - Multisig: link from the wallet's descriptor (`<0;1>`, `{0,1}` or `0`
   children, checksum checked when present) or from the cosigners' keys plus
   the signatures needed; Goldfish's multisig Connect wallet key (`Vpub`) is

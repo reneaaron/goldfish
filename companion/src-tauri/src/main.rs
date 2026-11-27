@@ -7,7 +7,7 @@ use std::sync::Mutex;
 use std::path::PathBuf;
 
 use bdk_wallet::bitcoin::{Psbt, Transaction};
-use bdk_wallet::{KeychainKind, Wallet};
+use bdk_wallet::{AddressInfo, KeychainKind, Wallet};
 use companion::camera::Camera;
 use companion::*;
 use age::secrecy::{ExposeSecret, SecretString};
@@ -21,6 +21,10 @@ use tauri::{AppHandle, Emitter, Manager, State};
 struct Settings {
     key: Option<String>,
     server: ServerConfig,
+    /// The newest receive address handed out, so a restart doesn't show an
+    /// older one again before any coins have reached it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    receive_index: Option<u32>,
 }
 
 fn settings_path(h: &AppHandle, ext: &str) -> Res<PathBuf> {
@@ -77,6 +81,9 @@ fn open_settings(app: &mut App, settings: Settings) {
     if let Some(key) = settings.key.clone() {
         if let Ok(account) = parse_wallet(&key) {
             app.wallet = account.wallet().ok();
+            if let (Some(w), Some(i)) = (app.wallet.as_mut(), settings.receive_index) {
+                let _ = w.reveal_addresses_to(KeychainKind::External, i);
+            }
             app.account = app.wallet.as_ref().map(|_| account);
         }
     }
@@ -126,6 +133,9 @@ fn link_account(app: &mut App, account: Account) -> Res<Overview> {
     (app.account, app.wallet) = (Some(account), Some(wallet));
     (app.unsigned, app.encoder, app.signed) = (None, None, None);
     app.scanner = PsbtScanner::default();
+    if app.settings.key.as_ref() != Some(&saved) {
+        app.settings.receive_index = None;
+    }
     app.settings.key = Some(saved);
     Ok(overview)
 }
@@ -290,7 +300,7 @@ fn forget_wallet(handle: AppHandle, state: State<Shared>) -> Res<()> {
         let mut app = state.lock().unwrap();
         unlocked(&app)?;
         (app.account, app.wallet, app.unsigned, app.encoder, app.signed) = (None, None, None, None, None);
-        app.settings.key = None;
+        (app.settings.key, app.settings.receive_index) = (None, None);
     }
     save_settings(&handle)
 }
@@ -347,16 +357,41 @@ struct Receive {
     address: String,
     index: u32,
     qr: String,
+    /// false once GAP_LIMIT addresses are waiting unused
+    more: bool,
 }
 
-#[tauri::command]
-fn receive_address(state: State<Shared>) -> Res<Receive> {
-    let mut app = state.lock().unwrap();
-    let (_, w) = loaded(&mut app)?;
-    let info = w.next_unused_address(KeychainKind::External);
-    let address = info.address.to_string();
-    // The QR is what Goldfish's Scan QR reads to verify the address is its own.
-    Ok(Receive { qr: qr_svg(&address)?, address, index: info.index })
+/// Show the address `pick` chooses, saving how far addresses have been
+/// handed out when that grew.
+fn show_receive(handle: AppHandle, state: State<Shared>, pick: fn(&mut Wallet) -> Res<AddressInfo>) -> Res<Receive> {
+    let (receive, grew) = {
+        let mut app = state.lock().unwrap();
+        let (_, w) = loaded(&mut app)?;
+        let info = pick(w)?;
+        let more = unused_in_a_row(w) < GAP_LIMIT;
+        let address = info.address.to_string();
+        // The QR is what Goldfish's Scan QR reads to verify the address is its own.
+        let receive = Receive { qr: qr_svg(&address)?, address, index: info.index, more };
+        let grew = app.settings.receive_index < Some(info.index);
+        if grew {
+            app.settings.receive_index = Some(info.index);
+        }
+        (receive, grew)
+    };
+    if grew {
+        save_settings(&handle)?;
+    }
+    Ok(receive)
+}
+
+#[tauri::command(async)]
+fn receive_address(handle: AppHandle, state: State<Shared>) -> Res<Receive> {
+    show_receive(handle, state, |w| Ok(companion::receive_address(w)))
+}
+
+#[tauri::command(async)]
+fn new_receive_address(handle: AppHandle, state: State<Shared>) -> Res<Receive> {
+    show_receive(handle, state, companion::new_receive_address)
 }
 
 #[tauri::command]
@@ -387,6 +422,18 @@ fn to_sign(app: &mut App, psbt: Psbt) -> Res<Review> {
     app.scanner = PsbtScanner::default();
     app.signed = None;
     app.sigs = Signatures { needed: app.account.as_ref().map(|a| a.threshold).unwrap_or(1), ..Default::default() };
+    // start Tor while the PSBT goes to the signer and back, so Broadcast
+    // doesn't wait for it; only once a payment is on the way, not for
+    // someone just looking at the wallet
+    static WARMING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if over_tor(app) && !WARMING.swap(true, std::sync::atomic::Ordering::Relaxed) {
+        std::thread::spawn(|| {
+            if let Err(e) = tor::proxy() {
+                eprintln!("tor: {e}");
+            }
+            WARMING.store(false, std::sync::atomic::Ordering::Relaxed);
+        });
+    }
     Ok(review)
 }
 
@@ -554,10 +601,35 @@ fn scan_stop(state: State<Shared>) {
     drop(camera);
 }
 
+/// Whether Broadcast goes to peers over the built-in Tor (see p2p.rs): not
+/// for your own server, which gets it itself, nor on regtest, which has no
+/// public peers.
+fn over_tor(app: &App) -> bool {
+    !app.settings.server.own_server() && app.wallet.as_ref().is_some_and(|w| w.network() != bdk_wallet::bitcoin::Network::Regtest)
+}
+
+/// Wait until Tor is up (at once if it already is), for the Signed screen to
+/// say what it's waiting on. False when Broadcast won't use Tor.
 #[tauri::command(async)]
-fn broadcast_signed(state: State<Shared>) -> Res<String> {
-    let tx = state.lock().unwrap().signed.clone().ok_or("nothing signed")?;
-    let txid = backend(&state)?.broadcast(&tx)?;
+fn tor_ready(state: State<Shared>) -> Res<bool> {
+    if !over_tor(&state.lock().unwrap()) {
+        return Ok(false);
+    }
+    tor::proxy().map(|_| true)
+}
+
+/// `via_server`: through the wallet's server after all, when Tor or the
+/// peers couldn't be reached and the user chose to.
+#[tauri::command(async)]
+fn broadcast_signed(via_server: bool, state: State<Shared>) -> Res<String> {
+    let (tx, network, start, tor) = {
+        let mut app = state.lock().unwrap();
+        let tor = !via_server && over_tor(&app);
+        let tx = app.signed.clone().ok_or("nothing signed")?;
+        let w = loaded(&mut app)?.1;
+        (tx, w.network(), p2p::start(w), tor)
+    };
+    let txid = if tor { p2p::broadcast(network, start, Some(tor::proxy()?), &tx)? } else { backend(&state)?.broadcast(&tx)? };
     let mut app = state.lock().unwrap();
     if let Some(w) = app.wallet.as_mut() {
         w.apply_unconfirmed_txs([(tx, std::time::UNIX_EPOCH.elapsed().unwrap().as_secs())]);
@@ -596,6 +668,9 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .manage(Shared::default())
         .setup(|app| {
+            if let Ok(dir) = app.path().app_data_dir() {
+                tor::set_dir(dir.join("tor"));
+            }
             // Reopen the saved watch-only wallet, if any; a locked one waits
             // for the password.
             let shared = app.state::<Shared>();
@@ -624,6 +699,7 @@ fn main() {
             import_key,
             sync,
             receive_address,
+            new_receive_address,
             create_send,
             next_frame,
             scan_text,
@@ -632,6 +708,7 @@ fn main() {
             open_psbt,
             scan_start,
             scan_stop,
+            tor_ready,
             broadcast_signed,
             firmware_check,
             firmware_drive,

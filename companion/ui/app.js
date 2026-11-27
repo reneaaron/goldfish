@@ -508,6 +508,8 @@ async function sync() {
     const o = await call("sync");
     syncState = "ok";
     renderOverview(o);
+    // payments just found may move Receive on, or allow more new addresses
+    if (currentView === "receive") call("receive_address").then(showReceive, () => {});
   } catch (_) {
     syncState = "failed";
     // with nothing to list, the Activity card says it; otherwise the error line does
@@ -519,12 +521,27 @@ async function sync() {
 }
 $("w-sync").onclick = sync;
 $("w-receive").onclick = async () => {
-  const r = await call("receive_address");
+  showReceive(await call("receive_address"));
   show("receive");
+};
+// a fresh address for each payer, so two payments can't be linked by it
+$("r-new").onclick = async () => {
+  button($("r-new"), "Making one…", true);
+  try {
+    showReceive(await call("new_receive_address"));
+  } catch (_) {
+    $("r-new").disabled = false;
+  } finally {
+    $("r-new").querySelector("span").textContent = "New address";
+  }
+};
+function showReceive(r) {
   $("r-label").textContent = `Address #${r.index}`;
   renderAddress(r, "r-qr", "r-addr");
   $("r-copy").dataset.text = r.address;
-};
+  $("r-new").disabled = !r.more;
+  $("r-full").hidden = r.more;
+}
 function renderAddress(r, qr, addr) {
   $(qr).innerHTML = r.qr; // SVG made by the qrcode crate from our own address
   // groups of four, every other one lighter, to compare against Goldfish's screen
@@ -869,12 +886,23 @@ function openReady() {
   show("ready");
   $("ready-txid").textContent = shortId(waiting);
   $("ready-txid").title = waiting;
+  $("ready-server").hidden = true;
 }
 $("w-waiting").onclick = openReady;
-$("ready-send").onclick = async () => {
-  $("ready-send").disabled = true;
+// viaServer: after Tor or its peers failed, through the wallet's server after all
+async function broadcast(viaServer) {
+  const buttons = [$("ready-send"), $("ready-server")];
+  buttons.forEach((b) => (b.disabled = true));
+  const status = $("ready-sending");
+  status.hidden = false;
+  let tor = false;
   try {
-    const txid = await call("broadcast_signed");
+    if (!viaServer) {
+      status.textContent = "Connecting to Tor…";
+      tor = await call("tor_ready");
+    }
+    status.textContent = tor ? "Sending over Tor. This can take a minute or two." : "Sending…";
+    const txid = await call("broadcast_signed", { viaServer });
     waiting = null;
     show("sent");
     $("sent-txid").textContent = groups(txid);
@@ -883,11 +911,15 @@ $("ready-send").onclick = async () => {
     $("sent-explorer").onclick = () => window.__TAURI__.opener.openUrl(base + txid).catch(error);
     sync();
   } catch (_) {
-    // shown in the error line
+    // shown in the error line; Tor may be blocked here, so offer the server
+    if (!viaServer) $("ready-server").hidden = false;
   } finally {
-    $("ready-send").disabled = false;
+    buttons.forEach((b) => (b.disabled = false));
+    status.hidden = true;
   }
-};
+}
+$("ready-send").onclick = () => broadcast(false);
+$("ready-server").onclick = () => broadcast(true);
 
 async function copyText(text) {
   try {
