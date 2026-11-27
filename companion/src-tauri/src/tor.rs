@@ -17,7 +17,15 @@ use crate::Res;
 /// Where arti keeps its state and its copy of the network's directory, so
 /// later starts are quicker. Set once at startup.
 static DIR: OnceLock<PathBuf> = OnceLock::new();
-static PROXY: Mutex<Option<SocketAddr>> = Mutex::new(None);
+/// Off, starting (the bootstrap's answer still to come), or up at a port.
+/// A start that outlasts one caller's wait stays here for the next caller,
+/// so there's only ever one arti on the state folder.
+enum State {
+    Off,
+    Starting(mpsc::Receiver<Res<SocketAddr>>),
+    Up(SocketAddr),
+}
+static STATE: Mutex<State> = Mutex::new(State::Off);
 
 const BOOTSTRAP_TIMEOUT: Duration = Duration::from_secs(120);
 
@@ -28,27 +36,42 @@ pub fn set_dir(dir: PathBuf) {
 /// The local SOCKS5 address of the built-in Tor, starting it if it isn't
 /// running yet (that takes a few seconds, longer the first time).
 pub fn proxy() -> Res<SocketAddr> {
-    let mut running = PROXY.lock().unwrap();
-    if let Some(addr) = *running {
+    let mut state = STATE.lock().unwrap();
+    if let State::Up(addr) = *state {
         return Ok(addr);
     }
-    let dir = DIR.get().cloned().ok_or("Tor: no folder for its state")?;
-    let (tx, rx) = mpsc::channel::<Res<SocketAddr>>();
-    std::thread::Builder::new()
-        .name("tor".into())
-        .spawn(move || {
-            let rt = match tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build() {
-                Ok(rt) => rt,
-                Err(e) => return drop(tx.send(Err(e.to_string()))),
-            };
-            rt.block_on(serve(dir, tx));
-        })
-        .map_err(|e| e.to_string())?;
-    let addr = rx
-        .recv_timeout(BOOTSTRAP_TIMEOUT)
-        .map_err(|_| "Tor didn't connect in time".to_string())??;
-    *running = Some(addr);
-    Ok(addr)
+    if let State::Off = *state {
+        let dir = DIR.get().cloned().ok_or("Tor: no folder for its state")?;
+        let (tx, rx) = mpsc::channel::<Res<SocketAddr>>();
+        std::thread::Builder::new()
+            .name("tor".into())
+            .spawn(move || {
+                let rt = match tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build() {
+                    Ok(rt) => rt,
+                    Err(e) => return drop(tx.send(Err(e.to_string()))),
+                };
+                rt.block_on(serve(dir, tx));
+            })
+            .map_err(|e| e.to_string())?;
+        *state = State::Starting(rx);
+    }
+    let State::Starting(rx) = &*state else { unreachable!() };
+    match rx.recv_timeout(BOOTSTRAP_TIMEOUT) {
+        Ok(Ok(addr)) => {
+            *state = State::Up(addr);
+            Ok(addr)
+        }
+        // arti gave up and its thread ended, so a later call can try again
+        Ok(Err(e)) => {
+            *state = State::Off;
+            Err(e)
+        }
+        Err(mpsc::RecvTimeoutError::Timeout) => Err("Tor didn't connect in time. Try again in a minute.".into()),
+        Err(mpsc::RecvTimeoutError::Disconnected) => {
+            *state = State::Off;
+            Err("Tor stopped".into())
+        }
+    }
 }
 
 async fn serve(dir: PathBuf, ready: mpsc::Sender<Res<SocketAddr>>) {

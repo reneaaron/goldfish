@@ -244,7 +244,8 @@ impl Account {
 
 // ------------------------------------------------------------ chain
 
-/// Where the wallet syncs (broadcasts go to peers over Tor, see [`p2p`]): an Esplora API (`https://…`) or an
+/// Where the wallet syncs, and broadcasts when it's your own server (else
+/// they go to peers over Tor, see [`p2p`]): an Esplora API (`https://…`) or an
 /// Electrum server (`ssl://host:port`, `tcp://host:port`), optionally through
 /// a proxy. Empty `url` means a public Electrum server for the key's network.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -285,6 +286,17 @@ fn own_host(host: &str) -> bool {
 }
 
 impl ServerConfig {
+    /// Your own server (on .onion, .local or a private address): broadcasts
+    /// go to it, not over the built-in Tor, since it already knows the
+    /// wallet and it's how a regtest or local-only setup reaches its node.
+    pub fn own_server(&self) -> bool {
+        let url = self.url.trim();
+        let rest = ["ssl://", "tcp://", "https://", "http://"].iter().find_map(|p| url.strip_prefix(p)).unwrap_or("");
+        let authority = rest.split('/').next().unwrap_or("");
+        let host = authority.rsplit_once(':').filter(|(_, port)| port.chars().all(|c| c.is_ascii_digit())).map_or(authority, |(h, _)| h);
+        !host.is_empty() && own_host(host)
+    }
+
     pub fn connect(&self, network: Network) -> Res<Backend> {
         let url = self.url.trim();
         let url = if url.is_empty() { default_server(network) } else { url };
@@ -334,6 +346,18 @@ impl Backend {
             Backend::Esplora(c) => c.full_scan(request, 20, 4).map_err(err),
             Backend::Electrum(c) => c.full_scan(request, 20, 10, true).map_err(err),
         }
+    }
+
+    /// Through the server instead of over Tor: for your own server, or when
+    /// Tor or the peers can't be reached and you choose to.
+    pub fn broadcast(&self, tx: &Transaction) -> Res<Txid> {
+        match self {
+            Backend::Esplora(c) => c.broadcast(tx).map_err(err)?,
+            Backend::Electrum(c) => {
+                c.transaction_broadcast(tx).map_err(err)?;
+            }
+        }
+        Ok(tx.compute_txid())
     }
 
     /// The server's chain, from its genesis block, has to be the wallet's:
@@ -980,6 +1004,17 @@ mod tests {
         }
         assert_eq!(got.unwrap(), psbt);
     }
+    #[test]
+    fn own_server_broadcasts_itself() {
+        let own = |url: &str| ServerConfig { url: url.into(), proxy: String::new() }.own_server();
+        for u in ["ssl://abc.onion:50002", "tcp://192.168.1.20:50001", "http://umbrel.local:3002/api", "tcp://[::1]:60401", "https://[fd00::1]/api"] {
+            assert!(own(u), "{u}");
+        }
+        for u in ["", "ssl://electrum.blockstream.info:50002", "https://mempool.space/api", "ssl://8.8.8.8:50002"] {
+            assert!(!own(u), "{u}");
+        }
+    }
+
     #[test]
     fn own_hosts_skip_domain_check() {
         for h in ["abc.onion", "umbrel.local", "localhost", "192.168.1.20", "10.0.0.5", "127.0.0.1", "[::1]", "[fd00::1]"] {

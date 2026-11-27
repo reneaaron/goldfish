@@ -39,6 +39,12 @@ pub fn start(wallet: &Wallet) -> HashCheckpoint {
 /// circuit of its own); start from [`start`].
 pub fn broadcast(network: Network, start: HashCheckpoint, proxy: Option<SocketAddr>, tx: &Transaction) -> Res<Txid> {
     let tx = tx.clone();
+    // on a thread of its own: the node's runtime can't start inside the
+    // caller's (Tauri runs commands on a tokio runtime)
+    std::thread::spawn(move || run(network, start, proxy, tx)).join().map_err(|_| "the broadcast stopped unexpectedly".to_string())?
+}
+
+fn run(network: Network, start: HashCheckpoint, proxy: Option<SocketAddr>, tx: Transaction) -> Res<Txid> {
     let txid = tx.compute_txid();
     let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().map_err(err)?;
     rt.block_on(async move {
@@ -121,6 +127,18 @@ mod tests {
     /// A recent signet block, so the node fetches only a few headers.
     fn signet_start() -> HashCheckpoint {
         HashCheckpoint::try_from((194932, "0000014197afc2080256e22cb07ade59fbc1f9360a424ea97f55b38df43c7f08".to_string())).unwrap()
+    }
+
+    /// Tauri runs commands on a tokio runtime; a broadcast from there must
+    /// fail or succeed, not panic on starting its own. Regtest has no peers
+    /// to find, so it ends in an error.
+    #[test]
+    fn broadcast_inside_a_runtime() {
+        use bdk_wallet::bitcoin::{absolute::LockTime, transaction::Version};
+        let tx = Transaction { version: Version::TWO, lock_time: LockTime::ZERO, input: vec![], output: vec![] };
+        let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+        let r = rt.block_on(async { broadcast(Network::Regtest, HashCheckpoint::from_genesis(Network::Regtest), None, &tx) });
+        assert!(r.is_err());
     }
 
     /// A transaction no peer accepts (it spends a coin that doesn't exist)
