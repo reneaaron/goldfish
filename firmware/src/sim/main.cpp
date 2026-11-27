@@ -3,8 +3,8 @@
 //   pio run -e sim && .pio/build/sim/program
 //
 // Camera: the simulator "sees" the image at $SIM_CAMERA (default
-// sim/camera.png), reloaded whenever the file changes. Copy a SeedQR picture
-// there while the scan screen is open, e.g. cp sim/samples/vector4_standard_12word.png sim/camera.png
+// sim/camera.png), reloaded whenever the file changes. Copy a picture there
+// while the scan screen is open, e.g. cp sim/samples/handwritten_page_demo.png sim/camera.png
 //
 // Scripted screenshots of the whole flow (no window):
 //   SIM_SHOTS=docs/screens .pio/build/sim/program
@@ -157,6 +157,26 @@ static bool cam_show_card(const char *path, int dx) {
     return true;
 }
 
+// Script helper: a written backup on a dark desk, `dx` pixels right of
+// centre, for the scan clip (docs/screens/2_scan.webp).
+static bool cam_show_page(const char *path, int dx) {
+    int w, h, n;
+    uint8_t *img = stbi_load(path, &w, &h, &n, 1);
+    if (!img) return false;
+    static uint8_t page[CAM_W * CAM_H];
+    fit(img, w, h, page, CAM_W, CAM_H);
+    stbi_image_free(img);
+    float s = fminf((float)CAM_W / w, (float)CAM_H / h);
+    int dh = int(h * s), dw = int(w * s), oy = (CAM_H - dh) / 2, ox = (CAM_W - dw) / 2;
+    memset(cam_frame, 50, sizeof(cam_frame));
+    for (int y = oy; y < oy + dh; y++)
+        for (int x = ox; x < ox + dw; x++)
+            if (x + dx >= 0 && x + dx < CAM_W) cam_frame[y * CAM_W + x + dx] = page[y * CAM_W + x];
+    cam_ok = true;
+    cam_override = true;
+    return true;
+}
+
 const uint8_t *platform_camera_frame(int *width, int *height) {
     if (cam_override) { *width = CAM_W; *height = CAM_H; return cam_ok ? cam_frame : nullptr; }
     struct stat st;
@@ -266,7 +286,7 @@ static void headless_display() {
     lv_display_set_flush_cb(shot_disp, [](lv_display_t *d, const lv_area_t *, uint8_t *) { lv_display_flush_ready(d); });
 }
 
-// Walk the flow: home, scan a 12-word Standard SeedQR, wallet, options, xpub, wipe.
+// Walk the flow: home, scan a 12-word written backup, wallet, options, xpub, wipe.
 static int run_shots(const char *dir) {
     headless_display();
 
@@ -282,13 +302,14 @@ static int run_shots(const char *dir) {
     ui_goto(UI_SCAN_SEED);
     pump(300); save(dir, "2_scan_waiting");
     // The scan clip, one frame per 100 ms (2_scan_clip_NN, made into 2_scan.webp):
-    // the empty desk, then a SeedQR card sliding in until it is whole in view.
+    // the empty desk, then a written backup sliding in until it is whole in view.
+    const char *card = "sim/samples/handwritten_page_demo.png";
+    setenv("SIM_CAMERA", card, 1);   // the sharper picture, once held still
     {
-        const char *card = "sim/samples/vector4_standard_12word.png";
         int f = 0;
         char name[32];
         auto frame = [&](int dx) {
-            if (!cam_show_card(card, dx)) return false;
+            if (!cam_show_page(card, dx)) return false;
             pump(100);
             snprintf(name, sizeof(name), "2_scan_clip_%02d", f++);
             save(dir, name);
@@ -296,13 +317,16 @@ static int run_shots(const char *dir) {
         };
         for (int i = 0; i < 6; i++) if (!frame(400)) { fprintf(stderr, "no %s\n", card); return 1; }
         for (int i = 20; i >= 0; i--) frame(260 * i * i / 400);   // eases in
-        for (int i = 0; i < 15; i++) frame(0);                      // held in view
-        if (ui_current() != UI_SCAN_SEED) { fprintf(stderr, "the clip's card was read\n"); return 1; }
-        cam_override = false;
+        for (int i = 0; i < 8; i++) frame(0);                       // held in view, not yet long enough to read
+        if (ui_current() != UI_SCAN_SEED) { fprintf(stderr, "the clip's page was read too soon\n"); return 1; }
     }
-    setenv("SIM_CAMERA", "sim/samples/vector4_standard_12word.png", 1);
-    for (int i = 0; i < 100 && ui_current() == UI_SCAN_SEED; i++) pump(50);
-    if (ui_current() != UI_WALLET) { fprintf(stderr, "SeedQR was not decoded\n"); return 1; }
+    // Still held: the words are found, read and confirmed.
+    cam_override = false;
+    for (int i = 0; i < 400 && ui_current() == UI_SCAN_SEED; i++) pump(20);
+    if (!ui_page_found_read()) { fprintf(stderr, "no words found on the demo page (screen %d)\n", ui_current()); return 1; }
+    for (int i = 0; i < 400 && ui_current() == UI_PAGE_READING; i++) pump(20);
+    if (!ui_page_confirm()) { fprintf(stderr, "the demo page did not read 12 of 12\n"); return 1; }
+    if (ui_current() != UI_WALLET) { fprintf(stderr, "the demo page's seed was not loaded\n"); return 1; }
     pump(300); save(dir, "3_seed_loaded");
     ui_goto(UI_WALLET_OPTIONS);    pump(300); save(dir, "4_seed_menu");
     ui_goto(UI_EXPORT_XPUB);  pump(300); save(dir, "5_export_xpub");
@@ -368,19 +392,7 @@ static int run_shots(const char *dir) {
     if (ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "dice did not make a seed\n"); return 1; }
     pump(300); save(dir, "17_backup_warning");
     ui_goto(UI_BACKUP_WORDS);   pump(300); save(dir, "18_backup_words");
-    ui_goto(UI_BACKUP_CHOICE);  pump(300); save(dir, "19_backup_choice");
-    ui_goto(UI_BACKUP_QR);      pump(300); save(dir, "20_backup_qr");
-    // Part 1 is all pre-printed finder square; show the first part with squares to copy.
-    ui_goto(UI_BACKUP_BLOCK); ui_backup_next(); pump(300); save(dir, "21_backup_block_1");
-    while (ui_current() == UI_BACKUP_BLOCK) ui_backup_next();
-    if (ui_current() != UI_BACKUP_SCAN) { fprintf(stderr, "no card check after the last block\n"); return 1; }
-    setenv("SIM_CAMERA", "sim/samples/vector4_compact_12word.png", 1);   // somebody else's seed
-    for (int i = 0; i < 40; i++) pump(50);
-    save(dir, "22_check_wrong_card");
-    if (!cam_show_matrix(ui_backup_qr())) { fprintf(stderr, "no backup QR on screen\n"); return 1; }
-    for (int i = 0; i < 100 && ui_current() == UI_BACKUP_SCAN; i++) pump(50);
-    if (ui_current() != UI_SEED_READY || wallet_has_seed()) { fprintf(stderr, "card check failed (screen %d)\n", ui_current()); return 1; }
-    pump(300); save(dir, "23_seed_ready");
+    ui_goto(UI_SEED_READY);     pump(300); save(dir, "23_seed_ready");   // "Written down"
 
     // Coin flips, up to the count.
     cam_override = false;
@@ -424,8 +436,9 @@ static int run_shots(const char *dir) {
     ui_goto(UI_WALLET_OPTIONS); pump(300); save(dir, "28_menu_backup");
     ui_backup_loaded();
     if (ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "backup did not start\n"); return 1; }
-    ui_goto(UI_BACKUP_QR);
-    ui_goto(UI_BACKUP_BLOCK);
+    ui_goto(UI_BACKUP_QR);      pump(300); save(dir, "20_backup_qr");
+    // Part 1 is all pre-printed finder square; show the first part with squares to copy.
+    ui_goto(UI_BACKUP_BLOCK); ui_backup_next(); pump(300); save(dir, "21_backup_block_1");
     while (true) {
         ui_backup_next();
         if (ui_current() != UI_BACKUP_BLOCK) break;
@@ -433,11 +446,16 @@ static int run_shots(const char *dir) {
     // ui_backup_next from the last block goes to the check; capture the last block first.
     ui_goto(UI_BACKUP_BLOCK); pump(300); save(dir, "29_backup_last_block");
     ui_backup_next();
+    if (ui_current() != UI_BACKUP_SCAN) { fprintf(stderr, "no card check after the last block\n"); return 1; }
+    cam_override = false;
+    setenv("SIM_CAMERA", "sim/samples/vector4_compact_12word.png", 1);   // somebody else's seed
+    for (int i = 0; i < 40; i++) pump(50);
+    save(dir, "22_check_wrong_card");
     if (!cam_show_matrix(ui_backup_qr())) { fprintf(stderr, "no backup QR on screen\n"); return 1; }
     for (int i = 0; i < 100 && ui_current() == UI_BACKUP_SCAN; i++) pump(50);
     if (ui_current() != UI_WALLET || !wallet_has_seed()) { fprintf(stderr, "existing backup check failed\n"); return 1; }
 
-    // BIP-85 child seed of the loaded seed: words, QR card, card check.
+    // BIP-85 child seed of the loaded seed: words, Seed ready.
     ui_goto(UI_WALLET_OPTIONS);    pump(300); save(dir, "30_menu_child");
     ui_goto(UI_CHILD_INDEX);
     // Keypad: the largest child number, a digit past it is ignored, Del back to 0.
@@ -454,12 +472,8 @@ static int run_shots(const char *dir) {
     ui_child_seed((uint32_t)strtoul(ui_child_number(), nullptr, 10));
     if (ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "child seed did not start\n"); return 1; }
     ui_goto(UI_BACKUP_WORDS); pump(300); save(dir, "33_child_words");
-    ui_goto(UI_BACKUP_QR);
-    ui_goto(UI_BACKUP_BLOCK);
-    while (ui_current() == UI_BACKUP_BLOCK) ui_backup_next();
-    if (!cam_show_matrix(ui_backup_qr())) { fprintf(stderr, "no child QR on screen\n"); return 1; }
-    for (int i = 0; i < 100 && ui_current() == UI_BACKUP_SCAN; i++) pump(50);
-    if (ui_current() != UI_SEED_READY || !wallet_has_seed()) { fprintf(stderr, "child card check failed\n"); return 1; }
+    ui_goto(UI_SEED_READY);   // "Written down"
+    if (!wallet_has_seed()) { fprintf(stderr, "child seed unloaded the parent\n"); return 1; }
     pump(600); save(dir, "34_child_ready");
 
     // BIP-39 passphrase: "abandon ... about" with TREZOR (the BIP39 test vector's

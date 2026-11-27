@@ -271,6 +271,7 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
     int nv = int(vmax - vmin) + 2, nu = int(umax - umin) + 2, stride = (nu + 7) / 8;
     uint8_t *map = (uint8_t *)calloc((size_t)stride * nv, 1);   // ink along the tilt, 1 bit per pixel
     bool ok = false;
+    int letter_h = 0;   // the median letter height, once the letters are found
     nruns = max_runs = max_letters = 0;
     if (!map) goto done;
 #define MAP_GET(u, v) ((map[(size_t)(v) * stride + ((u) >> 3)] >> ((u) & 7)) & 1)
@@ -355,6 +356,7 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
         if (!nh) goto done;
         qsort(hs, nh, sizeof(int), cmp_int);
         int lh = hs[nh / 2];
+        letter_h = lh;
         // letters: not specks, not pictures
         auto is_letter = [&](int i) {
             if (find_run(i) != i) return false;
@@ -428,16 +430,25 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
     }
 
     {
-        // a lone row number or a speck is narrower than any word
+        // a lone row number or a speck is narrower than any word. A short word
+        // that reaches both up and down ("day") is tall for its width too, so
+        // a piece wider than one and a half letters stays, marked unsure: on a
+        // busy photo most such pieces are strays, which only the reader tells apart.
         int k = 0;
-        for (int i = 0; i < page->n; i++)
-            if (page->words[i].u1 - page->words[i].u0 >= 1.2f * (page->words[i].v1 - page->words[i].v0))
+        for (int i = 0; i < page->n; i++) {
+            float ww = page->words[i].u1 - page->words[i].u0;
+            bool wide = ww >= 1.2f * (page->words[i].v1 - page->words[i].v0);
+            if (wide || ww >= 1.5f * letter_h) {
+                page->words[i].unsure = !wide;
                 page->words[k++] = page->words[i];
+            }
+        }
         page->n = k;
         if (!page->n) goto done;
     }
     {
-        // columns: where words sit across all rows, merged where they overlap
+        // columns: where words sit across all rows, merged where they overlap.
+        // Unsure pieces (mostly strays) don't make columns; one outside them is dropped.
         static float cu0[PAGE_MAX_WORDS], cu1[PAGE_MAX_WORDS];
         int nc = 0;
         int idx[PAGE_MAX_WORDS];
@@ -448,15 +459,23 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
             }
         for (int k = 0; k < page->n; k++) {
             const PageWord &pw = page->words[idx[k]];
+            if (pw.unsure) continue;
             if (nc && pw.u0 <= cu1[nc - 1]) { if (pw.u1 > cu1[nc - 1]) cu1[nc - 1] = pw.u1; }
             else { cu0[nc] = pw.u0; cu1[nc] = pw.u1; nc++; }
         }
+        int kept = 0;
         for (int i = 0; i < page->n; i++) {
-            PageWord &pw = page->words[i];
+            PageWord pw = page->words[i];
             float mid = (pw.u0 + pw.u1) / 2;
+            int col = -1;
             for (int k = 0; k < nc; k++)
-                if (mid >= cu0[k] && mid <= cu1[k]) pw.column = k;
+                if (mid >= cu0[k] && mid <= cu1[k]) col = k;
+            if (col < 0 && pw.unsure) continue;
+            if (col >= 0) pw.column = col;
+            page->words[kept++] = pw;
         }
+        page->n = kept;
+        if (!page->n) goto done;
         // reading order: column, then down the page
         for (int i = 1; i < page->n; i++)
             for (int j = i; j > 0; j--) {
@@ -474,26 +493,32 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
         static PageWord out[PAGE_MAX_WORDS];
         int no = 0;
         // the longest column, and how far down its words go: a shorter column
-        // ending higher up is missing its last words
+        // ending higher up is missing its last words. Spacing, length and gaps
+        // come from the sure words; an unsure piece where a word is missing is
+        // the word there ("day"), so it's made sure instead of guessing one.
         int longest = 0;
         float bottom = 0;
         for (int i = 0; i < page->n;) {
-            int j = i;
+            int j = i, cn = 0;
             while (j < page->n && page->words[j].column == page->words[i].column) j++;
-            if (j - i > longest) longest = j - i;
-            for (int k = i; k < j; k++) bottom = fmaxf(bottom, page->words[k].v1);
+            for (int k = i; k < j; k++)
+                if (!page->words[k].unsure) { cn++; bottom = fmaxf(bottom, page->words[k].v1); }
+            if (cn > longest) longest = cn;
             i = j;
         }
         for (int i = 0; i < page->n;) {
             int j = i;
             while (j < page->n && page->words[j].column == page->words[i].column) j++;
-            int cn = j - i;
+            int cn = 0, prev = -1;   // the column's sure words, the last one seen
             static float steps[PAGE_MAX_WORDS], hts[PAGE_MAX_WORDS], u0s[PAGE_MAX_WORDS];   // not on the stack
-            for (int k = 0; k < cn; k++) {
-                const PageWord &q = page->words[i + k];
-                hts[k] = q.v1 - q.v0;
-                u0s[k] = q.u0;
-                if (k) steps[k - 1] = (q.v0 + q.v1) / 2 - (page->words[i + k - 1].v0 + page->words[i + k - 1].v1) / 2;
+            for (int k = i; k < j; k++) {
+                const PageWord &q = page->words[k];
+                if (q.unsure) continue;
+                hts[cn] = q.v1 - q.v0;
+                u0s[cn] = q.u0;
+                if (prev >= 0) steps[cn - 1] = (q.v0 + q.v1) / 2 - (page->words[prev].v0 + page->words[prev].v1) / 2;
+                prev = k;
+                cn++;
             }
             float step = 0, ht = 0, u0 = 0;
             if (cn >= 4) {
@@ -502,12 +527,21 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
                 qsort(u0s, cn, sizeof(float), cmp_float);
                 step = steps[(cn - 1) / 2]; ht = hts[cn / 2]; u0 = u0s[cn / 2];
             }
+            prev = -1;
+            int between = 0;   // unsure pieces since the last sure word
             for (int k = i; k < j && no < PAGE_MAX_WORDS; k++) {
-                if (k > i && step > 0) {
-                    const PageWord &a = page->words[k - 1], &b = page->words[k];
+                if (page->words[k].unsure) {
+                    between++;
+                    out[no++] = page->words[k];
+                    continue;
+                }
+                if (prev >= 0 && step > 0) {
+                    const PageWord &a = page->words[prev], &b = page->words[k];
                     float gap = (b.v0 + b.v1) / 2 - (a.v0 + a.v1) / 2;
                     int missing = int(gap / step + 0.5f) - 1;
-                    if (gap >= 1.6f * step && missing >= 1 && missing <= 2)
+                    if (gap < 1.6f * step || missing > 2) missing = 0;
+                    for (int m = 0; m < between && missing > 0; m++, missing--) out[no - between + m].unsure = false;
+                    if (missing >= 1)
                         for (int m = 1; m <= missing && no < PAGE_MAX_WORDS; m++) {
                             PageWord g = {};
                             float vc = (a.v0 + a.v1) / 2 + gap * m / (missing + 1);
@@ -518,9 +552,18 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
                         }
                 }
                 if (no < PAGE_MAX_WORDS) out[no++] = page->words[k];
+                prev = k;
+                between = 0;
             }
             // the column's end: as long as the others, if there's room above their bottom
-            const PageWord last = page->words[j - 1];
+            PageWord last = page->words[prev];
+            for (int m = 0; step > 0 && m < between && cn < longest; m++) {
+                PageWord &q = out[no - between + m];
+                if ((q.v0 + q.v1) / 2 > bottom + step / 4) break;
+                q.unsure = false;
+                last = q;
+                cn++;
+            }
             for (int m = 1; step > 0 && m <= longest - cn && m <= 2 && no < PAGE_MAX_WORDS; m++) {
                 float vc = (last.v0 + last.v1) / 2 + step * m;
                 if (vc > bottom + step / 4) break;

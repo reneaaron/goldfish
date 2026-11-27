@@ -6,13 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Goldfish ("Sign and forget."): a stateless, camera-based Bitcoin signer for the Waveshare RP2350-Touch-LCD-2 (240×320 touch screen, OV5640 camera, no radio). The seed lives in RAM only; all I/O is QR codes through the camera and the screen. Status: works in the desktop simulator; on one real board, QR scanning and a 2-of-3 multisig with Sparrow on signet (set up, signed, broadcast) work, and single-sig transactions have been signed with Sparrow, on mainnet too; not for real funds.
 
-- `firmware/`: PlatformIO project (the only code that builds and has tests)
+- `firmware/`: PlatformIO project
+- `companion/`: the watch-only wallet app for Goldfish setups (replaces Sparrow, Nunchuk), draft brand name **Dove** (marks and brand sheet in `marketing/companion/`); a spike so far, Tauri 2, Linux desktop only: a watch-only wallet (single-sig `84h` or `wsh(sortedmulti)` multisig) over Electrum or Esplora, PSBTs out as animated UR QR codes, the signed one back through the webcam (V4L2, in Rust), then broadcast. Its logic is `src-tauri/src/lib.rs`, tested on its own; `companion/e2e` drives it against the simulator through `firmware/e2e/device.py`, so a change to the formats Goldfish reads (UR types, descriptor spellings, PSBT rules) lands with the companion side in the same PR. `.github/workflows/companion.yml` runs only when `companion/`, `firmware/src/app/` or `firmware/e2e/` change. Details in `companion/README.md`. Code says `companion`, never `dove` (package names, identifiers, paths, CI jobs); the brand name appears only in user-facing copy and icons, so a rename touches only those
 - `case/`: printed case in gcad (`.gcad` parts, `.gasm` assembly)
 - `hardware/`: parts list, board notes
 - `flasher/`: one static page that copies `firmware.uf2` onto the board's BOOT drive
 - `parts/`, `assemble/`, `start/`: the website's build guide: what to buy and the case to print (`parts/files` is a symlink to `case/exports`; the case picture is a landing render, and the 3D view loads three.js from jsDelivr only when clicked), connecting the camera and closing the case, then first use (a seed, then Sparrow as the wallet app; its screenshots are the landing page's `img/screens`, retaken from the latest release on deploy, and its button and screen names must match `ui.cpp`). Keep `parts/` in step with `hardware/README.md` and the printing notes in `case/README.md`
-- `landing/`: the project website's landing page; `.github/workflows/pages.yml` publishes it on GitHub Pages (landing at `/`, flasher with the latest GitHub release's firmware at `/flasher/`, cards at `/cards/`, the steel backup guide at `/metal/`, the build guide at `/parts/`, `/assemble/` and `/start/`, the browser simulator built from `main` at `/try/`, which the landing hero runs) on pushes to `main` that touch the site and after each release. `.github/workflows/release.yml` builds a pushed `v*` tag (no cache) and publishes `firmware.uf2`, `SHA256SUMS` and a build provenance attestation as a GitHub release, after checking the toolchain archives against `firmware/toolchain.sha256` (update it when bumping the platform); the site workflow checks both before offering the file. Actions are pinned by commit SHA (Dependabot proposes updates); `main` takes changes only through PRs with green CI, and `v*` tags can't be moved or deleted
-- `try/`: `sim.js`, which runs the browser (WebAssembly) build of the firmware (`firmware/web/Makefile`) on the landing hero's screen after "Plug it in"; `index.html` only sends old `/try/` links to the hero (`/#plug`, which plugs it in)
+- `landing/`: the project website's landing page; `.github/workflows/pages.yml` publishes it on GitHub Pages (landing at `/`, flasher with the latest GitHub release's firmware at `/flasher/`, cards at `/cards/`, the steel backup guide at `/metal/`, the build guide at `/parts/`, `/assemble/` and `/start/`, the browser simulator built from `main` at `/sim/`, which the landing hero runs) on pushes to `main` that touch the site and after each release. `.github/workflows/release.yml` builds a pushed `v*` tag (no cache) and publishes `firmware.uf2`, `SHA256SUMS` and a build provenance attestation as a GitHub release, after checking the toolchain archives against `firmware/toolchain.sha256` (update it when bumping the platform); the site workflow checks both before offering the file. Actions are pinned by commit SHA (Dependabot proposes updates); `main` takes changes only through PRs with green CI, and `v*` tags can't be moved or deleted
+- `firmware/web/`: `Makefile` for the browser (WebAssembly) build of the firmware, plus `sim.js`, which runs it on the landing hero's screen after "Plug it in"
 - `cards/`: one self-contained page (no external requests) that prints blank cards for 12-word seeds only: the 21×21 SeedQR grid (full page or wallet cards) and word cards; the grid's labels and part lines must match the device's `build_backup_block` in `ui.cpp`
 - `metal/`: one short page on stamping a 12-word seed into M8 × 24 stainless washers (DIN 9021) on an M8 × 35 bolt: what to buy, three steps, an optional printed jig and a 12-washer box (`metal/files`, made by `hardware/stackbox_12.scad`). Its picture is `marketing/renders/metal.py`. No fire claims beyond the melting point until a stack has been tested; the plan and open tests are in `hardware/metal-backup-plan.md`
 - `marketing/`: Blender render scripts that consume `case/exports/case.stl` and `firmware/docs/screens/*.png`
@@ -32,11 +33,19 @@ pio run -t upload                          # flash a board already running this 
 SIM_SHOTS=docs/screens .pio/build/sim/program   # headless scripted run, writes a screenshot per screen
 ```
 
-Simulator camera: it decodes the image at `sim/camera.png` (or `$SIM_CAMERA`), reloaded on change. With a scan screen open, `cp sim/samples/<file>.png sim/camera.png`. `sim/samples` has SeedSigner's public test SeedQRs and a matching seed + testnet PSBT (`testseed_height_demise_*`, `testpsbt_height_demise_base64.png`), plus the same PSBT on mainnet (`mainpsbt_height_demise_base64.png`, from `sim/make_mainnet_psbt.py`) that `SIM_SHOTS` signs.
+Simulator camera: it decodes the image at `sim/camera.png` (or `$SIM_CAMERA`), reloaded on change. With a scan screen open, `cp sim/samples/<file>.png sim/camera.png`. `sim/samples` has handwritten test pages (`handwritten_page_demo.png`: the height demise seed, which the landing hero offers), SeedSigner's public test SeedQRs and a matching seed + testnet PSBT (`testseed_height_demise_*`, `testpsbt_height_demise_base64.png`), plus the same PSBT on mainnet (`mainpsbt_height_demise_base64.png`, from `sim/make_mainnet_psbt.py`) that `SIM_SHOTS` signs.
 
 Case: `gcad check stateless-signer.gasm` (add `--set clip=0` for the screw variant), `gcad export parts/case.gcad exports/case.stl`.
 
 Renders: `blender -b -P marketing/renders/render.py` (`ONLY=1,3 SAMPLES=64 PCT=50` for a quick preview).
+
+Companion (needs Rust, the Tauri Linux libraries `libwebkit2gtk-4.1-dev` and friends, and libclang):
+
+```bash
+cd companion/src-tauri && cargo test      # logic tests
+cd companion/src-tauri && cargo run       # the app window
+cd companion && uv run --with-requirements ../firmware/e2e/requirements.txt pytest e2e   # round trips with the simulator
+```
 
 ## Firmware architecture
 

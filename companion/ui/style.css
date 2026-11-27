@@ -1,0 +1,374 @@
+/* Dove (marketing/companion/): Goldfish's own colour tokens
+   (firmware/src/app/theme.cpp) with the case blue as the accent where
+   Goldfish uses orange; in Dove, orange is only the feet in the mark.
+   Type as on Goldfish: Rethink Sans titles (700 for the wordmark), Inter
+   text, JetBrains Mono amounts and keys.
+   Bundled in fonts/; nothing is fetched. */
+:root {
+  --bg: #F4F7F8;
+  --surface: #FFFFFF;
+  --surface-2: #E6EDF0;
+  --border: #D9E2E6;
+  --text: #14222B;
+  --text-2: #5A6B75;
+  --text-3: #718089;
+  --accent: #0A7ED0;   /* Dove blue, the case blue */
+  --accent-dim: #DDEDF9;
+  --green: #15803D;
+  --green-dim: #DCEFE2;
+  --red: #C62828;
+  --red-dim: #F8DCD8;
+  --amber: #A16207;
+  --amber-dim: #F5E6C4;
+  --radius: 14px;
+  --display: "Rethink Sans", "Inter", system-ui, sans-serif;
+  --sans: "Inter", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "DejaVu Sans Mono", monospace;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body { font: 15px/1.4 var(--sans); }
+main { max-width: 420px; margin: 0 auto; padding: 16px; }
+p { margin: 0; }
+b { font-weight: 600; color: var(--text); }
+
+svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* type */
+.display { font: 800 26px/1.15 var(--display); text-align: center; margin: 12px 0 6px; letter-spacing: -.01em; }
+.para { color: var(--text-2); margin: 0 0 16px; }
+h2 { font: 600 17px/1 var(--sans); margin: 0; flex: 1; text-align: center; padding-right: 40px; }
+.label { font: 500 13px/1 var(--sans); color: var(--text-3); text-transform: uppercase; letter-spacing: .08em; margin-top: 20px; display: flex; gap: 8px; align-items: center; }
+.big { font: 500 34px/1.2 var(--mono); margin-top: 6px; letter-spacing: -.02em; }
+.sub { color: var(--text-3); font: 500 13px/1.4 var(--mono); }
+.mono { font-family: var(--mono); }
+.hint { color: var(--text-3); font-size: 13px; margin-top: 12px; }
+.center { text-align: center; justify-content: center; }
+.accent-title { color: var(--accent); font-weight: 600; font-size: 17px; text-align: center; margin-top: 12px; }
+.caption { color: var(--text-2); text-align: center; margin: 8px 0 12px; font-size: 14px; }
+
+/* pieces */
+/* wordmark: the mark, then "dove" in lowercase Rethink Sans 700 */
+.lockup { display: inline-flex; align-items: center; gap: 8px; font: 700 22px/1 var(--display); letter-spacing: -0.01em; color: var(--text); }
+.lockup img { height: 40px; } /* brand sheet: a 40 px mark per 22 px name */
+
+.top { display: flex; justify-content: space-between; align-items: center; }
+.pill { display: inline-flex; gap: 6px; align-items: center; background: var(--surface-2); border-radius: 999px; padding: 5px 12px; font-size: 14px; }
+.pill svg { color: var(--accent); width: 16px; height: 16px; }
+.chip { font: 600 11px/1 var(--sans); letter-spacing: .06em; padding: 4px 8px; border-radius: 999px; background: var(--amber-dim); color: var(--amber); }
+
+button {
+  font: 600 16px/1 var(--sans); border: 0; border-radius: var(--radius); height: 48px; padding: 0 18px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; color: var(--text);
+}
+button.primary { background: var(--text); color: #fff; }
+button.secondary { background: var(--surface-2); }
+button.link { background: none; height: auto; padding: 4px; color: var(--text-2); font-size: 14px; gap: 6px; }
+button.link svg { width: 15px; height: 15px; }
+button:disabled { opacity: .55; cursor: default; }
+button.wide { width: 100%; }
+.center-block { display: flex; margin: 8px auto 0; }
+.row { display: flex; gap: 10px; margin-top: 20px; }
+.row button { flex: 1; }
+.stack { display: flex; flex-direction: column; gap: 10px; }
+
+.bar { display: flex; align-items: center; height: 44px; margin-bottom: 12px; }
+.bar .back { width: 40px; height: 40px; padding: 0; background: none; color: var(--text-2); }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.kv { display: grid; grid-template-columns: auto 1fr; margin: 16px 0; padding: 0 14px; }
+.kv dt, .kv dd { padding: 11px 0; border-top: 1px solid var(--border); margin: 0; }
+.kv dt:first-of-type, .kv dt:first-of-type + dd { border-top: 0; }
+.kv dt { color: var(--text-2); }
+.kv dd { text-align: right; word-break: normal; padding-left: 12px; }
+.kv dd.mono { font-size: 13px; }
+
+.list-head { display: flex; justify-content: space-between; align-items: center; margin: 28px 0 8px; }
+.list-head .label { margin: 0; }
+.list { list-style: none; margin: 0; padding: 0 14px; }
+.list li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
+.list li:first-child { border-top: 0; }
+.list .ic { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: var(--surface-2); color: var(--text-2); }
+.list .ic.in { background: var(--green-dim); color: var(--green); }
+.list .what { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.list .what small { color: var(--text-3); font: 500 12px/1 var(--mono); }
+.list .amt { font: 500 15px/1 var(--mono); }
+.list .amt.in { color: var(--green); }
+.list:empty { display: none; }
+
+.qr { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; margin: 8px auto 0; max-width: 300px; }
+.qr svg { display: block; width: 100%; height: auto; stroke: none; }
+.addr { text-align: center; word-break: normal; max-width: 300px; margin-left: auto; margin-right: auto; font-size: 15px; margin-top: 4px; line-height: 1.6; }
+
+.field { display: block; margin-bottom: 14px; }
+.field > span { display: block; color: var(--text-2); font-size: 14px; margin-bottom: 6px; }
+input, textarea {
+  width: 100%; font: 500 15px/1.3 var(--mono); color: var(--text); background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 13px 14px; outline: none;
+}
+input:focus, textarea:focus { border-color: var(--text-2); }
+.unit { display: flex; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.unit:focus-within { border-color: var(--text-2); }
+.unit input { border: 0; background: none; }
+.unit b, .unit i { font: 500 15px/1 var(--mono); color: var(--text-3); padding: 0 14px; font-style: normal; }
+.unit b { padding-right: 0; }
+.paste { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+
+.badge { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; margin: 32px auto 0; }
+.badge svg { width: 32px; height: 32px; stroke-width: 2.5; }
+.badge.green { background: var(--green-dim); color: var(--green); }
+
+progress { width: 100%; height: 6px; margin: 0 0 12px; appearance: none; border: 0; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+progress::-webkit-progress-bar { background: var(--surface-2); }
+progress::-webkit-progress-value { background: var(--accent); }
+
+#error { background: var(--red-dim); color: var(--red); border-radius: var(--radius); padding: 10px 6px 10px 14px; margin: 0 0 12px; font-size: 14px; display: flex; gap: 6px; align-items: flex-start; }
+#error p { flex: 1; min-width: 0; }
+#error small { display: block; margin-top: 4px; font: 500 11px/1.4 var(--mono); opacity: .8; overflow-wrap: anywhere; }
+#error small:empty { display: none; }
+#error-close { height: 28px; width: 28px; padding: 0; background: none; color: var(--red); font-size: 20px; font-weight: 400; }
+
+/* camera preview, mirrored like a selfie view so a code is easy to aim */
+.cam { background: var(--text); border-radius: var(--radius); overflow: hidden; margin: 16px 0 12px; aspect-ratio: 4 / 3; }
+.cam canvas { display: block; width: 100%; height: 100%; transform: scaleX(-1); }
+
+/* settings, fee chips, speed up */
+.top-right { display: flex; align-items: center; gap: 4px; }
+button.icon { width: 40px; height: 40px; padding: 0; background: none; color: var(--text-2); }
+.chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: -4px 0 16px; }
+.chips button { height: auto; padding: 10px 6px; flex-direction: column; gap: 4px; background: var(--surface); border: 1px solid var(--border); font-size: 14px; }
+.chips button span { font: 500 12px/1 var(--mono); color: var(--text-2); }
+.chips button[aria-pressed="true"] { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
+.field-hint { color: var(--text-3); font-size: 13px; margin: -8px 0 16px; }
+.field-hint code { font-size: 12px; background: var(--surface-2); padding: 1px 4px; border-radius: 4px; }
+.ok { color: var(--green); font-size: 14px; text-align: center; margin-top: 10px; }
+.danger-zone { margin-top: 32px; display: flex; flex-direction: column; gap: 10px; }
+.danger-zone .label { margin-top: 0; }
+.hint.left { text-align: left; margin-top: 0; }
+button.danger { color: var(--red); }
+.list .bump { height: 30px; padding: 0 10px; font-size: 13px; gap: 6px; background: var(--accent-dim); color: var(--accent); border-radius: 999px; margin-top: 6px; align-self: flex-start; }
+.list .bump svg { width: 14px; height: 14px; }
+.list .right { display: flex; flex-direction: column; align-items: flex-end; }
+
+/* multisig */
+h2.left { text-align: left; padding-right: 0; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+.panel .field { margin-bottom: 0; }
+/* multisig: how many signatures are still needed, then one row per cosigner */
+.sig-status { display: flex; flex-direction: column; padding: 12px 14px 4px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.sig-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; color: var(--text-2); }
+.sig-head b { color: var(--text); font-size: 15px; font-weight: 600; }
+.sig-bar { display: flex; gap: 4px; margin: 10px 0 4px; }
+.sig-bar i { flex: 1; height: 4px; border-radius: 2px; background: var(--surface-2); }
+.sig-bar i.on { background: var(--green); }
+.signer { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-top: 1px solid var(--border); font-size: 13px; color: var(--text-3); }
+.sig-bar + .signer { border-top: 0; }
+.signer .fp { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); color: var(--text-2); }
+.signer svg { width: 14px; height: 14px; }
+.signer .state { display: inline-flex; align-items: center; gap: 4px; }
+.signer.on .fp { color: var(--text); }
+.signer.on .state { color: var(--green); font-weight: 500; }
+.kv dd.list-dd { display: flex; flex-direction: column; gap: 4px; }
+.kv dt.cont, .kv dt.cont + dd { border-top: 0; padding-top: 0; }
+
+/* cancel under the camera, copy buttons, the waiting banner */
+.cam-cancel { margin-top: -4px; margin-bottom: 8px; }
+button.copy { margin-top: 16px; }
+.stack button.copy { margin-top: 0; }
+.waiting { width: 100%; height: auto; margin-top: 16px; padding: 12px 16px; background: var(--amber-dim); color: var(--text); justify-content: space-between; font-size: 14px; font-weight: 500; }
+.waiting b { font-weight: 600; }
+.waiting span { color: var(--amber); font-weight: 600; }
+
+/* Link: brand on top, what to do in the middle, the one action at the bottom
+   (the layout of Goldfish's own home screen) */
+.onboard { display: flex; flex-direction: column; }
+.onboard-top { display: flex; justify-content: center; padding-top: 8px; }
+.onboard-body { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 24px 0; }
+.onboard .display { text-align: left; margin: 0 0 8px; }
+.onboard .para { text-align: left; margin: 0 0 20px; }
+.steps { list-style: none; counter-reset: step; margin: 0; padding: 0 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.steps li { counter-increment: step; display: grid; grid-template-columns: 26px 1fr; gap: 12px; align-items: start; padding: 14px 0; border-top: 1px solid var(--border); color: var(--text-2); }
+.steps li:first-child { border-top: 0; }
+.steps li::before { content: counter(step); width: 26px; height: 26px; border-radius: 50%; background: var(--accent-dim); color: var(--accent); font: 600 13px/26px var(--sans); text-align: center; }
+.onboard-actions { display: flex; flex-direction: column; gap: 10px; padding-bottom: 8px; }
+.alt { display: flex; justify-content: center; align-items: center; gap: 6px; color: var(--text-3); }
+.panel { margin-top: 0; }
+.steps li span { padding-top: 2px; }
+
+/* Every screen: header, content, and its main action pinned to the bottom,
+   so it stays in reach however long the content is. */
+main { --pad-y: 16px; }
+main > section { display: flex; flex-direction: column; min-height: calc(100vh - 2 * var(--pad-y)); }
+/* the wallet has no pinned action: its height is its content, so no scroll */
+main > #v-wallet { min-height: 0; }
+.fill { flex: 1; display: flex; flex-direction: column; }
+.actions { margin-top: auto; position: sticky; bottom: 0; z-index: 1; display: flex; flex-direction: column; gap: 10px; padding: 20px 0 8px; background: linear-gradient(to bottom, transparent, var(--bg) 18px); }
+.actions .ok { margin: 0; }
+/* status screens (Signed, Sent): centred, like Goldfish's own */
+.status-body { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.status .display, .status .para { text-align: center; }
+.status .badge { margin-top: 0; }
+.status .row { margin-top: 0; }
+/* the amount on Review stays centred, as on Goldfish's Review */
+.sending { text-align: center; }
+.sending .label { justify-content: center; margin-top: 8px; }
+.balance .label { margin-top: 24px; }
+.addr-card { padding: 14px 16px; margin-top: 12px; text-align: center; }
+.addr-card .accent-title { margin-top: 0; }
+/* empty Activity: an icon badge like Goldfish's, a line, and the way forward */
+.empty { padding: 28px 20px 24px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+.empty > b { font-size: 16px; font-weight: 600; margin-top: 8px; }
+.empty > span:not(.empty-badge):not(.empty-actions) { color: var(--text-2); font-size: 14px; max-width: 280px; }
+.empty-badge { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-dim); color: var(--accent); }
+.empty-badge svg { width: 24px; height: 24px; }
+.empty-badge.warn { background: var(--amber-dim); color: var(--amber); }
+.empty-badge.spin svg { animation: spin 1.2s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .empty-badge.spin svg { animation: none; } }
+.empty-actions { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+.empty-actions button.secondary { height: 40px; padding: 0 16px; font-size: 15px; }
+.danger-zone { margin-top: 28px; }
+/* Connect Goldfish: the fish mark at the dove's module size (brand sheet) */
+.connect { width: 100%; height: auto; margin-top: 16px; padding: 12px 14px; justify-content: flex-start; gap: 14px; text-align: left; font-weight: 500; background: var(--surface); border: 1px solid var(--border); }
+.connect img { width: 40px; flex: none; }
+.connect span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.connect b { font-size: 15px; font-weight: 600; }
+.connect small { color: var(--text-2); font-size: 13px; font-weight: 400; }
+.connect .chev { margin-left: auto; color: var(--text-3); font-size: 22px; }
+.banner.waiting { margin-top: 16px; }
+#v-sign .qr { max-width: 260px; }
+#v-sign .sending .big { font-size: 30px; }
+.qr { width: 100%; box-sizing: border-box; }
+/* a text action on the right of a header; the title stays centred */
+.bar .bar-action { width: 40px; padding: 0; font-size: 14px; }
+.bar:has(.bar-action) h2 { padding-right: 0; }
+.row button.copy { margin-top: 0; }
+#v-receive .qr { max-width: 240px; }
+
+/* Wide windows (desktop): the wallet in two columns, every other screen as a
+   centred panel, instead of a phone-width strip in a sea of grey. */
+@media (min-width: 900px) {
+  main { max-width: 1080px; --pad-y: 28px; padding: var(--pad-y) 40px; }
+  .wallet-grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 48px; align-items: start; }
+  .wallet-main .list-head { margin-top: 24px; }
+  .list li { padding: 14px 4px; }
+  .empty { padding: 56px 24px 48px; }
+
+  /* no wallet yet (Link): a centred page */
+  main > section:not(#v-wallet) {
+    max-width: 480px; width: 100%; margin: 12px auto; min-height: min(720px, calc(100vh - 80px));
+    background: var(--surface); border: 1px solid var(--border); border-radius: 24px;
+    padding: 12px 28px 20px; box-shadow: 0 12px 40px rgba(20, 34, 43, .06);
+  }
+  main > section:not(#v-wallet) .actions { background: linear-gradient(to bottom, transparent, var(--surface) 18px); }
+  /* white on white: the inner cards and fields take the page grey instead */
+  main > section:not(#v-wallet) :is(.card, .qr, .steps, .panel, .sig-status, input, textarea, .unit, .chips button) { background: var(--bg); }
+  main > section:not(#v-wallet) .unit input { background: none; }
+  main > section:not(#v-wallet) .qr { background: #fff; }
+}
+
+/* small monospaced text (BTC line, IDs, times, fee rates) in the regular
+   weight; 500 stays for the amounts */
+.sub, .list .what small, .kv dd.mono, .chips button span, .field-hint code, #error small { font-weight: 400; }
+
+/* the wallet's header: wallet identity and network on the right */
+.wallet-id { display: inline-flex; align-items: center; gap: 6px; }
+.pill:not(.mono) { font: 600 13px/1 var(--sans); }
+.wide-only { display: none; }
+button.settings { gap: 6px; }
+@media (min-width: 900px) {
+  .wide-only { display: inline; }
+  /* a full-width white bar across the window, content on the page's grid */
+  .appbar {
+    margin: calc(-1 * var(--pad-y)) 0 28px; padding: 14px 0; min-height: 68px;
+    position: relative; background: var(--surface);
+    box-shadow: 0 0 0 100vmax var(--surface); clip-path: inset(0 -100vmax 0 -100vmax);
+  }
+  .appbar::after { content: ""; position: absolute; left: -100vmax; right: -100vmax; bottom: 0; height: 1px; background: var(--border); }
+  .appbar .top-right { gap: 16px; }
+  button.settings { width: auto; height: 36px; padding: 0 12px; border-radius: 10px; color: var(--text-2); font-size: 14px; font-weight: 500; }
+  button.settings:hover { background: var(--surface-2); }
+  .wallet-side .balance .label { margin-top: 0; }
+  .wallet-main .list-head { margin-top: 0; }
+}
+/* the header's full-width background and line paint past the content box;
+   clip them, so the page never scrolls sideways */
+html, body { overflow-x: clip; }
+
+/* Wide, with a wallet: other screens are dialogs over the dimmed wallet. */
+#backdrop { position: fixed; inset: 0; z-index: 20; background: rgba(20, 34, 43, .32); }
+@media (min-width: 900px) {
+  body.dialog-open main > section:not(#v-wallet) {
+    position: fixed; z-index: 21; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    margin: 0; width: min(480px, calc(100vw - 48px)); min-height: 0; max-height: calc(100vh - 48px);
+    overflow-y: auto; overscroll-behavior: contain;
+    box-shadow: 0 24px 64px rgba(20, 34, 43, .22);
+  }
+  body.dialog-open { overflow: hidden; }
+}
+
+/* the network, inside the wallet pill: "2 of 3 multisig · Signet" (mainnet shows nothing) */
+.pill .net { font: 600 13px/1 var(--sans); color: var(--amber); display: inline-flex; align-items: center; gap: 6px; }
+.pill .net::before { content: "·"; color: var(--text-3); font-weight: 400; }
+.pill .net[hidden] { display: none; }
+
+/* Receive: the address under the QR, no box; groups of four, alternate ones lighter */
+.addr-block { margin-top: 18px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.addr-block .label { margin: 0; }
+.addr-block .addr { margin: 0; max-width: 300px; display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 10px; font: 400 15px/1.5 var(--mono); color: var(--text); }
+.addr-block .addr .alt { color: var(--text-3); }
+#v-receive .hint { text-align: center; margin-top: 16px; }
+
+/* Steps done on Goldfish: the fish mark beside the instruction */
+.gf-hint { display: flex; gap: 12px; align-items: center; margin: 14px 0 0; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); color: var(--text-2); font-size: 13px; line-height: 1.45; text-align: left; }
+.gf-hint img.gf { width: 28px; flex: none; }
+.gf-hint b { color: var(--text); }
+.panel .gf-hint { margin: 0; }
+#v-show .gf-hint { margin: 0 0 16px; }
+.caption { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.gf-inline { width: 20px; }
+.kv dd.cosigner { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.kv dd.cosigner svg { width: 14px; height: 14px; color: var(--accent); }
+
+/* Settings: Save belongs to the server fields; Forget is a quiet text action */
+#set-save { margin-top: 4px; }
+#set-form .ok { margin-top: 10px; }
+.danger-zone { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--border); }
+.danger-zone .hint { margin: 8px 0 4px; }
+button.link.danger { color: var(--red); padding: 4px 0; font-size: 14px; justify-content: flex-start; }
+#v-receive .addr-block { margin-top: 12px; }
+
+/* Review: room to breathe; on desktop, details left and the QR right */
+.sign-body { display: flex; flex-direction: column; gap: 16px; }
+.sign-body .sig-status { margin: 0; }
+.sign-body .sending .label { margin-top: 0; }
+.sign-body #review { margin: 0; }
+.kv dd .yours { display: block; margin-top: 6px; font: 600 11px/1 var(--sans); letter-spacing: .04em; text-transform: uppercase; color: var(--accent); }
+@media (min-width: 900px) {
+  body.dialog-open main > section#v-sign { width: min(800px, calc(100vw - 48px)); max-width: none; }
+  #v-sign .sign-body {
+    display: grid; grid-template-columns: minmax(0, 1fr) 300px; column-gap: 32px; row-gap: 20px;
+    grid-template-areas: "sig qr" "amt qr" "det qr" "paste qr"; grid-template-rows: auto auto auto 1fr;
+    align-items: start; padding-top: 8px;
+  }
+  #v-sign #sign-sigs { grid-area: sig; justify-content: flex-start; }
+  #v-sign .sending { grid-area: amt; text-align: left; }
+  #v-sign .sending .label { justify-content: flex-start; }
+  #v-sign #review { grid-area: det; }
+  #v-sign #sign-paste { grid-area: paste; }
+  #v-sign .sign-qr-col { grid-area: qr; }
+  #v-sign .qr { max-width: 300px; margin: 0; }
+}
+
+/* a note about what the camera sees, right under it */
+.cam-msg { margin: 0 0 4px; padding: 8px 12px; border-radius: 10px; background: var(--amber-dim); color: var(--text); font-size: 13px; text-align: center; }
+
+/* Anything done on Goldfish: one subtle look, a faint wash of fish orange
+   behind the fish and the line (Dove's own hints stay grey) */
+:root { --gf-wash: rgba(255, 122, 47, .09); --gf-edge: rgba(255, 122, 47, .22); }
+.gf-hint { background: var(--gf-wash); border: 1px solid var(--gf-edge); color: var(--text-2); }
+#sign-part, #sh-part { font-variant-numeric: tabular-nums; }
+.caption.gf-cap { width: fit-content; margin: 10px auto 0; padding: 6px 14px 6px 10px; border-radius: 999px;
+  background: var(--gf-wash); border: 1px solid var(--gf-edge); color: var(--text-2); font-size: 13px; }

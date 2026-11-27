@@ -15,14 +15,14 @@ transactions go in and out through the camera and the screen.
 <p>
   <img src="marketing/renders/out/08_slide_to_sign.png" width="32%" alt="Confirm a transaction's amount and fee, then slide to sign">
   <img src="marketing/renders/out/09_new_seed_dice.png" width="32%" alt="Make a new seed from dice rolls">
-  <img src="marketing/renders/out/13_backup_copy.png" width="32%" alt="Copying the seed onto a paper SeedQR card, part by part">
+  <img src="marketing/renders/out/13_backup_copy.png" width="32%" alt="Writing a new seed's words onto a paper word card">
 </p>
 
 Status: early, not for real funds. The firmware runs on the Waveshare board
 (screen, touch and camera), in a desktop simulator, and in the browser
 (WebAssembly: plug in the device at the top of the website). It loads seeds from a
-QR, typed words or a photo of a handwritten backup, makes new seeds from dice,
-coins or drawn words, backs them up as QR cards, and reviews and signs
+photo of a handwritten backup (experimental), typed words or a SeedQR, makes new
+seeds from dice, coins or drawn words, and reviews and signs
 single-sig and multisig transactions. On a real board,
 one 2-of-3 multisig wallet has been set up with Sparrow 2.5.2 on signet and a
 transaction signed and broadcast, and single-sig transactions have been
@@ -32,24 +32,25 @@ signed with Sparrow, on mainnet too. The code hasn't been reviewed or audited.
 
 | Folder | What's in it |
 |---|---|
-| [`firmware/`](firmware) | PlatformIO firmware (RP2350, LVGL, libwally-core), desktop simulator, tests |
+| [`firmware/`](firmware) | PlatformIO firmware (RP2350, LVGL, libwally-core), desktop and browser simulators, tests |
+| [`companion/`](companion) | Dove (draft name), an early spike of the wallet app for Goldfish (Linux desktop): a watch-only single-sig or multisig wallet that has Goldfish sign over QR codes; not for real funds |
 | [`case/`](case) | Printed case in gcad: glass on top, press-fit, no screws, STL and STEP exports |
 | [`hardware/`](hardware) | Parts list and board notes |
-| [`try/`](try) | Runs the firmware's WebAssembly build on the website's hero device |
-| [`cards/`](cards) | Blank SeedQR and word cards for 12-word seeds, to print (open `index.html`, works offline) |
+| [`cards/`](cards) | Blank word and SeedQR cards for 12-word seeds, to print (open `index.html`, works offline) |
 | [`metal/`](metal) | Guide to stamping a 12-word seed into stainless steel washers on a bolt |
 | [`marketing/`](marketing) | Product renders made from the real case and firmware screens |
 
 ## How it works
 
-1. Scan your seed QR (SeedQR, 12 or 24 words). The device shows its
-   fingerprint so you can match it with your wallet. Or type your words
-   backup. New seed makes a seed from dice rolls, coin flips or words you
-   draw (the last word from coin flips), warns when the rolls or flips look
-   made up (advice only), shows the words to write down and
-   optionally walks you through a paper QR card, square by square. Any
-   loaded seed can be backed up as a QR card the same way. Blank cards
-   for 12-word seeds to print are in [`cards/`](cards).
+1. Scan your written words (12 or 24, experimental): hold the paper
+   still in front of the camera, then check each word the device read
+   against it. Or type the words; a SeedQR scans too. The device shows
+   the seed's fingerprint so you can match it with your wallet. New seed
+   makes a seed from dice rolls, coin flips or words you draw (the last
+   word from coin flips), warns when the rolls or flips look made up
+   (advice only) and shows the words to write down. Blank word cards for
+   12-word seeds to print are in [`cards/`](cards). Any loaded seed can
+   also be copied onto a paper QR card, square by square (Back up as QR).
 2. Connect wallet (in Wallet options): show the public key as a QR, so
    Sparrow (or another wallet app) can set up a watch-only wallet that tracks
    your balance and builds transactions.
