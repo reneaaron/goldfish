@@ -739,6 +739,7 @@ function showReview(r) {
   $("sign-progress").hidden = true;
   $("sign-paste").hidden = true;
   menu(false);
+  signTxid = r.txid;
   button($("sign-scan"), "Scan signed QR", false);
   $("sign-who").textContent = "Scan with Goldfish";
   $("sign-fish").hidden = false;
@@ -811,8 +812,9 @@ $("sign-use").onclick = async () => {
 listen("scan", (e) => onScan(e.payload));
 
 // Another signer (Sparrow with a Trezor or Ledger, a Coldcard's SD card), from
-// the ⋯ menu: the PSBT with the signatures so far as text or a .psbt file, and
+// the ⋮ menu: the PSBT with the signatures so far as text or a .psbt file, and
 // the signed one back as a file or pasted
+let signTxid = "";
 function menu(open) {
   $("sign-menu").hidden = !open;
   $("sign-more").setAttribute("aria-expanded", open);
@@ -824,29 +826,41 @@ $("sign-more").onclick = (e) => {
 document.addEventListener("click", (e) => {
   if (!$("sign-menu").hidden && !$("sign-menu").contains(e.target)) menu(false);
 });
-const psbtFilter = [{ name: "PSBT", extensions: ["psbt", "txt"] }];
+const psbtFilter = [{ name: "PSBT", extensions: ["psbt", "txn", "txt"] }];
 $("sign-copy").onclick = async () => {
   const label = $("sign-copy").querySelector("span");
-  label.textContent = (await copyText(await call("psbt_text"))) ? "Copied" : "Couldn't copy";
-  setTimeout(() => {
+  try {
+    label.textContent = (await copyText(await call("psbt_text"))) ? "Copied" : "Couldn't copy";
+    await new Promise((r) => setTimeout(r, 700));
+  } catch (_) {
+    // shown in the error line
+  } finally {
     menu(false);
     label.textContent = "Copy transaction";
-  }, 700);
+  }
 };
 $("sign-save").onclick = async () => {
   menu(false);
-  const path = await window.__TAURI__.dialog.save({ defaultPath: "dove.psbt", filters: psbtFilter });
-  if (path) await call("save_psbt", { path });
+  try {
+    const path = await window.__TAURI__.dialog.save({ defaultPath: `dove-${signTxid.slice(0, 8)}.psbt`, filters: psbtFilter });
+    if (path) await call("save_psbt", { path });
+  } catch (e) {
+    error(e);
+  }
 };
 $("sign-open").onclick = async () => {
   menu(false);
-  const path = await window.__TAURI__.dialog.open({ filters: psbtFilter });
-  if (path) onScan(await call("open_psbt", { path }));
+  try {
+    const path = await window.__TAURI__.dialog.open({ filters: psbtFilter });
+    if (path) onScan(await call("open_psbt", { path }));
+  } catch (e) {
+    error(e);
+  }
 };
 $("sign-paste-item").onclick = () => {
   menu(false);
-  $("sign-paste").hidden = false;
-  $("sign-text").focus();
+  $("sign-paste").hidden = !$("sign-paste").hidden;
+  if (!$("sign-paste").hidden) $("sign-text").focus();
 };
 
 // ---- broadcast

@@ -464,8 +464,12 @@ fn save_psbt(path: String, state: State<Shared>) -> Res<()> {
 #[tauri::command]
 fn open_psbt(path: String, state: State<Shared>) -> ScanEvent {
     let read = std::fs::read(&path).map_err(|e| format!("Couldn't open the file: {e}"));
-    match read.and_then(|b| psbt_from_file(&b)) {
-        Ok(signed) => take_signed(&mut state.lock().unwrap(), signed),
+    let mut app = state.lock().unwrap();
+    let Some(unsigned) = &app.unsigned else {
+        return ScanEvent { error: Some("nothing to sign".into()), ..Default::default() };
+    };
+    match read.and_then(|b| signed_from_file(&b, unsigned)) {
+        Ok(signed) => take_signed(&mut app, signed),
         Err(e) => ScanEvent { error: Some(e), ..Default::default() },
     }
 }

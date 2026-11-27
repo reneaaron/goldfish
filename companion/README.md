@@ -59,8 +59,10 @@ the guides still use Sparrow.
   signatures so far for the next one; Broadcast once enough have signed.
 - A signer without a camera: the Review screen's ⋮ menu copies the PSBT
   (with the signatures so far) as base64 or saves it as a binary `.psbt`,
-  and takes the signed one back from a file (binary or base64) or pasted
-  text, like a scan.
+  and takes the signed one back from a file (a PSBT, binary, base64 or hex,
+  or the finished transaction, such as a Coldcard's `.txn`) or pasted text,
+  like a scan. Inputs the other wallet already finalized count once their
+  signatures check out.
   For Sparrow with a USB device (Trezor, Ledger) or a Coldcard's SD card.
   Exports add each input's previous transaction, which Trezor and Ledger
   require; Goldfish's QR leaves it out, and it's dropped again on the way

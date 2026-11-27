@@ -597,6 +597,38 @@ fn verify_signatures(psbt: &Psbt) -> Res<()> {
     Ok(())
 }
 
+/// Who signed input `i`, if another wallet already finalized it: each
+/// signature in its witness must check out against one of the input's keys,
+/// and the witness must end in our own script (or key, for one signer).
+fn final_signers(psbt: &Psbt, i: usize) -> Res<std::collections::BTreeSet<String>> {
+    let input = &psbt.inputs[i];
+    let Some(witness) = &input.final_script_witness else { return Ok(Default::default()) };
+    let bad = || "A signer sent back a finished transaction that doesn't check out. Sign again on that device.".to_string();
+    let items: Vec<&[u8]> = witness.iter().collect();
+    let (last, sigs) = items.split_last().ok_or_else(bad)?;
+    let ours = match &input.witness_script {
+        Some(script) => script.as_bytes() == *last,
+        None => input.bip32_derivation.keys().any(|k| k.serialize()[..] == **last),
+    };
+    if !ours {
+        return Err(bad());
+    }
+    let secp = bdk_wallet::bitcoin::secp256k1::Secp256k1::verification_only();
+    let mut cache = bdk_wallet::bitcoin::sighash::SighashCache::new(&psbt.unsigned_tx);
+    let (msg, _) = psbt.sighash_ecdsa(i, &mut cache).map_err(err)?;
+    let mut signers = std::collections::BTreeSet::new();
+    for sig in sigs.iter().filter(|s| !s.is_empty()) {
+        let sig = bdk_wallet::bitcoin::ecdsa::Signature::from_slice(sig).map_err(|_| bad())?;
+        let (_, (fp, _)) = input
+            .bip32_derivation
+            .iter()
+            .find(|(pk, _)| secp.verify_ecdsa(&msg, &sig.signature, pk).is_ok())
+            .ok_or_else(bad)?;
+        signers.insert(fp.to_string());
+    }
+    Ok(signers)
+}
+
 /// Merge a signed copy of `psbt` (from Goldfish or another cosigner) into
 /// it. Once `needed` keys have signed every input, also the finished
 /// transaction, ready to broadcast.
@@ -613,12 +645,16 @@ pub fn add_signatures(wallet: &Wallet, psbt: &mut Psbt, mut signed: Psbt, needed
     let mut merged = psbt.clone();
     merged.combine(signed).map_err(err)?;
     verify_signatures(&merged)?;
-    *psbt = merged;
-    let per_input: Vec<std::collections::BTreeSet<String>> = psbt
+    let mut per_input: Vec<std::collections::BTreeSet<String>> = merged
         .inputs
         .iter()
         .map(|i| i.partial_sigs.keys().filter_map(|pk| i.bip32_derivation.get(&pk.inner).map(|(fp, _)| fp.to_string())).collect())
         .collect();
+    // inputs the other wallet already finalized (Sparrow, once it has enough)
+    for (i, signers) in per_input.iter_mut().enumerate() {
+        signers.extend(final_signers(&merged, i)?);
+    }
+    *psbt = merged;
     let signers: Vec<String> = match per_input.split_first() {
         Some((first, rest)) => first.iter().filter(|fp| rest.iter().all(|s| s.contains(*fp))).cloned().collect(),
         None => vec![],
@@ -823,13 +859,33 @@ pub fn psbt_for_export(wallet: &Wallet, psbt: &Psbt) -> Psbt {
     out
 }
 
-/// A PSBT file as wallets save it: binary (Sparrow, Coldcard) or base64 text.
-pub fn psbt_from_file(bytes: &[u8]) -> Res<Psbt> {
-    if bytes.starts_with(b"psbt\xff") {
-        return Psbt::deserialize(bytes).map_err(err);
+/// A signed file from another wallet, for `unsigned`: a PSBT, binary
+/// (Sparrow, Coldcard), base64 or hex, or the finished transaction itself
+/// (Coldcard's .txn once it completes the signatures), binary or hex. A
+/// finished transaction comes back as `unsigned` with each input finalized.
+pub fn signed_from_file(bytes: &[u8], unsigned: &Psbt) -> Res<Psbt> {
+    use bdk_wallet::bitcoin::hex::FromHex;
+    let not = || "That file isn't a signed transaction.".to_string();
+    let text = std::str::from_utf8(bytes).map(str::trim).unwrap_or("");
+    let raw = match Vec::<u8>::from_hex(text) {
+        Ok(raw) if !raw.is_empty() => raw,
+        _ if text.starts_with("cHNidP") => return psbt_from_base64(text).map_err(|_| not()),
+        _ => bytes.to_vec(),
+    };
+    if raw.starts_with(b"psbt\xff") {
+        return Psbt::deserialize(&raw).map_err(|_| not());
     }
-    let text = std::str::from_utf8(bytes).map_err(|_| "That file isn't a PSBT.".to_string())?;
-    psbt_from_base64(text).map_err(|_| "That file isn't a PSBT.".into())
+    let tx: Transaction = bdk_wallet::bitcoin::consensus::encode::deserialize(&raw).map_err(|_| not())?;
+    if tx.compute_txid() != unsigned.unsigned_tx.compute_txid() {
+        return Err("That's a different transaction. Sign this one, then open its file.".into());
+    }
+    let mut psbt = unsigned.clone();
+    for (input, txin) in psbt.inputs.iter_mut().zip(&tx.input) {
+        if !txin.witness.is_empty() {
+            input.final_script_witness = Some(txin.witness.clone());
+        }
+    }
+    Ok(psbt)
 }
 
 /// scrypt's cost for the password: 2^18 (256 MiB; well under a second on a
@@ -1162,15 +1218,54 @@ mod tests {
         assert!(psbt.inputs[0].non_witness_utxo.is_none());
         let export = psbt_for_export(&w, &psbt);
         assert!(export.inputs[0].non_witness_utxo.is_some(), "the previous transaction, for Trezor and Ledger");
-        // read back as a binary file and as base64 text
-        assert_eq!(psbt_from_file(&export.serialize()).unwrap(), export);
-        assert_eq!(psbt_from_file(format!("{}\n", psbt_base64(&export)).as_bytes()).unwrap(), export);
-        assert_eq!(psbt_from_file(b"hello").unwrap_err(), "That file isn't a PSBT.");
+        // read back as a binary file, base64 and hex
+        assert_eq!(signed_from_file(&export.serialize(), &psbt).unwrap(), export);
+        assert_eq!(signed_from_file(format!("{}\n", psbt_base64(&export)).as_bytes(), &psbt).unwrap(), export);
+        let hex: String = export.serialize().iter().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(signed_from_file(hex.as_bytes(), &psbt).unwrap(), export);
+        assert_eq!(signed_from_file(b"hello", &psbt).unwrap_err(), "That file isn't a signed transaction.");
         let mut signed = export;
         signed.sign(&c[1].0, &secp).unwrap();
         let (sigs, tx) = add_signatures(&w, &mut psbt, signed, 2).unwrap();
         assert_eq!((sigs.have, tx.is_none()), (1, true));
         assert!(psbt.inputs[0].non_witness_utxo.is_none(), "the next QR stays small");
+    }
+
+    /// Sparrow (or a Coldcard) adds the last signature and finalizes: the
+    /// finished inputs count, after their signatures are checked.
+    #[test]
+    fn a_finalized_psbt_or_transaction_completes_the_signatures() {
+        let secp = Secp256k1::new();
+        let c = three_cosigners();
+        let keys: Vec<&str> = c.iter().map(|(_, k)| k.as_str()).collect();
+        let mut w = multisig_from_keys(2, &keys).unwrap().wallet().unwrap();
+        fund_for_demo(&mut w, 100_000);
+        let unsigned = build_psbt(&mut w, "tb1q6rz28mcfaxtmd6v789l9rrlrusdprr9pqcpvkl", 30_000, 2.0).unwrap();
+        let mut first = unsigned.clone();
+        first.sign(&c[0].0, &secp).unwrap();
+        let mut ours = unsigned.clone();
+        add_signatures(&w, &mut ours, first, 2).unwrap();
+        // the other wallet signs and finalizes: no partial signatures left
+        let mut finished = ours.clone();
+        finished.sign(&c[1].0, &secp).unwrap();
+        assert!(w.finalize_psbt(&mut finished, SignOptions { trust_witness_utxo: true, ..Default::default() }).unwrap());
+        assert!(finished.inputs[0].partial_sigs.is_empty());
+        let tx = finished.clone().extract_tx().unwrap();
+        let (sigs, done) = add_signatures(&w, &mut ours.clone(), finished.clone(), 2).unwrap();
+        assert_eq!(sigs.have, 2);
+        assert_eq!(done.unwrap().compute_wtxid(), tx.compute_wtxid());
+        // the finished transaction as a file (Coldcard's .txn), hex
+        let hex: String = bdk_wallet::bitcoin::consensus::encode::serialize(&tx).iter().map(|b| format!("{b:02x}")).collect();
+        let from_txn = signed_from_file(hex.as_bytes(), &unsigned).unwrap();
+        let (sigs, done) = add_signatures(&w, &mut ours.clone(), from_txn, 2).unwrap();
+        assert_eq!((sigs.have, done.unwrap().compute_wtxid()), (2, tx.compute_wtxid()));
+        // a finalized witness with a signature that doesn't check out is refused
+        let mut forged = finished;
+        let mut items: Vec<Vec<u8>> = forged.inputs[0].final_script_witness.as_ref().unwrap().to_vec();
+        let n = items[1].len();
+        items[1][n - 3] ^= 1;
+        forged.inputs[0].final_script_witness = Some(items.into());
+        assert!(add_signatures(&w, &mut ours.clone(), forged, 2).unwrap_err().contains("doesn't check out"));
     }
 
     #[test]
