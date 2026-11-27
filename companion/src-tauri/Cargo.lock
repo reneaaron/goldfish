@@ -3002,6 +3002,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-opener",
  "tokio",
+ "tor-proto",
  "tor-rtcompat",
  "ur",
  "v4l",

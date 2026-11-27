@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::sync::{mpsc, Mutex, OnceLock};
 use std::time::Duration;
 
-use arti_client::{config::TorClientConfigBuilder, DangerouslyIntoTorAddr, IntoTorAddr, TorAddr, TorClient};
+use arti_client::{config::TorClientConfigBuilder, DangerouslyIntoTorAddr, IntoTorAddr, StreamPrefs, TorAddr, TorClient};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -77,9 +77,14 @@ async fn serve(dir: PathBuf, ready: mpsc::Sender<Res<SocketAddr>>) {
 
 /// Just enough SOCKS5 (RFC 1928) for our own clients: no authentication,
 /// CONNECT, and Tor's RESOLVE (0xF0), which the p2p node uses to look up its
-/// DNS seeds through Tor.
+/// DNS seeds through Tor. Every connection gets a circuit of its own, so
+/// each peer is reached through its own exit (most likely another one): one
+/// exit can't feed both of the node's peers the same lie, or see all of a
+/// sync's traffic.
 async fn socks5(mut s: TcpStream, tor: &TorClient<tor_rtcompat::PreferredRuntime>) -> Res<()> {
     let e = |e: std::io::Error| e.to_string();
+    let mut prefs = StreamPrefs::new();
+    prefs.isolate_every_stream();
     let mut head = [0u8; 2];
     s.read_exact(&mut head).await.map_err(e)?;
     let mut methods = vec![0u8; head[1] as usize];
@@ -97,7 +102,7 @@ async fn socks5(mut s: TcpStream, tor: &TorClient<tor_rtcompat::PreferredRuntime
         s.read_exact(&mut name).await.map_err(e)?;
         let _port = s.read_u16().await.map_err(e)?;
         let name = String::from_utf8(name).map_err(|_| "SOCKS: bad host name".to_string())?;
-        let ips = tor.resolve(&name).await.map_err(|e| e.to_string());
+        let ips = tor.resolve_with_prefs(&name, &prefs).await.map_err(|e| e.to_string());
         let reply = match ips.as_deref() {
             Ok([IpAddr::V4(ip), ..]) => [&[5, 0, 0, 1][..], &ip.octets(), &[0, 0]].concat(),
             Ok([IpAddr::V6(ip), ..]) => [&[5, 0, 0, 4][..], &ip.octets(), &[0, 0]].concat(),
@@ -134,7 +139,7 @@ async fn socks5(mut s: TcpStream, tor: &TorClient<tor_rtcompat::PreferredRuntime
         _ => Err("SOCKS: unknown address type".into()),
     };
     let stream = match target {
-        Ok(t) => tor.connect(t).await.map_err(|e| e.to_string()),
+        Ok(t) => tor.connect_with_prefs(t, &prefs).await.map_err(|e| e.to_string()),
         Err(err) => Err(err),
     };
     let mut stream = match stream {
@@ -144,6 +149,11 @@ async fn socks5(mut s: TcpStream, tor: &TorClient<tor_rtcompat::PreferredRuntime
             return Err(err);
         }
     };
+    // which circuit and exit, to see that each connection has its own
+    if let Some(t) = stream.client_stream_ctrl().and_then(|c| tor_proto::client::stream::ClientStreamCtrl::tunnel(&**c)) {
+        let exit = t.last_hop_info().ok().flatten().map(|h| h.to_string()).unwrap_or_default();
+        eprintln!("tor: circuit {} exit {exit}", t.unique_id());
+    }
     s.write_all(&[5, 0, 0, 1, 0, 0, 0, 0, 0, 0]).await.map_err(e)?;
     let _ = tokio::io::copy_bidirectional(&mut s, &mut stream).await;
     Ok(())

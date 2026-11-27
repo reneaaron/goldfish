@@ -45,6 +45,7 @@ bdk_kyoto = "0.19"
 arti-client = { version = "0.48", default-features = false, features = ["tokio", "rustls", "compression", "static-sqlite", "onion-service-client"] }
 tokio = { version = "1", features = ["net", "io-util", "rt-multi-thread", "sync", "time"] }
 tor-rtcompat = { version = "0.48", default-features = false, features = ["tokio", "rustls"] }
+tor-proto = { version = "0.48", default-features = false, features = ["stream-ctrl"] }
 
 [dev-dependencies]
 bdk_wallet = { version = "3.2", features = ["keys-bip39"] }

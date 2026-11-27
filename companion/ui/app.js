@@ -9,6 +9,11 @@ let waiting = null; // txid of a signed transaction not broadcast yet
 let current = null; // the linked wallet's overview
 let showTimer = null;
 let server = { url: "", proxy: "" };
+// Private: Bitcoin's peer-to-peer network with compact block filters,
+// through the Tor built into Dove. Empty: the public server.
+const PRIVATE = { url: "p2p://", proxy: "tor" };
+const modeOf = (s) => (s.url === PRIVATE.url && s.proxy === PRIVATE.proxy ? "private" : s.url || s.proxy ? "own" : "public");
+const onNetwork = () => server.url.startsWith("p2p");
 let hasPassword = false;
 let frameTimer = null;
 let scanning = false;
@@ -49,8 +54,10 @@ function show(view) {
 // shown under the open screen's header.
 function friendly(raw) {
   const s = String(raw);
-  if (/timed out|timeout|refused|unreachable|could not connect|failed to lookup|dns error|resolve|os error (101|110|111|113)|IoError|Minreq|HttpResponse|ConnectionReset|broken pipe/i.test(s))
-    return ["Can't reach the server. Check your internet connection, or the server in Settings.", s];
+  if (/timed out|timeout|refused|unreachable|could not connect|failed to lookup|dns error|resolve|os error (101|110|111|113)|IoError|Minreq|HttpResponse|ConnectionReset|broken pipe|no peers|no answer from the network|tor didn't connect|^tor:/i.test(s))
+    return [onNetwork()
+      ? "Can't reach the Bitcoin network. Check your internet connection."
+      : "Can't reach the server. Check your internet connection, or the server in Settings.", s];
   return [s.charAt(0).toUpperCase() + s.slice(1), ""];
 }
 function error(e) {
@@ -224,18 +231,30 @@ const EMPTY = {
     actions: [["retry", "secondary", "i-sync", "Try again"], ["settings", "link", null, "Settings"]],
   },
 };
+// On the peer-to-peer network: progress while syncing, and no mempool, so a
+// payment shows once it's in a block.
+let progress = null;
+const NETWORK = {
+  syncing: () =>
+    progress?.checking
+      ? { text: `Checking past blocks: ${progress.percent}%. Only needed once.`, actions: [["skip", "link", null, "Skip: this wallet is new"]] }
+      : { text: progress ? "Getting the latest blocks." : "Connecting to the Bitcoin network." },
+  ok: () => ({ text: "Bitcoin you receive shows up here once it's in a block." }),
+  failed: () => ({ title: "Can't reach the Bitcoin network", text: "Your wallet is fine. Check your connection, or pick another option in Settings." }),
+};
 function renderEmpty() {
   const el = $("txs-empty");
   el.hidden = (current?.txs.length ?? 0) > 0;
   if (el.hidden) return;
-  const st = EMPTY[syncState] || EMPTY.ok;
+  const base = EMPTY[syncState] || EMPTY.ok;
+  const st = onNetwork() ? { ...base, ...(NETWORK[syncState] || NETWORK.ok)() } : base;
   el.innerHTML = `<span class="empty-badge${st.spin ? " spin" : ""}${st.tone ? " " + st.tone : ""}"><svg><use href="#${st.icon}"/></svg></span>
     <b>${st.title}</b><span>${st.text}</span>
     ${st.actions ? `<span class="empty-actions">${st.actions
       .map(([act, cls, icon, label]) => `<button class="${cls}" data-act="${act}">${icon ? `<svg><use href="#${icon}"/></svg>` : ""}${label}</button>`)
       .join("")}</span>` : ""}`;
   for (const b of el.querySelectorAll("button"))
-    b.onclick = () => ({ receive: () => $("w-receive").click(), retry: sync, settings: () => $("w-settings").click() })[b.dataset.act]();
+    b.onclick = () => ({ receive: () => $("w-receive").click(), retry: sync, settings: () => $("w-settings").click(), skip: skipScan })[b.dataset.act]();
 }
 
 function linked(o) {
@@ -245,13 +264,12 @@ function linked(o) {
   sync();
 }
 
-// ---- first use: welcome, how many signers, link, backup (multisig), server, password, check on Goldfish
-const STEPS = ["welcome", "type", "link", "backup", "server", "password", "done"];
+// ---- first use: welcome, how many signers, link, backup (multisig), password, check on Goldfish
+const STEPS = ["welcome", "type", "link", "backup", "password", "done"];
 // one signer has nothing to back up here: its seed is the backup
 const flow = () => STEPS.filter((s) => s !== "backup" || wzMultisig);
 let wzStep = "welcome";
 let wzMultisig = false;
-let wzServer = "public";
 function step(name) {
   wzStep = name;
   clearInterval(showTimer);
@@ -264,8 +282,8 @@ function step(name) {
   $("wz-dots").hidden = i === 0;
   $("wz-dots").replaceChildren(...steps.slice(1).map((_, j) => Object.assign(document.createElement("i"), { className: j < i ? "on" : "" })));
   $("wz-back").hidden = i === 0;
-  $("wz-next").hidden = !["welcome", "backup", "server", "password", "done"].includes(name);
-  button($("wz-next"), { welcome: "Get started", backup: "I saved it", server: "Continue", password: "Set password", done: "Open wallet" }[name] || "", false);
+  $("wz-next").hidden = !["welcome", "backup", "password", "done"].includes(name);
+  button($("wz-next"), { welcome: "Get started", backup: "I saved it", password: "Set password", done: "Open wallet" }[name] || "", false);
   $("wz-skip").hidden = name !== "password";
   if (name === "password") {
     $("wz-pw").value = $("wz-pw-again").value = "";
@@ -273,12 +291,6 @@ function step(name) {
   }
   $("link-scan").hidden = $("link-alt").hidden = true;
   if (name === "link") linkPanel(wzMultisig ? "ms" : null);
-  // a server saved before (it stays when a wallet is forgotten) is kept, not swapped for the public one
-  if (name === "server") {
-    $("wz-url").value = server.url;
-    $("wz-proxy").value = server.proxy;
-    pickServer(server.url || server.proxy ? "own" : "public");
-  }
   if (name === "backup") showBackup();
   if (name === "done") showDone();
   window.scrollTo(0, 0);
@@ -287,14 +299,13 @@ $("wz-back").onclick = () => {
   if (wzStep === "link" && !$("link-paste").hidden) return linkPanel(null);
   // the password step is passed over once there is one
   const steps = flow();
-  step(wzStep === "done" && hasPassword ? "server" : steps[steps.indexOf(wzStep) - 1]);
+  step(steps[steps.indexOf(wzStep === "done" && hasPassword ? "password" : wzStep) - 1]);
 };
 $("wz-next").onclick = async () => {
   if (wzStep === "welcome") step("type");
-  else if (wzStep === "backup") step("server");
-  else if (wzStep === "server") saveServer();
+  else if (wzStep === "backup") step(hasPassword ? "done" : "password");
   else if (wzStep === "password") savePassword();
-  else if (wzStep === "done") linked(current);
+  else if (wzStep === "done") openWallet();
 };
 $("wz-skip").onclick = () => step("done");
 $("wz-password").onsubmit = (ev) => {
@@ -318,31 +329,19 @@ for (const b of document.querySelectorAll("[data-type]"))
     wzMultisig = b.dataset.type === "ms";
     step("link");
   };
-function pickServer(kind) {
-  wzServer = kind;
-  for (const o of document.querySelectorAll("[data-server]")) o.setAttribute("aria-pressed", String(o.dataset.server === kind));
-  $("wz-own").hidden = kind !== "own";
-}
-for (const b of document.querySelectorAll("[data-server]"))
-  b.onclick = () => {
-    pickServer(b.dataset.server);
-    if (wzServer === "own") $("wz-url").focus();
-  };
-async function saveServer() {
-  const url = wzServer === "own" ? $("wz-url").value.trim() : "";
-  const proxy = wzServer === "own" ? $("wz-proxy").value.trim() : "";
-  if (wzServer === "own" && !url) return error("Enter your server's address, or pick the public server.");
-  // the public server is the default: nothing to check or save unless one was set before
-  if (url !== server.url || proxy !== server.proxy) {
-    button($("wz-next"), "Checking the server…", true);
+// Private is the default: with no server picked yet (Settings has the
+// others), the wallet opens on the peer-to-peer network through Tor.
+async function openWallet() {
+  if (modeOf(server) === "public") {
+    button($("wz-next"), "Starting Tor…", true);
     try {
-      await call("set_server", { url, proxy });
-      server = { url, proxy };
+      await call("set_server", PRIVATE);
+      server = { ...PRIVATE };
     } catch (_) {
-      return button($("wz-next"), "Continue", false); // shown in the error line
+      return button($("wz-next"), "Open wallet", false); // shown in the error line
     }
   }
-  step(hasPassword ? "done" : "password");
+  linked(current);
 }
 // Multisig: the descriptor as text, to keep with the seed backups
 async function showBackup() {
@@ -389,11 +388,11 @@ function linkPanel(name) {
   $("link-alt").hidden = !!name;
 }
 $("link-paste-toggle").onclick = () => linkPanel("paste");
-// linked: render it, then on to the backup (multisig) or server step
+// linked: render it, then on to the backup (multisig) or password step
 function linkedFirst(o) {
   renderOverview(o);
   wzMultisig = !!o.multisig; // a descriptor pasted as one signer's key is multisig too
-  step(wzMultisig ? "backup" : "server");
+  step(wzMultisig ? "backup" : hasPassword ? "done" : "password");
 }
 $("link-import").onclick = async () => linkedFirst(await call("import_key", { text: $("link-text").value }));
 listen("key", (e) => {
@@ -499,15 +498,24 @@ function renderSigs(sigs) {
 }
 
 // ---- wallet
+listen("sync-progress", ({ payload }) => {
+  progress = payload;
+  if (syncState !== "syncing") return;
+  if (progress.checking) button($("w-sync"), `Checking blocks ${progress.percent}%`, true);
+  renderEmpty();
+});
+let inflight = null;
 async function sync() {
   button($("w-sync"), "Refreshing…", true);
+  progress = null;
   syncState = "syncing";
   renderEmpty();
   try {
-    const o = await call("sync");
+    const o = await (inflight = call("sync"));
     syncState = "ok";
     renderOverview(o);
-  } catch (_) {
+  } catch (e) {
+    if (String(e) === "stopped") return error(""); // skipped: syncs again right away
     syncState = "failed";
     // with nothing to list, the Activity card says it; otherwise the error line does
     if (!current?.txs.length) error("");
@@ -517,6 +525,12 @@ async function sync() {
   }
 }
 $("w-sync").onclick = sync;
+// "This wallet is new": stop checking past blocks, then follow new ones only.
+async function skipScan() {
+  await call("skip_scan");
+  await inflight?.catch(() => {});
+  sync();
+}
 $("w-receive").onclick = async () => {
   const r = await call("receive_address");
   show("receive");
@@ -542,9 +556,9 @@ $("w-send").onclick = () => {
 };
 $("w-settings").onclick = () => {
   show("settings");
-  $("set-url").value = server.url;
-  $("set-proxy").value = server.proxy;
-  $("set-url").placeholder = "Public server (default)";
+  $("set-url").value = modeOf(server) === "own" ? server.url : "";
+  $("set-proxy").value = modeOf(server) === "own" ? server.proxy : "";
+  pickSetServer(modeOf(server));
   $("set-ok").hidden = true;
   passwordSection();
 };
@@ -597,13 +611,29 @@ $("b-form").onsubmit = async (ev) => {
 };
 
 // ---- settings
+let setServer = "public";
+function pickSetServer(kind) {
+  setServer = kind;
+  for (const o of document.querySelectorAll("[data-set-server]")) o.setAttribute("aria-pressed", String(o.dataset.setServer === kind));
+  $("set-own").hidden = kind !== "own";
+}
+for (const b of document.querySelectorAll("[data-set-server]"))
+  b.onclick = () => {
+    pickSetServer(b.dataset.setServer);
+    if (setServer === "own") $("set-url").focus();
+  };
 $("set-form").onsubmit = async (ev) => {
   ev.preventDefault();
-  button($("set-save"), "Checking the server…", true);
+  const next =
+    setServer === "private" ? PRIVATE : setServer === "own" ? { url: $("set-url").value.trim(), proxy: $("set-proxy").value.trim() } : { url: "", proxy: "" };
+  if (setServer === "own" && !next.url) return error("Enter your server's address, or pick another option.");
+  button($("set-save"), setServer === "private" ? "Starting Tor…" : "Checking the server…", true);
   try {
-    const r = await call("set_server", { url: $("set-url").value, proxy: $("set-proxy").value });
-    server = { url: $("set-url").value.trim(), proxy: $("set-proxy").value.trim() };
-    $("set-ok").textContent = `Connected and saved. Fees now ${r.fast} / ${r.normal} / ${r.slow} sat/vB.`;
+    const r = await call("set_server", next);
+    server = next;
+    $("set-ok").textContent = r
+      ? `Connected and saved. Fees now ${r.fast} / ${r.normal} / ${r.slow} sat/vB.`
+      : "Saved. Dove now finds your payments on the Bitcoin network.";
     $("set-ok").hidden = false;
     sync();
   } catch (_) {

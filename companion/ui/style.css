@@ -406,9 +406,7 @@ button.link.danger { color: var(--red); padding: 4px 0; font-size: 14px; justify
 .choice small { color: var(--text-2); font-size: 14px; line-height: 1.4; }
 .choice:hover { border-color: var(--text-3); }
 .choice[aria-pressed="true"] { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
-#wz-own { margin-top: 16px; }
-#wz-own .field { margin-bottom: 0; }
-#wz-own .field-hint { margin: 0; }
+.set-choices { margin: 10px 0 16px; }
 #wz-done .gf-hint { margin: 0 0 16px; }
 #wz-done .qr { max-width: 240px; }
 #wz-done .addr { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 10px; margin-top: 14px; }

@@ -29,6 +29,9 @@ fn anchor(network: Network) -> HashCheckpoint {
     }
 }
 
+/// What a sync stopped on purpose returns.
+pub const STOPPED: &str = "stopped";
+
 /// Stop waiting on the network after this long.
 const SYNC_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const CALL_TIMEOUT: Duration = Duration::from_secs(3 * 60);
@@ -97,26 +100,44 @@ impl P2p {
 
     /// Set up a sync of `wallet` (cheap: hold the wallet's lock for this,
     /// not for [`P2p::run`]). A wallet that never synced scans from
-    /// [`anchor`]; after that, from its last block.
-    pub fn prepare(&self, wallet: &Wallet) -> Res<LightClient<Idle, Single>> {
+    /// [`anchor`], or, when it's `new` (nothing ever paid to it), skips the
+    /// scan and only follows the chain from now on. After that, from its
+    /// last block. Also returns the height the scan starts at.
+    pub fn prepare(&self, wallet: &Wallet, new: bool) -> Res<(LightClient<Idle, Single>, u32)> {
         let builder = self.node_builder();
-        if wallet.latest_checkpoint().height() == 0 {
-            builder.build_with_wallet(wallet, SyncConfig::wallet_recovery_sync(anchor(self.network)).build())
-        } else {
-            builder.build_with_wallet(wallet, SyncConfig::sync_from_last_checkpoint().build())
-        }
-        .map_err(err)
+        let tip = wallet.latest_checkpoint().height();
+        let client = match (tip, new) {
+            (0, true) => builder.build_with_wallet(wallet, SyncConfig::new_wallet_sync().build()),
+            (0, false) => builder.build_with_wallet(wallet, SyncConfig::wallet_recovery_sync(anchor(self.network)).build()),
+            _ => builder.build_with_wallet(wallet, SyncConfig::sync_from_last_checkpoint().build()),
+        };
+        let start = if tip == 0 { anchor(self.network).height } else { tip };
+        Ok((client.map_err(err)?, start))
     }
 
-    /// Run a prepared sync to the chain's tip.
-    pub fn run(client: LightClient<Idle, Single>) -> Res<Update> {
+    /// Run a prepared sync to the chain's tip, telling `progress` how far
+    /// the scan is. Setting `stop` ends it early with [`STOPPED`].
+    pub fn run(
+        client: LightClient<Idle, Single>,
+        start: u32,
+        progress: impl Fn(Progress) + Send + Sync + 'static,
+        stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    ) -> Res<Update> {
         runtime()?.block_on(async move {
             let (client, logs, mut updates) = client.subscribe();
-            tokio::spawn(log(logs.info_subscriber, logs.warning_subscriber));
+            tokio::spawn(log(logs.info_subscriber, logs.warning_subscriber, Some((start, Box::new(progress)))));
             let client = client.start();
-            let update = tokio::time::timeout(SYNC_TIMEOUT, updates.update()).await;
+            let stopped = async {
+                while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                    tokio::time::sleep(Duration::from_millis(300)).await;
+                }
+            };
+            let update = tokio::select! {
+                u = tokio::time::timeout(SYNC_TIMEOUT, updates.update()) => Some(u),
+                _ = stopped => None,
+            };
             let _ = client.requester().shutdown();
-            update.map_err(|_| "no answer from the network in time".to_string())?.map_err(err)
+            update.ok_or(STOPPED.to_string())?.map_err(|_| "no answer from the network in time".to_string())?.map_err(err)
         })
     }
 
@@ -129,7 +150,7 @@ impl P2p {
         let start = self.start.unwrap_or_else(|| anchor(self.network));
         let (node, client) = self.node_builder().chain_state(ChainState::Checkpoint(start)).headers_only_sync().build();
         let bip157::Client { requester, info_rx, warn_rx, mut event_rx } = client;
-        tokio::spawn(log(info_rx, warn_rx));
+        tokio::spawn(log(info_rx, warn_rx, None));
         let running = tokio::spawn(node.run());
         let synced = tokio::time::timeout(CALL_TIMEOUT, async {
             while let Some(event) = event_rx.recv().await {
@@ -186,11 +207,40 @@ fn runtime() -> Res<tokio::runtime::Runtime> {
     tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().map_err(err)
 }
 
-async fn log(mut info: bip157::Receiver<bip157::Info>, mut warn: bip157::Receiver<bip157::Warning>) {
+/// How far a sync is: fetching block headers (no end known yet), then
+/// checking blocks, `percent` of them done.
+#[derive(serde::Serialize, Clone, Copy, Debug, PartialEq)]
+pub struct Progress {
+    pub checking: bool,
+    pub percent: u8,
+}
+
+type OnProgress = Box<dyn Fn(Progress) + Send + Sync>;
+
+async fn log(mut info: bip157::Receiver<bip157::Info>, mut warn: bip157::Receiver<bip157::Warning>, progress: Option<(u32, OnProgress)>) {
+    let (mut tip, mut last) = (0, None);
+    let mut tell = |p: Progress| {
+        if let Some((_, f)) = &progress {
+            if last != Some(p) {
+                last = Some(p);
+                f(p);
+            }
+        }
+    };
+    let start = progress.as_ref().map_or(0, |(s, _)| *s);
     loop {
         tokio::select! {
             i = info.recv() => match i {
-                Some(bip157::Info::FilterAdded(h)) if h % 5_000 != 0 => {}
+                Some(bip157::Info::NewChainHeight(h)) => {
+                    tip = h;
+                    if h % 10_000 == 0 { eprintln!("p2p: headers at {h}"); }
+                    tell(Progress { checking: false, percent: 0 });
+                }
+                Some(bip157::Info::FilterAdded(h)) => {
+                    if h % 10_000 == 0 { eprintln!("p2p: filters at {h}"); }
+                    let done = (h.saturating_sub(start) as u64 * 100 / tip.saturating_sub(start).max(1) as u64).min(99);
+                    tell(Progress { checking: true, percent: done as u8 });
+                }
                 Some(i) => eprintln!("p2p: {i}"),
                 None => break,
             },
@@ -214,7 +264,7 @@ mod tests {
         let mut w = Wallet::create_from_two_path_descriptor(desc.to_string()).network(Network::Signet).create_wallet_no_persist().unwrap();
         let mut p = P2p::new(Network::Signet, "", "").unwrap();
         let t = std::time::Instant::now();
-        let update = P2p::run(p.prepare(&w).unwrap()).unwrap();
+        let update = { let (c, start) = p.prepare(&w, false).unwrap(); P2p::run(c, start, |_| {}, Default::default()).unwrap() };
         w.apply_update(update).unwrap();
         eprintln!(
             "synced in {:?}: tip {}, {} txs, balance {}",
@@ -229,7 +279,7 @@ mod tests {
         let mut w = Wallet::load().load_wallet_no_persist(serde_json::from_slice(&json).unwrap()).unwrap().unwrap();
         let txs = w.transactions().count();
         let t = std::time::Instant::now();
-        let update = P2p::run(p.prepare(&w).unwrap()).unwrap();
+        let update = { let (c, start) = p.prepare(&w, false).unwrap(); P2p::run(c, start, |_| {}, Default::default()).unwrap() };
         w.apply_update(update).unwrap();
         eprintln!("reopened and synced in {:?}", t.elapsed());
         assert!(w.transactions().count() >= txs);
@@ -264,5 +314,41 @@ mod tests {
         let t = std::time::Instant::now();
         let fees = p.fee_rates().unwrap();
         eprintln!("fees over tor {fees:?} in {:?}", t.elapsed());
+    }
+
+    /// A new wallet skips the scan: `cargo test p2p_new_wallet -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn p2p_new_wallet_signet() {
+        let desc = "wpkh([9122d9e0/84'/1'/0']tpubDCYVtmaSaDzTxcgvoP5AHZNbZKZzrvoNH9KARep88vESc6MxRqAp4LmePc2eeGX6XUxBcdhAmkthWTDqygPz2wLAyHWisD299Lkdrj5egY6/<0;1>/*)";
+        let mut w = Wallet::create_from_two_path_descriptor(desc.to_string()).network(Network::Signet).create_wallet_no_persist().unwrap();
+        let p = P2p::new(Network::Signet, "", "").unwrap();
+        let t = std::time::Instant::now();
+        // a scan of past blocks, stopped ("this wallet is new")
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let s = stop.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_secs(5));
+            s.store(true, std::sync::atomic::Ordering::Relaxed);
+        });
+        let (c, start) = p.prepare(&w, false).unwrap();
+        assert_eq!(P2p::run(c, start, |_| {}, stop).unwrap_err(), STOPPED);
+        eprintln!("stopped after {:?}", t.elapsed());
+        let (c, start) = p.prepare(&w, true).unwrap();
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let s2 = seen.clone();
+        w.apply_update(P2p::run(c, start, move |pr| s2.lock().unwrap().push(pr), Default::default()).unwrap()).unwrap();
+        let seen = seen.lock().unwrap();
+        eprintln!(
+            "new wallet ready in {:?}: tip {}, {} txs, {} progress events, checking any: {}",
+            t.elapsed(),
+            w.latest_checkpoint().height(),
+            w.transactions().count(),
+            seen.len(),
+            seen.iter().any(|p| p.checking)
+        );
+        // this wallet has history, but a new wallet's past isn't scanned
+        assert_eq!(w.transactions().count(), 0);
+        assert!(w.latest_checkpoint().height() > 300_000);
     }
 }

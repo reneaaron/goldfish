@@ -51,6 +51,12 @@ the guides still use Sparrow.
   normal. Empty means a public Electrum server (Blockstream on mainnet,
   mempool.space on signet): Esplora on mempool.space hangs on `/blocks` in
   the client's HTTP library.
+- Finding payments, in Settings: Private (the peer-to-peer network below,
+  `p2p://` through the built-in Tor), My own node (the fields above) or
+  Public server. A wallet linked in the first-use wizard with no server set
+  opens on Private. Its first sync checks past blocks once ("Checking past
+  blocks: N%" in Activity); "Skip: this wallet is new" stops that and
+  follows new blocks only.
 - Peer-to-peer (a spike, `src/p2p.rs`): `p2p://` syncs from Bitcoin's
   peer-to-peer network with compact block filters (BIP157/158, bdk_kyoto),
   so no server learns the wallet's addresses: peers send a filter per block,
@@ -61,7 +67,13 @@ the guides still use Sparrow.
   into Dove (arti, `src/tor.rs`; nothing to install, a few seconds to start,
   its directory cached in the app's data folder under `tor/`), or
   `socks5://127.0.0.1:9050` for a Tor you run; DNS seeds are looked up
-  through Tor too. Proxy `tor` works for Electrum servers as well. A
+  through Tor too, and each connection gets its own circuit and exit, so
+  no one exit relays both of the node's peers (exits run by one operator
+  can still sit on different circuits). Over any proxy, kyoto talks to
+  clearnet peers in plaintext (v1), not BIP324's encrypted v2 transport, so
+  an exit sees which blocks it fetches and a broadcast transaction, though
+  not where they come from; without a proxy it uses v2 with peers that
+  offer it. Proxy `tor` works for Electrum servers as well. A
   wallet's first sync scans from genesis on test networks and from segwit's
   activation on mainnet, which takes long; after that Dove keeps what it
   found (see Settings), so later syncs, after a restart too, check only
