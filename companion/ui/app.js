@@ -508,6 +508,8 @@ async function sync() {
     const o = await call("sync");
     syncState = "ok";
     renderOverview(o);
+    // payments just found may move Receive on, or allow more new addresses
+    if (currentView === "receive") call("receive_address").then(showReceive, () => {});
   } catch (_) {
     syncState = "failed";
     // with nothing to list, the Activity card says it; otherwise the error line does
@@ -523,7 +525,16 @@ $("w-receive").onclick = async () => {
   show("receive");
 };
 // a fresh address for each payer, so two payments can't be linked by it
-$("r-new").onclick = async () => showReceive(await call("new_receive_address"));
+$("r-new").onclick = async () => {
+  button($("r-new"), "Making one…", true);
+  try {
+    showReceive(await call("new_receive_address"));
+  } catch (_) {
+    $("r-new").disabled = false;
+  } finally {
+    $("r-new").querySelector("span").textContent = "New address";
+  }
+};
 function showReceive(r) {
   $("r-label").textContent = `Address #${r.index}`;
   renderAddress(r, "r-qr", "r-addr");
