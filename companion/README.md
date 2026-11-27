@@ -121,7 +121,8 @@ from the main checkout rather than a worktree).
 A `dove-v*` tag (`dove-v0.1.0`) runs `.github/workflows/companion-release.yml`:
 it checks the tag against the version in `Cargo.toml` and `tauri.conf.json`
 (bump both, and `Cargo.lock`, first), runs the tests, builds the `.deb` and
-the AppImage with `cargo tauri build`, and publishes them with `SHA256SUMS`
+the AppImage with `cargo tauri build` (the tools Tauri downloads for the
+AppImage are fetched first and checked against `appimage-tools.sha256`), and publishes them with `SHA256SUMS`
 and a build provenance attestation per file. The release is never marked
 latest: Dove's Update Goldfish and the website take the latest release as
 Goldfish's, whose tags are `v*`. These builds aren't reproducible, unlike the

@@ -50,7 +50,23 @@ jobs:
       # No cache: nothing an earlier run left goes into a release.
       - run: cargo test --locked
       - run: cargo install tauri-cli --version 2.12.6 --locked
+      - name: Fetch the AppImage tools, checked against appimage-tools.sha256
+        run: |
+          dir=~/.cache/tauri && mkdir -p "$dir"
+          while read -r sum name url; do
+            curl -fsSL -o "$dir/$name" "$url"
+            echo "$sum  $dir/$name" | sha256sum -c
+            chmod +x "$dir/$name"
+          done < <(grep -v '^#' ../appimage-tools.sha256)
       - run: cargo tauri build --ci -- --locked
+      - name: Check Tauri fetched no tool beyond the checked ones
+        run: |
+          # The two .sh plugins are embedded in tauri-bundler, not downloaded.
+          for f in ~/.cache/tauri/*; do
+            n=$(basename "$f")
+            case "$n" in linuxdeploy-plugin-gtk.sh|linuxdeploy-plugin-gstreamer.sh) continue ;; esac
+            grep -q "  $n  " ../appimage-tools.sha256 || { echo "Not in appimage-tools.sha256: $n"; exit 1; }
+          done
       - name: Collect files
         run: |
           mkdir -p dist
