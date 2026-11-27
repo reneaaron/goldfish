@@ -394,6 +394,18 @@ fn to_sign(app: &mut App, psbt: Psbt) -> Res<Review> {
     app.scanner = PsbtScanner::default();
     app.signed = None;
     app.sigs = Signatures { needed: app.account.as_ref().map(|a| a.threshold).unwrap_or(1), ..Default::default() };
+    // start Tor while the PSBT goes to the signer and back, so Broadcast
+    // doesn't wait for it; only once a payment is on the way, not for
+    // someone just looking at the wallet
+    static WARMING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if over_tor(app) && !WARMING.swap(true, std::sync::atomic::Ordering::Relaxed) {
+        std::thread::spawn(|| {
+            if let Err(e) = tor::proxy() {
+                eprintln!("tor: {e}");
+            }
+            WARMING.store(false, std::sync::atomic::Ordering::Relaxed);
+        });
+    }
     Ok(review)
 }
 
@@ -561,10 +573,35 @@ fn scan_stop(state: State<Shared>) {
     drop(camera);
 }
 
+/// Whether Broadcast goes to peers over the built-in Tor (see p2p.rs): not
+/// for your own server, which gets it itself, nor on regtest, which has no
+/// public peers.
+fn over_tor(app: &App) -> bool {
+    !app.settings.server.own_server() && app.wallet.as_ref().is_some_and(|w| w.network() != bdk_wallet::bitcoin::Network::Regtest)
+}
+
+/// Wait until Tor is up (at once if it already is), for the Signed screen to
+/// say what it's waiting on. False when Broadcast won't use Tor.
 #[tauri::command(async)]
-fn broadcast_signed(state: State<Shared>) -> Res<String> {
-    let tx = state.lock().unwrap().signed.clone().ok_or("nothing signed")?;
-    let txid = backend(&state)?.broadcast(&tx)?;
+fn tor_ready(state: State<Shared>) -> Res<bool> {
+    if !over_tor(&state.lock().unwrap()) {
+        return Ok(false);
+    }
+    tor::proxy().map(|_| true)
+}
+
+/// `via_server`: through the wallet's server after all, when Tor or the
+/// peers couldn't be reached and the user chose to.
+#[tauri::command(async)]
+fn broadcast_signed(via_server: bool, state: State<Shared>) -> Res<String> {
+    let (tx, network, start, tor) = {
+        let mut app = state.lock().unwrap();
+        let tor = !via_server && over_tor(&app);
+        let tx = app.signed.clone().ok_or("nothing signed")?;
+        let w = loaded(&mut app)?.1;
+        (tx, w.network(), p2p::start(w), tor)
+    };
+    let txid = if tor { p2p::broadcast(network, start, Some(tor::proxy()?), &tx)? } else { backend(&state)?.broadcast(&tx)? };
     let mut app = state.lock().unwrap();
     if let Some(w) = app.wallet.as_mut() {
         w.apply_unconfirmed_txs([(tx, std::time::UNIX_EPOCH.elapsed().unwrap().as_secs())]);
@@ -603,6 +640,9 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .manage(Shared::default())
         .setup(|app| {
+            if let Ok(dir) = app.path().app_data_dir() {
+                tor::set_dir(dir.join("tor"));
+            }
             // Reopen the saved watch-only wallet, if any; a locked one waits
             // for the password.
             let shared = app.state::<Shared>();
@@ -638,6 +678,7 @@ fn main() {
             open_psbt,
             scan_start,
             scan_stop,
+            tor_ready,
             broadcast_signed,
             firmware_check,
             firmware_drive,
