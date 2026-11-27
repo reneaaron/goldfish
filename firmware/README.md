@@ -167,6 +167,9 @@ doesn't load it. To use the seed, load it like any other (Scan QR or Enter
 words). The device has no RNG of any kind, not even in tests: every bit
 comes from the user and can be re-checked offline.
 
+- A dice, coin or number key keeps its pressed colour for half a second after
+  the finger lifts: the finger covers the key until then, and this shows which
+  one registered.
 - Dice: 50 rolls; coins: 128 flips (heads = 1). The input
   string is hashed with SHA256, same as SeedSigner and bitcoiner.guide/seed,
   so the result can be checked there.

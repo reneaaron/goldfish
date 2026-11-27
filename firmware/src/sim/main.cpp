@@ -747,6 +747,8 @@ static int run_control() {
             touch_down = true;  pump(80);
         } else if (!strcmp(line, "release")) {
             touch_down = false; pump(300);
+        } else if (sscanf(line, "release %d", &a) == 1) {   // ... and only this long afterwards
+            touch_down = false; pump(a);
         } else if (sscanf(line, "drag %d %d %d %d", &a, &b, &c, &d) == 4) {
             touch_at.x = a; touch_at.y = b;
             touch_down = true; pump(80);

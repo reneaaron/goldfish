@@ -1421,7 +1421,13 @@ static void entropy_undo_cb(lv_event_t *) {
     entropy_refresh();
 }
 
-// A keypad key: dice, coins and the child number keypad.
+// A keypad key: dice, coins and the child number keypad. Its pressed colour
+// stays for a moment after the finger lifts, which until then covers the key:
+// the colour goes on at once and comes off late.
+constexpr uint32_t KEY_LINGER_MS = 500, KEY_FADE_MS = 100;
+static const lv_style_prop_t key_tr_props[] = {LV_STYLE_BG_COLOR, 0};
+static const lv_style_transition_dsc_t key_tr_on = {key_tr_props, nullptr, lv_anim_path_linear, 0, 0};
+static const lv_style_transition_dsc_t key_tr_off = {key_tr_props, nullptr, lv_anim_path_linear, KEY_FADE_MS, KEY_LINGER_MS};
 static lv_obj_t *key_button(lv_obj_t *scr, int x, int y, int w, int h, lv_event_cb_t cb, intptr_t v) {
     lv_obj_t *b = lv_button_create(scr);
     lv_obj_remove_style_all(b);
@@ -1433,6 +1439,8 @@ static lv_obj_t *key_button(lv_obj_t *scr, int x, int y, int w, int h, lv_event_
     lv_obj_set_style_border_color(b, BORDER, 0);
     lv_obj_set_style_border_width(b, 1, 0);
     lv_obj_set_style_bg_color(b, ACCENT_DIM, LV_STATE_PRESSED);
+    lv_obj_set_style_transition(b, &key_tr_on, LV_STATE_PRESSED);
+    lv_obj_set_style_transition(b, &key_tr_off, 0);
     lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, (void *)v);
     return b;
 }
