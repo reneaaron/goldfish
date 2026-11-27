@@ -260,7 +260,7 @@ main > #v-wallet { min-height: 0; }
   main > section:not(#v-wallet) {
     max-width: 480px; width: 100%; margin: 12px auto; min-height: min(720px, calc(100vh - 80px));
     background: var(--surface); border: 1px solid var(--border); border-radius: 24px;
-    padding: 12px 28px 20px; box-shadow: 0 12px 40px rgba(20, 34, 43, .06);
+    --pad-b: 20px; padding: 12px 28px var(--pad-b); box-shadow: 0 12px 40px rgba(20, 34, 43, .06);
   }
   main > section:not(#v-wallet) .actions { background: linear-gradient(to bottom, transparent, var(--surface) 18px); }
   /* white on white: the inner cards and fields take the page grey instead */
@@ -306,9 +306,11 @@ html, body { overflow-x: clip; }
     overflow-y: auto; overscroll-behavior: contain;
     box-shadow: 0 24px 64px rgba(20, 34, 43, .22);
   }
-  /* sticky pins to the scroller's padding edge: cover the 20px bottom
-     padding too, or content scrolls through below the button */
-  body.dialog-open main > section:not(#v-wallet) .actions { bottom: -20px; margin-bottom: -20px; padding-bottom: 28px; }
+  /* sticky pins to the scroller's padding edge: cover the bottom padding
+     too, or content scrolls through below the button */
+  body.dialog-open main > section:not(#v-wallet) .actions {
+    bottom: calc(-1 * var(--pad-b)); margin-bottom: calc(-1 * var(--pad-b)); padding-bottom: calc(8px + var(--pad-b));
+  }
   body.dialog-open { overflow: hidden; }
 }
 
