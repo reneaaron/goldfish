@@ -4,6 +4,8 @@
 
 pub mod camera;
 pub mod firmware;
+pub mod p2p;
+pub mod tor;
 
 use std::sync::Arc;
 
@@ -226,6 +228,23 @@ impl Account {
             .map_err(err)
     }
 
+    /// The wallet with what `saved` knew (transactions, addresses handed
+    /// out, the last block synced), so a sync only looks at what's new. A
+    /// changeset for other descriptors or another network is ignored.
+    pub fn wallet_from(&self, saved: Option<bdk_wallet::ChangeSet>) -> Res<Wallet> {
+        let fresh = self.wallet()?;
+        let same = |w: &Wallet| {
+            [KeychainKind::External, KeychainKind::Internal]
+                .iter()
+                .all(|k| w.public_descriptor(*k) == fresh.public_descriptor(*k))
+                && w.network() == fresh.network()
+        };
+        match saved.map(|cs| Wallet::load().load_wallet_no_persist(cs)) {
+            Some(Ok(Some(w))) if same(&w) => Ok(w),
+            _ => Ok(fresh),
+        }
+    }
+
     pub fn is_multisig(&self) -> bool {
         self.descriptor.starts_with("wsh(")
     }
@@ -242,9 +261,12 @@ impl Account {
 
 // ------------------------------------------------------------ chain
 
-/// Where the wallet syncs and broadcasts: an Esplora API (`https://…`) or an
-/// Electrum server (`ssl://host:port`, `tcp://host:port`), optionally through
-/// a proxy. Empty `url` means a public Electrum server for the key's network.
+/// Where the wallet syncs and broadcasts: an Esplora API (`https://…`), an
+/// Electrum server (`ssl://host:port`, `tcp://host:port`), or Bitcoin's
+/// peer-to-peer network with compact block filters (`p2p://`, or
+/// `p2p://host:port` for your own node), optionally through a proxy. Empty
+/// `url` means a public Electrum server for the key's network. Proxy `tor`
+/// is the built-in Tor ([`tor`]).
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct ServerConfig {
     pub url: String,
@@ -254,6 +276,7 @@ pub struct ServerConfig {
 pub enum Backend {
     Esplora(esplora_client::BlockingClient),
     Electrum(BdkElectrumClient<electrum_client::Client>),
+    P2p(p2p::P2p),
 }
 
 const TIMEOUT_S: u64 = 30;
@@ -286,7 +309,17 @@ impl ServerConfig {
     pub fn connect(&self, network: Network) -> Res<Backend> {
         let url = self.url.trim();
         let url = if url.is_empty() { default_server(network) } else { url };
-        let proxy = self.proxy.trim();
+        let builtin_tor;
+        let proxy = match self.proxy.trim() {
+            "tor" => {
+                builtin_tor = format!("socks5://{}", tor::proxy()?);
+                builtin_tor.as_str()
+            }
+            p => p,
+        };
+        if url == "p2p" || url.starts_with("p2p://") {
+            return Ok(Backend::P2p(p2p::P2p::new(network, url.trim_start_matches("p2p").trim_start_matches("://"), proxy)?));
+        }
         if let Some(rest) = url.strip_prefix("ssl://").or_else(|| url.strip_prefix("tcp://")) {
             let host = rest.rsplit_once(':').map(|(h, _)| h).ok_or("an Electrum server needs a port, like ssl://host:50002")?;
             let mut config = electrum_client::ConfigBuilder::new()
@@ -303,7 +336,7 @@ impl ServerConfig {
             return Ok(Backend::Electrum(BdkElectrumClient::new(client)));
         }
         if !(url.starts_with("https://") || url.starts_with("http://")) {
-            return Err("server: use https://… for Esplora, or ssl://host:port or tcp://host:port for Electrum".into());
+            return Err("server: use https://… for Esplora, ssl://host:port or tcp://host:port for Electrum, or p2p:// for the peer-to-peer network".into());
         }
         let mut builder = esplora_client::Builder::new(url).timeout(TIMEOUT_S);
         if !proxy.is_empty() {
@@ -331,6 +364,7 @@ impl Backend {
         match self {
             Backend::Esplora(c) => c.full_scan(request, 20, 4).map_err(err),
             Backend::Electrum(c) => c.full_scan(request, 20, 10, true).map_err(err),
+            Backend::P2p(_) => Err("p2p syncs through p2p::P2p::prepare".into()),
         }
     }
 
@@ -340,6 +374,7 @@ impl Backend {
             Backend::Electrum(c) => {
                 c.transaction_broadcast(tx).map_err(err)?;
             }
+            Backend::P2p(p) => return p.broadcast(tx),
         }
         Ok(tx.compute_txid())
     }
@@ -348,6 +383,8 @@ impl Backend {
     /// a mainnet server shows a test wallet empty, and the other way round.
     pub fn check_network(&self, network: Network) -> Res<()> {
         let genesis = match self {
+            // peers on another network fail the handshake
+            Backend::P2p(_) => return Ok(()),
             Backend::Esplora(c) => c.get_block_hash(0).map_err(err)?,
             Backend::Electrum(c) => c.inner.block_header(0).map_err(err)?.block_hash(),
         };
@@ -355,6 +392,9 @@ impl Backend {
     }
 
     pub fn fee_rates(&self) -> Res<FeeRates> {
+        if let Backend::P2p(p) = self {
+            return p.fee_rates();
+        }
         let at = |target: u16| -> Res<f64> {
             match self {
                 Backend::Esplora(c) => {
@@ -371,6 +411,7 @@ impl Backend {
                     targets.sort_by_key(|(t, _)| *t);
                     targets.iter().find(|(t, _)| *t >= target).or(targets.last()).map(|(_, r)| *r).ok_or("no fee estimates".into())
                 }
+                Backend::P2p(_) => unreachable!(),
                 Backend::Electrum(c) => {
                     // BTC/kvB; -1 when the server has no estimate
                     let btc_kvb = c.inner.estimate_fee(target as usize, None).map_err(err)?;
@@ -991,6 +1032,27 @@ mod tests {
         let path: DerivationPath = "m/48h/1h/0h/2h".parse().unwrap();
         let xpub = Xpub::from_priv(&secp, &root.derive_priv(&secp, &path).unwrap());
         (root, format!("[{}/48h/1h/0h/2h]{xpub}", root.fingerprint(&secp)))
+    }
+
+    #[test]
+    fn a_saved_wallet_opens_with_its_history() {
+        let account = abandon_account();
+        let mut w = account.wallet().unwrap();
+        fund_for_demo(&mut w, 50_000);
+        // through JSON, the way settings.json keeps it
+        let json = serde_json::to_vec(&w.take_staged().unwrap()).unwrap();
+        let saved: bdk_wallet::ChangeSet = serde_json::from_slice(&json).unwrap();
+        let back = account.wallet_from(Some(saved.clone())).unwrap();
+        assert_eq!(back.balance().total(), Amount::from_sat(50_000));
+        assert_eq!(back.latest_checkpoint().block_id(), w.latest_checkpoint().block_id());
+        // another wallet's history isn't used
+        let other = parse_descriptor(&format!(
+            "wsh(sortedmulti(2,{}))",
+            three_cosigners().iter().map(|(_, k)| format!("{k}/<0;1>/*")).collect::<Vec<_>>().join(",")
+        ))
+        .unwrap();
+        let fresh = other.wallet_from(Some(saved)).unwrap();
+        assert_eq!(fresh.balance().total(), Amount::ZERO);
     }
 
     fn three_cosigners() -> Vec<(Xpriv, String)> {

@@ -14,13 +14,31 @@ use age::secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
-/// What survives a restart: the watch-only key and the server. Saved as
+/// What survives a restart: the watch-only key, the server and the wallet's
+/// history. Saved as
 /// settings.json in the app's data folder, or, with a password, locked in
 /// settings.age (age format, scrypt). The seed is never here.
 #[derive(Default, Clone, Serialize, Deserialize)]
 struct Settings {
     key: Option<String>,
     server: ServerConfig,
+    /// what the wallet knew at the last sync: its transactions and the last
+    /// block synced. Nothing the key doesn't already show anyone who has it.
+    #[serde(default)]
+    chain: Option<bdk_wallet::ChangeSet>,
+    /// "this wallet is new": nothing was ever paid to it, so its first p2p
+    /// sync skips the scan of past blocks. Cleared once it has synced.
+    #[serde(default)]
+    new_wallet: bool,
+}
+
+/// Move the wallet's changes since the last call into the saved settings.
+/// The caller saves them.
+fn keep_changes(app: &mut App) {
+    if let Some(cs) = app.wallet.as_mut().and_then(|w| w.take_staged()) {
+        use bdk_wallet::chain::Merge;
+        app.settings.chain.get_or_insert_with(Default::default).merge(cs);
+    }
 }
 
 fn settings_path(h: &AppHandle, ext: &str) -> Res<PathBuf> {
@@ -76,7 +94,7 @@ fn save_settings(h: &AppHandle) -> Res<()> {
 fn open_settings(app: &mut App, settings: Settings) {
     if let Some(key) = settings.key.clone() {
         if let Ok(account) = parse_wallet(&key) {
-            app.wallet = account.wallet().ok();
+            app.wallet = account.wallet_from(settings.chain.clone()).ok();
             app.account = app.wallet.as_ref().map(|_| account);
         }
     }
@@ -101,6 +119,8 @@ struct App {
     password: Option<SecretString>,
     /// the checked firmware.uf2, waiting for the board's drive
     firmware: Option<Vec<u8>>,
+    /// set to stop the p2p sync running now
+    stop_sync: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 type Shared = Mutex<App>;
@@ -127,6 +147,8 @@ fn link_account(app: &mut App, account: Account) -> Res<Overview> {
     (app.unsigned, app.encoder, app.signed) = (None, None, None);
     app.scanner = PsbtScanner::default();
     app.settings.key = Some(saved);
+    app.settings.chain = None;
+    app.settings.new_wallet = false;
     Ok(overview)
 }
 
@@ -263,18 +285,25 @@ fn forget_wallet(handle: AppHandle, state: State<Shared>) -> Res<()> {
         unlocked(&app)?;
         (app.account, app.wallet, app.unsigned, app.encoder, app.signed) = (None, None, None, None, None);
         app.settings.key = None;
+        app.settings.chain = None;
+        app.settings.new_wallet = false;
     }
     save_settings(&handle)
 }
 
-/// Check the server answers, then save it.
+/// Check the server answers, then save it. The peer-to-peer network isn't
+/// asked for fees here (before a first sync that means fetching years of
+/// block headers); its built-in Tor is started, so a Tor problem shows now.
 #[tauri::command(async)]
-fn set_server(url: String, proxy: String, handle: AppHandle, state: State<Shared>) -> Res<FeeRates> {
+fn set_server(url: String, proxy: String, handle: AppHandle, state: State<Shared>) -> Res<Option<FeeRates>> {
     let server = ServerConfig { url: url.trim().into(), proxy: proxy.trim().into() };
     let network = state.lock().unwrap().account.as_ref().map(|a| a.network).unwrap_or(bdk_wallet::bitcoin::Network::Signet);
     let backend = server.connect(network)?;
     backend.check_network(network)?;
-    let rates = backend.fee_rates()?;
+    let rates = match backend {
+        Backend::P2p(_) => None,
+        b => Some(b.fee_rates()?),
+    };
     {
         let mut app = state.lock().unwrap();
         unlocked(&app)?;
@@ -284,13 +313,29 @@ fn set_server(url: String, proxy: String, handle: AppHandle, state: State<Shared
     Ok(rates)
 }
 
-fn backend(state: &State<Shared>) -> Res<Backend> {
-    let (server, network) = {
+/// "This wallet is new", during a first p2p sync: stop scanning past blocks
+/// and follow only new ones. The page syncs again once the scan has stopped.
+#[tauri::command]
+fn skip_scan(handle: AppHandle, state: State<Shared>) -> Res<()> {
+    {
         let mut app = state.lock().unwrap();
-        let network = loaded(&mut app)?.0.network;
-        (app.settings.server.clone(), network)
+        app.settings.new_wallet = true;
+        app.stop_sync.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+    save_settings(&handle)
+}
+
+fn backend(state: &State<Shared>) -> Res<Backend> {
+    let (server, network, start) = {
+        let mut app = state.lock().unwrap();
+        let server = app.settings.server.clone();
+        let (a, w) = loaded(&mut app)?;
+        (server, a.network, p2p::start_for(w))
     };
-    let backend = server.connect(network)?;
+    let mut backend = server.connect(network)?;
+    if let Backend::P2p(p) = &mut backend {
+        p.start = start;
+    }
     backend.check_network(network)?;
     Ok(backend)
 }
@@ -301,17 +346,47 @@ fn fee_rates(state: State<Shared>) -> Res<FeeRates> {
 }
 
 #[tauri::command(async)]
-fn sync(state: State<Shared>) -> Res<Overview> {
+fn sync(handle: AppHandle, state: State<Shared>) -> Res<Overview> {
     let backend = backend(&state)?;
+    if let Backend::P2p(p) = &backend {
+        let (client, start, stop) = {
+            let mut app = state.lock().unwrap();
+            let new = app.settings.new_wallet;
+            app.stop_sync = Default::default();
+            let stop = app.stop_sync.clone();
+            let (client, start) = p.prepare(loaded(&mut app)?.1, new)?;
+            (client, start, stop)
+        };
+        let h = handle.clone();
+        let progress = move |p: p2p::Progress| drop(h.emit("sync-progress", p));
+        let update = p2p::P2p::run(client, start, progress, stop)?;   // no lock held over the network
+        let overview = {
+            let mut app = state.lock().unwrap();
+            let (a, w) = loaded(&mut app)?;
+            w.apply_update(update).map_err(|e| e.to_string())?;
+            let overview = overview(a, w);
+            keep_changes(&mut app);
+            app.settings.new_wallet = false;
+            overview
+        };
+        save_settings(&handle)?;
+        return Ok(overview);
+    }
     let request = {
         let mut app = state.lock().unwrap();
         loaded(&mut app)?.1.start_full_scan().build()
     };
     let update = backend.full_scan(request)?;   // no lock held over the network
-    let mut app = state.lock().unwrap();
-    let (a, w) = loaded(&mut app)?;
-    w.apply_update(update).map_err(|e| e.to_string())?;
-    Ok(overview(a, w))
+    let overview = {
+        let mut app = state.lock().unwrap();
+        let (a, w) = loaded(&mut app)?;
+        w.apply_update(update).map_err(|e| e.to_string())?;
+        let overview = overview(a, w);
+        keep_changes(&mut app);
+        overview
+    };
+    save_settings(&handle)?;
+    Ok(overview)
 }
 
 #[derive(Serialize)]
@@ -489,7 +564,7 @@ fn scan_stop(state: State<Shared>) {
 }
 
 #[tauri::command(async)]
-fn broadcast_signed(state: State<Shared>) -> Res<String> {
+fn broadcast_signed(handle: AppHandle, state: State<Shared>) -> Res<String> {
     let tx = state.lock().unwrap().signed.clone().ok_or("nothing signed")?;
     let txid = backend(&state)?.broadcast(&tx)?;
     let mut app = state.lock().unwrap();
@@ -498,6 +573,10 @@ fn broadcast_signed(state: State<Shared>) -> Res<String> {
     }
     app.signed = None;
     app.unsigned = None;
+    keep_changes(&mut app);
+    drop(app);
+    // it's sent either way; an unsaved change goes with the next save
+    let _ = save_settings(&handle);
     Ok(txid.to_string())
 }
 
@@ -529,6 +608,9 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .manage(Shared::default())
         .setup(|app| {
+            if let Ok(dir) = app.path().app_data_dir() {
+                tor::set_dir(dir.join("tor"));
+            }
             // Reopen the saved watch-only wallet, if any; a locked one waits
             // for the password.
             let shared = app.state::<Shared>();
@@ -551,6 +633,7 @@ fn main() {
             next_wallet_frame,
             set_server,
             fee_rates,
+            skip_scan,
             create_bump,
             import_key,
             sync,
