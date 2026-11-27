@@ -260,6 +260,12 @@ function step(name) {
   button($("wz-next"), { welcome: "Get started", server: "Continue", done: "Open wallet" }[name] || "", false);
   $("link-scan").hidden = $("link-alt").hidden = true;
   if (name === "link") linkPanel(wzMultisig ? "ms" : null);
+  // a server saved before (it stays when a wallet is forgotten) is kept, not swapped for the public one
+  if (name === "server") {
+    $("wz-url").value = server.url;
+    $("wz-proxy").value = server.proxy;
+    pickServer(server.url || server.proxy ? "own" : "public");
+  }
   if (name === "done") showDone();
   window.scrollTo(0, 0);
 }
@@ -277,11 +283,14 @@ for (const b of document.querySelectorAll("[data-type]"))
     wzMultisig = b.dataset.type === "ms";
     step("link");
   };
+function pickServer(kind) {
+  wzServer = kind;
+  for (const o of document.querySelectorAll("[data-server]")) o.setAttribute("aria-pressed", String(o.dataset.server === kind));
+  $("wz-own").hidden = kind !== "own";
+}
 for (const b of document.querySelectorAll("[data-server]"))
   b.onclick = () => {
-    wzServer = b.dataset.server;
-    for (const o of document.querySelectorAll("[data-server]")) o.setAttribute("aria-pressed", String(o === b));
-    $("wz-own").hidden = wzServer !== "own";
+    pickServer(b.dataset.server);
     if (wzServer === "own") $("wz-url").focus();
   };
 async function saveServer() {
@@ -311,10 +320,14 @@ async function showDone() {
   $("done-addr").hidden = ms;
   $("done-kv").hidden = !ms;
   $("done-qr").innerHTML = "";
-  if (ms) return showDescriptor("done-qr", "done-part", "done-kv");
   $("done-part").hidden = true;
+  if (ms) {
+    const w = await call("wallet_descriptor");
+    if (wzStep === "done" && currentView === "link") showDescriptor(w, "done-qr", "done-part", "done-kv");
+    return;
+  }
   const r = await call("receive_address");
-  renderAddress(r, "done-qr", "done-addr");
+  if (wzStep === "done") renderAddress(r, "done-qr", "done-addr");
 }
 
 $("link-scan").onclick = async () => {
@@ -363,12 +376,12 @@ $("ms-link").onclick = async () =>
   linkedFirst(await call("link_multisig", { threshold: Number($("ms-threshold").value), keys: $("ms-keys").value }));
 
 // ---- show the multisig wallet to Goldfish
-$("w-show").onclick = () => {
-  show("show");
-  showDescriptor("sh-qr", "sh-part", "sh-kv");
-};
-async function showDescriptor(qr, part, kv) {
+$("w-show").onclick = async () => {
   const w = await call("wallet_descriptor");
+  show("show");
+  showDescriptor(w, "sh-qr", "sh-part", "sh-kv");
+};
+function showDescriptor(w, qr, part, kv) {
   const rows = [
     ["Wallet", w.kind],
     ...w.fingerprints.map((fp, i) => [i ? "" : "Cosigners", fingerprint(fp)]),
@@ -560,6 +573,8 @@ $("set-forget").onclick = async () => {
   $("set-forget").dataset.sure = "";
   $("set-forget").textContent = "Forget this wallet";
   current = null;
+  for (const id of ["link-text", "ms-keys"]) $(id).value = "";
+  wzMultisig = false;
   show("link");
   step("welcome");
 };
