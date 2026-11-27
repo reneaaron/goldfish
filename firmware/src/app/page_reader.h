@@ -62,5 +62,9 @@ int page_strip_band(const uint8_t *band, int y0, int rows, int zoom, int dx, int
 #define PAGE_SHIFT 6
 void page_band_shift(const uint8_t *ref, int rw, int rh, const uint8_t *band, int y0, int rows, int zoom,
                      const Page *page, int i, int *dx, int *dy);
+// Word i widened to the ink along its row in the band (moved by dx, dy, as
+// page_band_shift found): the preview misses faint letters, most often at a
+// word's ends. Never into another piece of the row. Before page_strip_band.
+void page_band_refine(const uint8_t *band, int y0, int rows, int zoom, int dx, int dy, Page *page, int i);
 // Corners of a word's box in image pixels (x0, y0 .. x3, y3), for drawing it.
 void page_corners(const Page *page, int i, float xy[8]);

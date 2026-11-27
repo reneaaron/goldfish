@@ -665,6 +665,8 @@ done:
 // ---------------------------------------------------------------- strips
 // Where a word's strip comes from, in an image `zoom` times the size page_find saw.
 struct StripGeom { float u0, v0, sx, scale; int sw, k; };
+// Pixel counts by shade, for a strip's paper or a row's ink (static: little stack, and the board's RAM is short)
+static uint16_t shade_hist[256];
 
 static StripGeom strip_geom(const Page *page, int i, int zoom) {
     const PageWord &pw = page->words[i];
@@ -708,8 +710,7 @@ int page_strip_band(const uint8_t *band, int y0, int rows, int zoom, int dx, int
     int w = page->w * zoom, ylo = y0, yhi = y0 + rows - 1;
     if (yhi > page->h * zoom - 1) yhi = page->h * zoom - 1;
     const int k = g.k, sw = g.sw;
-    static uint16_t hist[256];
-    memset(hist, 0, sizeof(hist));
+    memset(shade_hist, 0, sizeof(shade_hist));
     for (int oy = 0; oy < WR_H; oy++)
         for (int ox = 0; ox < sw; ox++) {
             int sum = 0;
@@ -723,14 +724,14 @@ int page_strip_band(const uint8_t *band, int y0, int rows, int zoom, int dx, int
                 }
             uint8_t v = uint8_t(sum / (k * k));
             strip[oy * WR_W + ox] = v;
-            hist[v]++;
+            shade_hist[v]++;
         }
     // the rest of the strip: plain paper, the strip's median
     int n = WR_H * sw, seen = 0, med = 0;
-    for (; med < 255 && (seen += hist[med]) <= n / 2; med++) {}
+    for (; med < 255 && (seen += shade_hist[med]) <= n / 2; med++) {}
     for (int oy = 0; oy < WR_H; oy++)
         for (int ox = sw; ox < WR_W; ox++) strip[oy * WR_W + ox] = uint8_t(med);
-    secure_zero(hist, sizeof(hist));
+    secure_zero(shade_hist, sizeof(shade_hist));
     return sw;
 }
 
@@ -797,6 +798,70 @@ void page_band_shift(const uint8_t *ref, int rw, int rh, const uint8_t *band, in
         }
     secure_zero(small, sizeof(int16_t) * sw * sh);
     free(small);
+}
+
+// The preview misses a word's faint or thin letters (most often at its ends:
+// the box stops short, or one word is two pieces). Along the word's row in the
+// sharper band, ink within a row height of the box widens it, but not on a
+// side where that ink runs on into the next piece of the row: two pieces of
+// one word, or a row number found apart from its word, are left as they are
+// (widened, both pieces of a word read as it, and a number reads as a word).
+void page_band_refine(const uint8_t *band, int y0, int rows, int zoom, int dx, int dy, Page *page, int i) {
+    PageWord &pw = page->words[i];
+    if (pw.guessed) return;
+    const float c = page->cos_a, s = page->sin_a;
+    const int w = page->w * zoom;
+    const float U0 = pw.u0 * zoom, V0 = pw.v0 * zoom, h = (pw.v1 - pw.v0) * zoom, ext = 3 * h;
+    const int nu = int((pw.u1 - pw.u0) * zoom + 2 * ext) + 1, nv = int(h) + 1;
+    if (h < 2 || nv > 64) return;   // a row up to 64 pixels high: one bit each below
+    // the band's pixel at (b, a) of the row's window, -1 outside the band
+    auto px = [&](int b, int a) -> int {
+        float u = U0 - ext + b, v = V0 + a;
+        int x = int(u * c - v * s) + dx, y = int(u * s + v * c) + dy;
+        return x < 0 || x >= w || y < y0 || y >= y0 + rows ? -1 : band[(y - y0) * w + x];
+    };
+    // ink: well under the window's paper (its median), by a share of the way to its darkest strokes
+    memset(shade_hist, 0, sizeof(shade_hist));
+    int n = 0;
+    for (int b = 0; b < nu; b++)
+        for (int a = 0; a < nv; a++) {
+            int p = px(b, a);
+            if (p >= 0) shade_hist[p]++, n++;
+        }
+    int seen = 0, med = 0, dark = 0;
+    for (; med < 255 && (seen += shade_hist[med]) <= n / 2; med++) {}
+    for (seen = 0; dark < 255 && (seen += shade_hist[dark]) <= n / 50; dark++) {}
+    secure_zero(shade_hist, sizeof(shade_hist));
+    if (!n) return;
+    int thr = med - (med - dark) * 3 / 10;
+    if (thr > med - 10) thr = med - 10;
+    // rows of the window that are mostly ink are a ruled line, not letters
+    uint64_t line = 0;
+    for (int a = 0; a < nv; a++) {
+        int k = 0;
+        for (int b = 0; b < nu; b++) { int p = px(b, a); k += p >= 0 && p < thr; }
+        if (k * 2 > nu) line |= 1ull << a;
+    }
+    auto inked = [&](int b) {
+        for (int a = 0; a < nv; a++) { int p = px(b, a); if (!(line >> a & 1) && p >= 0 && p < thr) return true; }
+        return false;
+    };
+    const int b0 = int(ext), b1 = int(ext + (pw.u1 - pw.u0) * zoom), gap = int(h);
+    int last = b1, first = b0;
+    for (int b = b1; b < nu && b - last <= gap; b++) if (inked(b)) last = b;
+    for (int b = b0; b >= 0 && first - b <= gap; b--) if (inked(b)) first = b;
+    float u1 = (U0 - ext + last + 1) / zoom, u0 = (U0 - ext + first) / zoom;
+    const bool small = pw.u1 - pw.u0 < 2 * (pw.v1 - pw.v0);   // a row number's size
+    for (int j = 0; j < page->n; j++) {   // never into another piece of the row
+        const PageWord &q = page->words[j];
+        if (j == i || q.guessed) continue;
+        float ov = fminf(q.v1, pw.v1) - fmaxf(q.v0, pw.v0);
+        if (ov <= 0.5f * fminf(q.v1 - q.v0, pw.v1 - pw.v0)) continue;
+        if (q.u0 >= pw.u1 && u1 > q.u0) u1 = small ? pw.u1 : q.u0;   // ink runs on into it
+        if (q.u1 <= pw.u0 && u0 < q.u1) u0 = small ? pw.u0 : q.u1;
+    }
+    if (u1 > pw.u1) pw.u1 = u1;
+    if (u0 < pw.u0) pw.u0 = u0;
 }
 
 void page_corners(const Page *page, int i, float xy[8]) {

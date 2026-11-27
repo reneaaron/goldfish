@@ -6,6 +6,7 @@
 #include <unity.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <string.h>
 #include "../../src/app/page_reader.h"
 #include "../../src/app/seed_create.h"
@@ -160,6 +161,47 @@ static void test_band_shift() {
     free(moved);
 }
 
+// Seen small, the preview misses faint letters: boxes stop short of a word's
+// ends, or one word is found as two pieces. page_band_refine widens each box
+// to the ink along its row in the sharper band, never so two pieces of a row
+// overlap. Over pages 130 to 200 pixels wide (a page filling the board's view
+// is about 140), more words are read, and none wrongly (read_in_order).
+static void test_band_refine() {
+    const int Z = 2;
+    int plain_offered = 0, wide_offered = 0;
+    for (int lw = 130; lw <= 200; lw += 70 / 3) {
+        const int lh = lw * 1800 / 1400;
+        uint8_t *low = load_resized(lw, lh), *hi = load_resized(lw * Z, lh * Z);
+        TEST_ASSERT_TRUE(page_find(low, lw, lh, &page));
+        static Page before;
+        before = page;
+        static uint8_t plain[PAGE_MAX_WORDS][WR_H * WR_W], wide[PAGE_MAX_WORDS][WR_H * WR_W];
+        for (int i = 0; i < page.n; i++) {
+            page_strip_band(hi, 0, lh * Z, Z, 0, 0, &page, i, plain[i]);
+            page_band_refine(hi, 0, lh * Z, Z, 0, 0, &page, i);
+            const PageWord &a = page.words[i], &b = before.words[i];
+            TEST_ASSERT_TRUE(a.u0 <= b.u0 && a.u1 >= b.u1);   // only wider, along the row
+            TEST_ASSERT_EQUAL_FLOAT(b.v0, a.v0);
+            TEST_ASSERT_EQUAL_FLOAT(b.v1, a.v1);
+            page_strip_band(hi, 0, lh * Z, Z, 0, 0, &page, i, wide[i]);
+        }
+        for (int i = 0; i < page.n; i++)
+            for (int j = 0; j < page.n; j++) {
+                const PageWord &a = page.words[i], &b = page.words[j];
+                if (i == j || a.guessed || b.guessed) continue;
+                float ov = fminf(a.v1, b.v1) - fmaxf(a.v0, b.v0);
+                if (ov > 0.5f * fminf(a.v1 - a.v0, b.v1 - b.v0)) TEST_ASSERT_TRUE(a.u1 <= b.u0 || b.u1 <= a.u0);
+            }
+        int p = read_in_order(&plain[0][0], page.n), w = read_in_order(&wide[0][0], page.n);
+        printf("%d px wide page: %d read as found, %d widened\n", lw, p, w);
+        plain_offered += p;
+        wide_offered += w;
+        free(low);
+        free(hi);
+    }
+    TEST_ASSERT_GREATER_OR_EQUAL(plain_offered + 5, wide_offered);
+}
+
 // A dim room: the same board-sized page at 30% brightness (paper about 65).
 // The ink test is relative to the picture's paper, so the words are still
 // all found and read about as well.
@@ -189,6 +231,7 @@ int main() {
     RUN_TEST(test_reads_page_in_order);
     RUN_TEST(test_board_sized_bands);
     RUN_TEST(test_band_shift);
+    RUN_TEST(test_band_refine);
     RUN_TEST(test_dim_page);
     RUN_TEST(test_blank_page);
     return UNITY_END();

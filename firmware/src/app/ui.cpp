@@ -1798,6 +1798,20 @@ static bool page_band() {
         // is filling up with strips)
         int dx, dy;
         page_band_shift(preview_buf, PREV_W, PREV_H, band_buf, b0, band_rows, CAM_ZOOM, &page, c.piece, &dx, &dy);
+        // the letters the photo missed: the box (here and on Words found) grows to them
+        // On a tilted page the grown end can leave the band (its rows were picked
+        // for the box as found): then the box stays as it was.
+        auto outside = [&]() {
+            int r0, r1;
+            page_strip_rows(&page, c.piece, CAM_ZOOM, 0, &r0, &r1);
+            return (b0 > r0 + dy ? b0 - r0 - dy : 0) + (r1 + dy > b0 + band_rows ? r1 + dy - b0 - band_rows : 0);
+        };
+        PageWord was = page.words[c.piece];
+        int out = outside();
+        page_band_refine(band_buf, b0, band_rows, CAM_ZOOM, dx, dy, &page, c.piece);
+        if (outside() > out) page.words[c.piece] = was;
+        lv_obj_delete(page_boxes[i]);
+        page_boxes[i] = word_box(lv_obj_get_screen(preview_img), i);
         page_store(c.piece, page_strip_band(band_buf, b0, band_rows, CAM_ZOOM, dx, dy, &page, c.piece, page_strip_buf));
         c.cut = true;
         if (!page.words[c.piece].guessed) lv_obj_set_style_border_color(page_boxes[i], ACCENT, 0);
