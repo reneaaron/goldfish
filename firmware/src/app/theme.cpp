@@ -99,7 +99,10 @@ static lv_obj_t *btn_base(lv_obj_t *parent, const char *s, lv_event_cb_t cb, voi
     // pressed: slightly darker / visible feedback
     lv_obj_set_style_bg_opa(b, bg_opa ? LV_OPA_80 : LV_OPA_20, LV_STATE_PRESSED);
     lv_obj_set_style_bg_color(b, bg_opa ? bg : SURFACE_2, LV_STATE_PRESSED);
-    lv_obj_set_style_transform_scale(b, 245, LV_STATE_PRESSED);
+    // No shrinking while pressed (it was transform_scale 245): LVGL draws a
+    // scaled button through a layer of about 40 KB in one piece, and when its
+    // pool has no free block that large it waits for one forever. The device
+    // froze on a press. The colour change above is the feedback.
     lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, ud);
     lv_obj_t *l = text(b, s, &inter_17_semi, fg);
     lv_obj_center(l);
