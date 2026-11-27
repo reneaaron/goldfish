@@ -21,6 +21,8 @@
       <symbol id="i-zap" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></symbol>
       <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
       <symbol id="i-qr" viewBox="0 0 24 24"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
+      <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></symbol>
       <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
       <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
       <symbol id="i-cloud-off" viewBox="0 0 24 24"><path d="m2 2 20 20"/><path d="M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-.193"/><path d="M21.532 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7.008 7.008 0 0 0 10 5.07"/></symbol>
@@ -324,7 +326,7 @@
 
     <!-- Sign on Goldfish -->
     <section id="v-sign" hidden>
-      <header class="bar"><button class="back" aria-label="Back"><svg><use href="#i-back"/></svg></button><h2>Review</h2><button id="sign-paste-toggle" class="link bar-action">Paste</button></header>
+      <header class="bar"><button class="back" aria-label="Back"><svg><use href="#i-back"/></svg></button><h2>Review</h2><button id="sign-paste-toggle" class="link bar-action">More</button></header>
       <div class="sign-body">
         <div class="sig-status" id="sign-sigs" hidden></div>
         <div class="sending">
@@ -336,12 +338,6 @@
           <div id="sign-show">
             <div id="sign-qr" class="qr"></div>
             <p class="caption gf-cap" id="sign-cap"><img class="gf-inline" id="sign-fish" src="goldfish.svg" alt=""><span id="sign-who">Scan with Goldfish</span> · <span id="sign-part"></span></p>
-            <div class="other-signer">
-              <span>Other signer:</span>
-              <button id="sign-copy" class="link"><span>Copy</span></button>
-              <button id="sign-save" class="link"><span>Save</span></button>
-              <button id="sign-open" class="link"><span>Open signed</span></button>
-            </div>
           </div>
           <div class="cam" hidden><canvas width="320" height="240"></canvas></div>
           <p class="cam-msg" role="status" hidden></p>
@@ -349,6 +345,12 @@
         </div>
         <dl id="review" class="card kv"></dl>
         <div id="sign-paste" class="paste" hidden>
+          <p class="hint left">For a signer without a camera: give it the transaction, then bring back the signed one.</p>
+          <div class="other-signer">
+            <button id="sign-copy" class="link"><svg><use href="#i-copy"/></svg><span>Copy</span></button>
+            <button id="sign-save" class="link"><svg><use href="#i-download"/></svg><span>Save file</span></button>
+            <button id="sign-open" class="link"><svg><use href="#i-upload"/></svg><span>Open signed file</span></button>
+          </div>
           <textarea id="sign-text" rows="3" spellcheck="false" placeholder="ur:crypto-psbt/… or base64, one part per line"></textarea>
           <button id="sign-use" class="secondary">Use</button>
         </div>

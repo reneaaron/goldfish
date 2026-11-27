@@ -57,9 +57,10 @@ the guides still use Sparrow.
   RAM only, so it is connected again whenever it is plugged in. Each
   cosigner's signed PSBT is merged in, and the QR then carries the
   signatures so far for the next one; Broadcast once enough have signed.
-- A signer without a camera: under the QR, "Other signer" copies the PSBT
-  (with the signatures so far) as base64 or saves it as a binary `.psbt`;
-  "Open signed" reads the signed file back (binary or base64), like a scan.
+- A signer without a camera: More on the Review screen (where Paste is)
+  copies the PSBT (with the signatures so far) as base64 or saves it as a
+  binary `.psbt`; "Open signed file" reads the signed one back (binary or
+  base64), like a scan.
   For Sparrow with a USB device (Trezor, Ledger) or a Coldcard's SD card.
   Exports add each input's previous transaction, which Trezor and Ledger
   require; Goldfish's QR leaves it out, and it's dropped again on the way
