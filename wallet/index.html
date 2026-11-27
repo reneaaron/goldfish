@@ -62,6 +62,12 @@
   .lockup small { font-size: 13px; color: var(--muted); font-weight: 600; margin: 4px 0 0 calc(93px * .34 + 10px); }
   .hero .lockup { margin-bottom: 26px; }
   .hero .lede { margin: 14px auto 0; }
+  .cta { display: inline-flex; align-items: center; gap: 10px; height: 50px; padding: 0 24px; margin-top: 30px;
+         border-radius: 12px; background: var(--text); color: var(--bg); font-weight: 600; font-size: 16px; text-decoration: none;
+         transition: transform .1s; }
+  .cta:active { transform: scale(.98); }
+  .cta svg { width: 18px; height: 18px; }
+  .hero .cta + br + .status { margin-top: 14px; }
   .status { display: inline-flex; align-items: center; gap: 8px; margin-top: 24px; padding: 6px 14px; border-radius: 99px;
             background: var(--raised); color: var(--muted); font-size: 14px; font-weight: 500; text-align: left; }
   .status i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--blue); }
@@ -71,6 +77,8 @@
          box-shadow: 0 1px 2px rgba(20,34,43,.06), 0 12px 32px rgba(20,34,43,.10); }
   .win img { width: 100%; height: auto; }
   .hero .win { max-width: 880px; margin: 48px auto 0; }
+  /* the screenshot's bottom quarter is empty window */
+  .hero .win img { aspect-ratio: 2000 / 660; object-fit: cover; object-position: top; }
 
   section { padding: 72px 0; border-top: 1px solid var(--line); }
   .hero + section { border-top: 0; }
@@ -103,6 +111,11 @@
   .split ul { margin: 12px 0 0; padding-left: 20px; color: var(--muted); }
   .split li { margin: 6px 0; }
   @media (max-width: 760px) { .split { grid-template-columns: 1fr; gap: 24px; } }
+
+  .aside { margin-top: 32px; color: var(--muted); font-size: 16px; }
+  pre { margin: 20px 0 0; padding: 18px 20px; background: var(--text); color: #E6EEF2; border-radius: 12px;
+        font-size: 14px; line-height: 1.7; overflow-x: auto; }
+  pre .c { color: #8FA3AE; }
 
   /* as the landing page's footer */
   footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--faint); font-size: 14px; }
@@ -160,6 +173,8 @@
     <div class="lockup"><b><img src="dove-mark.svg" alt="">dove</b><small>by goldfish</small></div>
     <h1>Goldfish signs.<br>Dove carries.</h1>
     <p class="lede">The wallet app for your Goldfish. Dove watches your addresses, builds the transaction and carries the signed one to the network. It never sees your seed.</p>
+    <a class="cta" href="#try">Build it from source
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M19 12l-7 7-7-7"/></svg></a><br>
     <div class="status"><i></i>Early preview for Linux. Not for real money yet.</div>
     <div class="win"><img src="img/wallet.webp" width="2000" height="840" alt="Dove's main window: the balance, Receive and Send, and recent activity, on signet"></div>
   </div>
@@ -201,7 +216,8 @@
           <li>Hold your wallet: addresses, balance, history</li>
           <li>Build transactions, pick the fee, speed up a stuck one</li>
           <li>Broadcast what Goldfish signed</li>
-          <li>Multisig: keep the descriptor, gather the signatures</li>
+          <li>Multisig: keep the descriptor, help you back it up, gather the signatures</li>
+          <li>Update Goldfish's firmware, checked against the release's checksums</li>
           <li>Talk to your own Electrum or Esplora server, through Tor if you like, or a public one</li>
           <li>Lock what it saves with a password, if you want one</li>
         </ul></div>
@@ -211,6 +227,18 @@
           <li>Asks Goldfish to save anything</li>
         </ul></div>
       </div>
+      <p class="aside">Dove is optional. Goldfish works with Sparrow too, and that's what the guides use for now.</p>
+    </div>
+  </section>
+
+  <section id="try">
+    <div class="wrap">
+      <h2>Try it</h2>
+      <p class="lede">There's no package yet. On Linux, with Rust, the Tauri libraries (<code>libwebkit2gtk-4.1-dev</code> and friends) and libclang:</p>
+<pre><code>git clone https://github.com/reneaaron/goldfish
+cd goldfish/companion/src-tauri
+cargo run   <span class="c"># GOLDFISH_CAMERA=/dev/video2 for another camera</span></code></pre>
+      <p class="aside">Start on signet. More in the <a href="https://github.com/reneaaron/goldfish/tree/main/companion#run">companion README</a>.</p>
     </div>
   </section>
 
