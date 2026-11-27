@@ -343,10 +343,13 @@ async function saveServer() {
 // Multisig: the descriptor as text, to keep with the seed backups
 async function showBackup() {
   $("backup-text").textContent = "";
+  $("backup-copy").dataset.text = "";
+  $("backup-copy").disabled = true; // until the descriptor is here: never a "Copied" with nothing copied
   const w = await call("wallet_descriptor");
   if (wzStep !== "backup") return;
   $("backup-text").textContent = w.descriptor;
   $("backup-copy").dataset.text = w.descriptor;
+  $("backup-copy").disabled = false;
 }
 // The last step: for one signer, the first address to check on Goldfish;
 // for multisig, the wallet for each Goldfish to scan.
