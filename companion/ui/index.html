@@ -36,6 +36,21 @@
       <button id="error-close" aria-label="Dismiss">×</button>
     </div>
 
+    <!-- Unlock: the settings are locked with a password -->
+    <section id="v-unlock" class="onboard" hidden>
+      <div class="onboard-top"><span class="lockup"><img src="dove.svg" alt="">dove</span></div>
+      <form id="unlock-form" class="onboard-body">
+        <h1 class="display">Unlock Dove</h1>
+        <p class="para">Enter your password to open your wallet.</p>
+        <label class="field"><span>Password</span><input id="unlock-pw" type="password" autocomplete="current-password" required></label>
+      </form>
+      <div class="onboard-actions">
+        <button id="unlock-go" form="unlock-form" class="primary wide"><span>Unlock</span></button>
+        <p class="hint" id="unlock-reset-hint" hidden>Dove forgets the wallet and server on this computer. Link it again from your signer; your coins stay where they are.</p>
+        <button type="button" id="unlock-reset" class="link center-block">Forgot password?</button>
+      </div>
+    </section>
+
     <!-- Link Goldfish -->
     <section id="v-link" class="onboard">
       <div class="onboard-top"><span class="lockup"><img src="dove.svg" alt="">dove</span></div>
@@ -192,6 +207,15 @@
         <p class="field-hint">Using Tor with an Electrum server? Enter <code>socks5://127.0.0.1:9050</code>.</p>
         <button id="set-save" class="primary wide"><span>Save</span></button>
         <p class="ok" id="set-ok" hidden></p>
+      </form>
+      <form id="pw-form" class="pw-zone">
+        <p class="label">Password</p>
+        <p class="hint" id="pw-hint"></p>
+        <label class="field"><span id="pw-new-label">New password</span><input id="pw-new" type="password" autocomplete="new-password"></label>
+        <label class="field"><span>Again</span><input id="pw-again" type="password" autocomplete="new-password"></label>
+        <button id="pw-save" class="secondary wide"><span>Set password</span></button>
+        <button type="button" id="pw-remove" class="link danger" hidden>Remove password</button>
+        <p class="ok" id="pw-ok" hidden></p>
       </form>
       <div class="danger-zone">
         <p class="label">This wallet</p>

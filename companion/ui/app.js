@@ -4,11 +4,12 @@ const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 
 const $ = (id) => document.getElementById(id);
-const VIEWS = ["link", "wallet", "receive", "send", "bump", "settings", "show", "sign", "ready", "sent"];
+const VIEWS = ["unlock", "link", "wallet", "receive", "send", "bump", "settings", "show", "sign", "ready", "sent"];
 let waiting = null; // txid of a signed transaction not broadcast yet
 let current = null; // the linked wallet's overview
 let showTimer = null;
 let server = { url: "", proxy: "" };
+let hasPassword = false;
 let frameTimer = null;
 let scanning = false;
 
@@ -400,6 +401,7 @@ $("w-settings").onclick = () => {
   $("set-proxy").value = server.proxy;
   $("set-url").placeholder = "Public server (default)";
   $("set-ok").hidden = true;
+  passwordSection();
 };
 
 // ---- fee suggestions: chips that fill the fee field
@@ -643,13 +645,84 @@ for (const b of document.querySelectorAll("button.copy")) {
   };
 }
 
+// ---- password: locks the saved wallet and server on this computer
+function passwordSection() {
+  $("pw-hint").textContent = hasPassword
+    ? "Dove asks for it when it opens. Forgot it? Link the wallet again from your signer."
+    : "Lock this wallet and the server on this computer. Dove asks for it when it opens.";
+  $("pw-new-label").textContent = hasPassword ? "New password" : "Password";
+  button($("pw-save"), hasPassword ? "Change password" : "Set password", false);
+  $("pw-remove").hidden = !hasPassword;
+  $("pw-remove").dataset.sure = "";
+  $("pw-remove").textContent = "Remove password";
+  $("pw-new").value = $("pw-again").value = "";
+  $("pw-ok").hidden = true;
+}
+$("pw-form").onsubmit = async (ev) => {
+  ev.preventDefault();
+  $("pw-ok").hidden = true;
+  if (!$("pw-new").value) return error("Enter a password first.");
+  if ($("pw-new").value !== $("pw-again").value) return error("The two passwords don't match.");
+  button($("pw-save"), "Locking…", true);
+  try {
+    await call("set_password", { password: $("pw-new").value });
+    hasPassword = true;
+    passwordSection();
+    $("pw-ok").textContent = "Password set. Dove asks for it next time.";
+    $("pw-ok").hidden = false;
+  } catch (_) {
+    button($("pw-save"), hasPassword ? "Change password" : "Set password", false);
+  }
+};
+$("pw-remove").onclick = async () => {
+  if ($("pw-remove").dataset.sure !== "1") {
+    $("pw-remove").dataset.sure = "1";
+    $("pw-remove").textContent = "Tap again to remove";
+    return;
+  }
+  await call("set_password", { password: "" });
+  hasPassword = false;
+  passwordSection();
+  $("pw-ok").textContent = "Password removed.";
+  $("pw-ok").hidden = false;
+};
+
+function started(s) {
+  server = s.server;
+  hasPassword = s.has_password;
+  if (s.locked) {
+    show("unlock");
+    $("unlock-pw").focus();
+  } else if (s.wallet) linked(s.wallet);
+  else show("link");
+}
+$("unlock-form").onsubmit = async (ev) => {
+  ev.preventDefault();
+  button($("unlock-go"), "Unlocking…", true);
+  try {
+    started(await call("unlock", { password: $("unlock-pw").value }));
+    $("unlock-pw").value = "";
+  } catch (_) {
+    $("unlock-pw").select();
+  } finally {
+    button($("unlock-go"), "Unlock", false);
+  }
+};
+$("unlock-reset").onclick = async () => {
+  if ($("unlock-reset").dataset.sure !== "1") {
+    $("unlock-reset").dataset.sure = "1";
+    $("unlock-reset").textContent = "Start over";
+    $("unlock-reset").classList.add("danger");
+    $("unlock-reset-hint").hidden = false;
+    return;
+  }
+  await call("start_over");
+  show("link");
+};
+
 // ---- start: reopen the saved wallet, if any
 invoke("startup")
-  .then((s) => {
-    server = s.server;
-    if (s.wallet) linked(s.wallet);
-    else show("link");
-  })
+  .then(started)
   .catch((e) => {
     show("link");
     error(e);

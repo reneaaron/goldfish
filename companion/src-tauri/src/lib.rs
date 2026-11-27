@@ -775,6 +775,48 @@ pub fn psbt_from_base64(s: &str) -> Res<Psbt> {
     Psbt::deserialize(&B64.decode(s.trim()).map_err(err)?).map_err(err)
 }
 
+/// scrypt's cost for the password: 2^18 (256 MiB; well under a second on a
+/// desktop, slow enough to make guessing expensive). Fixed,
+/// not age's default of timing this computer: a file locked on a fast, idle
+/// machine would otherwise be refused as too much work on a slow or busy one.
+const SCRYPT_LOG_N: u8 = 18;
+
+/// `plain` locked with `password`: the age format with scrypt, so the
+/// file also opens with `age -d`.
+pub fn seal(plain: &[u8], password: &str) -> Res<Vec<u8>> {
+    let mut recipient = age::scrypt::Recipient::new(password.to_owned().into());
+    recipient.set_work_factor(SCRYPT_LOG_N);
+    age::encrypt(&recipient, plain).map_err(err)
+}
+
+pub fn unseal(sealed: &[u8], password: &str) -> Res<Vec<u8>> {
+    let mut identity = age::scrypt::Identity::new(password.to_owned().into());
+    identity.set_max_work_factor(SCRYPT_LOG_N);
+    age::decrypt(&identity, sealed).map_err(|e| match e {
+        age::DecryptError::DecryptionFailed | age::DecryptError::NoMatchingKeys => "wrong password".into(),
+        e => err(e),
+    })
+}
+
+/// Save the settings in `dir`: settings.json, or with a password, locked in
+/// settings.age. Then remove the other one, so only one is ever there.
+pub fn write_settings(dir: &std::path::Path, plain: &[u8], password: Option<&str>) -> Res<()> {
+    let (bytes, ext, other) = match password {
+        Some(pw) => (seal(plain, pw)?, "age", "json"),
+        None => (plain.to_vec(), "json", "age"),
+    };
+    std::fs::create_dir_all(dir).map_err(err)?;
+    let path = dir.join("settings").with_extension(ext);
+    // write a copy, then swap it in: a crash mid-write can't eat the saved wallet
+    let tmp = path.with_extension(format!("{ext}.tmp"));
+    std::fs::write(&tmp, bytes).map_err(err)?;
+    std::fs::rename(&tmp, &path).map_err(err)?;
+    match std::fs::remove_file(dir.join("settings").with_extension(other)) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(err(e)),
+        _ => Ok(()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1060,4 +1102,29 @@ mod tests {
         assert!(!bad.connect(Network::Signet).err().unwrap_or_default().contains("SOCKS5 proxy, like"));
     }
 
+    #[test]
+    fn sealed_settings_open_only_with_the_password() {
+        let plain = br#"{"key":"[73c5da0a/84h/0h/0h]zpub...","server":{"url":"","proxy":""}}"#;
+        let sealed = seal(plain, "correct horse").unwrap();
+        assert!(sealed.starts_with(b"age-encryption.org/v1"));
+        assert!(!sealed.windows(4).any(|w| w == b"zpub"));
+        assert_eq!(unseal(&sealed, "correct horse").unwrap(), plain);
+        assert_eq!(unseal(&sealed, "wrong horse").unwrap_err(), "wrong password");
+    }
+
+    #[test]
+    fn a_password_swaps_the_plain_file_for_a_locked_one() {
+        let dir = std::env::temp_dir().join(format!("companion-settings-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let plain = br#"{"key":"k"}"#;
+        write_settings(&dir, plain, None).unwrap();
+        assert_eq!(std::fs::read(dir.join("settings.json")).unwrap(), plain);
+        write_settings(&dir, plain, Some("pw")).unwrap();
+        assert!(!dir.join("settings.json").exists());
+        assert_eq!(unseal(&std::fs::read(dir.join("settings.age")).unwrap(), "pw").unwrap(), plain);
+        write_settings(&dir, plain, None).unwrap();
+        assert!(!dir.join("settings.age").exists());
+        assert_eq!(std::fs::read(dir.join("settings.json")).unwrap(), plain);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }

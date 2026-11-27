@@ -14,32 +14,48 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 /// What survives a restart: the watch-only key and the server. Saved as
-/// settings.json in the app's data folder. The seed is never here.
+/// settings.json in the app's data folder, or, with a password, locked in
+/// settings.age (age format, scrypt). The seed is never here.
 #[derive(Default, Clone, Serialize, Deserialize)]
 struct Settings {
     key: Option<String>,
     server: ServerConfig,
 }
 
-fn settings_path(h: &AppHandle) -> Res<PathBuf> {
-    Ok(h.path().app_data_dir().map_err(|e| e.to_string())?.join("settings.json"))
+fn settings_path(h: &AppHandle, ext: &str) -> Res<PathBuf> {
+    Ok(h.path().app_data_dir().map_err(|e| e.to_string())?.join("settings").with_extension(ext))
 }
 
 fn load_settings(h: &AppHandle) -> Settings {
-    settings_path(h)
+    settings_path(h, "json")
         .ok()
         .and_then(|p| std::fs::read(p).ok())
         .and_then(|b| serde_json::from_slice(&b).ok())
         .unwrap_or_default()
 }
 
-fn save_settings(h: &AppHandle, s: &Settings) -> Res<()> {
-    let path = settings_path(h)?;
-    std::fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
-    // write a copy, then swap it in: a crash mid-write can't eat the saved wallet
-    let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, serde_json::to_vec_pretty(s).unwrap()).map_err(|e| e.to_string())?;
-    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
+fn is_locked_on_disk(h: &AppHandle) -> bool {
+    settings_path(h, "age").map(|p| p.exists()).unwrap_or(false)
+}
+
+fn save_settings(h: &AppHandle, app: &App) -> Res<()> {
+    if app.locked {
+        return Err("Dove is locked".into());
+    }
+    let dir = h.path().app_data_dir().map_err(|e| e.to_string())?;
+    let plain = serde_json::to_vec_pretty(&app.settings).unwrap();
+    write_settings(&dir, &plain, app.password.as_deref())
+}
+
+/// Open the saved wallet in `settings`, if any.
+fn open_settings(app: &mut App, settings: Settings) {
+    if let Some(key) = settings.key.clone() {
+        if let Ok(account) = parse_wallet(&key) {
+            app.wallet = account.wallet().ok();
+            app.account = app.wallet.as_ref().map(|_| account);
+        }
+    }
+    app.settings = settings;
 }
 
 #[derive(Default)]
@@ -54,6 +70,10 @@ struct App {
     scanner: PsbtScanner,
     signed: Option<Transaction>,
     camera: Option<Camera>,
+    /// settings.age is there but not opened yet
+    locked: bool,
+    /// kept while the app runs, to lock the settings again on each save
+    password: Option<String>,
 }
 
 type Shared = Mutex<App>;
@@ -78,7 +98,7 @@ fn link_account(h: &AppHandle, app: &mut App, account: Account) -> Res<Overview>
     (app.unsigned, app.encoder, app.signed) = (None, None, None);
     app.scanner = PsbtScanner::default();
     app.settings.key = Some(saved);
-    save_settings(h, &app.settings)?;
+    save_settings(h, app)?;
     Ok(overview)
 }
 
@@ -139,17 +159,61 @@ fn import_key(text: String, handle: AppHandle, state: State<Shared>) -> Res<Over
 struct Startup {
     wallet: Option<Overview>,
     server: ServerConfig,
+    /// the settings are locked: ask for the password first
+    locked: bool,
+    has_password: bool,
+}
+
+fn startup_of(app: &App) -> Startup {
+    let wallet = match (&app.account, &app.wallet) {
+        (Some(a), Some(w)) => Some(overview(a, w)),
+        _ => None,
+    };
+    Startup { wallet, server: app.settings.server.clone(), locked: app.locked, has_password: app.password.is_some() }
 }
 
 /// What the page shows first: the saved wallet, if there is one.
 #[tauri::command]
 fn startup(state: State<Shared>) -> Startup {
-    let app = state.lock().unwrap();
-    let wallet = match (&app.account, &app.wallet) {
-        (Some(a), Some(w)) => Some(overview(a, w)),
-        _ => None,
-    };
-    Startup { wallet, server: app.settings.server.clone() }
+    startup_of(&state.lock().unwrap())
+}
+
+/// Open settings.age with `password`, then the wallet in it.
+#[tauri::command(async)]
+fn unlock(password: String, handle: AppHandle, state: State<Shared>) -> Res<Startup> {
+    let sealed = std::fs::read(settings_path(&handle, "age")?).map_err(|e| e.to_string())?;
+    let plain = unseal(&sealed, &password)?;   // about a second: no lock held
+    let settings: Settings = serde_json::from_slice(&plain).map_err(|e| e.to_string())?;
+    let mut app = state.lock().unwrap();
+    open_settings(&mut app, settings);
+    (app.locked, app.password) = (false, Some(password));
+    Ok(startup_of(&app))
+}
+
+/// Forgot the password: delete settings.age. Only the watch-only key and the
+/// server were in it; the wallet links again from the signer.
+#[tauri::command]
+fn start_over(handle: AppHandle, state: State<Shared>) -> Res<()> {
+    let mut app = state.lock().unwrap();
+    match std::fs::remove_file(settings_path(&handle, "age")?) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.to_string()),
+        _ => {}
+    }
+    app.locked = false;
+    Ok(())
+}
+
+/// Lock the settings with `password`, or, when it's empty, save them plain.
+#[tauri::command(async)]
+fn set_password(password: String, handle: AppHandle, state: State<Shared>) -> Res<()> {
+    let mut app = state.lock().unwrap();
+    let before = app.password.take();
+    app.password = if password.is_empty() { None } else { Some(password) };
+    let saved = save_settings(&handle, &app);
+    if saved.is_err() {
+        app.password = before;
+    }
+    saved
 }
 
 /// Unlink: drop the saved key (and the wallet in memory). The server stays.
@@ -158,7 +222,7 @@ fn forget_wallet(handle: AppHandle, state: State<Shared>) -> Res<()> {
     let mut app = state.lock().unwrap();
     (app.account, app.wallet, app.unsigned, app.encoder, app.signed) = (None, None, None, None, None);
     app.settings.key = None;
-    save_settings(&handle, &app.settings)
+    save_settings(&handle, &app)
 }
 
 /// Check the server answers, then save it.
@@ -169,7 +233,7 @@ fn set_server(url: String, proxy: String, handle: AppHandle, state: State<Shared
     let rates = server.connect(network)?.fee_rates()?;
     let mut app = state.lock().unwrap();
     app.settings.server = server;
-    save_settings(&handle, &app.settings)?;
+    save_settings(&handle, &app)?;
     Ok(rates)
 }
 
@@ -392,21 +456,22 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .manage(Shared::default())
         .setup(|app| {
-            // Reopen the saved watch-only wallet, if any.
-            let settings = load_settings(app.handle());
+            // Reopen the saved watch-only wallet, if any; a locked one waits
+            // for the password.
             let shared = app.state::<Shared>();
             let mut state = shared.lock().unwrap();
-            if let Some(key) = settings.key.clone() {
-                if let Ok(account) = parse_wallet(&key) {
-                    state.wallet = account.wallet().ok();
-                    state.account = state.wallet.as_ref().map(|_| account);
-                }
+            if is_locked_on_disk(app.handle()) {
+                state.locked = true;
+            } else {
+                open_settings(&mut state, load_settings(app.handle()));
             }
-            state.settings = settings;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             startup,
+            unlock,
+            start_over,
+            set_password,
             forget_wallet,
             link_multisig,
             wallet_descriptor,
