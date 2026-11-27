@@ -98,7 +98,10 @@ button.wide { width: 100%; }
 .list .amt.in { color: var(--green); }
 .list:empty { display: none; }
 
-.qr { background: var(--surface); border-radius: var(--radius); padding: 10px; margin: 8px auto 0; max-width: 300px; }
+/* framed like a .card, so it has an edge on the white page cards too; no
+   padding: the SVG's own 4-module quiet zone is the white space the spec asks */
+.qr { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 0; overflow: hidden; margin: 8px auto 0; max-width: 300px; }
+.qr:empty { border-color: transparent; }
 .qr svg { display: block; width: 100%; height: auto; stroke: none; }
 .addr { text-align: center; word-break: normal; max-width: 300px; margin-left: auto; margin-right: auto; font-size: 15px; margin-top: 4px; line-height: 1.6; }
 

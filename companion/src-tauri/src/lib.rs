@@ -723,11 +723,14 @@ pub fn part_indices(part: &str) -> Option<(usize, usize)> {
 }
 
 /// Upper case, as Sparrow shows it: QR alphanumeric mode, a smaller code.
+/// Square modules and finder eyes, as plain as Goldfish's camera needs them
+/// (rounded eyes stop it reading the code); only the ink is Dove's navy.
 pub fn qr_svg(text: &str) -> Res<String> {
     let text = if text.to_lowercase().starts_with("ur:") { text.to_uppercase() } else { text.to_string() };
     let code = qrcode::QrCode::with_error_correction_level(text, qrcode::EcLevel::L).map_err(err)?;
     Ok(code
         .render::<qrcode::render::svg::Color>()
+        .dark_color(qrcode::render::svg::Color("#14222B"))
         .min_dimensions(320, 320)
         .quiet_zone(true)
         .build())
