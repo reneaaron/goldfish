@@ -112,9 +112,10 @@ def sign_demo_transaction(dev):
 
 
 def test_demo_page_signs_the_demo_transaction(dev):
-    """The landing page's hero offers a paper backup and a transaction: the
-    page holds the seed the transaction spends from.
-    Few layouts of these words read 12 of 12 (handwriting/make_page.py)."""
+    """The landing page's hero offers a backup card and a transaction: the
+    card (cards/, filled in by handwriting/make_card.py) holds the seed the
+    transaction spends from. Its printed label, fingerprint and corners
+    aren't words."""
     dev.tap("Scan")
     dev.show_page(FIRMWARE / "sim" / "samples" / "handwritten_page_demo.png")
     dev.wait_for(lambda: dev.screen == "PAGE_FOUND", ms=5000, what="the words to be found")

@@ -12,7 +12,9 @@
 //   4. words: within a row, ink separated by a gap wider than the row height
 //   5. order: columns left to right (where words sit across rows), then rows
 //      top to bottom
-//   6. gaps: where a column skips a row (a word too faint to find), a guessed
+//   6. not words: a short piece on the dark table's edge (a card's corner),
+//      and a heading over a column (a card's printed "FINGERPRINT", a title)
+//   7. gaps: where a column skips a row (a word too faint to find), a guessed
 //      word in its place, so the words after it keep their numbers
 // Each word is cut along the tilt into a WR_H x WR_W strip, its row filling
 // about two thirds of the height, the way the strips were made for training.
@@ -28,6 +30,7 @@ struct PageWord {
     int column, row;        // reading order
     bool guessed;           // no ink found here, but the rows around it leave a gap for a word
     bool unsure;            // as narrow as a stray, kept for a short word that reaches up and down ("day"): a word only if read
+    bool edge;              // every letter is next to the table round the page: a corner if short, kept only in a column
 };
 
 struct Page {
