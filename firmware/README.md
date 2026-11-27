@@ -429,9 +429,12 @@ descriptors and PSBTs from the key it scans off Connect wallet, shows them as
 single or animated UR QR codes, and checks every signature that comes back
 before finalizing the transaction. Coins are made up; nothing is broadcast.
 
+- Back up (`test_backup.py`): the SeedQR card copied and checked, with a
+  wrong card refused; word numbers against embit's word list; and the same
+  menu from Seed ready for a seed just made, coming back to Seed ready
 - Single-sig: a new seed from dice rolls, its words typed back in, the wallet
   linked from the xpub QR, a receive address verified, a transaction with
-  change reviewed and signed; a 24-word seed typed in; SeedQR Standard and Compact; the QR card check;
+  change reviewed and signed; a 24-word seed typed in; SeedQR Standard and Compact;
   an animated PSBT joined mid-cycle (fountain parts only) both ways and a base64 frame; the signed QR read in full screen;
   another seed's transaction, another wallet's address, and fake change;
   a transaction whose key has fingerprint `00000000` or no key path; 9 outputs;
