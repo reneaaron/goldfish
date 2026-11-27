@@ -104,7 +104,10 @@ A fourth run (2026-11) added 10% letter-box strips (`gen_strips.py --boxed 1`,
 120k) to the same mix: 312 of 348 real words at word level (this model 304),
 and end to end every layout in `layouts.md` read better (letter boxes 65-66% ->
 67-74%), but it read 4 more real words wrong end to end (13 of 2,242, some at
-margin 9-12), so it wasn't kept either.
+margin 9-12), so it wasn't kept either. Two more runs did no better: 5% for
+20k steps read 26 wrong, 10% for 10k steps 13 wrong (this model: 9). Fewer
+letter-box strips didn't mean fewer wrong words, so they may not be the cause;
+a run with none, from the same start, would tell.
 
 Test only on the real photos and on `data/gptimage2/val`: the other gptimage2
 pages are training data.
