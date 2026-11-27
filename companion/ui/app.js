@@ -715,12 +715,12 @@ function showReview(r) {
   $("rv-amount").textContent = btc(paying);
   $("rv-btc").textContent = inBtc(paying);
   const rows = [
-    ...r.recipients.map((x) => [r.recipients.length > 1 ? btc(x.sat) : "To", groups(x.address), x.yours]),
+    ...r.recipients.map((x) => [r.recipients.length > 1 ? btc(x.sat) : "To", groups(x.address), x.yours, x.reused]),
     ["Fee", btc(r.fee_sat)],
     ["Change", r.change_sat ? btc(r.change_sat) : "None"],
   ];
   $("review").replaceChildren(
-    ...rows.flatMap(([k, v, yours]) => {
+    ...rows.flatMap(([k, v, yours, reused]) => {
       const dt = document.createElement("dt");
       const dd = document.createElement("dd");
       dt.textContent = k;
@@ -732,6 +732,13 @@ function showReview(r) {
         tag.className = "yours";
         tag.textContent = "This wallet";
         dd.append(tag);
+      }
+      if (reused) {
+        // paid before: allowed, but say what it costs
+        const note = document.createElement("span");
+        note.className = "reused";
+        note.textContent = "Used before. Paying it again links these payments together.";
+        dd.append(note);
       }
       return [dt, dd];
     }),
