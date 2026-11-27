@@ -359,10 +359,10 @@ async function showBackup() {
 // for multisig, the wallet for each Goldfish to scan.
 async function showDone() {
   const ms = !!current?.multisig;
-  $("done-title").textContent = ms ? "Connect your signers" : "Check your first address";
+  $("done-title").textContent = ms ? "Connect your signers" : "Make sure it's yours";
   $("done-hint").innerHTML = ms
     ? "Scan this with each Goldfish, then tap <b>Use wallet</b> if the details match."
-    : "On Goldfish, tap <b>Scan QR</b> and scan this. It tells you if the address is yours.";
+    : "On Goldfish, tap <b>Scan QR</b> and scan this. It should say <b>Address verified</b>.";
   $("done-addr").hidden = ms;
   $("done-kv").hidden = !ms;
   $("done-qr").innerHTML = "";
