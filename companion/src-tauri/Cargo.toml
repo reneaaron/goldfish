@@ -34,6 +34,7 @@ base64 = "0.22"
 bdk_electrum = "0.24"
 tauri-plugin-opener = "2.7"
 age = { version = "0.11", default-features = false }
+minreq = { version = "2.14", features = ["https-rustls", "proxy"] }
 
 [dev-dependencies]
 bdk_wallet = { version = "3.2", features = ["keys-bip39"] }

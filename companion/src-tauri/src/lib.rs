@@ -3,6 +3,7 @@
 //! signed PSBT back in, finalize and broadcast. The seed never comes here.
 
 pub mod camera;
+pub mod firmware;
 
 use std::sync::Arc;
 

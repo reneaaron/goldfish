@@ -341,8 +341,15 @@ html, body { overflow-x: clip; }
 /* Settings: Save belongs to the server fields; Forget is a quiet text action */
 #set-save { margin-top: 4px; }
 #set-form .ok { margin-top: 10px; }
-.danger-zone, .pw-zone { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--border); }
-.pw-zone .hint { margin: 8px 0 14px; }
+.danger-zone, .pw-zone, .fw-zone { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--border); }
+.pw-zone .hint, .fw-zone .hint { margin: 8px 0 14px; }
+#v-update { display: flex; flex-direction: column; }
+.up-body { flex: 1; display: flex; flex-direction: column; }
+#v-update .display, #v-update .para { text-align: left; }
+#up-done .display, #up-done .para { text-align: center; }
+#v-update .kv dd.mono { word-break: break-all; }
+.up-status { margin: 14px 0 0; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); color: var(--text-2); font-size: 13px; text-align: center; }
+.up-status.found { background: var(--green-dim); color: var(--text); }
 .pw-zone #pw-remove { margin-top: 10px; }
 #unlock-reset-hint { text-align: center; margin: 0; }
 .danger-zone .hint { margin: 8px 0 4px; }
