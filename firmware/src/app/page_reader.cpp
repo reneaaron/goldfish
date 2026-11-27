@@ -221,6 +221,7 @@ struct Blob { int16_t u0, v0, u1, v1; int n; };
 static Run *runs;
 static Blob *blobs, *letters;
 static int *lpar;
+static uint8_t *alone;   // per letter: 0 in a word, 1 alone, 2 alone in a row of letter boxes
 static int nruns, max_runs, max_letters;
 
 static int find_run(int a) {
@@ -388,6 +389,41 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
                 int mh = (p.v1 - p.v0) < (q.v1 - q.v0) ? (p.v1 - p.v0) : (q.v1 - q.v0);
                 if (ov * 5 >= mh * 2) lunite(i, j);
             }
+        // Letter boxes (a card with a box per letter) put each letter a box
+        // apart, up to about twice a letter's height. A letter still alone
+        // with another one like it that far along its line is in such a row:
+        // it joins its neighbours there, even pieces the box lines joined
+        // with a few dots. A lone row number ("7." between two columns) has
+        // no lone letter next to it, so it stays apart.
+        {
+            alone = (uint8_t *)calloc(max_letters, 1);
+            if (!alone) goto done;
+            auto spaced = [&](int i, int j) {   // j a box to the right of i, on its line
+                const Blob &p = letters[i], &q = letters[j];
+                int gap = q.u0 - p.u1;
+                if (i == j || gap <= lh * 9 / 10 || gap * 5 > lh * 11) return false;
+                int ph = p.v1 - p.v0, qh = q.v1 - q.v0;
+                if (ph * 2 < lh || qh * 2 < lh) return false;   // letters, not specks
+                int ov = (p.v1 < q.v1 ? p.v1 : q.v1) - (p.v0 > q.v0 ? p.v0 : q.v0);
+                // on one line: sitting on it or hanging from it (not a loop of joined-up writing)
+                return ov * 5 >= (ph < qh ? ph : qh) * 3 && (abs(p.v0 - q.v0) * 2 <= lh || abs(p.v1 - q.v1) * 2 <= lh);
+            };
+            auto letter_sized = [&](int i) {
+                const Blob &b = letters[i];
+                return (b.v1 - b.v0) * 2 <= lh * 3 && (b.u1 - b.u0) * 2 <= lh * 3;
+            };
+            for (int i = 0; i < nl; i++) {
+                int r = lfind(i);
+                if (alone[r] < 2) alone[r]++;
+            }
+            for (int i = 0; i < nl; i++) alone[i] = lfind(i) == i && alone[i] == 1 && letter_sized(i);
+            for (int i = 0; i < nl; i++)
+                for (int j = 0; j < nl; j++)
+                    if (alone[i] && alone[j] && (spaced(i, j) || spaced(j, i))) alone[i] = 2;
+            for (int i = 0; i < nl; i++)
+                for (int j = 0; j < nl; j++)
+                    if ((alone[i] == 2 || alone[j] == 2) && spaced(i, j)) lunite(i, j);
+        }
         // A letter next to the table round the page (see the corners, below).
         auto at_edge = [&](const Blob &q) {
             const int pad = BLK / 2;   // the corner's shadow reaches past the block
@@ -404,9 +440,12 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
             if (lfind(i) != i) continue;
             Blob wb = letters[i];
             bool inside = !at_edge(letters[i]);
+            int nlet = 1, nbox = alone[i] == 2;   // its letters, and those that were alone in a row of boxes
             for (int j = 0; j < nl; j++)
                 if (j != i && lfind(j) == i) {
                     const Blob &q = letters[j];
+                    nlet++;
+                    nbox += alone[j] == 2;
                     if (q.u0 < wb.u0) wb.u0 = q.u0;
                     if (q.u1 > wb.u1) wb.u1 = q.u1;
                     if (q.v0 < wb.v0) wb.v0 = q.v0;
@@ -419,6 +458,7 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
             pw.u0 = wb.u0 + umin; pw.u1 = wb.u1 + 1 + umin;
             pw.v0 = wb.v0 + vmin; pw.v1 = wb.v1 + 1 + vmin;
             pw.edge = !inside;
+            pw.boxed = nbox >= 2 && nbox * 2 >= nlet;
         }
         if (!page->n) goto done;
 
@@ -510,6 +550,23 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
                 if (!before) break;
                 PageWord t2 = p0; p0 = p1; p1 = t2;
             }
+
+        // A few boxed pieces in a column of words written as words are boxes
+        // beside the list (a card's fingerprint, a PIN), not seed words.
+        {
+            int kept2 = 0;
+            for (int i = 0; i < page->n;) {
+                int j = i, nb = 0, nw = 0;
+                while (j < page->n && page->words[j].column == page->words[i].column) j++;
+                for (int k = i; k < j; k++)
+                    if (!page->words[k].unsure) (page->words[k].boxed ? nb : nw)++;
+                for (int k = i; k < j; k++)
+                    if (!page->words[k].boxed || nb * 2 >= nw) page->words[kept2++] = page->words[k];
+                i = j;
+            }
+            page->n = kept2;
+            if (!page->n) goto done;
+        }
 
         // per column, for the heading and the gaps below
         static float steps[PAGE_MAX_WORDS], hts[PAGE_MAX_WORDS], u0s[PAGE_MAX_WORDS];   // not on the stack
@@ -652,8 +709,9 @@ done:
     if (runs) { secure_zero(runs, sizeof(Run) * max_runs); free(runs); }
     if (blobs) { secure_zero(blobs, sizeof(Blob) * max_runs); free(blobs); }
     if (letters) { secure_zero(letters, sizeof(Blob) * max_letters); free(letters); }
+    if (alone) { secure_zero(alone, max_letters); free(alone); }
     free(lpar);
-    runs = nullptr; blobs = letters = nullptr; lpar = nullptr;
+    runs = nullptr; blobs = letters = nullptr; lpar = nullptr; alone = nullptr;
     if (map) { secure_zero(map, (size_t)stride * nv); free(map); }
     if (bg) { secure_zero(bg, gw * gh); free(bg); bg = nullptr; }
     if (on_page) { free(on_page); on_page = nullptr; }

@@ -7,7 +7,8 @@ Each strip: an optional row number in front ("7", "7.", "7)"), the word
 (the label is always capitals: the reader is case-blind), drawn either with EMNIST
 handwritten letters or a handwriting font, with random spacing (letters
 touching or overlapping), slant, stroke width, baseline wobble; sometimes a
-ruled line under it and parts of the rows above and below; rotation, paper
+ruled line under it and parts of the rows above and below, or one letter
+per box as on a letter-box card; rotation, paper
 shading and shadows, noise, blur and low resolution. Output is STRIP_H x STRIP_W grayscale, see normalise().
 """
 import os
@@ -23,6 +24,7 @@ NUM_CLASSES = len(ALPHABET) + 1
 PREFIX_CHARS = "0123456789.)"
 LOWER_X = "acemnorsuvwxz"
 LOWER_DESC = "gjpqy"
+BOXED = 0.15                # share of strips written one letter per box (letter-box cards)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -70,11 +72,13 @@ class Glyphs:
         return a[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
 
 
-def ink_layer(text, g, rng, h):
-    """Draw text as an ink alpha image (float, 0..1) with letter height ~h.
+def ink_layer(text, g, rng, h, font=False):
+    """Draw text as an ink alpha image (float, 0..1) with letter height ~h,
+    in `font` (None: EMNIST letters) or, if not given, a random choice of the two.
     Returns (alpha, baseline_y)."""
-    use_font = rng.random() < 0.5
-    font = g.fonts[rng.integers(len(g.fonts))] if use_font else None
+    if font is False:
+        font = g.fonts[rng.integers(len(g.fonts))] if rng.random() < 0.5 else None
+    use_font = font is not None
     spacing = rng.uniform(-0.18, 0.45)          # gap between letters, in letter heights
     W = int(h * (len(text) * 1.6 + 2))
     H = int(h * 2.2)
@@ -141,6 +145,42 @@ def ink_layer(text, g, rng, h):
     return alpha[:, max(0, cols.min() - 1):cols.max() + 2], base
 
 
+def box_layer(text, g, rng, h):
+    """Text written one letter per box, as on a letter-box card: each letter
+    centred in its box, boxes about one to two and a half letter heights
+    wide. Returns (ink alpha, box lines alpha, baseline_y), the lines at full
+    strength (the caller sets how dark the print is)."""
+    pitch = h * rng.uniform(0.95, 2.4)
+    top = rng.uniform(0.15, 0.45) * h                     # box above the letters' tops
+    below = rng.uniform(0.1, 0.4) * h                     # and below the baseline
+    lw = int(rng.integers(1, 3))
+    H = int(h * 2.2 + top + below)
+    base = int(h * 1.5 + top)
+    W = int(pitch * (len(text) + rng.integers(0, 4)) + 2 * h)
+    ink = np.zeros((H, W), np.float32)
+    lines = np.zeros((H, W), np.float32)
+    x0 = int(h * 0.5)
+    font = g.fonts[rng.integers(len(g.fonts))] if rng.random() < 0.5 else None   # one hand for the word
+    for i, ch in enumerate(text):
+        a, b = ink_layer(ch, g, rng, h, font)
+        if a is None:
+            return None, None, base                       # a letter missing would make a wrong label
+        cx = x0 + (i + 0.5) * pitch + rng.normal(0, pitch * 0.06)
+        x, t = int(cx - a.shape[1] / 2), base - b
+        if x < 0 or t < 0 or x + a.shape[1] > W or t + a.shape[0] > H:
+            return None, None, base
+        ink[t:t + a.shape[0], x:x + a.shape[1]] = np.maximum(ink[t:t + a.shape[0], x:x + a.shape[1]], a)
+    y0, y1 = int(base - h - top), int(base + below)
+    n = int((W - x0) // pitch)
+    for i in range(n + 1):                                # dividers, and the last boxes left empty
+        x = int(x0 + i * pitch)
+        lines[y0:y1 + lw, x:x + lw] = 1
+    xe = int(x0 + n * pitch)
+    lines[y0:y0 + lw, x0:xe + lw] = 1
+    lines[y1:y1 + lw, x0:xe + lw] = 1
+    return ink, lines, base
+
+
 def make_strip(word, g, words, rng):
     """One training strip and its label text."""
     text = word.upper()
@@ -163,7 +203,20 @@ def make_strip(word, g, words, rng):
     h = int(rng.uniform(28, 48))
     label = prefix + text
 
-    word_alpha, base = ink_layer(shown, g, rng, h)
+    boxed = rng.random() < BOXED
+    box_alpha, lead = None, 0
+    if boxed:
+        word_alpha, box_alpha, base = box_layer(shown, g, rng, h)
+        if word_alpha is None:
+            return None
+        cols = np.nonzero(word_alpha.max(0) > 0.2)[0]
+        if len(cols) == 0:
+            return None
+        s = max(0, cols.min() - int(h))                   # keep the box lines before the first letter
+        lead = cols.min() - s
+        word_alpha, box_alpha = word_alpha[:, s:], box_alpha[:, s:]
+    else:
+        word_alpha, base = ink_layer(shown, g, rng, h)
     if word_alpha is None:
         return None
     pre_alpha = None
@@ -180,7 +233,17 @@ def make_strip(word, g, words, rng):
         ink[y0:y0 + ph, x:x + pw] = np.maximum(ink[y0:y0 + ph, x:x + pw], pre_alpha)
         x += pw + gap
     wh, ww = word_alpha.shape
-    ink[y0:y0 + wh, x:x + ww] = np.maximum(ink[y0:y0 + wh, x:x + ww], word_alpha)
+    if boxed:
+        x = max(x, lead)
+        cols = np.nonzero(word_alpha.max(0) > 0.2)[0]
+        ww = cols.max() + 1 - lead                        # the letters, not the empty boxes after them
+        W = max(W, x - lead + word_alpha.shape[1])
+        ink = np.pad(ink, ((0, 0), (0, W - ink.shape[1])))
+        dark = rng.uniform(0.15, 0.6)                     # printed boxes, lighter than the writing
+        sl = np.s_[y0:y0 + wh, x - lead:x - lead + word_alpha.shape[1]]
+        ink[sl] = np.maximum(ink[sl], np.maximum(word_alpha, box_alpha * dark))
+    else:
+        ink[y0:y0 + wh, x:x + ww] = np.maximum(ink[y0:y0 + wh, x:x + ww], word_alpha)
     baseline = y0 + base
     right = x + ww
 
@@ -201,7 +264,7 @@ def make_strip(word, g, words, rng):
                 if ye > ys and xe > ox:
                     ink[ys:ye, ox:xe] = np.maximum(ink[ys:ye, ox:xe], other[ys - oy:ye - oy, :xe - ox])
     # ruled lines
-    if rng.random() < 0.5:
+    if not boxed and rng.random() < 0.5:
         lt = rng.integers(1, 4)
         dark = rng.uniform(0.3, 0.9)
         off = int(rng.uniform(-0.05, 0.2) * h)

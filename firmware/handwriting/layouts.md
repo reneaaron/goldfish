@@ -31,19 +31,24 @@ Unconfirmed: the layouts of the Ledger Stax/Flex sheet, Jade's in-box card and K
 
 ## Baseline
 
-`make_layouts.py --per-layout 20` (seed 1), `eval_pages.py --side 1000`, at the commit that added this file. "Right" is labelled words read right and offered; "whole page" means every word offered and nothing else.
+`make_layouts.py --per-layout 20` (seed 1), `eval_pages.py`. "Right" is labelled words read right and offered; "whole page" means every word offered and nothing else. "Before" is the commit that added this file; "now" adds letter-box words to the page reader.
 
-| Layout | Right | Whole page |
-|---|---|---|
-| `lines4_24` | 97% | 6 of 20 |
-| `goldfish_card` | 93% | 10 of 20 |
-| `lines2_24_bare` | 93% | 2 of 20 |
-| `lines1_12` | 92% | 5 of 20 |
-| `lines2_24_dot` | 90% | 3 of 20 |
-| `lines2_24_zero` | 90% | 0 of 20 |
-| `seedqr_list_12` | 89% | 10 of 20 |
-| `letters8_24` | 65% | 0 of 20 |
-| `letters8_12` | 45% | 0 of 20 |
-| `letters4_24` | 41% | 0 of 20 |
+| Layout | Right at 1000, before | now | Right at 640, before | now | Whole page at 1000 (now) |
+|---|---|---|---|---|---|
+| `lines4_24` | 97% | 97% | 94% | 94% | 6 of 20 |
+| `goldfish_card` | 93% | 93% | 90% | 90% | 10 of 20 |
+| `lines2_24_bare` | 93% | 93% | 85% | 85% | 2 of 20 |
+| `lines1_12` | 92% | 92% | 90% | 90% | 5 of 20 |
+| `lines2_24_dot` | 90% | 90% | 88% | 88% | 3 of 20 |
+| `lines2_24_zero` | 90% | 90% | 87% | 87% | 0 of 20 |
+| `seedqr_list_12` | 89% | 89% | 79% | 79% | 10 of 20 |
+| `letters8_24` | 65% | 65% | 58% | 58% | 0 of 20 |
+| `letters8_12` | 45% | 65% | 44% | 70% | 0 of 20 |
+| `letters4_24` | 41% | 62% | 34% | 43% | 0 of 20 |
 
-Lines read well. Letter boxes don't: many words are never found or are found but not offered (why is not yet investigated). These pages are synthetic and cleaner than real photos (the real photos in `seedimgs` read 64% at the same size), so the gap between layouts says more than the numbers themselves.
+Lines read well. Letter boxes failed in two ways:
+
+- **Words never found** (the 4-box card, Trezor's legacy card): the reader joined letters into a word only when they sat less than 0.9 letter heights apart, and these boxes put letters 1.2-1.6 letter heights apart, so each letter was a piece of its own, dropped as too narrow. Partial words appeared only where leftover dots of a box line bridged two letters. Now a lone letter with another lone letter up to 2.2 letter heights along its line joins its neighbours; a lone row number between two columns has no lone letter beside it and stays apart, and a few boxed pieces in a column of ordinary words (a fingerprint written one character per box) are left out.
+- **Words found but not read** (the 8-box COLDCARD card, whose narrow boxes keep letters close enough to join): a box line stands between every two letters in the word's picture, which the word reader never saw in training. The same pages drawn without box lines read 85% instead of 66%. `strips.py` now draws letter-box strips; a model fine-tuned with them read every layout better (`letters8_24` 72%, `letters4_24` 74%) but more real photos wrong, so it isn't in the firmware yet (`README.md`).
+
+No letter-box page reads whole yet. These pages are synthetic and cleaner than real photos (the real photos in `seedimgs` read 64% at the same size), so the gap between layouts says more than the numbers themselves.
