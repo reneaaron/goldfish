@@ -98,7 +98,7 @@ button.wide { width: 100%; }
 .list .amt.in { color: var(--green); }
 .list:empty { display: none; }
 
-.qr { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; margin: 8px auto 0; max-width: 300px; }
+.qr { background: var(--surface); border-radius: var(--radius); padding: 10px; margin: 8px auto 0; max-width: 300px; }
 .qr svg { display: block; width: 100%; height: auto; stroke: none; }
 .addr { text-align: center; word-break: normal; max-width: 300px; margin-left: auto; margin-right: auto; font-size: 15px; margin-top: 4px; line-height: 1.6; }
 
@@ -264,9 +264,8 @@ main > #v-wallet { min-height: 0; }
   }
   main > section:not(#v-wallet) .actions { background: linear-gradient(to bottom, transparent, var(--surface) 18px); }
   /* white on white: the inner cards and fields take the page grey instead */
-  main > section:not(#v-wallet) :is(.card, .qr, .steps, .panel, .sig-status, input, textarea, .unit, .chips button) { background: var(--bg); }
+  main > section:not(#v-wallet) :is(.card, .steps, .panel, .sig-status, input, textarea, .unit, .chips button) { background: var(--bg); }
   main > section:not(#v-wallet) .unit input { background: none; }
-  main > section:not(#v-wallet) .qr { background: #fff; }
 }
 
 /* small monospaced text (BTC line, IDs, times, fee rates) in the regular
@@ -307,6 +306,9 @@ html, body { overflow-x: clip; }
     overflow-y: auto; overscroll-behavior: contain;
     box-shadow: 0 24px 64px rgba(20, 34, 43, .22);
   }
+  /* sticky pins to the scroller's padding edge: cover the 20px bottom
+     padding too, or content scrolls through below the button */
+  body.dialog-open main > section:not(#v-wallet) .actions { bottom: -20px; margin-bottom: -20px; padding-bottom: 28px; }
   body.dialog-open { overflow: hidden; }
 }
 
