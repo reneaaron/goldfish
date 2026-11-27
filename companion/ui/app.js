@@ -738,10 +738,8 @@ function showReview(r) {
         const tag = document.createElement("span");
         tag.className = "reused";
         tag.textContent = "Used before";
-        const why = document.createElement("small");
-        why.className = "reused-why";
-        why.textContent = "Paying it again links these payments together.";
-        dd.append(tag, why);
+        tag.title = "Paying it again links these payments together.";
+        dd.append(tag);
       }
       return [dt, dd];
     }),
