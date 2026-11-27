@@ -60,7 +60,7 @@ $(OUT)/samples/%: $(FW)/sim/samples/%
 
 # The version the home screen shows, as version.py writes it for the pio builds.
 $(FW)/include/version.h: FORCE
-	@v=$$(git -C $(FW) describe --tags --exact-match 2>/dev/null || git -C $(FW) rev-parse --short=7 HEAD); \
+	@v=$$(git -C $(FW) describe --tags --exact-match --match 'v*' 2>/dev/null || git -C $(FW) rev-parse --short=7 HEAD); \
 	 if [ -n "$$(git -C $(FW) status --porcelain --untracked-files=no)" ]; then v="$$v+"; fi; \
 	 c="#pragma once\n#define FW_VERSION \"$$v\""; \
 	 if [ "$$(printf "$$c\n")" != "$$(cat $@ 2>/dev/null)" ]; then printf "$$c\n" > $@; fi

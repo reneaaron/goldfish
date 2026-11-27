@@ -548,6 +548,7 @@ $("w-settings").onclick = () => {
   $("set-ok").hidden = true;
   passwordSection();
 };
+window.__TAURI__.app.getVersion().then((v) => { $("set-version").textContent = `Dove ${v}`; }, () => {});
 
 // ---- fee suggestions: chips that fill the fee field
 async function loadRates(chips, input) {

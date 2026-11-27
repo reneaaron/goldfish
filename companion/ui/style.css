@@ -353,6 +353,7 @@ html, body { overflow-x: clip; }
 .pw-zone #pw-remove { margin-top: 10px; }
 #unlock-reset-hint { text-align: center; margin: 0; }
 .danger-zone .hint { margin: 8px 0 4px; }
+#set-version { text-align: center; margin-top: 32px; }
 button.link.danger { color: var(--red); padding: 4px 0; font-size: 14px; justify-content: flex-start; }
 #v-receive .addr-block { margin-top: 12px; }
 
