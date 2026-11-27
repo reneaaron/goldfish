@@ -6,7 +6,7 @@ transactions as PSBTs, shows them to Goldfish as QR codes, reads the signed
 PSBT back from Goldfish's screen and broadcasts it. Draft brand name **Dove**
 (`marketing/companion/`).
 
-Status: a spike in Tauri 2, Linux desktop only: single-sig native segwit
+Status: 0.1, in Tauri 2, Linux desktop only: single-sig native segwit
 (`84h`) or `wsh(sortedmulti)` multisig, signet or mainnet. Not for real funds;
 the guides still use Sparrow.
 
@@ -61,7 +61,8 @@ the guides still use Sparrow.
   ~1 day), fractional sat/vB, and Speed up (RBF) on a pending send, which
   Goldfish signs like any other transaction.
 - Update Goldfish (Settings → Update Goldfish), a screen of its own in three
-  steps. Check for update downloads the latest release's `firmware.uf2` by
+  steps. Check for update downloads the latest release's firmware (the one
+  `.uf2` its `SHA256SUMS` lists, `firmware.uf2` so far) by
   tag (nothing goes to GitHub before that) and accepts it only if it matches
   the release's `SHA256SUMS` and is a UF2 image for the RP2350; the tag and
   SHA-256 are shown. That proves the file is the one the release lists, not
@@ -115,6 +116,23 @@ The dock shows a generic icon until a desktop entry names the app: run
 `./desktop-entry.sh` once (it writes `goldfish-companion.desktop` and the icon
 into `~/.local/share`, launching the debug build of this checkout, so run it
 from the main checkout rather than a worktree).
+
+## Release
+
+A `dove-v*` tag (`dove-v0.1.0`) runs `.github/workflows/companion-release.yml`:
+it checks the tag against the version in `Cargo.toml` and `tauri.conf.json`
+(bump both, and `Cargo.lock`, first), runs the tests, builds the `.deb` and
+the AppImage with `cargo tauri build` (the tools Tauri downloads for the
+AppImage are fetched first and checked against `appimage-tools.sha256`), and
+publishes them with `SHA256SUMS` and a build provenance attestation per file. The release is never marked
+latest: Dove's Update Goldfish and the website take the latest release as
+Goldfish's, whose tags are `v*`. These builds aren't reproducible, unlike the
+firmware.
+
+```bash
+gh attestation verify dove-0.1.0-x86_64.AppImage --repo reneaaron/goldfish \
+  --signer-workflow reneaaron/goldfish/.github/workflows/companion-release.yml --source-ref refs/tags/dove-v0.1.0
+```
 
 ## Not done yet
 

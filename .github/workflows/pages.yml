@@ -62,8 +62,9 @@ jobs:
         run: |
           fw="$RUNNER_TEMP/fw" && mkdir -p "$fw"
           # Empty only when there is no release yet; any other failure stops the run.
+          # Goldfish's releases are the v* tags; dove-v* ones are the companion's.
           tag=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases \
-            --limit 1 --json tagName -q '.[0].tagName // empty')
+            --limit 50 --json tagName -q '[.[] | select(.tagName | startswith("v"))][0].tagName // empty')
           if [ -n "$tag" ]; then
             gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern firmware.uf2 --pattern SHA256SUMS --dir "$fw"
             (cd "$fw" && sha256sum -c SHA256SUMS)
