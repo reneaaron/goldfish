@@ -101,6 +101,8 @@ struct App {
     password: Option<SecretString>,
     /// the checked firmware.uf2, waiting for the board's drive
     firmware: Option<Vec<u8>>,
+    /// a newer Dove the updater found, waiting for the user's yes
+    app_update: Option<tauri_plugin_updater::Update>,
 }
 
 type Shared = Mutex<App>;
@@ -524,9 +526,43 @@ fn firmware_install(state: State<Shared>) -> Res<()> {
     firmware::write(&drive, &uf2)
 }
 
+/// A newer Dove's version, if the release feed (tauri.conf.json) has one
+/// signed with Dove's key. Only for an installed .deb or AppImage: a
+/// `cargo run` build has nothing to replace.
+#[tauri::command]
+async fn app_update_check(handle: AppHandle, state: State<'_, Shared>) -> Res<Option<String>> {
+    use tauri_plugin_updater::UpdaterExt;
+    if tauri::utils::platform::bundle_type().is_none() {
+        return Ok(None);
+    }
+    let proxy = state.lock().unwrap().settings.server.proxy.trim().to_string();
+    let mut builder = handle.updater_builder();
+    if !proxy.is_empty() {
+        // The updater speaks HTTP proxies only; going around a SOCKS one would leak
+        if proxy.starts_with("socks") {
+            return Ok(None);
+        }
+        builder = builder.proxy(proxy.parse().map_err(|_| format!("Not a proxy address: {proxy}"))?);
+    }
+    let update = builder.build().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())?;
+    let version = update.as_ref().map(|u| u.version.clone());
+    state.lock().unwrap().app_update = update;
+    Ok(version)
+}
+
+/// Download the update app_update_check found, check its signature, install
+/// it and restart into it. A .deb asks for the system password (pkexec).
+#[tauri::command]
+async fn app_update_install(handle: AppHandle, state: State<'_, Shared>) -> Res<()> {
+    let update = state.lock().unwrap().app_update.clone().ok_or("Check for the update first")?;
+    update.download_and_install(|_, _| {}, || {}).await.map_err(|e| e.to_string())?;
+    handle.restart()
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Shared::default())
         .setup(|app| {
             // Reopen the saved watch-only wallet, if any; a locked one waits
@@ -564,6 +600,8 @@ fn main() {
             firmware_check,
             firmware_drive,
             firmware_install,
+            app_update_check,
+            app_update_install,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Goldfish Companion");

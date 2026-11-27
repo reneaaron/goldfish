@@ -15,6 +15,7 @@ let scanning = false;
 let fwTimer = null; // looks for Goldfish's RP2350 drive while Update is open
 let fwRelease = null; // the checked release, once downloaded
 let fwBusy = false; // copying: drive polls still in flight must not touch the button
+let appUpdateChecked = false; // Dove's own update, looked for once a run
 
 // On a wide window the wallet stays put and every other screen opens as a
 // dialog over it; on a narrow one each screen takes the whole window.
@@ -40,6 +41,7 @@ function show(view) {
   if (view !== "show") clearInterval(showTimer);
   if (view !== "update") clearInterval(fwTimer);
   if (view === "wallet") $("w-waiting").hidden = !waiting;
+  if (view === "wallet" && !appUpdateChecked) checkAppUpdate();
   if (scanning) stopScan();
   error("");
   window.scrollTo(0, 0);
@@ -953,6 +955,28 @@ $("unlock-reset").onclick = async () => {
   hasPassword = false;
   show("link");
   step("welcome");
+};
+
+// ---- Dove's own update: looked for once a run, from the wallet screen (after
+// unlock, so the proxy in Settings applies), installed only on a click
+async function checkAppUpdate() {
+  appUpdateChecked = true;
+  try {
+    const version = await invoke("app_update_check");
+    if (!version) return;
+    $("w-app-update-text").textContent = `Dove ${version} is out`;
+    $("w-app-update").hidden = false;
+  } catch (_) {
+    // offline, or no feed yet: try again next start
+  }
+}
+$("w-app-update").onclick = async () => {
+  button($("w-app-update"), "Updating…", true);
+  try {
+    await call("app_update_install"); // restarts Dove when it worked
+  } catch (_) {
+    button($("w-app-update"), "Update Dove", false);
+  }
 };
 
 // ---- start: reopen the saved wallet, if any
