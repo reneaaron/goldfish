@@ -391,7 +391,7 @@ static int run_shots(const char *dir) {
     if (ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "dice did not make a seed\n"); return 1; }
     pump(300); save(dir, "17_backup_warning");
     ui_goto(UI_BACKUP_WORDS);   pump(300); save(dir, "18_backup_words");
-    ui_goto(UI_SEED_READY);     pump(300); save(dir, "23_seed_ready");   // "Written down"
+    ui_goto(UI_SEED_READY);     pump(900); save(dir, "23_seed_ready");   // "Written down"; past "One moment"
 
     // Coin flips, up to the count.
     cam_override = false;

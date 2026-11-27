@@ -198,7 +198,7 @@ without repeated neighbours, every one with face counts 9, 9, 8, 8, 8, 8, and
 98% of coin flips never run longer than two.
 
 Then an offline warning, the words to write down on one scrolling list ("Written down" works once
-it has been scrolled to its end), and the fingerprint to write on the backup; leaving it wipes the seed.
+it has been scrolled to its end), and the fingerprint to write on the backup ("One moment" while it is derived, a few seconds on the board; "Seed ready" only shows with it); leaving it wipes the seed.
 The new seed isn't loaded: scan or type what you wrote to load it, which also checks the backup.
 
 Back up as QR (Wallet options) copies whatever seed is loaded onto a paper
