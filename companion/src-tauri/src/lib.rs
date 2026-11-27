@@ -475,6 +475,43 @@ pub fn overview(account: &Account, wallet: &Wallet) -> Overview {
     }
 }
 
+// ------------------------------------------------------------ receiving
+
+/// Unused receive addresses in a row that other wallets, and a restore from
+/// the seed, keep looking through: Sparrow's default, and Dove's own scan
+/// (which also covers every address it has handed out).
+pub const GAP_LIMIT: u32 = 20;
+
+/// Receive addresses handed out after the last one that got paid.
+pub fn unused_in_a_row(wallet: &Wallet) -> u32 {
+    let Some(last) = wallet.derivation_index(KeychainKind::External) else { return 0 };
+    match wallet.spk_index().last_used_index(KeychainKind::External) {
+        Some(used) => last.saturating_sub(used),
+        None => last + 1,
+    }
+}
+
+/// The address Receive shows: the newest one handed out while nothing has
+/// paid to it, else the next one. Never an older unused one, which may
+/// already have gone to someone else.
+pub fn receive_address(wallet: &mut Wallet) -> bdk_wallet::AddressInfo {
+    if let Some(last) = wallet.derivation_index(KeychainKind::External) {
+        if !wallet.spk_index().is_used(KeychainKind::External, last) {
+            return wallet.peek_address(KeychainKind::External, last);
+        }
+    }
+    wallet.reveal_next_address(KeychainKind::External)
+}
+
+/// A fresh address for the next payer, unless GAP_LIMIT are already waiting
+/// unused: past that, a restore elsewhere could miss coins sent to it.
+pub fn new_receive_address(wallet: &mut Wallet) -> Res<bdk_wallet::AddressInfo> {
+    if unused_in_a_row(wallet) >= GAP_LIMIT {
+        return Err(format!("{GAP_LIMIT} addresses are waiting unused: use one first"));
+    }
+    Ok(wallet.reveal_next_address(KeychainKind::External))
+}
+
 // ------------------------------------------------------------ spending
 
 #[derive(Serialize, Clone)]
@@ -1090,6 +1127,46 @@ mod tests {
         assert_eq!(bump.unsigned_tx.input[0].previous_output, old_input);
         assert!(bump.fee().unwrap() > old_fee);
         assert!(build_bump(&mut w, &txid.to_string(), 0.0).is_err());
+    }
+
+    #[test]
+    fn receive_keeps_the_newest_address_until_it_is_paid() {
+        let mut w = abandon_account().wallet().unwrap();
+        assert_eq!(receive_address(&mut w).index, 0);
+        assert_eq!(receive_address(&mut w).index, 0, "showing it again hands out nothing new");
+        assert_eq!(new_receive_address(&mut w).unwrap().index, 1);
+        assert_eq!(receive_address(&mut w).index, 1, "not back to the unused #0");
+        assert_eq!(unused_in_a_row(&w), 2);
+
+        // #0 gets paid: #1 is still waiting
+        fund_for_demo(&mut w, 10_000);
+        assert_eq!(unused_in_a_row(&w), 1);
+        assert_eq!(receive_address(&mut w).index, 1);
+    }
+
+    #[test]
+    fn new_addresses_stop_at_the_gap_limit() {
+        let mut w = abandon_account().wallet().unwrap();
+        receive_address(&mut w);
+        for i in 1..GAP_LIMIT {
+            assert_eq!(new_receive_address(&mut w).unwrap().index, i);
+        }
+        assert_eq!(unused_in_a_row(&w), GAP_LIMIT);
+        assert!(new_receive_address(&mut w).is_err());
+        assert_eq!(w.derivation_index(KeychainKind::External), Some(GAP_LIMIT - 1));
+
+        // a payment to #0 makes room for one more
+        fund_for_demo(&mut w, 10_000);
+        assert_eq!(new_receive_address(&mut w).unwrap().index, GAP_LIMIT);
+        assert!(new_receive_address(&mut w).is_err());
+    }
+
+    #[test]
+    fn a_paid_newest_address_is_replaced() {
+        let mut w = abandon_account().wallet().unwrap();
+        fund_for_demo(&mut w, 10_000); // pays #0, as a sync would find it
+        assert_eq!(unused_in_a_row(&w), 0);
+        assert_eq!(receive_address(&mut w).index, 1);
     }
 
     fn abandon_account() -> Account {

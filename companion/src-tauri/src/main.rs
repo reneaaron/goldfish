@@ -7,7 +7,7 @@ use std::sync::Mutex;
 use std::path::PathBuf;
 
 use bdk_wallet::bitcoin::{Psbt, Transaction};
-use bdk_wallet::{KeychainKind, Wallet};
+use bdk_wallet::{AddressInfo, KeychainKind, Wallet};
 use companion::camera::Camera;
 use companion::*;
 use age::secrecy::{ExposeSecret, SecretString};
@@ -21,6 +21,10 @@ use tauri::{AppHandle, Emitter, Manager, State};
 struct Settings {
     key: Option<String>,
     server: ServerConfig,
+    /// The newest receive address handed out, so a restart doesn't show an
+    /// older one again before any coins have reached it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    receive_index: Option<u32>,
 }
 
 fn settings_path(h: &AppHandle, ext: &str) -> Res<PathBuf> {
@@ -77,6 +81,9 @@ fn open_settings(app: &mut App, settings: Settings) {
     if let Some(key) = settings.key.clone() {
         if let Ok(account) = parse_wallet(&key) {
             app.wallet = account.wallet().ok();
+            if let (Some(w), Some(i)) = (app.wallet.as_mut(), settings.receive_index) {
+                let _ = w.reveal_addresses_to(KeychainKind::External, i);
+            }
             app.account = app.wallet.as_ref().map(|_| account);
         }
     }
@@ -126,6 +133,9 @@ fn link_account(app: &mut App, account: Account) -> Res<Overview> {
     (app.account, app.wallet) = (Some(account), Some(wallet));
     (app.unsigned, app.encoder, app.signed) = (None, None, None);
     app.scanner = PsbtScanner::default();
+    if app.settings.key.as_ref() != Some(&saved) {
+        app.settings.receive_index = None;
+    }
     app.settings.key = Some(saved);
     Ok(overview)
 }
@@ -262,7 +272,7 @@ fn forget_wallet(handle: AppHandle, state: State<Shared>) -> Res<()> {
         let mut app = state.lock().unwrap();
         unlocked(&app)?;
         (app.account, app.wallet, app.unsigned, app.encoder, app.signed) = (None, None, None, None, None);
-        app.settings.key = None;
+        (app.settings.key, app.settings.receive_index) = (None, None);
     }
     save_settings(&handle)
 }
@@ -319,16 +329,41 @@ struct Receive {
     address: String,
     index: u32,
     qr: String,
+    /// false once GAP_LIMIT addresses are waiting unused
+    more: bool,
 }
 
-#[tauri::command]
-fn receive_address(state: State<Shared>) -> Res<Receive> {
-    let mut app = state.lock().unwrap();
-    let (_, w) = loaded(&mut app)?;
-    let info = w.next_unused_address(KeychainKind::External);
-    let address = info.address.to_string();
-    // The QR is what Goldfish's Scan QR reads to verify the address is its own.
-    Ok(Receive { qr: qr_svg(&address)?, address, index: info.index })
+/// Show the address `pick` chooses, saving how far addresses have been
+/// handed out when that grew.
+fn show_receive(handle: AppHandle, state: State<Shared>, pick: fn(&mut Wallet) -> Res<AddressInfo>) -> Res<Receive> {
+    let (receive, grew) = {
+        let mut app = state.lock().unwrap();
+        let (_, w) = loaded(&mut app)?;
+        let info = pick(w)?;
+        let more = unused_in_a_row(w) < GAP_LIMIT;
+        let address = info.address.to_string();
+        // The QR is what Goldfish's Scan QR reads to verify the address is its own.
+        let receive = Receive { qr: qr_svg(&address)?, address, index: info.index, more };
+        let grew = app.settings.receive_index < Some(info.index);
+        if grew {
+            app.settings.receive_index = Some(info.index);
+        }
+        (receive, grew)
+    };
+    if grew {
+        save_settings(&handle)?;
+    }
+    Ok(receive)
+}
+
+#[tauri::command(async)]
+fn receive_address(handle: AppHandle, state: State<Shared>) -> Res<Receive> {
+    show_receive(handle, state, |w| Ok(companion::receive_address(w)))
+}
+
+#[tauri::command(async)]
+fn new_receive_address(handle: AppHandle, state: State<Shared>) -> Res<Receive> {
+    show_receive(handle, state, companion::new_receive_address)
 }
 
 #[tauri::command]
@@ -634,6 +669,7 @@ fn main() {
             import_key,
             sync,
             receive_address,
+            new_receive_address,
             create_send,
             next_frame,
             scan_text,

@@ -49,6 +49,14 @@ the guides still use Sparrow.
   normal. Empty means a public Electrum server (Blockstream on mainnet,
   mempool.space on signet): Esplora on mempool.space hangs on `/blocks` in
   the client's HTTP library.
+- Receive shows the newest address handed out until coins reach it, then
+  the next one; New address hands out a fresh one for each payer, so two
+  payments can't be linked by their address. The newest one handed out is
+  saved with the settings, so a restart doesn't show an older one again.
+  New address stops at 20 unused in a row (`GAP_LIMIT`): wallets restoring
+  from the seed (Sparrow by default) stop looking after 20 unused addresses
+  in a row, so coins sent beyond that could be missed. Dove's own sync
+  looks through every address it handed out, plus 20 more.
 - Broadcast: not through that server, but straight to Bitcoin's p2p
   network over Tor built into Dove, so peers and anyone watching the network
   can't tell which IP it came from. The server still sees it at the next
