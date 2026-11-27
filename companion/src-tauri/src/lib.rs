@@ -781,8 +781,7 @@ pub fn psbt_from_base64(s: &str) -> Res<Psbt> {
 /// machine would otherwise be refused as too much work on a slow or busy one.
 const SCRYPT_LOG_N: u8 = 18;
 
-/// `plain` locked with `password`: the age format with scrypt, so the
-/// file also opens with `age -d`.
+/// `plain` locked with `password`: the age format, scrypt passphrase.
 pub fn seal(plain: &[u8], password: &str) -> Res<Vec<u8>> {
     let mut recipient = age::scrypt::Recipient::new(password.to_owned().into());
     recipient.set_work_factor(SCRYPT_LOG_N);
@@ -799,20 +798,27 @@ pub fn unseal(sealed: &[u8], password: &str) -> Res<Vec<u8>> {
 }
 
 /// Save the settings in `dir`: settings.json, or with a password, locked in
-/// settings.age. Then remove the other one, so only one is ever there.
+/// settings.age. `remove_other_settings` then deletes the other one.
 pub fn write_settings(dir: &std::path::Path, plain: &[u8], password: Option<&str>) -> Res<()> {
-    let (bytes, ext, other) = match password {
-        Some(pw) => (seal(plain, pw)?, "age", "json"),
-        None => (plain.to_vec(), "json", "age"),
+    let (bytes, ext) = match password {
+        Some(pw) => (seal(plain, pw)?, "age"),
+        None => (plain.to_vec(), "json"),
     };
     std::fs::create_dir_all(dir).map_err(err)?;
     let path = dir.join("settings").with_extension(ext);
     // write a copy, then swap it in: a crash mid-write can't eat the saved wallet
     let tmp = path.with_extension(format!("{ext}.tmp"));
     std::fs::write(&tmp, bytes).map_err(err)?;
-    std::fs::rename(&tmp, &path).map_err(err)?;
-    match std::fs::remove_file(dir.join("settings").with_extension(other)) {
-        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(err(e)),
+    std::fs::rename(&tmp, &path).map_err(err)
+}
+
+/// After `write_settings`, so only one of the two files is ever there.
+pub fn remove_other_settings(dir: &std::path::Path, locked: bool) -> Res<()> {
+    let other = dir.join("settings").with_extension(if locked { "json" } else { "age" });
+    match std::fs::remove_file(&other) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+            Err(format!("saved, but couldn't delete the old {}: {e}", other.display()))
+        }
         _ => Ok(()),
     }
 }
@@ -1117,12 +1123,16 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("companion-settings-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let plain = br#"{"key":"k"}"#;
-        write_settings(&dir, plain, None).unwrap();
+        let save = |pw: Option<&str>| {
+            write_settings(&dir, plain, pw).unwrap();
+            remove_other_settings(&dir, pw.is_some()).unwrap();
+        };
+        save(None);
         assert_eq!(std::fs::read(dir.join("settings.json")).unwrap(), plain);
-        write_settings(&dir, plain, Some("pw")).unwrap();
+        save(Some("pw"));
         assert!(!dir.join("settings.json").exists());
         assert_eq!(unseal(&std::fs::read(dir.join("settings.age")).unwrap(), "pw").unwrap(), plain);
-        write_settings(&dir, plain, None).unwrap();
+        save(None);
         assert!(!dir.join("settings.age").exists());
         assert_eq!(std::fs::read(dir.join("settings.json")).unwrap(), plain);
         std::fs::remove_dir_all(&dir).unwrap();

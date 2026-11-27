@@ -680,7 +680,12 @@ $("pw-remove").onclick = async () => {
     $("pw-remove").textContent = "Tap again to remove";
     return;
   }
-  await call("set_password", { password: "" });
+  try {
+    await call("set_password", { password: "" });
+  } catch (_) {
+    passwordSection(); // back to asking twice; the error says what failed
+    return;
+  }
   hasPassword = false;
   passwordSection();
   $("pw-ok").textContent = "Password removed.";
@@ -716,7 +721,15 @@ $("unlock-reset").onclick = async () => {
     $("unlock-reset-hint").hidden = false;
     return;
   }
-  await call("start_over");
+  try {
+    await call("start_over");
+  } catch (_) {
+    $("unlock-reset").dataset.sure = "";
+    $("unlock-reset").textContent = "Forgot password?";
+    $("unlock-reset").classList.remove("danger");
+    $("unlock-reset-hint").hidden = true;
+    return;
+  }
   show("link");
 };
 

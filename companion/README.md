@@ -27,8 +27,7 @@ the guides still use Sparrow.
   wallet reopens on start. Settings → Forget this wallet removes the key.
 - Optional password (Settings → Password): the key and the server then go to
   `settings.age` instead, encrypted in the [age](https://age-encryption.org)
-  format with scrypt (`age -d settings.age` opens it too), and `settings.json`
-  is deleted. Dove asks for the password on start and keeps it in memory
+  format with a scrypt passphrase, and `settings.json` is deleted. Dove asks for the password on start and keeps it in memory
   while it runs, to encrypt again on each save. Forgot it? "Start over" on
   the unlock screen deletes `settings.age`; link the wallet again from the
   signer. What the password protects is privacy (balance, addresses, history

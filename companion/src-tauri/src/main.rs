@@ -10,6 +10,7 @@ use bdk_wallet::bitcoin::{Psbt, Transaction};
 use bdk_wallet::{KeychainKind, Wallet};
 use companion::camera::Camera;
 use companion::*;
+use age::secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -38,13 +39,37 @@ fn is_locked_on_disk(h: &AppHandle) -> bool {
     settings_path(h, "age").map(|p| p.exists()).unwrap_or(false)
 }
 
-fn save_settings(h: &AppHandle, app: &App) -> Res<()> {
+fn unlocked(app: &App) -> Res<()> {
     if app.locked {
-        return Err("Dove is locked".into());
+        return Err("Dove is locked: enter your password first".into());
     }
-    let dir = h.path().app_data_dir().map_err(|e| e.to_string())?;
-    let plain = serde_json::to_vec_pretty(&app.settings).unwrap();
-    write_settings(&dir, &plain, app.password.as_deref())
+    Ok(())
+}
+
+/// One save at a time, so an older snapshot can't overwrite a newer one.
+static SAVING: Mutex<()> = Mutex::new(());
+
+/// Save the settings as they are now. Call with SAVING held and the app
+/// unlocked (state lock not held): the snapshot is taken under the app lock,
+/// then sealed and written without it, since scrypt takes a while and the
+/// camera thread needs the lock meanwhile. Err((written, e)): `written` when
+/// the new file is in place and only the other one couldn't be deleted.
+fn save_holding(h: &AppHandle) -> Result<(), (bool, String)> {
+    let (plain, password) = {
+        let shared = h.state::<Shared>();
+        let app = shared.lock().unwrap();
+        unlocked(&app).map_err(|e| (false, e))?;
+        (serde_json::to_vec_pretty(&app.settings).unwrap(), app.password.clone())
+    };
+    let dir = h.path().app_data_dir().map_err(|e| (false, e.to_string()))?;
+    let password = password.as_ref().map(|p| p.expose_secret());
+    write_settings(&dir, &plain, password).map_err(|e| (false, e))?;
+    remove_other_settings(&dir, password.is_some()).map_err(|e| (true, e))
+}
+
+fn save_settings(h: &AppHandle) -> Res<()> {
+    let _saving = SAVING.lock().unwrap();
+    save_holding(h).map_err(|(_, e)| e)
 }
 
 /// Open the saved wallet in `settings`, if any.
@@ -73,7 +98,7 @@ struct App {
     /// settings.age is there but not opened yet
     locked: bool,
     /// kept while the app runs, to lock the settings again on each save
-    password: Option<String>,
+    password: Option<SecretString>,
 }
 
 type Shared = Mutex<App>;
@@ -85,12 +110,14 @@ fn loaded<'a>(app: &'a mut App) -> Res<(&'a Account, &'a mut Wallet)> {
     }
 }
 
-/// Load the wallet for `text` (a Connect wallet key) and remember it.
-fn link(h: &AppHandle, app: &mut App, text: &str) -> Res<Overview> {
-    link_account(h, app, parse_wallet(text)?)
+/// Load the wallet for `text` (a Connect wallet key). The caller saves it,
+/// after letting go of the app lock.
+fn link(app: &mut App, text: &str) -> Res<Overview> {
+    link_account(app, parse_wallet(text)?)
 }
 
-fn link_account(h: &AppHandle, app: &mut App, account: Account) -> Res<Overview> {
+fn link_account(app: &mut App, account: Account) -> Res<Overview> {
+    unlocked(app)?;
     let wallet = account.wallet()?;
     let saved = account.saved.clone();
     let overview = overview(&account, &wallet);
@@ -98,7 +125,6 @@ fn link_account(h: &AppHandle, app: &mut App, account: Account) -> Res<Overview>
     (app.unsigned, app.encoder, app.signed) = (None, None, None);
     app.scanner = PsbtScanner::default();
     app.settings.key = Some(saved);
-    save_settings(h, app)?;
     Ok(overview)
 }
 
@@ -111,7 +137,9 @@ fn link_multisig(threshold: usize, keys: String, handle: AppHandle, state: State
     } else {
         multisig_from_keys(threshold, &keys.lines().collect::<Vec<_>>())?
     };
-    link_account(&handle, &mut state.lock().unwrap(), account)
+    let overview = link_account(&mut state.lock().unwrap(), account)?;
+    save_settings(&handle)?;
+    Ok(overview)
 }
 
 #[derive(Serialize)]
@@ -152,7 +180,9 @@ fn next_wallet_frame(state: State<Shared>) -> Res<Frame> {
 
 #[tauri::command]
 fn import_key(text: String, handle: AppHandle, state: State<Shared>) -> Res<Overview> {
-    link(&handle, &mut state.lock().unwrap(), &text)
+    let overview = link(&mut state.lock().unwrap(), &text)?;
+    save_settings(&handle)?;
+    Ok(overview)
 }
 
 #[derive(Serialize)]
@@ -182,11 +212,11 @@ fn startup(state: State<Shared>) -> Startup {
 #[tauri::command(async)]
 fn unlock(password: String, handle: AppHandle, state: State<Shared>) -> Res<Startup> {
     let sealed = std::fs::read(settings_path(&handle, "age")?).map_err(|e| e.to_string())?;
-    let plain = unseal(&sealed, &password)?;   // about a second: no lock held
+    let plain = unseal(&sealed, &password)?;   // scrypt takes a while: no lock held
     let settings: Settings = serde_json::from_slice(&plain).map_err(|e| e.to_string())?;
     let mut app = state.lock().unwrap();
     open_settings(&mut app, settings);
-    (app.locked, app.password) = (false, Some(password));
+    (app.locked, app.password) = (false, Some(password.into()));
     Ok(startup_of(&app))
 }
 
@@ -206,23 +236,33 @@ fn start_over(handle: AppHandle, state: State<Shared>) -> Res<()> {
 /// Lock the settings with `password`, or, when it's empty, save them plain.
 #[tauri::command(async)]
 fn set_password(password: String, handle: AppHandle, state: State<Shared>) -> Res<()> {
-    let mut app = state.lock().unwrap();
-    let before = app.password.take();
-    app.password = if password.is_empty() { None } else { Some(password) };
-    let saved = save_settings(&handle, &app);
-    if saved.is_err() {
-        app.password = before;
+    let password = (!password.is_empty()).then(|| SecretString::from(password));
+    let _saving = SAVING.lock().unwrap();
+    let before = {
+        let mut app = state.lock().unwrap();
+        unlocked(&app)?;
+        std::mem::replace(&mut app.password, password)
+    };
+    match save_holding(&handle) {
+        // nothing written: the old file and password still go together
+        Err((false, e)) => {
+            state.lock().unwrap().password = before;
+            Err(e)
+        }
+        r => r.map_err(|(_, e)| e),
     }
-    saved
 }
 
 /// Unlink: drop the saved key (and the wallet in memory). The server stays.
 #[tauri::command]
 fn forget_wallet(handle: AppHandle, state: State<Shared>) -> Res<()> {
-    let mut app = state.lock().unwrap();
-    (app.account, app.wallet, app.unsigned, app.encoder, app.signed) = (None, None, None, None, None);
-    app.settings.key = None;
-    save_settings(&handle, &app)
+    {
+        let mut app = state.lock().unwrap();
+        unlocked(&app)?;
+        (app.account, app.wallet, app.unsigned, app.encoder, app.signed) = (None, None, None, None, None);
+        app.settings.key = None;
+    }
+    save_settings(&handle)
 }
 
 /// Check the server answers, then save it.
@@ -231,9 +271,12 @@ fn set_server(url: String, proxy: String, handle: AppHandle, state: State<Shared
     let server = ServerConfig { url: url.trim().into(), proxy: proxy.trim().into() };
     let network = state.lock().unwrap().account.as_ref().map(|a| a.network).unwrap_or(bdk_wallet::bitcoin::Network::Signet);
     let rates = server.connect(network)?.fee_rates()?;
-    let mut app = state.lock().unwrap();
-    app.settings.server = server;
-    save_settings(&handle, &app)?;
+    {
+        let mut app = state.lock().unwrap();
+        unlocked(&app)?;
+        app.settings.server = server;
+    }
+    save_settings(&handle)?;
     Ok(rates)
 }
 
@@ -402,7 +445,8 @@ fn scan_start(mode: String, handle: AppHandle, state: State<Shared>) -> Res<()> 
             return true;
         }
         if mode == "key" {
-            let linked = link(&h, &mut shared.lock().unwrap(), &text);
+            let linked = link(&mut shared.lock().unwrap(), &text);
+            let linked = linked.and_then(|ov| save_settings(&h).map(|_| ov));
             return match linked {
                 Ok(ov) => {
                     let _ = h.emit("key", ov);
