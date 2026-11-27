@@ -22,6 +22,10 @@ the guides still use Sparrow.
 
 ## What it does
 
+- First use is a short wizard: welcome, one signer or multisig, link (scan
+  or paste), server (public or your own node, checked before it's saved),
+  then a check on Goldfish: the first address for one signer, the
+  descriptor for multisig.
 - The watch-only key and the server are saved in `settings.json` in the app's
   data folder (`~/.local/share/dev.goldfish.companion/` on Linux), so the
   wallet reopens on start. Settings → Forget this wallet removes the key.

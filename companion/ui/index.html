@@ -36,10 +36,52 @@
       <button id="error-close" aria-label="Dismiss">×</button>
     </div>
 
-    <!-- Link Goldfish -->
+    <!-- First use: welcome, how many signers, link, server, check -->
     <section id="v-link" class="onboard">
-      <div class="onboard-top"><span class="lockup"><img src="dove.svg" alt="">dove</span></div>
+      <div class="onboard-top">
+        <span class="lockup"><img src="dove.svg" alt="">dove</span>
+        <div id="wz-dots" class="wz-dots" aria-hidden="true" hidden><i></i><i></i><i></i><i></i></div>
+      </div>
       <div class="onboard-body">
+        <div id="wz-welcome">
+          <h1 class="display">Welcome to Dove</h1>
+          <p class="para">Dove shows your balance and builds payments. Your signer approves them, and your keys never leave it.</p>
+          <p class="label">You'll need</p>
+          <ul class="steps ticks">
+            <li><span>Goldfish, with your seed loaded</span></li>
+            <li><span>A webcam on this computer</span></li>
+          </ul>
+        </div>
+        <div id="wz-type" hidden>
+          <h1 class="display">How many signers?</h1>
+          <p class="para">Pick the kind of wallet your signers hold.</p>
+          <div class="choices">
+            <button class="choice" data-type="single"><span class="ic"><svg><use href="#i-fingerprint"/></svg></span><span><b>One signer</b><small>One Goldfish approves every payment.</small></span></button>
+            <button class="choice" data-type="ms"><span class="ic"><svg><use href="#i-users"/></svg></span><span><b>Multisig</b><small>Several signers, like 2 of 3.</small></span></button>
+          </div>
+        </div>
+        <div id="wz-server" hidden>
+          <h1 class="display">Pick a server</h1>
+          <p class="para">Dove asks a server about your wallet's transactions.</p>
+          <div class="choices">
+            <button class="choice" data-server="public" aria-pressed="true"><span class="ic"><svg><use href="#i-zap"/></svg></span><span><b>Public server</b><small>Works right away. It can see which addresses are yours.</small></span></button>
+            <button class="choice" data-server="own" aria-pressed="false"><span class="ic"><svg><use href="#i-settings"/></svg></span><span><b>My own node</b><small>More private: an Electrum server or Esplora you run.</small></span></button>
+          </div>
+          <div id="wz-own" class="paste" hidden>
+            <label class="field"><span>Server</span><input id="wz-url" spellcheck="false" autocomplete="off" placeholder="ssl://host:50002 or https://…"></label>
+            <label class="field"><span>Proxy</span><input id="wz-proxy" spellcheck="false" autocomplete="off" placeholder="none"></label>
+            <p class="field-hint">Using Tor with an Electrum server? Enter <code>socks5://127.0.0.1:9050</code>.</p>
+          </div>
+        </div>
+        <div id="wz-done" hidden>
+          <h1 class="display" id="done-title"></h1>
+          <p class="gf-hint"><img class="gf" src="goldfish.svg" alt="On Goldfish"><span id="done-hint"></span></p>
+          <div id="done-qr" class="qr"></div>
+          <p class="caption" id="done-part" hidden></p>
+          <p class="mono addr" id="done-addr"></p>
+          <dl class="card kv" id="done-kv"></dl>
+        </div>
+        <div id="wz-link" hidden>
         <div id="link-intro">
           <h1 class="display">Link your signer</h1>
           <p class="para">Dove watches your wallet and builds transactions. Your keys stay on your signer.</p>
@@ -67,15 +109,15 @@
           <label class="field" id="ms-threshold-field"><span>Signatures needed</span><input id="ms-threshold" type="number" min="1" max="15" value="2"></label>
           <button id="ms-link" class="primary">Link multisig wallet</button>
         </div>
+        </div>
       </div>
       <div class="onboard-actions">
         <button id="link-scan" class="primary wide"><svg><use href="#i-camera"/></svg><span>Scan QR</span></button>
         <div class="alt" id="link-alt">
           <button id="link-paste-toggle" class="link">Paste key instead</button>
-          <span aria-hidden="true">·</span>
-          <button id="link-ms-toggle" class="link">Multisig wallet</button>
         </div>
-        <button id="link-back" class="link center-block" hidden>Back</button>
+        <button id="wz-next" class="primary wide"><span>Get started</span></button>
+        <button id="wz-back" class="link center-block" hidden>Back</button>
       </div>
     </section>
 
