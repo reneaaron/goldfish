@@ -340,8 +340,10 @@ html, body { overflow-x: clip; }
 /* Settings: Save belongs to the server fields; Forget is a quiet text action */
 #set-save { margin-top: 4px; }
 #set-form .ok { margin-top: 10px; }
-.danger-zone, .pw-zone { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--border); }
-.pw-zone .hint { margin: 8px 0 14px; }
+.danger-zone, .pw-zone, .fw-zone { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--border); }
+.pw-zone .hint, .fw-zone .hint { margin: 8px 0 14px; }
+.fw-zone .kv { margin-top: 0; }
+.fw-zone .kv dd.mono { word-break: break-all; }
 .pw-zone #pw-remove { margin-top: 10px; }
 #unlock-reset-hint { text-align: center; margin: 0; }
 .danger-zone .hint { margin: 8px 0 4px; }

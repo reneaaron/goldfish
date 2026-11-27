@@ -59,6 +59,18 @@ the guides still use Sparrow.
 - Fees: Fast / Normal / Slow suggestions from the server (next block, ~1 hour,
   ~1 day), fractional sat/vB, and Speed up (RBF) on a pending send, which
   Goldfish signs like any other transaction.
+- Firmware update (Settings → Goldfish firmware): nothing goes to GitHub until
+  Check for update. It downloads the latest release's `firmware.uf2` by tag
+  and installs it only if it matches the release's `SHA256SUMS` and is a UF2
+  image for the RP2350, and shows the tag and SHA-256 to compare. That proves
+  the file is the one the release lists, not who built it (the build
+  attestation isn't checked here; the flasher page's workflow does). The
+  board can't tell Dove its version (no USB stack), so you compare the tag
+  with the corner of Goldfish's home screen; tapping it there restarts
+  Goldfish as the `RP2350` drive, which Dove finds (`INFO_UF2.TXT` under
+  `/run/media/$USER`, `/media/$USER` or `/media`) and copies the file onto.
+  An HTTP proxy in Settings is used; a SOCKS one refuses, rather than going
+  around it.
 - Look: the draft brand, Dove (mark, wordmark and app icon); its blue (the
   case blue) where Goldfish's screen uses orange, which is otherwise only in
   the mark's feet; and
@@ -69,6 +81,7 @@ the guides still use Sparrow.
 | Part | Where |
 |---|---|
 | core: wallet logic, no UI (BDK, Electrum and Esplora, descriptors, PSBTs, UR codec, QR rendering) | `src-tauri/src/lib.rs` |
+| firmware update: GitHub release download, SHA256SUMS and UF2 checks, the RP2350 drive (tests inside) | `src-tauri/src/firmware.rs` |
 | app: Tauri commands, webcam QR reader (V4L2 + rqrr, in Rust because WebKitGTK's `getUserMedia` is unreliable), the page (plain HTML/JS, no build step) | `src-tauri/src/main.rs`, `src-tauri/src/camera.rs`, `ui/` |
 | tests for core | `#[cfg(test)]` in `lib.rs` |
 | e2e: round trips with the firmware simulator, over QR codes both ways | `e2e/`, driving `src-tauri/src/bin/cli.rs` |

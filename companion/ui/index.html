@@ -267,6 +267,16 @@
         <button type="button" id="pw-remove" class="link danger" hidden>Remove password</button>
         <p class="ok" id="pw-ok" hidden></p>
       </form>
+      <div class="fw-zone">
+        <p class="label">Goldfish firmware</p>
+        <p class="hint" id="fw-hint"></p>
+        <dl class="card kv" id="fw-info" hidden>
+          <dt>Latest</dt><dd><button type="button" id="fw-tag" class="link"></button></dd>
+          <dt>SHA-256</dt><dd class="mono" id="fw-sha"></dd>
+        </dl>
+        <button type="button" id="fw-btn" class="secondary wide"><span>Check for update</span></button>
+        <p class="ok" id="fw-ok" hidden></p>
+      </div>
       <div class="danger-zone">
         <p class="label">This wallet</p>
         <p class="hint">Dove remembers it on this computer, so you don't have to link it again.</p>

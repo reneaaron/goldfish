@@ -99,6 +99,8 @@ struct App {
     locked: bool,
     /// kept while the app runs, to lock the settings again on each save
     password: Option<SecretString>,
+    /// the checked firmware.uf2, waiting for the board's drive
+    firmware: Option<Vec<u8>>,
 }
 
 type Shared = Mutex<App>;
@@ -499,6 +501,28 @@ fn broadcast_signed(state: State<Shared>) -> Res<String> {
     Ok(txid.to_string())
 }
 
+/// Download the latest release's firmware and check it; kept until installed.
+#[tauri::command(async)]
+fn firmware_check(state: State<Shared>) -> Res<firmware::Release> {
+    let proxy = state.lock().unwrap().settings.server.proxy.clone();
+    let (release, uf2) = firmware::download_latest(proxy.trim())?;
+    state.lock().unwrap().firmware = Some(uf2);
+    Ok(release)
+}
+
+/// The board's RP2350 drive, once Goldfish restarted into it.
+#[tauri::command]
+fn firmware_drive() -> Option<String> {
+    firmware::find_drive(&firmware::mount_roots()).map(|p| p.display().to_string())
+}
+
+#[tauri::command(async)]
+fn firmware_install(state: State<Shared>) -> Res<()> {
+    let drive = firmware::find_drive(&firmware::mount_roots()).ok_or("Goldfish's drive is gone. Restart it into the update screen again.")?;
+    let uf2 = state.lock().unwrap().firmware.clone().ok_or("Check for the update first")?;
+    firmware::write(&drive, &uf2)
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -536,6 +560,9 @@ fn main() {
             scan_start,
             scan_stop,
             broadcast_signed,
+            firmware_check,
+            firmware_drive,
+            firmware_install,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Goldfish Companion");

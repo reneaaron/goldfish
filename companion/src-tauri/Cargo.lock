@@ -2014,6 +2014,7 @@ dependencies = [
  "bdk_electrum",
  "bdk_esplora",
  "bdk_wallet",
+ "minreq",
  "qrcode",
  "rqrr",
  "serde",

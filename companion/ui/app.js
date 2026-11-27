@@ -12,6 +12,8 @@ let server = { url: "", proxy: "" };
 let hasPassword = false;
 let frameTimer = null;
 let scanning = false;
+let fwTimer = null; // looks for Goldfish's RP2350 drive while Settings is open
+let fwRelease = null; // the checked release, once downloaded
 
 // On a wide window the wallet stays put and every other screen opens as a
 // dialog over it; on a narrow one each screen takes the whole window.
@@ -35,6 +37,7 @@ function show(view) {
   layout();
   if (view !== "sign") stopFrames();
   if (view !== "show") clearInterval(showTimer);
+  if (view !== "settings") clearInterval(fwTimer);
   if (view === "wallet") $("w-waiting").hidden = !waiting;
   if (scanning) stopScan();
   error("");
@@ -525,6 +528,8 @@ $("w-settings").onclick = () => {
   $("set-url").placeholder = "Public server (default)";
   $("set-ok").hidden = true;
   passwordSection();
+  if (fwRelease) waitDrive();
+  else firmwareSection();
 };
 
 // ---- fee suggestions: chips that fill the fee field
@@ -605,6 +610,54 @@ $("set-forget").onclick = async () => {
   step("welcome");
 };
 for (const b of document.querySelectorAll(".back")) b.onclick = () => show("wallet");
+
+// ---- firmware update: nothing goes to GitHub until Check is pressed
+function firmwareSection() {
+  $("fw-hint").textContent = "Gets the newest Goldfish firmware from GitHub and checks it against the release's SHA256SUMS.";
+  $("fw-info").hidden = true;
+  $("fw-ok").hidden = true;
+  $("fw-btn").hidden = false;
+  button($("fw-btn"), "Check for update", false);
+}
+function waitDrive() {
+  const poll = async () => {
+    const drive = await invoke("firmware_drive");
+    button($("fw-btn"), drive ? `Install ${fwRelease.tag}` : "Waiting for Goldfish…", !drive);
+  };
+  clearInterval(fwTimer);
+  poll();
+  fwTimer = setInterval(poll, 1000);
+}
+$("fw-tag").onclick = () => window.__TAURI__.opener.openUrl(fwRelease.url).catch(error);
+$("fw-btn").onclick = async () => {
+  if (!fwRelease) {
+    button($("fw-btn"), "Downloading…", true);
+    try {
+      fwRelease = await call("firmware_check");
+    } catch (_) {
+      button($("fw-btn"), "Check for update", false);
+      return;
+    }
+    $("fw-tag").textContent = fwRelease.tag;
+    $("fw-sha").textContent = fwRelease.sha256;
+    $("fw-info").hidden = false;
+    $("fw-hint").textContent = "Same as the version in the corner of Goldfish's home screen? Then you're up to date. To install, tap that version on Goldfish, then Restart.";
+    waitDrive();
+    return;
+  }
+  clearInterval(fwTimer);
+  button($("fw-btn"), "Installing…", true);
+  try {
+    await call("firmware_install");
+  } catch (_) {
+    waitDrive();
+    return;
+  }
+  $("fw-btn").hidden = true;
+  $("fw-ok").textContent = `Installed. Goldfish restarts with ${fwRelease.tag}.`;
+  $("fw-ok").hidden = false;
+  fwRelease = null;
+};
 
 // ---- send
 $("s-form").onsubmit = async (ev) => {
