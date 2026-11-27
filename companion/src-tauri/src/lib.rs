@@ -600,9 +600,15 @@ fn verify_signatures(psbt: &Psbt) -> Res<()> {
 /// Merge a signed copy of `psbt` (from Goldfish or another cosigner) into
 /// it. Once `needed` keys have signed every input, also the finished
 /// transaction, ready to broadcast.
-pub fn add_signatures(wallet: &Wallet, psbt: &mut Psbt, signed: Psbt, needed: usize) -> Res<(Signatures, Option<Transaction>)> {
+pub fn add_signatures(wallet: &Wallet, psbt: &mut Psbt, mut signed: Psbt, needed: usize) -> Res<(Signatures, Option<Transaction>)> {
     if signed.unsigned_tx.compute_txid() != psbt.unsigned_tx.compute_txid() {
         return Err("That's a different transaction. Sign this one on Goldfish, then scan again.".into());
+    }
+    // previous transactions an export added: not on to the next QR
+    for (input, ours) in signed.inputs.iter_mut().zip(&psbt.inputs) {
+        if ours.non_witness_utxo.is_none() {
+            input.non_witness_utxo = None;
+        }
     }
     let mut merged = psbt.clone();
     merged.combine(signed).map_err(err)?;
@@ -802,6 +808,28 @@ pub fn psbt_base64(psbt: &Psbt) -> String {
 
 pub fn psbt_from_base64(s: &str) -> Res<Psbt> {
     Psbt::deserialize(&B64.decode(s.trim()).map_err(err)?).map_err(err)
+}
+
+/// `psbt` for a signer that isn't Goldfish (a .psbt file, or copied as
+/// text): with each input's whole previous transaction, which Trezor and
+/// Ledger ask for. Goldfish's QR leaves them out to stay small.
+pub fn psbt_for_export(wallet: &Wallet, psbt: &Psbt) -> Psbt {
+    let mut out = psbt.clone();
+    for (input, txin) in out.inputs.iter_mut().zip(&psbt.unsigned_tx.input) {
+        if input.non_witness_utxo.is_none() {
+            input.non_witness_utxo = wallet.get_tx(txin.previous_output.txid).map(|t| (*t.tx_node.tx).clone());
+        }
+    }
+    out
+}
+
+/// A PSBT file as wallets save it: binary (Sparrow, Coldcard) or base64 text.
+pub fn psbt_from_file(bytes: &[u8]) -> Res<Psbt> {
+    if bytes.starts_with(b"psbt\xff") {
+        return Psbt::deserialize(bytes).map_err(err);
+    }
+    let text = std::str::from_utf8(bytes).map_err(|_| "That file isn't a PSBT.".to_string())?;
+    psbt_from_base64(text).map_err(|_| "That file isn't a PSBT.".into())
 }
 
 /// scrypt's cost for the password: 2^18 (256 MiB; well under a second on a
@@ -1121,6 +1149,28 @@ mod tests {
         signed.inputs[0].partial_sigs.insert(bdk_wallet::bitcoin::PublicKey::new(other), sig);
         assert!(add_signatures(&w, &mut psbt, signed, 2).unwrap_err().contains("doesn't check out"));
         assert!(psbt.inputs[0].partial_sigs.is_empty(), "nothing merged");
+    }
+
+    #[test]
+    fn a_cosigner_signs_from_a_file() {
+        let secp = Secp256k1::new();
+        let c = three_cosigners();
+        let keys: Vec<&str> = c.iter().map(|(_, k)| k.as_str()).collect();
+        let mut w = multisig_from_keys(2, &keys).unwrap().wallet().unwrap();
+        fund_for_demo(&mut w, 100_000);
+        let mut psbt = build_psbt(&mut w, "tb1q6rz28mcfaxtmd6v789l9rrlrusdprr9pqcpvkl", 30_000, 2.0).unwrap();
+        assert!(psbt.inputs[0].non_witness_utxo.is_none());
+        let export = psbt_for_export(&w, &psbt);
+        assert!(export.inputs[0].non_witness_utxo.is_some(), "the previous transaction, for Trezor and Ledger");
+        // read back as a binary file and as base64 text
+        assert_eq!(psbt_from_file(&export.serialize()).unwrap(), export);
+        assert_eq!(psbt_from_file(format!("{}\n", psbt_base64(&export)).as_bytes()).unwrap(), export);
+        assert_eq!(psbt_from_file(b"hello").unwrap_err(), "That file isn't a PSBT.");
+        let mut signed = export;
+        signed.sign(&c[1].0, &secp).unwrap();
+        let (sigs, tx) = add_signatures(&w, &mut psbt, signed, 2).unwrap();
+        assert_eq!((sigs.have, tx.is_none()), (1, true));
+        assert!(psbt.inputs[0].non_witness_utxo.is_none(), "the next QR stays small");
     }
 
     #[test]

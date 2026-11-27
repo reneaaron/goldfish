@@ -397,6 +397,11 @@ fn feed(app: &mut App, text: &str) -> ScanEvent {
     };
     let Some(signed) = got else { return app_progress(app) };
     app.scanner = PsbtScanner::default();
+    take_signed(app, signed)
+}
+
+/// A signed PSBT, whole: from the camera, pasted text or a file.
+fn take_signed(app: &mut App, signed: Psbt) -> ScanEvent {
     let needed = app.account.as_ref().map(|a| a.threshold).unwrap_or(1);
     let result = match (&app.wallet, &mut app.unsigned) {
         (Some(w), Some(psbt)) => add_signatures(w, psbt, signed, needed),
@@ -434,6 +439,35 @@ fn app_progress(app: &App) -> ScanEvent {
 #[tauri::command]
 fn scan_text(text: String, state: State<Shared>) -> ScanEvent {
     feed(&mut state.lock().unwrap(), &text)
+}
+
+/// The PSBT to sign, with the signatures so far, for a signer that isn't
+/// Goldfish: as base64 text to copy, or saved as a binary .psbt at `path`.
+fn export(app: &App) -> Res<Psbt> {
+    let psbt = app.unsigned.as_ref().ok_or("nothing to sign")?;
+    let w = app.wallet.as_ref().ok_or("no wallet")?;
+    Ok(psbt_for_export(w, psbt))
+}
+
+#[tauri::command]
+fn psbt_text(state: State<Shared>) -> Res<String> {
+    Ok(psbt_base64(&export(&state.lock().unwrap())?))
+}
+
+#[tauri::command]
+fn save_psbt(path: String, state: State<Shared>) -> Res<()> {
+    let psbt = export(&state.lock().unwrap())?;
+    std::fs::write(&path, psbt.serialize()).map_err(|e| format!("Couldn't save the file: {e}"))
+}
+
+/// A signed PSBT file from another signer (Sparrow, a Coldcard's SD card).
+#[tauri::command]
+fn open_psbt(path: String, state: State<Shared>) -> ScanEvent {
+    let read = std::fs::read(&path).map_err(|e| format!("Couldn't open the file: {e}"));
+    match read.and_then(|b| psbt_from_file(&b)) {
+        Ok(signed) => take_signed(&mut state.lock().unwrap(), signed),
+        Err(e) => ScanEvent { error: Some(e), ..Default::default() },
+    }
 }
 
 /// `mode` "key": Goldfish's Connect wallet QR (emits "key" with the wallet).
@@ -527,6 +561,7 @@ fn firmware_install(state: State<Shared>) -> Res<()> {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(Shared::default())
         .setup(|app| {
             // Reopen the saved watch-only wallet, if any; a locked one waits
@@ -558,6 +593,9 @@ fn main() {
             create_send,
             next_frame,
             scan_text,
+            psbt_text,
+            save_psbt,
+            open_psbt,
             scan_start,
             scan_stop,
             broadcast_signed,

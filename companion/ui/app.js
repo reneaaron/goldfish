@@ -809,6 +809,27 @@ $("sign-use").onclick = async () => {
 };
 listen("scan", (e) => onScan(e.payload));
 
+// Another signer (Sparrow with a Trezor or Ledger, a Coldcard's SD card): the
+// PSBT with the signatures so far, as text or a .psbt file, and its signed file back
+function flash(b, text) {
+  const label = b.querySelector("span");
+  const was = label.dataset.was || (label.dataset.was = label.textContent);
+  label.textContent = text;
+  setTimeout(() => (label.textContent = was), 1600);
+}
+const psbtFilter = [{ name: "PSBT", extensions: ["psbt", "txt"] }];
+$("sign-copy").onclick = async () => flash($("sign-copy"), (await copyText(await call("psbt_text"))) ? "Copied" : "Couldn't copy");
+$("sign-save").onclick = async () => {
+  const path = await window.__TAURI__.dialog.save({ defaultPath: "dove.psbt", filters: psbtFilter });
+  if (!path) return;
+  await call("save_psbt", { path });
+  flash($("sign-save"), "Saved");
+};
+$("sign-open").onclick = async () => {
+  const path = await window.__TAURI__.dialog.open({ filters: psbtFilter });
+  if (path) onScan(await call("open_psbt", { path }));
+};
+
 // ---- broadcast
 function openReady() {
   show("ready");
