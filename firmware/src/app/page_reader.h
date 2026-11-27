@@ -31,6 +31,7 @@ struct PageWord {
     bool guessed;           // no ink found here, but the rows around it leave a gap for a word
     bool unsure;            // as narrow as a stray, kept for a short word that reaches up and down ("day"): a word only if read
     bool edge;              // every letter is next to the table round the page: a corner if short, kept only in a column
+    bool boxed;             // letters a box apart (a letter-box card), not written as one word
 };
 
 struct Page {

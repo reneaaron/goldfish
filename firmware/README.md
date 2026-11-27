@@ -104,9 +104,11 @@ so until the view changes. It
 then takes one picture and finds the words (`src/app/page_reader.cpp`: the paper's
 brightness, how dark the page's darkest strokes are (so a hard pencil still
 counts as ink), the photo's tilt, ruled and margin lines erased, blobs of ink
-grouped into words, a row number joined to its word, the corners of a card or
-page on a dark table and a heading over the list (a printed card's
-"FINGERPRINT" label, a title) left out, reading order by columns then rows), takes a second picture twice as sharp while you hold still (about
+grouped into words (letters written one per box too, as on a letter-box
+card), a row number joined to its word, the corners of a card or
+page on a dark table, a heading over the list (a printed card's
+"FINGERPRINT" label, a title) and a few boxed characters beside it (a
+fingerprint written one per box) left out, reading order by columns then rows), takes a second picture twice as sharp while you hold still (about
 a second) and cuts each word's strip from it, where the word really is in that
 later frame: around each word it is slid against the first picture, up to 6
 preview pixels each way, and the best match wins (a hand moves between

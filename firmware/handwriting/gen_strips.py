@@ -12,17 +12,20 @@ from multiprocessing import Pool
 
 import numpy as np
 
+import strips
 from strips import STRIP_H, STRIP_W, Glyphs, bip39_words, encode, make_strip
 
 MAX_LABEL = 14
 _g = _words = None
 
 
-def _init(emnist, fonts):
+def _init(emnist, fonts, boxed):
     # Each worker loads EMNIST as uint8 (~550 MB); converting it all to float
     # in every worker is what once ran the machine out of memory.
     global _g, _words
     os.nice(19)
+    if boxed is not None:
+        strips.BOXED = boxed
     d = np.load(emnist)
     _g = Glyphs(d["x"], d["y"], fonts)
     _words = bip39_words()
@@ -52,6 +55,7 @@ def main():
     ap.add_argument("--n", type=int, default=800000)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--workers", type=int, default=6)
+    ap.add_argument("--boxed", type=float, help="share of strips in letter boxes (default strips.BOXED)")
     ap.add_argument("--out", required=True, help="directory: x.npy, y.npy, len.npy")
     args = ap.parse_args()
     fonts = sorted({p for d in args.fonts for p in glob.glob(os.path.join(d, "*.ttf"))}, key=os.path.basename)
@@ -62,7 +66,7 @@ def main():
     ln = np.lib.format.open_memmap(os.path.join(args.out, "len.npy"), "w+", np.uint8, (args.n,))
     chunk = 2000
     jobs = [(args.seed * 1000003 + i, i * chunk, min(chunk, args.n - i * chunk)) for i in range((args.n + chunk - 1) // chunk)]
-    with Pool(args.workers, initializer=_init, initargs=(args.emnist, fonts)) as p:
+    with Pool(args.workers, initializer=_init, initargs=(args.emnist, fonts, args.boxed)) as p:
         for done, (start, xs, ys, lens) in enumerate(p.imap_unordered(_chunk, jobs), 1):
             x[start:start + len(xs)], y[start:start + len(xs)], ln[start:start + len(xs)] = xs, ys, lens
             if done % 50 == 0:
