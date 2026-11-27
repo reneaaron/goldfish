@@ -32,8 +32,21 @@
 
   nav { display: flex; align-items: center; gap: 4px; height: 64px; }
   .brand { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 700; letter-spacing: -0.01em;
-           color: inherit; text-decoration: none; margin-right: auto; }
+           color: inherit; text-decoration: none; }
   .brand svg { width: 40px; height: 23px; }
+  /* "What's new?": a thought from the fish in the logo, as on the screensaver (ui.cpp) and /changelog/ */
+  .thought { display: flex; align-items: center; gap: 3px; margin: 0 auto 0 6px; text-decoration: none; color: var(--text);
+             animation: thought-bob 4s ease-in-out infinite; }
+  .thought i { flex: none; border: 1.5px solid #B9C4CA; border-radius: 50%; }
+  .thought i:nth-of-type(1) { width: 5px; height: 5px; translate: 0 5px; }
+  .thought i:nth-of-type(2) { width: 8px; height: 8px; translate: 0 1px; }
+  .thought span { margin-left: 2px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg);
+                  font-size: 14px; font-weight: 500; white-space: nowrap; box-shadow: 0 2px 10px rgba(20, 34, 43, .06);
+                  transition: border-color .15s, box-shadow .15s; }
+  .thought:hover span { border-color: #B9C4CA; box-shadow: 0 4px 14px rgba(20, 34, 43, .12); }
+  @keyframes thought-bob { 50% { translate: 0 -3px; } }
+  @media (prefers-reduced-motion: reduce) { .thought { animation: none; } }
+  @media (max-width: 520px) { .thought { display: none; } }
   nav a.link { color: var(--muted); font-size: 15px; font-weight: 500; text-decoration: none; padding: 8px 12px; border-radius: 8px; }
   nav a.link:hover, nav a.link.here { color: var(--text); background: var(--raised); }
   nav a.link.try { background: var(--text); color: var(--bg); font-weight: 600; margin-left: 8px; }
@@ -131,6 +144,7 @@
       </svg>
       goldfish
     </a>
+    <a class="thought" href="../changelog/"><i></i><i></i><span>What's new?</span></a>
     <a class="link wide" href="../#how">How it works</a>
     <a class="link wide" href="../#build">Build one</a>
     <a class="link wide here" href="./" aria-current="page">Wallet</a>

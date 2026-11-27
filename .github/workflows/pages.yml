@@ -6,6 +6,7 @@ name: Website
 #   /flasher/  flasher/index.html plus firmware.uf2 and firmware.json
 #   /cards/    cards/index.html (blank backup cards to print)
 #   /metal/    metal/index.html (stamping the seed into steel washers)
+#   /changelog/ changelog/index.html (recent changes, written by hand, newest first)
 #   /wallet/   wallet/index.html (Dove, the companion wallet app; marks from marketing/, screenshots in wallet/img)
 #   /parts/    parts/ (what to buy, and the case files from case/exports to print)
 #   /assemble/ assemble/ (connecting the camera, closing the case)
@@ -21,7 +22,7 @@ name: Website
 on:
   push:
     branches: [main]
-    paths: ['landing/**', 'flasher/**', 'cards/**', 'metal/**', 'wallet/**', 'marketing/companion/*.svg', 'marketing/mascot/*.svg', 'parts/**', 'assemble/**', 'start/**', 'case/exports/**', 'firmware/src/**', 'firmware/web/**', 'firmware/platformio.ini', 'firmware/include/**', 'firmware/lib/**', 'firmware/sim/samples/**', 'firmware/docs/screens/**', 'marketing/renders/out/**', '.github/workflows/pages.yml']
+    paths: ['landing/**', 'flasher/**', 'cards/**', 'metal/**', 'changelog/**', 'wallet/**', 'marketing/companion/*.svg', 'marketing/mascot/*.svg', 'parts/**', 'assemble/**', 'start/**', 'case/exports/**', 'firmware/src/**', 'firmware/web/**', 'firmware/platformio.ini', 'firmware/include/**', 'firmware/lib/**', 'firmware/sim/samples/**', 'firmware/docs/screens/**', 'marketing/renders/out/**', '.github/workflows/pages.yml']
   workflow_run:
     workflows: [Release]
     types: [completed]
@@ -114,7 +115,7 @@ jobs:
           cp flasher/index.html site/flasher/
           cp cards/index.html site/cards/
           # parts/files is a symlink too (case/exports); start/ uses the landing page's img/screens
-          cp -rL parts assemble start metal wallet site/
+          cp -rL parts assemble start metal wallet changelog site/
           cp -r "$RUNNER_TEMP/sim" site/sim && rm -rf site/sim/obj
           # Renders are ~2 MB lossless PNGs; serve them as WebP (~15-45 KB each).
           # The repo's pages keep pointing at the PNGs so they still open locally.
