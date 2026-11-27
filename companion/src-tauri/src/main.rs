@@ -270,7 +270,9 @@ fn forget_wallet(handle: AppHandle, state: State<Shared>) -> Res<()> {
 fn set_server(url: String, proxy: String, handle: AppHandle, state: State<Shared>) -> Res<FeeRates> {
     let server = ServerConfig { url: url.trim().into(), proxy: proxy.trim().into() };
     let network = state.lock().unwrap().account.as_ref().map(|a| a.network).unwrap_or(bdk_wallet::bitcoin::Network::Signet);
-    let rates = server.connect(network)?.fee_rates()?;
+    let backend = server.connect(network)?;
+    backend.check_network(network)?;
+    let rates = backend.fee_rates()?;
     {
         let mut app = state.lock().unwrap();
         unlocked(&app)?;
@@ -286,7 +288,9 @@ fn backend(state: &State<Shared>) -> Res<Backend> {
         let network = loaded(&mut app)?.0.network;
         (app.settings.server.clone(), network)
     };
-    server.connect(network)
+    let backend = server.connect(network)?;
+    backend.check_network(network)?;
+    Ok(backend)
 }
 
 #[tauri::command(async)]

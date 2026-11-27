@@ -343,6 +343,16 @@ impl Backend {
         Ok(tx.compute_txid())
     }
 
+    /// The server's chain, from its genesis block, has to be the wallet's:
+    /// a mainnet server shows a test wallet empty, and the other way round.
+    pub fn check_network(&self, network: Network) -> Res<()> {
+        let genesis = match self {
+            Backend::Esplora(c) => c.get_block_hash(0).map_err(err)?,
+            Backend::Electrum(c) => c.inner.block_header(0).map_err(err)?.block_hash(),
+        };
+        network_mismatch(genesis, network).map_or(Ok(()), Err)
+    }
+
     pub fn fee_rates(&self) -> Res<FeeRates> {
         let at = |target: u16| -> Res<f64> {
             match self {
@@ -370,6 +380,21 @@ impl Backend {
         let round = |r: f64| (r * 10.0).ceil() / 10.0;
         let (fast, normal, slow) = (at(1)?, at(6)?, at(144)?);
         Ok(FeeRates { fast: round(fast), normal: round(normal.min(fast)), slow: round(slow.min(normal)) })
+    }
+}
+
+/// Test networks all count as one: a test key doesn't say which.
+fn network_mismatch(genesis: BlockHash, network: Network) -> Option<String> {
+    use bdk_wallet::bitcoin::constants::genesis_block;
+    let server = [Network::Bitcoin, Network::Testnet, Network::Testnet4, Network::Signet, Network::Regtest]
+        .into_iter()
+        .find(|n| genesis_block(*n).block_hash() == genesis);
+    let name = |n: Network| if n == Network::Bitcoin { "mainnet".to_string() } else { n.to_string() };
+    match server {
+        Some(s) if (s == Network::Bitcoin) == (network == Network::Bitcoin) => None,
+        Some(s) => Some(format!("This server is on {}, but this wallet is on {}.", name(s), name(network))),
+        None if network == Network::Bitcoin => Some("This server isn't on mainnet.".into()),
+        None => None, // a custom signet
     }
 }
 
@@ -896,6 +921,23 @@ mod tests {
         // building an Esplora client doesn't touch the network
         let esplora = ServerConfig { url: "https://mempool.space/signet/api".into(), proxy: String::new() };
         assert!(matches!(esplora.connect(Network::Signet), Ok(Backend::Esplora(_))));
+    }
+
+    #[test]
+    fn server_on_another_chain_is_refused() {
+        use bdk_wallet::bitcoin::constants::genesis_block;
+        let g = |n: Network| genesis_block(n).block_hash();
+        assert_eq!(
+            network_mismatch(g(Network::Bitcoin), Network::Signet).unwrap(),
+            "This server is on mainnet, but this wallet is on signet."
+        );
+        assert!(network_mismatch(g(Network::Signet), Network::Bitcoin).unwrap().contains("on signet"));
+        assert!(network_mismatch("00".repeat(32).parse::<BlockHash>().unwrap(), Network::Bitcoin).is_some());
+        for n in [Network::Signet, Network::Testnet4, Network::Regtest] {
+            assert!(network_mismatch(g(n), Network::Signet).is_none(), "{n}");
+        }
+        assert!(network_mismatch(g(Network::Bitcoin), Network::Bitcoin).is_none());
+        assert!(network_mismatch("00".repeat(32).parse::<BlockHash>().unwrap(), Network::Signet).is_none());
     }
 
     #[test]
