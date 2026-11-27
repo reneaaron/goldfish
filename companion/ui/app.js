@@ -735,10 +735,13 @@ function showReview(r) {
       }
       if (reused) {
         // paid before: allowed, but say what it costs
-        const note = document.createElement("span");
-        note.className = "reused";
-        note.textContent = "Used before. Paying it again links these payments together.";
-        dd.append(note);
+        const tag = document.createElement("span");
+        tag.className = "reused";
+        tag.textContent = "Used before";
+        const why = document.createElement("small");
+        why.className = "reused-why";
+        why.textContent = "Paying it again links these payments together.";
+        dd.append(tag, why);
       }
       return [dt, dd];
     }),
