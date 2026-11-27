@@ -215,6 +215,7 @@ main > #v-wallet { min-height: 0; }
 .sending { text-align: center; }
 .sending .label { justify-content: center; margin-top: 8px; }
 .balance .label { margin-top: 24px; }
+.backup-text { padding: 14px 16px; margin: 0 0 12px; font-size: 13px; line-height: 1.5; word-break: break-all; user-select: text; }
 .addr-card { padding: 14px 16px; margin-top: 12px; text-align: center; }
 .addr-card .accent-title { margin-top: 0; }
 /* empty Activity: an icon badge like Goldfish's, a line, and the way forward */

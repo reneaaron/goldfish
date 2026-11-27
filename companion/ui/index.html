@@ -55,7 +55,7 @@
     <section id="v-link" class="onboard">
       <div class="onboard-top">
         <span class="lockup"><img src="dove.svg" alt="">dove</span>
-        <div id="wz-dots" class="wz-dots" aria-hidden="true" hidden><i></i><i></i><i></i><i></i><i></i></div>
+        <div id="wz-dots" class="wz-dots" aria-hidden="true" hidden></div>
       </div>
       <div class="onboard-body">
         <div id="wz-welcome">
@@ -71,16 +71,22 @@
           <h1 class="display">How many signers?</h1>
           <p class="para">Pick the kind of wallet your signers hold.</p>
           <div class="choices">
-            <button class="choice" data-type="single"><span class="ic"><svg><use href="#i-fingerprint"/></svg></span><span><b>One signer</b><small>One Goldfish approves every payment.</small></span></button>
+            <button class="choice" data-type="single"><span class="ic"><svg><use href="#i-fingerprint"/></svg></span><span><b>One signer</b><small>One Goldfish approves payments.</small></span></button>
             <button class="choice" data-type="ms"><span class="ic"><svg><use href="#i-users"/></svg></span><span><b>Multisig</b><small>Several signers, like 2 of 3.</small></span></button>
           </div>
+        </div>
+        <div id="wz-backup" hidden>
+          <h1 class="display">Back up your wallet</h1>
+          <p class="para">To get your coins back, you need enough of your seeds and this descriptor. Your signers don't keep it, so save a copy with your seed backups. It can't spend your coins, but it shows them, so keep it private.</p>
+          <p class="card mono backup-text" id="backup-text"></p>
+          <button id="backup-copy" class="secondary wide copy"><svg><use href="#i-copy"/></svg><span>Copy descriptor</span></button>
         </div>
         <div id="wz-server" hidden>
           <h1 class="display">Pick a server</h1>
           <p class="para">Dove asks a server about your wallet's transactions.</p>
           <div class="choices">
-            <button class="choice" data-server="public" aria-pressed="true"><span class="ic"><svg><use href="#i-zap"/></svg></span><span><b>Public server</b><small>Works right away. It can see which addresses are yours.</small></span></button>
-            <button class="choice" data-server="own" aria-pressed="false"><span class="ic"><svg><use href="#i-settings"/></svg></span><span><b>My own node</b><small>More private: an Electrum server or Esplora you run.</small></span></button>
+            <button class="choice" data-server="public" aria-pressed="true"><span class="ic"><svg><use href="#i-zap"/></svg></span><span><b>Public server</b><small>Easy, but it sees your addresses.</small></span></button>
+            <button class="choice" data-server="own" aria-pressed="false"><span class="ic"><svg><use href="#i-settings"/></svg></span><span><b>My own node</b><small>Private: Electrum or Esplora you run.</small></span></button>
           </div>
           <div id="wz-own" class="paste" hidden>
             <label class="field"><span>Server</span><input id="wz-url" spellcheck="false" autocomplete="off" placeholder="ssl://host:50002 or https://…"></label>
