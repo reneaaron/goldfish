@@ -110,7 +110,12 @@ page on a dark table and a heading over the list (a printed card's
 a second) and cuts each word's strip from it, where the word really is in that
 later frame: around each word it is slid against the first picture, up to 6
 preview pixels each way, and the best match wins (a hand moves between
-frames, and the camera's two sizes needn't line up exactly). Words found then
+frames, and the camera's two sizes needn't line up exactly). The first
+picture is small and misses faint letters, most often at a word's ends, so
+each word's box then grows along its row to the ink the sharper picture shows
+within a row height of it (never into the next piece of the row: two pieces
+of one word, or a row number found apart from its word, are left as they are).
+Words found then
 shows the first picture with each word boxed (amber: a gap where a word should
 be) and how many there are, so a blurry, dark or badly framed picture is
 retaken before the slow part; the camera is done by then. Read reads each strip

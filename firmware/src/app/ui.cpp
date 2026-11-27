@@ -1798,6 +1798,10 @@ static bool page_band() {
         // is filling up with strips)
         int dx, dy;
         page_band_shift(preview_buf, PREV_W, PREV_H, band_buf, b0, band_rows, CAM_ZOOM, &page, c.piece, &dx, &dy);
+        // the letters the photo missed: the box (here and on Words found) grows to them
+        page_band_refine(band_buf, b0, band_rows, CAM_ZOOM, dx, dy, &page, c.piece);
+        lv_obj_delete(page_boxes[i]);
+        page_boxes[i] = word_box(lv_obj_get_screen(preview_img), i);
         page_store(c.piece, page_strip_band(band_buf, b0, band_rows, CAM_ZOOM, dx, dy, &page, c.piece, page_strip_buf));
         c.cut = true;
         if (!page.words[c.piece].guessed) lv_obj_set_style_border_color(page_boxes[i], ACCENT, 0);
