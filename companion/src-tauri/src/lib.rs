@@ -303,76 +303,155 @@ impl BackupSheet {
         format!("{}\n", self.descriptor)
     }
 
-    /// A page to print: self-contained, no requests, black on white.
+    /// A page to print: self-contained, no requests. It looks like Goldfish's
+    /// printable cards (`cards/index.html`): the same ink, greys, alert,
+    /// boxed strips, numbered steps and storing tips, in mm for print.
     pub fn html(&self) -> String {
         let (m, n) = (self.threshold, self.cosigners.len());
-        let rows: String = self
+        // keys in groups of four, easier to copy by hand; spans add no spaces when copied
+        let grouped = |s: &str| -> String {
+            s.as_bytes().chunks(4).map(|c| format!("<i>{}</i>", escape(std::str::from_utf8(c).unwrap_or_default()))).collect()
+        };
+        let signers: String = self
             .cosigners
             .iter()
             .enumerate()
             .map(|(i, c)| {
                 format!(
-                    "<tr><td>{}</td><td class=mono>{}</td><td class=mono>{}</td><td class=\"mono key\">{}</td></tr>",
-                    i + 1,
-                    escape(&c.fingerprint),
-                    escape(&c.path),
-                    escape(&c.xpub)
+                    r#"<div class="signer"><span class="no">{no}</span>
+  <div><span class="cap">Fingerprint</span><span class="mono fp">{fp}</span></div>
+  <div><span class="cap">Path</span><span class="mono">{path}</span></div>
+  <div><span class="cap">Held by</span><span class="line"></span></div>
+  <div class="key"><span class="cap">Public key</span><span class="mono">{xpub}</span></div>
+</div>
+"#,
+                    no = i + 1,
+                    fp = grouped(&c.fingerprint),
+                    path = escape(&c.path),
+                    xpub = grouped(&c.xpub)
                 )
             })
             .collect();
         // the descriptor's QR, to scan it back in; a very long one may not fit a code
-        let qr = qr_svg(&self.descriptor).map(|s| format!("<div class=qr>{s}</div>")).unwrap_or_default();
+        let qr = qr_svg(&self.descriptor).map(|s| format!("<div class=\"qr\">{s}</div>")).unwrap_or_default();
+        let fewer = if m < n { format!(" With only {m} of the {n} seeds, you need this sheet too.") } else { String::new() };
         format!(
-            r#"<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
+            r##"<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Multisig wallet backup ({m} of {n})</title>
 <style>
-@page {{ size: A4; margin: 16mm; }}
-body {{ font: 11pt/1.45 system-ui, sans-serif; color: #000; background: #fff; max-width: 180mm; margin: 24px auto; padding: 0 16px; }}
-h1 {{ font-size: 20pt; margin: 0 0 4px; }}
-h2 {{ font-size: 12pt; margin: 22px 0 6px; }}
-.mono {{ font-family: ui-monospace, "DejaVu Sans Mono", monospace; font-size: 9pt; word-break: break-all; }}
-.note {{ border: 2px solid #000; padding: 10px 14px; margin: 14px 0; }}
-table {{ border-collapse: collapse; width: 100%; }}
-th, td {{ border: 1px solid #999; padding: 5px 7px; text-align: left; vertical-align: top; }}
-th {{ font-size: 9pt; }}
-td.key {{ width: 55%; }}
-dl {{ display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; }}
-dt {{ font-weight: 600; }} dd {{ margin: 0; }}
-.desc {{ display: flex; gap: 16px; align-items: flex-start; }}
-.desc p {{ flex: 1; margin: 0; }}
-.qr svg {{ width: 48mm; height: auto; display: block; }}
-ol {{ padding-left: 20px; }} li {{ margin: 3px 0; }}
+  /* The look of Goldfish's printable cards (cards/index.html): ink for what
+     matters, --grey for text and labels, --line for rules and boxes. */
+  :root {{
+    --ink: #14222B; --grey: #7a766e; --line: #d2cdc4;
+    --bg: #FFFFFF; --raised: #EDF2F4; --rule: #D9E2E6; --muted: #5A6B75;
+    --sans: Inter, "Helvetica Neue", Arial, ui-sans-serif, system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    --pw: 210mm; --ph: 279.4mm; /* A4's width and Letter's height: fits either paper */
+  }}
+  * {{ box-sizing: border-box; }}
+  body {{ margin: 0; background: var(--raised); color: var(--ink); font: 15px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }}
+  .bar {{ max-width: var(--pw); margin: 0 auto; padding: 32px 0 24px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; }}
+  .bar p {{ margin: 0; color: var(--muted); }}
+  .print {{ display: inline-flex; align-items: center; gap: 10px; height: 50px; padding: 0 24px; border: 0; border-radius: 12px;
+           background: var(--ink); color: #fff; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; }}
+  .print svg {{ width: 18px; height: 18px; }}
+  .sheet {{ background: #fff; width: var(--pw); min-height: var(--ph); margin: 0 auto 72px; padding: 12mm 14mm;
+           box-shadow: 0 2px 16px rgb(20 34 43 / .14); display: flex; flex-direction: column; gap: 3.5mm; }}
+  @media (max-width: 860px) {{ .sheet {{ zoom: .5; }} .bar {{ padding: 24px 16px; }} }}
+  @media print {{
+    /* margins on the paper, so a long sheet that runs onto page 2 has them too */
+    @page {{ margin: 12mm 0; size: 210mm 279.4mm; }}
+    body {{ background: #fff; }}
+    .bar {{ display: none; }}
+    .sheet {{ box-shadow: none; margin: 0; zoom: 1; padding: 0 14mm; min-height: calc(var(--ph) - 24mm); }}
+    * {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
+  }}
+
+  .cap {{ font-size: 2.6mm; letter-spacing: .14em; text-transform: uppercase; color: var(--grey); }}
+  .mono {{ font-family: var(--mono); font-size: 3mm; color: var(--ink); word-break: break-all; }}
+  .mono i {{ font-style: normal; margin-right: .9mm; }}
+  .alert {{ display: flex; align-items: center; gap: 3mm; padding-bottom: 3.5mm; border-bottom: .3mm solid var(--ink);
+           font-size: 3.6mm; font-weight: 600; }}
+  .alert::before {{ content: "!"; flex: none; width: 5.6mm; height: 5.6mm; border-radius: 50%; background: var(--ink); color: #fff;
+                   display: flex; align-items: center; justify-content: center; font-size: 3.4mm; font-weight: 700; }}
+  .alert span {{ font-weight: 400; color: var(--grey); }}
+  h1 {{ margin: 0; font-size: 7mm; font-weight: 700; letter-spacing: -0.01em; line-height: 1.1; }}
+  .sec {{ color: var(--ink); font-weight: 600; margin: 0 0 -2mm; }}
+
+  /* boxed strips with hairline dividers, as on the cards */
+  .strip {{ display: grid; grid-template-columns: repeat(4, auto); border: .3mm solid var(--line); border-radius: 2mm; }}
+  .strip > div {{ padding: 2.6mm 4mm 3mm; display: flex; flex-direction: column; gap: 1.2mm; font-size: 3.2mm; min-width: 0; }}
+  .strip > div + div {{ border-left: .2mm solid var(--line); }}
+  .strip .wide {{ grid-column: 1 / -1; border-left: 0; border-top: .2mm solid var(--line); }}
+  .line {{ display: block; height: 5mm; border-bottom: .2mm solid var(--line); }}
+
+  .signers {{ display: flex; flex-direction: column; gap: 2mm; }}
+  .signer {{ display: grid; grid-template-columns: 9mm 32mm 38mm 1fr; border: .3mm solid var(--line); border-radius: 2mm; break-inside: avoid; }}
+  .signer > div {{ padding: 2mm 3.5mm 2.2mm; display: flex; flex-direction: column; gap: 1mm; border-left: .2mm solid var(--line); min-width: 0; }}
+  .signer .no {{ grid-row: 1 / 3; display: flex; align-items: center; justify-content: center; font-size: 3.2mm; font-weight: 600; }}
+  .signer .key {{ grid-column: 2 / -1; border-top: .2mm solid var(--line); }}
+  .signer .fp {{ font-size: 3.6mm; font-weight: 600; }}
+
+  .desc {{ display: grid; grid-template-columns: 38mm 1fr; border: .3mm solid var(--line); border-radius: 2mm; break-inside: avoid; }}
+  .desc > div {{ padding: 3mm 4mm; display: flex; flex-direction: column; gap: 1.2mm; min-width: 0; }}
+  .desc > div + div {{ border-left: .2mm solid var(--line); }}
+  .keep {{ display: flex; flex-direction: column; gap: 1.5mm; break-inside: avoid; }}
+  .keep .sec {{ margin: 0; }}
+  .qr svg {{ width: 30mm; height: auto; display: block; }}
+  .desc .mono {{ font-size: 2.7mm; line-height: 1.45; }}
+
+  .steps {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 6mm; margin: 0; padding: 0; list-style: none;
+           counter-reset: step; font-size: 2.9mm; line-height: 1.45; color: var(--grey); break-inside: avoid; }}
+  .steps li {{ counter-increment: step; display: grid; grid-template-columns: 6mm 1fr; grid-template-rows: min-content 1fr; column-gap: 2mm; }}
+  .steps li::before {{ content: counter(step); grid-row: 1 / 3; width: 5.4mm; height: 5.4mm; border-radius: 50%;
+                      border: .25mm solid var(--ink); color: var(--ink); font-size: 2.8mm; font-weight: 600;
+                      display: flex; align-items: center; justify-content: center; }}
+  .steps strong, .store strong {{ color: var(--ink); font-weight: 600; font-size: 3.1mm; }}
+  .store {{ margin-top: auto; padding-top: 3mm; border-top: .2mm solid var(--line); display: grid; grid-template-columns: repeat(3, 1fr);
+           gap: 2.5mm 6mm; font-size: 2.6mm; line-height: 1.4; color: var(--grey); break-inside: avoid; }}
+  .store > .cap {{ grid-column: 1 / -1; color: var(--ink); font-weight: 600; }}
+  .store > div {{ display: grid; grid-template-columns: 6mm 1fr; grid-template-rows: min-content 1fr; column-gap: 2.5mm; }}
+  .store svg {{ width: 6mm; height: 6mm; grid-row: 1 / 3; fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }}
+  .store strong {{ font-size: 2.85mm; }}
 </style></head><body>
+<div class="bar"><p>Print it, then keep a copy with each seed backup.</p>
+<button class="print" onclick="print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg>Print</button></div>
+<main class="sheet">
+<div class="alert">This sheet can't spend your bitcoin, but it shows all of it. <span>No seed or private key is on it. Keep it private.</span></div>
 <h1>Multisig wallet backup</h1>
-<p>{m} of {n} multisig &middot; {network} &middot; made {date}</p>
-<div class="note"><b>No seed or private key is on this sheet: it can't spend your coins.</b> It does show your balance and every payment to anyone who reads it, so keep it private. Keep a copy with each of your seed backups.</div>
-<h2>Wallet</h2>
-<dl>
-<dt>Type</dt><dd>{m} of {n} multisig, native segwit (<span class=mono>wsh(sortedmulti)</span>)</dd>
-<dt>Network</dt><dd>{network}</dd>
-<dt>First address</dt><dd class=mono>{address}</dd>
-</dl>
-<h2>Signers</h2>
-<table><tr><th>#</th><th>Fingerprint</th><th>Path</th><th>Public key</th></tr>{rows}</table>
-<h2>Descriptor</h2>
-<div class="desc"><p class=mono>{descriptor}</p>{qr}</div>
-<h2>To get your coins back</h2>
-<ol>
-<li>Install a wallet app that takes a multisig descriptor, such as Dove or Sparrow.</li>
-<li>Add the wallet from the descriptor above: type it in or scan its QR code. Check that the first address matches.</li>
-<li>To spend, sign with any {m} of the {n} seeds.</li>
+<div class="strip">
+  <div><span class="cap">Type</span><span>{m} of {n}, <span class="mono">wsh(sortedmulti)</span></span></div>
+  <div><span class="cap">Network</span><span>{network}</span></div>
+  <div><span class="cap">Made</span><span>{date}</span></div>
+  <div><span class="cap">Label</span><span class="line"></span></div>
+</div>
+<span class="cap sec">Signers</span>
+<div class="signers">
+{signers}</div>
+<div class="keep"><span class="cap sec">Descriptor</span>
+<div class="desc">
+  <div>{qr}</div>
+  <div><span class="mono">{descriptor}</span>
+  <span class="cap" style="margin-top:2mm">First address</span><span class="mono">{address}</span></div>
+</div></div>
+<ol class="steps">
+  <li><strong>Add the wallet</strong><span>In a wallet app that takes a descriptor, such as Dove or Sparrow: scan the QR or type it in.</span></li>
+  <li><strong>Check the address</strong><span>The app's first receive address must match the one on this sheet.</span></li>
+  <li><strong>Sign with any {m}</strong><span>Any {m} of the {n} seeds sign a payment.{fewer}</span></li>
 </ol>
-{fewer}</body></html>
-"#,
-            fewer = if m < n {
-                format!("<p>With only {m} of the {n} seeds you need this sheet too: those seeds alone can't bring this wallet back.</p>\n")
-            } else {
-                String::new()
-            },
+<div class="store">
+  <span class="cap">Storing it</span>
+  <div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 20s-4.5-4.6-4.5-8.3a4.5 4.5 0 0 1 9 0C11.5 15.4 7 20 7 20z"/><circle cx="7" cy="11.7" r="1.5"/><path d="M17 15s-4.5-4.6-4.5-8.3a4.5 4.5 0 0 1 9 0C21.5 10.4 17 15 17 15z"/><circle cx="17" cy="6.7" r="1.5"/></svg><strong>One with each seed</strong><span>Then any {m} of the places hold all you need to get your coins back.</span></div>
+  <div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.5"/><path d="M4 20 20 4"/></svg><strong>Private, not secret</strong><span>It can't move coins, but it shows your balance and every payment.</span></div>
+  <div><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9.5" r="2.5"/><path d="M15.5 14.4A5 5 0 0 1 21 19"/></svg><strong>Plan for heirs</strong><span>Someone you trust should know this sheet and the seeds exist, and where.</span></div>
+</div>
+</main>
+</body></html>
+"##,
             network = self.network,
             date = escape(&self.date),
-            address = escape(&self.first_address),
+            address = grouped(&self.first_address),
             descriptor = escape(&self.descriptor),
         )
     }
@@ -1291,12 +1370,15 @@ mod tests {
 
         // the sheet: every key, the first address, the descriptor (its <0;1> escaped), no secrets
         let html = b.html();
+        // keys and address come in groups of four: strip the tags to find them whole
+        let plain = html.replace("<i>", "").replace("</i>", "");
         for cs in &b.cosigners {
-            assert!(html.contains(&cs.fingerprint) && html.contains(&cs.xpub));
+            assert!(plain.contains(&cs.fingerprint) && plain.contains(&cs.xpub));
         }
-        assert!(html.contains(&b.first_address) && html.contains("2026-11-28") && html.contains("2 of 3 multisig"));
+        assert!(plain.contains(&b.first_address) && html.contains("2026-11-28") && html.contains("Sign with any 2"));
         assert!(html.contains(&a.descriptor.replace('<', "&lt;").replace('>', "&gt;")) && !html.contains("<0;1>"));
         assert!(html.contains("No seed or private key") && html.contains("only 2 of the 3 seeds") && html.contains("<svg"));
+        assert!(html.contains(&format!("<i>{}</i><i>{}</i>", &b.cosigners[0].fingerprint[..4], &b.cosigners[0].fingerprint[4..])));
         assert!(!html.contains("tprv") && !html.contains("src=") && !html.contains("<link"));
 
         // n of n: no "only" line; one signer: nothing to back up
