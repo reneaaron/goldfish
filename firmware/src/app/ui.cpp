@@ -480,6 +480,9 @@ static bool ms_confirmed;
 static bool ms_scan;          // the scanner was opened from the Multisig screen: back there
 static bool pass_from_scan;   // Passphrase was opened from the scanner: back there
 static bool pass_asked;       // the scanner asked about a passphrase already
+static bool pass_from_ms;     // Passphrase was opened from the Multisig screen: back there
+// Where Passphrase goes back to, applied or not.
+static UiScreen pass_back() { return pass_from_scan ? UI_SCAN : pass_from_ms ? UI_MULTISIG_OPTIONS : UI_WALLET; }
 
 static void ms_passphrase_apply() {
     pass_from_scan = true;
@@ -988,7 +991,7 @@ static void pass_apply() {
     lv_label_set_text(pass_note, "This takes a few seconds");
     lv_obj_align(pass_note, LV_ALIGN_BOTTOM_LEFT, 0, 0);
     lv_refr_now(nullptr);
-    if (wallet_set_passphrase(pass_buf)) { ui_goto(pass_from_scan ? UI_SCAN : UI_WALLET); return; }   // wipes pass_buf
+    if (wallet_set_passphrase(pass_buf)) { ui_goto(pass_back()); return; }   // wipes pass_buf
     pass_refresh();                            // the old key is still loaded: say so, keep the text
     lv_label_set_text(pass_note, "Couldn't apply it. Try again.");
     lv_obj_align(pass_note, LV_ALIGN_BOTTOM_LEFT, 0, 0);
@@ -998,7 +1001,7 @@ void ui_passphrase_key(const char *k) {
     if (ui_current() != UI_PASSPHRASE) return;
     size_t n = strlen(pass_buf);
     if (!strcmp(k, "OK")) {
-        if (!n && !wallet_has_passphrase()) { ui_goto(pass_from_scan ? UI_SCAN : UI_WALLET); return; }   // nothing to change
+        if (!n && !wallet_has_passphrase()) { ui_goto(pass_back()); return; }   // nothing to change
         // Every passphrase is valid and gives a wallet, so a typo can't be told
         // from the right one afterwards: the text to check, shown whatever
         // Show/Hide says, before the key is derived.
@@ -1038,7 +1041,7 @@ static void pass_toggle_cb(lv_event_t *) {
 
 static void build_passphrase() {
     lv_obj_t *scr = screen();
-    lv_obj_t *bar = topbar(scr, "Passphrase", pass_from_scan ? to_scan_cb : to_menu_cb);
+    lv_obj_t *bar = topbar(scr, "Passphrase", pass_from_scan ? to_scan_cb : pass_from_ms ? go_cb_multisig : to_menu_cb);
     pass_toggle = quiet_link(bar, "Hide", pass_toggle_cb, nullptr);
     lv_obj_align(pass_toggle, LV_ALIGN_RIGHT_MID, -4, 2);
 
@@ -1211,6 +1214,10 @@ static void build_export_xpub() {
 // to add to a new wallet (the standard BIP-48 one, on the Network setting's
 // network). With one in use: its details again, our key in it (at the path
 // the descriptor gives, whatever the Network setting says), and Leave.
+static void ms_passphrase_cb(lv_event_t *) {
+    pass_from_ms = true;
+    ui_goto(UI_PASSPHRASE);
+}
 static void ms_scan_cb(lv_event_t *) {
     ms_scan = true;
     ui_goto(UI_SCAN);
@@ -1229,19 +1236,19 @@ static void ms_leave_cb(lv_event_t *) {
         "Leave", ms_leave_apply);
 }
 
+// Under the key: the QR and the short key open the details, and nothing else says so.
+static const char *const KEY_TAP_HINT = "Tap for fingerprint and path";
 static void build_multisig_key() {
     const MsInfo *ms = multisig_info();
     if (ms) {
         if (!multisig_export_key(xpub, sizeof(xpub))) xpub[0] = 0;
-        char note[32];
-        snprintf(note, sizeof(note), ms->testnet ? "%d of %d multisig, testnet" : "%d of %d multisig", ms->m, ms->n);
-        build_key("Your key", go_cb_multisig, xpub, "Your key in this wallet", ms->testnet, note);
+        build_key("Your key", go_cb_multisig, xpub, "Your key in this wallet", ms->testnet, KEY_TAP_HINT);
         return;
     }
     if (!wallet_export_xpub(xpub, sizeof(xpub), true)) xpub[0] = 0;
     bool tn = wallet_testnet();
     build_key("Your key", go_cb_multisig, xpub, tn ? "Testnet multisig key" : "Your multisig key", tn,
-              "Add it to a new multisig wallet");
+              KEY_TAP_HINT);
 }
 
 // Fingerprints with "This seed" marked, and the first receive address: the
@@ -1255,22 +1262,25 @@ static void build_multisig_options() {
     struct Row { const char *icon, *title, *sub; lv_event_cb_t cb; void *ud; };
     if (!ms) {
         topbar(scr, "Multisig", to_menu_cb);
+        // Passphrase first: the key shown and the wallet scanned both depend on
+        // it. The same setting as in Wallet options, and back here afterwards.
         const Row rows[] = {
-            {ICON_CAMERA, "Scan wallet", "From your wallet app", ms_scan_cb, nullptr},
+            {ICON_SHIELD, "Passphrase", wallet_has_passphrase() ? "On, tap to change" : "Optional extra word",
+             ms_passphrase_cb, nullptr},
+            {ICON_CAMERA, "Load multisig", "Scan descriptor QR", ms_scan_cb, nullptr},
             {ICON_QR, "Show my key", "To add to a new wallet", go_cb, GO(UI_MULTISIG_KEY)},
         };
-        lv_obj_t *c = card(scr, CW, 2 * RH + 1);
+        const int n = 3;
+        lv_obj_t *c = card(scr, CW, n * RH + n - 1);
         lv_obj_set_style_pad_all(c, 0, 0);
         lv_obj_set_style_clip_corner(c, true, 0);
         lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 8);
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < n; i++) {
             if (i) divider(c, i * (RH + 1) - 1);
             lv_obj_t *r = list_row(c, rows[i].icon, rows[i].title, rows[i].sub, rows[i].cb, rows[i].ud);
             lv_obj_set_height(r, RH);
             lv_obj_align(r, LV_ALIGN_TOP_MID, 0, i * (RH + 1));
         }
-        lv_obj_align(para(scr, "Use a passphrase? Enter it before you scan.", &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0,
-                     BAR + 8 + 2 * RH + 1 + 16);
         show(scr);
         return;
     }
@@ -3940,6 +3950,7 @@ void ui_goto(UiScreen s) {
     if (s != UI_PASSPHRASE) pass_wipe();
     if (s != UI_EXPORT_XPUB && s != UI_MULTISIG_KEY) key_details = false;
     if (s != UI_PASSPHRASE && s != UI_SCAN) pass_from_scan = false;
+    if (s != UI_PASSPHRASE) pass_from_ms = false;
     if (s == UI_WALLET || s == UI_WALLET_OPTIONS || s == UI_HOME) ms_scan = false;
     // A scanned descriptor that wasn't confirmed on its screen is never used.
     if (s != UI_MULTISIG && !ms_confirmed) multisig_clear();

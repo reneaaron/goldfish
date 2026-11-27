@@ -114,7 +114,7 @@ def test_connect_wallet_shows_either_key(dev):
         if kind == "Multisig":
             dev.tap("Multisig")
             dev.tap("Show my key")
-            assert "Add it to a new multisig wallet" in dev.texts()
+            assert "Tap for fingerprint and path" in dev.texts()
         else:
             dev.tap("Connect wallet")
         shown = dev.read_qr()
@@ -265,7 +265,7 @@ def test_descriptor_goes_with_the_seed(dev):
 
 
 def test_multisig_screen(dev):
-    """Wallet options -> Multisig: with no wallet, Scan wallet and Show my
+    """Wallet options -> Multisig: with no wallet, Load multisig and Show my
     key; the scanner comes back to it, and then it shows the wallet in use.
     Leave multisig asks first; then the wallet is unknown again, with the
     seed still loaded."""
@@ -277,18 +277,34 @@ def test_multisig_screen(dev):
     dev.tap("Multisig")
     assert dev.screen == "MULTISIG_OPTIONS"
     assert "Leave multisig" not in dev.texts()   # nothing to leave yet
-    dev.tap("Scan wallet")
+    # Passphrase first, the same setting as in Wallet options, and back here.
+    assert dev.texts().index("Passphrase") < dev.texts().index("Load multisig")
+    assert "Optional extra word" in dev.texts()
+    dev.tap("Passphrase")
+    assert dev.screen == "PASSPHRASE"
+    dev.back()
+    assert dev.screen == "MULTISIG_OPTIONS"
+    dev.tap("Passphrase")
+    dev.key("x")
+    dev.key("OK")
+    dev.tap("Use")
+    assert dev.screen == "MULTISIG_OPTIONS" and "On, tap to change" in dev.texts()
+    dev.tap("Passphrase")
+    dev.key("OK")
+    dev.tap("Remove")
+    assert dev.screen == "MULTISIG_OPTIONS" and "Optional extra word" in dev.texts()
+    dev.tap("Load multisig")
     assert dev.screen == "SCAN"
     dev.back()
     assert dev.screen == "MULTISIG_OPTIONS"
-    dev.tap("Scan wallet")
+    dev.tap("Load multisig")
     scan_descriptor(dev, wallet.descriptor(), wallet)
     dev.tap("Use wallet")
 
-    # The wallet in use: its details again, and no second Scan wallet.
+    # The wallet in use: its details again, and no second Load multisig.
     assert dev.screen == "MULTISIG_OPTIONS", dev.text()
     text = dev.text()
-    assert "2 of 3 multisig" in text and "Scan wallet" not in text
+    assert "2 of 3 multisig" in text and "Load multisig" not in text
     assert "{FINGERPRINT}  This seed\n%s %s" % (SIGNER.fingerprint[:4], SIGNER.fingerprint[4:]) in text
     for fingerprint in wallet.fingerprints():
         assert "%s %s" % (fingerprint[:4], fingerprint[4:]) in text
@@ -309,7 +325,7 @@ def test_multisig_screen(dev):
 
     dev.tap("Leave multisig")
     dev.tap("Leave")
-    assert dev.screen == "MULTISIG_OPTIONS" and "Scan wallet" in dev.texts()
+    assert dev.screen == "MULTISIG_OPTIONS" and "Load multisig" in dev.texts()
     dev.back()
     dev.back()
     assert dev.screen == "WALLET" and "2 OF 3" not in dev.text()
@@ -331,12 +347,12 @@ def test_my_key_is_the_one_in_the_wallet(dev):
     dev.tap("Show my key")
     assert parse_key_export(dev.read_qr()) == (SIGNER.fingerprint, "48h/0h/0h/2h", SIGNER.key("48h/0h/0h/2h"))
     dev.back()
-    dev.tap("Scan wallet")
+    dev.tap("Load multisig")
     scan_descriptor(dev, wallet.descriptor(), wallet)
     dev.tap("Use wallet")
     dev.scroll_down()
     dev.tap("Show my key")
-    assert "Your key in this wallet" in dev.texts() and "2 of 3 multisig, testnet" in dev.texts()
+    assert "Your key in this wallet" in dev.texts() and "Tap for fingerprint and path" in dev.texts()
     assert parse_key_export(dev.read_qr()) == (SIGNER.fingerprint, path, SIGNER.key(path))
     dev.back()
     assert dev.screen == "MULTISIG_OPTIONS"
@@ -370,7 +386,7 @@ def test_passphrase_is_asked_about(dev):
     loaded(dev)
     dev.tap("Wallet options")
     dev.tap("Multisig")
-    dev.tap("Scan wallet")
+    dev.tap("Load multisig")
     dev.scan(wallet.descriptor())
     assert "Do you use a passphrase?" in dev.text()
     dev.tap("Cancel")
@@ -378,7 +394,7 @@ def test_passphrase_is_asked_about(dev):
     dev.scan(wallet.descriptor())
     assert "Do you use a passphrase?" not in dev.text()   # once is enough
     dev.back()
-    dev.tap("Scan wallet")
+    dev.tap("Load multisig")
     dev.scan(wallet.descriptor())
     dev.tap("Enter it")
     assert dev.screen == "PASSPHRASE"

@@ -16,7 +16,7 @@
 //   A confirmation over the screen comes before: a passphrase is applied or removed, the key
 //        switches network, the words entered so far are dropped, a multisig wallet is left
 //   Wallet options -> Multisig (a screen, not a mode):
-//        none loaded: Scan wallet (the scanner) | Show my key (BIP-48, the Network setting's network)
+//        none loaded: Passphrase (as in Wallet options, back here) | Load multisig (the scanner) | Show my key (BIP-48, the Network setting's network)
 //        one in use: its M of N, fingerprints and first address | Show my key (the one at the
 //        descriptor's path) | Leave multisig (asks first; forgets the descriptor, not the seed)
 //   Multisig wallet: the wallet's descriptor QR on the scanner (from Multisig, or Scan QR)
