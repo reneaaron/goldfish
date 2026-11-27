@@ -33,6 +33,15 @@ v4l = "0.14"
 base64 = "0.22"
 bdk_electrum = "0.24"
 tauri-plugin-opener = "2.7"
+age = { version = "0.11", default-features = false }
 
 [dev-dependencies]
 bdk_wallet = { version = "3.2", features = ["keys-bip39"] }
+
+# Unoptimized, the password's scrypt makes a dev build slow to unlock.
+[profile.dev.package.scrypt]
+opt-level = 3
+[profile.dev.package.salsa20]
+opt-level = 3
+[profile.dev.package.sha2]
+opt-level = 3

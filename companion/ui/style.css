@@ -29,7 +29,7 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; background: var(--bg); color: var(--text); }
-body { font: 15px/1.4 var(--sans); }
+body { font: 15px/1.4 var(--sans); -webkit-font-smoothing: antialiased; }
 main { max-width: 420px; margin: 0 auto; padding: 16px; }
 p { margin: 0; }
 b { font-weight: 600; color: var(--text); }
@@ -98,7 +98,7 @@ button.wide { width: 100%; }
 .list .amt.in { color: var(--green); }
 .list:empty { display: none; }
 
-.qr { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; margin: 8px auto 0; max-width: 300px; }
+.qr { background: var(--surface); border-radius: var(--radius); padding: 10px; margin: 8px auto 0; max-width: 300px; }
 .qr svg { display: block; width: 100%; height: auto; stroke: none; }
 .addr { text-align: center; word-break: normal; max-width: 300px; margin-left: auto; margin-right: auto; font-size: 15px; margin-top: 4px; line-height: 1.6; }
 
@@ -260,13 +260,12 @@ main > #v-wallet { min-height: 0; }
   main > section:not(#v-wallet) {
     max-width: 480px; width: 100%; margin: 12px auto; min-height: min(720px, calc(100vh - 80px));
     background: var(--surface); border: 1px solid var(--border); border-radius: 24px;
-    padding: 12px 28px 20px; box-shadow: 0 12px 40px rgba(20, 34, 43, .06);
+    --pad-b: 20px; padding: 12px 28px var(--pad-b); box-shadow: 0 12px 40px rgba(20, 34, 43, .06);
   }
   main > section:not(#v-wallet) .actions { background: linear-gradient(to bottom, transparent, var(--surface) 18px); }
   /* white on white: the inner cards and fields take the page grey instead */
-  main > section:not(#v-wallet) :is(.card, .qr, .steps, .panel, .sig-status, input, textarea, .unit, .chips button) { background: var(--bg); }
+  main > section:not(#v-wallet) :is(.card, .steps, .panel, .sig-status, input, textarea, .unit, .chips button) { background: var(--bg); }
   main > section:not(#v-wallet) .unit input { background: none; }
-  main > section:not(#v-wallet) .qr { background: #fff; }
 }
 
 /* small monospaced text (BTC line, IDs, times, fee rates) in the regular
@@ -301,10 +300,16 @@ html, body { overflow-x: clip; }
 #backdrop { position: fixed; inset: 0; z-index: 20; background: rgba(20, 34, 43, .32); }
 @media (min-width: 900px) {
   body.dialog-open main > section:not(#v-wallet) {
-    position: fixed; z-index: 21; left: 50%; top: 50%; transform: translate(-50%, -50%);
-    margin: 0; width: min(480px, calc(100vw - 48px)); min-height: 0; max-height: calc(100vh - 48px);
+    position: fixed; z-index: 21; inset: 0; height: fit-content; /* centred by margin: auto, not a
+    translate(-50%), which can land text on half pixels */
+    margin: auto; width: min(480px, calc(100vw - 48px)); min-height: 0; max-height: calc(100vh - 48px);
     overflow-y: auto; overscroll-behavior: contain;
     box-shadow: 0 24px 64px rgba(20, 34, 43, .22);
+  }
+  /* sticky pins to the scroller's padding edge: cover the bottom padding
+     too, or content scrolls through below the button */
+  body.dialog-open main > section:not(#v-wallet) .actions {
+    bottom: calc(-1 * var(--pad-b)); margin-bottom: calc(-1 * var(--pad-b)); padding-bottom: calc(8px + var(--pad-b));
   }
   body.dialog-open { overflow: hidden; }
 }
@@ -335,7 +340,10 @@ html, body { overflow-x: clip; }
 /* Settings: Save belongs to the server fields; Forget is a quiet text action */
 #set-save { margin-top: 4px; }
 #set-form .ok { margin-top: 10px; }
-.danger-zone { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--border); }
+.danger-zone, .pw-zone { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--border); }
+.pw-zone .hint { margin: 8px 0 14px; }
+.pw-zone #pw-remove { margin-top: 10px; }
+#unlock-reset-hint { text-align: center; margin: 0; }
 .danger-zone .hint { margin: 8px 0 4px; }
 button.link.danger { color: var(--red); padding: 4px 0; font-size: 14px; justify-content: flex-start; }
 #v-receive .addr-block { margin-top: 12px; }
@@ -372,3 +380,30 @@ button.link.danger { color: var(--red); padding: 4px 0; font-size: 14px; justify
 #sign-part, #sh-part { font-variant-numeric: tabular-nums; }
 .caption.gf-cap { width: fit-content; margin: 10px auto 0; padding: 6px 14px 6px 10px; border-radius: 999px;
   background: var(--gf-wash); border: 1px solid var(--gf-edge); color: var(--text-2); font-size: 13px; }
+
+/* First use: four dots under the mark for the steps after the welcome, and
+   big choice cards (how many signers, which server) */
+.onboard-top { flex-direction: column; align-items: center; gap: 16px; }
+.wz-dots { display: flex; gap: 6px; }
+.wz-dots i { width: 22px; height: 4px; border-radius: 2px; background: var(--surface-2); }
+.wz-dots i.on { background: var(--accent); }
+.onboard .label { margin: 0 0 10px; }
+.steps.ticks li::before { content: "✓"; background: var(--green-dim); color: var(--green); }
+.choices { display: flex; flex-direction: column; gap: 10px; }
+.choice { width: 100%; height: auto; padding: 14px 16px; justify-content: flex-start; gap: 14px; text-align: left; font-weight: 400; background: var(--surface); border: 1px solid var(--border); }
+.choice .ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none; background: var(--accent-dim); color: var(--accent); }
+.choice > span:last-child { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.choice b { font-size: 16px; }
+.choice small { color: var(--text-2); font-size: 14px; line-height: 1.4; }
+.choice:hover { border-color: var(--text-3); }
+.choice[aria-pressed="true"] { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
+#wz-own { margin-top: 16px; }
+#wz-own .field { margin-bottom: 0; }
+#wz-own .field-hint { margin: 0; }
+#wz-done .gf-hint { margin: 0 0 16px; }
+#wz-done .qr { max-width: 240px; }
+#wz-done .addr { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 10px; margin-top: 14px; }
+#wz-done .addr .alt { color: var(--text-3); }
+@media (min-width: 900px) {
+  main > section:not(#v-wallet) .choice { background: var(--bg); }
+}

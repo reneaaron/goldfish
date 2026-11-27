@@ -343,6 +343,16 @@ impl Backend {
         Ok(tx.compute_txid())
     }
 
+    /// The server's chain, from its genesis block, has to be the wallet's:
+    /// a mainnet server shows a test wallet empty, and the other way round.
+    pub fn check_network(&self, network: Network) -> Res<()> {
+        let genesis = match self {
+            Backend::Esplora(c) => c.get_block_hash(0).map_err(err)?,
+            Backend::Electrum(c) => c.inner.block_header(0).map_err(err)?.block_hash(),
+        };
+        network_mismatch(genesis, network).map_or(Ok(()), Err)
+    }
+
     pub fn fee_rates(&self) -> Res<FeeRates> {
         let at = |target: u16| -> Res<f64> {
             match self {
@@ -370,6 +380,21 @@ impl Backend {
         let round = |r: f64| (r * 10.0).ceil() / 10.0;
         let (fast, normal, slow) = (at(1)?, at(6)?, at(144)?);
         Ok(FeeRates { fast: round(fast), normal: round(normal.min(fast)), slow: round(slow.min(normal)) })
+    }
+}
+
+/// Test networks all count as one: a test key doesn't say which.
+fn network_mismatch(genesis: BlockHash, network: Network) -> Option<String> {
+    use bdk_wallet::bitcoin::constants::genesis_block;
+    let server = [Network::Bitcoin, Network::Testnet, Network::Testnet4, Network::Signet, Network::Regtest]
+        .into_iter()
+        .find(|n| genesis_block(*n).block_hash() == genesis);
+    let name = |n: Network| if n == Network::Bitcoin { "mainnet".to_string() } else { n.to_string() };
+    match server {
+        Some(s) if (s == Network::Bitcoin) == (network == Network::Bitcoin) => None,
+        Some(s) => Some(format!("This server is on {}, but this wallet is on {}.", name(s), name(network))),
+        None if network == Network::Bitcoin => Some("This server isn't on mainnet.".into()),
+        None => None, // a custom signet
     }
 }
 
@@ -775,6 +800,54 @@ pub fn psbt_from_base64(s: &str) -> Res<Psbt> {
     Psbt::deserialize(&B64.decode(s.trim()).map_err(err)?).map_err(err)
 }
 
+/// scrypt's cost for the password: 2^18 (256 MiB; well under a second on a
+/// desktop, slow enough to make guessing expensive). Fixed,
+/// not age's default of timing this computer: a file locked on a fast, idle
+/// machine would otherwise be refused as too much work on a slow or busy one.
+const SCRYPT_LOG_N: u8 = 18;
+
+/// `plain` locked with `password`: the age format, scrypt passphrase.
+pub fn seal(plain: &[u8], password: &str) -> Res<Vec<u8>> {
+    let mut recipient = age::scrypt::Recipient::new(password.to_owned().into());
+    recipient.set_work_factor(SCRYPT_LOG_N);
+    age::encrypt(&recipient, plain).map_err(err)
+}
+
+pub fn unseal(sealed: &[u8], password: &str) -> Res<Vec<u8>> {
+    let mut identity = age::scrypt::Identity::new(password.to_owned().into());
+    identity.set_max_work_factor(SCRYPT_LOG_N);
+    age::decrypt(&identity, sealed).map_err(|e| match e {
+        age::DecryptError::DecryptionFailed | age::DecryptError::NoMatchingKeys => "wrong password".into(),
+        e => err(e),
+    })
+}
+
+/// Save the settings in `dir`: settings.json, or with a password, locked in
+/// settings.age. `remove_other_settings` then deletes the other one.
+pub fn write_settings(dir: &std::path::Path, plain: &[u8], password: Option<&str>) -> Res<()> {
+    let (bytes, ext) = match password {
+        Some(pw) => (seal(plain, pw)?, "age"),
+        None => (plain.to_vec(), "json"),
+    };
+    std::fs::create_dir_all(dir).map_err(err)?;
+    let path = dir.join("settings").with_extension(ext);
+    // write a copy, then swap it in: a crash mid-write can't eat the saved wallet
+    let tmp = path.with_extension(format!("{ext}.tmp"));
+    std::fs::write(&tmp, bytes).map_err(err)?;
+    std::fs::rename(&tmp, &path).map_err(err)
+}
+
+/// After `write_settings`, so only one of the two files is ever there.
+pub fn remove_other_settings(dir: &std::path::Path, locked: bool) -> Res<()> {
+    let other = dir.join("settings").with_extension(if locked { "json" } else { "age" });
+    match std::fs::remove_file(&other) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+            Err(format!("saved, but couldn't delete the old {}: {e}", other.display()))
+        }
+        _ => Ok(()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -848,6 +921,23 @@ mod tests {
         // building an Esplora client doesn't touch the network
         let esplora = ServerConfig { url: "https://mempool.space/signet/api".into(), proxy: String::new() };
         assert!(matches!(esplora.connect(Network::Signet), Ok(Backend::Esplora(_))));
+    }
+
+    #[test]
+    fn server_on_another_chain_is_refused() {
+        use bdk_wallet::bitcoin::constants::genesis_block;
+        let g = |n: Network| genesis_block(n).block_hash();
+        assert_eq!(
+            network_mismatch(g(Network::Bitcoin), Network::Signet).unwrap(),
+            "This server is on mainnet, but this wallet is on signet."
+        );
+        assert!(network_mismatch(g(Network::Signet), Network::Bitcoin).unwrap().contains("on signet"));
+        assert!(network_mismatch("00".repeat(32).parse::<BlockHash>().unwrap(), Network::Bitcoin).is_some());
+        for n in [Network::Signet, Network::Testnet4, Network::Regtest] {
+            assert!(network_mismatch(g(n), Network::Signet).is_none(), "{n}");
+        }
+        assert!(network_mismatch(g(Network::Bitcoin), Network::Bitcoin).is_none());
+        assert!(network_mismatch("00".repeat(32).parse::<BlockHash>().unwrap(), Network::Signet).is_none());
     }
 
     #[test]
@@ -1060,4 +1150,33 @@ mod tests {
         assert!(!bad.connect(Network::Signet).err().unwrap_or_default().contains("SOCKS5 proxy, like"));
     }
 
+    #[test]
+    fn sealed_settings_open_only_with_the_password() {
+        let plain = br#"{"key":"[73c5da0a/84h/0h/0h]zpub...","server":{"url":"","proxy":""}}"#;
+        let sealed = seal(plain, "correct horse").unwrap();
+        assert!(sealed.starts_with(b"age-encryption.org/v1"));
+        assert!(!sealed.windows(4).any(|w| w == b"zpub"));
+        assert_eq!(unseal(&sealed, "correct horse").unwrap(), plain);
+        assert_eq!(unseal(&sealed, "wrong horse").unwrap_err(), "wrong password");
+    }
+
+    #[test]
+    fn a_password_swaps_the_plain_file_for_a_locked_one() {
+        let dir = std::env::temp_dir().join(format!("companion-settings-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let plain = br#"{"key":"k"}"#;
+        let save = |pw: Option<&str>| {
+            write_settings(&dir, plain, pw).unwrap();
+            remove_other_settings(&dir, pw.is_some()).unwrap();
+        };
+        save(None);
+        assert_eq!(std::fs::read(dir.join("settings.json")).unwrap(), plain);
+        save(Some("pw"));
+        assert!(!dir.join("settings.json").exists());
+        assert_eq!(unseal(&std::fs::read(dir.join("settings.age")).unwrap(), "pw").unwrap(), plain);
+        save(None);
+        assert!(!dir.join("settings.age").exists());
+        assert_eq!(std::fs::read(dir.join("settings.json")).unwrap(), plain);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }
