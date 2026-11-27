@@ -6,12 +6,8 @@ the training strips (EMNIST capitals, handwriting fonts), but a fixed seed.
 Run from firmware/handwriting:
   uv run --with-requirements requirements.txt python make_page.py --emnist <byclass npz> --fonts <dir> \
       --out ../sim/samples/handwritten_page.png
-Prints the words. The browser simulator (the landing page) uses a 12-word page of the
-"height demise" test seed, so it signs the same transaction as the SeedQR; the firmware
-reads this layout 12 of 12 (most don't: try other --seed values after a model change):
-  ... make_page.py --emnist ... --fonts ... --words 12 --seed 20 --pad 80 \
-      --mnemonic "height demise useless trap grow lion found off key clown transfer enroll" \
-      --out ../sim/samples/handwritten_page_demo.png
+Prints the words. The browser simulator's demo backup is a filled-in word card
+instead: make_card.py.
 """
 import argparse
 import glob

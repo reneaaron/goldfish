@@ -15,6 +15,7 @@ device; it needs Python with PyTorch (a GPU helps, a CPU works).
 | `export_words.py` | Folds batch norm, quantises to int8 weights / int16 activations, writes `src/app/word_model.h` and `test/fixtures/word_vectors.h`, and checks the integer model against the float one |
 | `model/words.pt` | The checkpoint `word_model.h` was exported from: start fine-tuning here |
 | `make_page.py` | The synthetic test page `sim/samples/handwritten_page.png` |
+| `make_card.py` | The landing page's demo backup `sim/samples/handwritten_page_demo.png`: the project's word card (`cards/`), filled in |
 | `page_cli.cpp`, `build.sh` | The firmware's page + word reader, built natively |
 | `eval_pages.py` | Scores the firmware end to end (photo in, words out) on labelled photos |
 | `evalset/labels.json` | 16 web photos of handwritten demo seeds (348 words): source pages, image links, word boxes |

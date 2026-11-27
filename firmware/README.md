@@ -104,8 +104,9 @@ so until the view changes. It
 then takes one picture and finds the words (`src/app/page_reader.cpp`: the paper's
 brightness, how dark the page's darkest strokes are (so a hard pencil still
 counts as ink), the photo's tilt, ruled and margin lines erased, blobs of ink
-grouped into words, a row number joined to its word, reading order by columns
-then rows), takes a second picture twice as sharp while you hold still (about
+grouped into words, a row number joined to its word, the corners of a card or
+page on a dark table and a heading over the list (a printed card's
+"FINGERPRINT" label, a title) left out, reading order by columns then rows), takes a second picture twice as sharp while you hold still (about
 a second) and cuts each word's strip from it, where the word really is in that
 later frame: around each word it is slid against the first picture, up to 6
 preview pixels each way, and the best match wins (a hand moves between
@@ -475,8 +476,9 @@ Camera: the simulator "sees" the image at `sim/camera.png` (or
 cp sim/samples/handwritten_page_demo.png sim/camera.png
 ```
 
-`sim/samples` holds handwritten test pages (`handwritten_page_demo.png`, the
-12 words of the height demise test seed; `handwritten_page.png`, 24 words),
+`sim/samples` holds handwritten test backups (`handwritten_page_demo.png`, a
+word card from [`cards/`](../cards) with the 12 words of the height demise test seed;
+`handwritten_page.png`, a page of 24 words),
 SeedSigner's public test SeedQRs, a photo of a stamped plate, and `testseed_height_demise_*` / `testpsbt_height_demise_base64.png`, a
 matching seed and testnet PSBT from SeedSigner's tests for trying the signing
 flow. `mainpsbt_height_demise_base64.png` is the same transaction on mainnet
@@ -503,7 +505,7 @@ camera and secure boot only show up on the real board.
 The same `src/app`, compiled to WebAssembly with Emscripten, with `src/web`
 in place of `src/sim`: the screen is a `<canvas>`, the pointer is the touch
 screen, and the camera sees a picture the page hands it (one of a few
-`sim/samples`: a handwritten page of the test seed, `handwritten_page_demo.png`, which the
+`sim/samples`: a filled-in word card of the test seed, `handwritten_page_demo.png`, which the
 firmware reads 12 of 12, and a transaction for it). It runs on the website's hero device
 after "Plug it in" ([`web/sim.js`](web/sim.js)); Unplug stops it and zeroes its
 memory. Needs `emcc` (emsdk 4.0.10).

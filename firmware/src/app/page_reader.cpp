@@ -11,6 +11,7 @@ static const uint8_t *img;
 static int W, H, gw, gh;
 static uint8_t *bg;   // paper brightness per BLK x BLK block
 static uint8_t *on_page;   // per block: 1 where the page is (not the desk or table around it)
+static uint8_t *on_core;   // per block: 1 where the page is, without the block added round its edge
 static int paper_ref;  // the picture's paper brightness: what "dark" and "much darker" are relative to
 
 static void paper_levels() {
@@ -59,9 +60,10 @@ static void paper_reference() {
 static bool find_page() {
     int n = gw * gh;
     on_page = (uint8_t *)calloc(n, 1);
+    on_core = (uint8_t *)calloc(n, 1);
     int16_t *queue = (int16_t *)malloc(sizeof(int16_t) * 2 * n);
     uint8_t *comp = (uint8_t *)calloc(n, 1);   // 0 unseen, 1 seen, 2 the best area so far
-    if (!on_page || !queue || !comp) { free(queue); free(comp); return false; }
+    if (!on_page || !on_core || !queue || !comp) { free(queue); free(comp); return false; }
     int bright_min = paper_ref * 7 / 10, best = 0, bright = 0;
     for (int i = 0; i < n; i++) bright += bg[i] >= bright_min;
     for (int start = 0; start < n; start++) {
@@ -88,6 +90,7 @@ static bool find_page() {
         if (size > best) best = size;
     }
     bool whole = best * 5 < bright;   // no single area: keep every bright block
+    for (int i = 0; i < n; i++) on_core[i] = whole ? bg[i] >= bright_min : comp[i] == 2;
     for (int by = 0; by < gh; by++)
         for (int bx = 0; bx < gw; bx++) {
             bool in = false;
@@ -256,6 +259,7 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
     paper_reference();
     if (!find_page() || !ink_contrast()) {
         free(on_page); on_page = nullptr;
+        free(on_core); on_core = nullptr;
         free(ink_frac); ink_frac = nullptr;
         secure_zero(bg, gw * gh); free(bg); bg = nullptr;
         return false;
@@ -384,9 +388,22 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
                 int mh = (p.v1 - p.v0) < (q.v1 - q.v0) ? (p.v1 - p.v0) : (q.v1 - q.v0);
                 if (ov * 5 >= mh * 2) lunite(i, j);
             }
+        // A letter next to the table round the page (see the corners, below).
+        auto at_edge = [&](const Blob &q) {
+            const int pad = BLK / 2;   // the corner's shadow reaches past the block
+            for (int k = 0; k < 4; k++) {
+                float fu = (k & 1 ? q.u1 + pad : q.u0 - pad) + umin, fv = (k & 2 ? q.v1 + pad : q.v0 - pad) + vmin;
+                int x = int(fu * c - fv * s), y = int(fu * s + fv * c);
+                if (x < 0 || y < 0 || x >= W || y >= H) return true;
+                int b = (y / BLK) * gw + x / BLK;
+                if (!on_core[b] && bg[b] < paper_ref / 2) return true;   // a dark table, not a shadow on the paper
+            }
+            return false;
+        };
         for (int i = 0; i < nl && page->n < PAGE_MAX_WORDS; i++) {
             if (lfind(i) != i) continue;
             Blob wb = letters[i];
+            bool inside = !at_edge(letters[i]);
             for (int j = 0; j < nl; j++)
                 if (j != i && lfind(j) == i) {
                     const Blob &q = letters[j];
@@ -394,12 +411,14 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
                     if (q.u1 > wb.u1) wb.u1 = q.u1;
                     if (q.v0 < wb.v0) wb.v0 = q.v0;
                     if (q.v1 > wb.v1) wb.v1 = q.v1;
+                    inside |= !at_edge(q);
                 }
             int ww = wb.u1 - wb.u0 + 1, wh = wb.v1 - wb.v0 + 1;
             if (ww < lh * 8 / 10 || wh < lh / 2) continue;   // a lone speck or dash
             PageWord &pw = page->words[page->n++];
             pw.u0 = wb.u0 + umin; pw.u1 = wb.u1 + 1 + umin;
             pw.v0 = wb.v0 + vmin; pw.v1 = wb.v1 + 1 + vmin;
+            pw.edge = !inside;
         }
         if (!page->n) goto done;
 
@@ -424,6 +443,7 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
             b.u0 = a.u0;
             b.v0 = fminf(a.v0, b.v0);
             b.v1 = fmaxf(a.v1, b.v1);
+            b.edge = b.edge && a.edge;
             page->words[i] = page->words[--page->n];
             i = -1;   // indexes moved: start over (a page has few words)
         }
@@ -434,9 +454,14 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
         // that reaches both up and down ("day") is tall for its width too, so
         // a piece wider than one and a half letters stays, marked unsure: on a
         // busy photo most such pieces are strays, which only the reader tells apart.
+        // A short piece whose letters all touch the dark table round the page
+        // is its corner: a card or page lying on a table, whose rounded corner
+        // and shadow are darker than the paper next to them, and curved, so
+        // not erased as a line. A word there is longer, or reaches further in.
         int k = 0;
         for (int i = 0; i < page->n; i++) {
             float ww = page->words[i].u1 - page->words[i].u0;
+            if (page->words[i].edge && ww < 2.5f * (page->words[i].v1 - page->words[i].v0)) continue;
             bool wide = ww >= 1.2f * (page->words[i].v1 - page->words[i].v0);
             if (wide || ww >= 1.5f * letter_h) {
                 page->words[i].unsure = !wide;
@@ -448,7 +473,8 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
     }
     {
         // columns: where words sit across all rows, merged where they overlap.
-        // Unsure pieces (mostly strays) don't make columns; one outside them is dropped.
+        // Unsure pieces (mostly strays) and pieces on the page's edge don't
+        // make columns; one outside them is dropped.
         static float cu0[PAGE_MAX_WORDS], cu1[PAGE_MAX_WORDS];
         int nc = 0;
         int idx[PAGE_MAX_WORDS];
@@ -459,7 +485,7 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
             }
         for (int k = 0; k < page->n; k++) {
             const PageWord &pw = page->words[idx[k]];
-            if (pw.unsure) continue;
+            if (pw.unsure || pw.edge) continue;
             if (nc && pw.u0 <= cu1[nc - 1]) { if (pw.u1 > cu1[nc - 1]) cu1[nc - 1] = pw.u1; }
             else { cu0[nc] = pw.u0; cu1[nc] = pw.u1; nc++; }
         }
@@ -470,7 +496,7 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
             int col = -1;
             for (int k = 0; k < nc; k++)
                 if (mid >= cu0[k] && mid <= cu1[k]) col = k;
-            if (col < 0 && pw.unsure) continue;
+            if (col < 0 && (pw.unsure || pw.edge)) continue;
             if (col >= 0) pw.column = col;
             page->words[kept++] = pw;
         }
@@ -484,6 +510,48 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
                 if (!before) break;
                 PageWord t2 = p0; p0 = p1; p1 = t2;
             }
+
+        // per column, for the heading and the gaps below
+        static float steps[PAGE_MAX_WORDS], hts[PAGE_MAX_WORDS], u0s[PAGE_MAX_WORDS];   // not on the stack
+
+        // A heading: a column's first piece, small and about one and a half
+        // rows above the list (a printed label like a card's "FINGERPRINT"),
+        // or not lined up with the words below, further above than a row but
+        // not far enough to be a missing word (a title, a fingerprint written
+        // over the list). Only in columns of at least 4 words, whose spacing
+        // is known.
+        {
+            int kept2 = 0;
+            for (int i = 0; i < page->n;) {
+                int j = i, cn = 0, first = -1, second = -1, prev = -1;
+                while (j < page->n && page->words[j].column == page->words[i].column) j++;
+                for (int k = i; k < j; k++) {
+                    const PageWord &q = page->words[k];
+                    if (q.unsure) continue;
+                    hts[cn] = q.v1 - q.v0;
+                    u0s[cn] = q.u0;
+                    if (prev >= 0) steps[cn - 1] = (q.v0 + q.v1) / 2 - (page->words[prev].v0 + page->words[prev].v1) / 2;
+                    if (first < 0) first = k; else if (second < 0) second = k;
+                    prev = k;
+                    cn++;
+                }
+                int drop = -1;
+                if (cn >= 5) {   // the heading and at least 4 words
+                    qsort(steps + 1, cn - 2, sizeof(float), cmp_float);   // the spacing without the heading's
+                    qsort(hts, cn, sizeof(float), cmp_float);
+                    qsort(u0s, cn, sizeof(float), cmp_float);
+                    float step = steps[1 + (cn - 2) / 2], ht = hts[cn / 2], u0 = u0s[cn / 2];
+                    const PageWord &f = page->words[first], &g = page->words[second];
+                    float gap = (g.v0 + g.v1) / 2 - (f.v0 + f.v1) / 2;
+                    bool small = f.v1 - f.v0 < 0.7f * ht, apart = fabsf(f.u0 - u0) > 2 * ht;
+                    if ((small && gap >= 1.45f * step) || (apart && gap >= 1.25f * step && gap < 1.6f * step)) drop = first;
+                }
+                for (int k = i; k < j; k++)
+                    if (k != drop) page->words[kept2++] = page->words[k];
+                i = j;
+            }
+            page->n = kept2;
+        }
 
         // Gaps: a column's words sit at a steady row spacing; a step of about
         // two (or three) rows is a word that wasn't found (too faint, or broken
@@ -510,7 +578,6 @@ bool page_find(const uint8_t *gray, int w, int h, Page *page) {
             int j = i;
             while (j < page->n && page->words[j].column == page->words[i].column) j++;
             int cn = 0, prev = -1;   // the column's sure words, the last one seen
-            static float steps[PAGE_MAX_WORDS], hts[PAGE_MAX_WORDS], u0s[PAGE_MAX_WORDS];   // not on the stack
             for (int k = i; k < j; k++) {
                 const PageWord &q = page->words[k];
                 if (q.unsure) continue;
@@ -590,6 +657,7 @@ done:
     if (map) { secure_zero(map, (size_t)stride * nv); free(map); }
     if (bg) { secure_zero(bg, gw * gh); free(bg); bg = nullptr; }
     if (on_page) { free(on_page); on_page = nullptr; }
+    if (on_core) { free(on_core); on_core = nullptr; }
     if (ink_frac) { free(ink_frac); ink_frac = nullptr; }
     return ok;
 }
