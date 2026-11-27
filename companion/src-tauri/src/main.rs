@@ -510,8 +510,9 @@ fn firmware_check(state: State<Shared>) -> Res<firmware::Release> {
     Ok(release)
 }
 
-/// The board's RP2350 drive, once Goldfish restarted into it.
-#[tauri::command]
+/// The board's RP2350 drive, once Goldfish restarted into it. Off the main
+/// thread: a mount going away as the board restarts can block for a moment.
+#[tauri::command(async)]
 fn firmware_drive() -> Option<String> {
     firmware::find_drive(&firmware::mount_roots()).map(|p| p.display().to_string())
 }

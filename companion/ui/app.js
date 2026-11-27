@@ -14,6 +14,7 @@ let frameTimer = null;
 let scanning = false;
 let fwTimer = null; // looks for Goldfish's RP2350 drive while Update is open
 let fwRelease = null; // the checked release, once downloaded
+let fwBusy = false; // copying: drive polls still in flight must not touch the button
 
 // On a wide window the wallet stays put and every other screen opens as a
 // dialog over it; on a narrow one each screen takes the whole window.
@@ -624,6 +625,7 @@ function upGo(name) {
   if (name === "connect") {
     const poll = async () => {
       const drive = await invoke("firmware_drive");
+      if (fwBusy || upStep !== "connect") return;
       $("up-status").textContent = drive ? "Found Goldfish in update mode." : "Looking for Goldfish…";
       $("up-status").classList.toggle("found", !!drive);
       button($("up-btn"), `Install ${fwRelease.tag}`, !drive);
@@ -634,15 +636,18 @@ function upGo(name) {
 }
 $("set-update").onclick = () => {
   show("update");
-  upGo(fwRelease ? "found" : "check");
+  upGo("check");
 };
 $("up-tag").onclick = () => window.__TAURI__.opener.openUrl(fwRelease.url).catch(error);
 $("up-btn").onclick = async () => {
   if (upStep === "check") {
     button($("up-btn"), "Downloading…", true);
     try {
-      fwRelease = await call("firmware_check");
-    } catch (_) {
+      fwRelease = await invoke("firmware_check");
+    } catch (e) {
+      // the network errors friendly() knows would point at the wallet's server
+      const offline = friendly(e)[0].startsWith("Can't reach");
+      error(offline ? "Can't reach GitHub. Check your internet connection, or the proxy in Settings." : e);
       button($("up-btn"), "Check for update", false);
       return;
     }
@@ -654,6 +659,7 @@ $("up-btn").onclick = async () => {
     upGo("connect");
   } else if (upStep === "connect") {
     clearInterval(fwTimer);
+    fwBusy = true;
     button($("up-btn"), "Installing…", true);
     $("up-status").textContent = "Keep Goldfish plugged in.";
     try {
@@ -661,6 +667,8 @@ $("up-btn").onclick = async () => {
     } catch (_) {
       upGo("connect");
       return;
+    } finally {
+      fwBusy = false;
     }
     $("up-done-text").textContent = `Goldfish restarts by itself. Its home screen should now show ${fwRelease.tag} in the corner.`;
     upGo("done");

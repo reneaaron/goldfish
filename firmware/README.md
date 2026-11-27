@@ -545,6 +545,11 @@ against the release's `SHA256SUMS` and attestation, and the page shows the
 file's version, commit and SHA-256. The page is untested on a
 real board (copying the file onto the drive by hand works).
 
+Dove, the companion app, does step 2 too (Settings → Update Goldfish): it
+downloads the latest release's `firmware.uf2`, checks it against the
+release's `SHA256SUMS` (not the attestation), waits for the `RP2350` drive
+and copies the file there; tested on a board (`companion/README.md`).
+
 Updating is the same steps with a newer file. Nothing is stored on the board,
 so there is nothing to migrate and an older version can be flashed back. The
 home screen shows the running version in the top right corner: the tag for a
