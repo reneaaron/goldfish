@@ -48,6 +48,22 @@ def test_passphrase_changes_the_picture(dev):
     for letter in "goldfish":
         dev.key(letter)
     dev.key("OK")
+    # Before it is used: the fingerprint it gives, with its picture, in the question.
+    assert dev.screen == "PASSPHRASE" and "Use this passphrase?" in dev.text()
+    assert "ffb9 e779" in dev.texts()
+    (pic,) = pictures(dev)
+    assert_is(dev, pic, "ffb9e779")
+    dev.tap("Cancel")                            # not wanted: nothing changes
+    dev.back()
+    assert dev.screen == "WALLET_OPTIONS"
+    dev.back()
+    assert "d4ff 2c22" in dev.text()
+    dev.tap("Wallet options")
+    dev.tap("Passphrase")
+    for letter in "goldfish":
+        dev.key(letter)
+    dev.key("OK")
+    dev.tap("Use")
     assert dev.screen == "WALLET" and "ffb9 e779" in dev.text()
     (pic,) = pictures(dev)
     assert_is(dev, pic, "ffb9e779")

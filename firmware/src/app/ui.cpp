@@ -56,13 +56,16 @@ void ui_confirm(bool yes) {
     void (*run)() = ask_run;
     if (!ask_scrim) return;
     ask_close();
+    if (!yes) wallet_passphrase_drop();   // a key derived to show its fingerprint, not wanted after all
     if (yes && run) run();
 }
 static void ask_no_cb(lv_event_t *) { ui_confirm(false); }
 static void ask_yes_cb(lv_event_t *) { ui_confirm(true); }
+static lv_obj_t *fingerprint_row(lv_obj_t *parent, const char *hex8, const char *spaced, lv_obj_t **label = nullptr);
 // mono: text to check character by character, shown as it is (not copied: it may be a secret).
+// fp_hex: a fingerprint (8 hex digits) the step leads to, shown with its picture.
 static void ask(const char *title, const char *body, const char *yes, void (*run)(), bool danger = false,
-                const char *mono = nullptr) {
+                const char *mono = nullptr, const char *fp_hex = nullptr) {
     ask_close();
     ask_run = run;
     ask_scrim = lv_obj_create(lv_layer_top());
@@ -85,6 +88,11 @@ static void ask(const char *title, const char *body, const char *yes, void (*run
         lv_obj_set_style_text_font(m, &mono_16, 0);
         lv_obj_set_style_text_color(m, TEXT, 0);
         lv_obj_set_width(m, IN);
+    }
+    if (fp_hex) {
+        char spaced[12];
+        snprintf(spaced, sizeof(spaced), "%.4s %.4s", fp_hex, fp_hex + 4);
+        fingerprint_row(c, fp_hex, spaced);
     }
     lv_obj_set_width(text(c, body, &inter_13, TEXT_2, LV_TEXT_ALIGN_LEFT), IN);
     lv_obj_t *row = lv_obj_create(c);
@@ -440,7 +448,7 @@ static lv_obj_t *life_pic_hex(lv_obj_t *parent, const char *hex8, int side = LIF
 }
 
 // The fingerprint's pill with its picture before it, as one row.
-static lv_obj_t *fingerprint_row(lv_obj_t *parent, const char *hex8, const char *spaced, lv_obj_t **label = nullptr) {
+static lv_obj_t *fingerprint_row(lv_obj_t *parent, const char *hex8, const char *spaced, lv_obj_t **label) {
     lv_obj_t *row = lv_obj_create(parent);
     lv_obj_remove_style_all(row);
     lv_obj_set_size(row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
@@ -1079,17 +1087,13 @@ static void pass_set_layer(int layer) {
     lv_buttonmatrix_set_ctrl_map(pass_kb, ctrl);
 }
 
-// "Use" / "Remove" on the confirmation: derive the key.
+// "Use" / "Remove" on the confirmation: the key is derived already (to show
+// its fingerprint there), so this is at once.
 static void pass_apply() {
     if (ui_current() != UI_PASSPHRASE) return;
     secure_zero(txt_ask, sizeof(txt_ask));
-    lv_label_set_text_static(pass_field, "Deriving key" "\xE2\x80\xA6");
-    lv_label_set_text(pass_note, "This takes a few seconds");
-    lv_obj_align(pass_note, LV_ALIGN_BOTTOM_LEFT, 0, 0);
-    lv_refr_now(nullptr);
-    if (wallet_set_passphrase(pass_buf)) { ui_goto(UI_WALLET); return; }   // wipes pass_buf
-    pass_refresh();                            // the old key is still loaded: say so, keep the text
-    lv_label_set_text(pass_note, "Couldn't apply it. Try again.");
+    if (wallet_passphrase_use()) { ui_goto(UI_WALLET); return; }   // wipes pass_buf
+    lv_label_set_text(pass_note, "Couldn't apply it. Try again.");   // the old key is still loaded
     lv_obj_align(pass_note, LV_ALIGN_BOTTOM_LEFT, 0, 0);
 }
 
@@ -1099,9 +1103,28 @@ void ui_passphrase_key(const char *k) {
     if (!strcmp(k, "OK")) {
         if (!n && !wallet_has_passphrase()) { ui_goto(UI_WALLET); return; }   // nothing to change
         // Every passphrase is valid and gives a wallet, so a typo can't be told
-        // from the right one afterwards: the text to check, shown whatever
-        // Show/Hide says, before the key is derived.
-        if (!n) { ask("Remove the passphrase?", "Back to the wallet of the seed alone.", "Remove", pass_apply); return; }
+        // from the right one afterwards. Before it is used: the text to check,
+        // shown whatever Show/Hide says, and the fingerprint it gives with its
+        // picture, to hold against the wallet app's. The key is derived for
+        // that now (seconds on the board), and kept aside until Use.
+        lv_label_set_text_static(pass_field, "Deriving key" "\xE2\x80\xA6");
+        lv_label_set_text(pass_note, "This takes a few seconds");
+        lv_obj_align(pass_note, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+        lv_refr_now(nullptr);
+        uint8_t f[4];
+        bool derived = wallet_passphrase_try(pass_buf, f);
+        pass_refresh();                        // the field as it was, under the question
+        if (!derived) {
+            lv_label_set_text(pass_note, "Couldn't derive the key. Try again.");
+            lv_obj_align(pass_note, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+            return;
+        }
+        char fp_hex[9];
+        snprintf(fp_hex, sizeof(fp_hex), "%02x%02x%02x%02x", f[0], f[1], f[2], f[3]);
+        if (!n) {
+            ask("Remove the passphrase?", "Back to the wallet of the seed alone.", "Remove", pass_apply, false, nullptr, fp_hex);
+            return;
+        }
         int o = 0;
         for (size_t i = 0; i < n; i++) {
             if (i && i % PASS_COLS == 0) txt_ask[o++] = '\n';
@@ -1110,7 +1133,7 @@ void ui_passphrase_key(const char *k) {
         txt_ask[o] = 0;
         char body[96];
         snprintf(body, sizeof(body), "%d character%s. A typo gives another wallet, with nothing in it.", (int)n, n == 1 ? "" : "s");
-        ask("Use this passphrase?", body, "Use", pass_apply, false, txt_ask);
+        ask("Use this passphrase?", body, "Use", pass_apply, false, txt_ask, fp_hex);
         return;
     }
     if (!strcmp(k, "Del")) { if (n) pass_buf[n - 1] = 0; }
@@ -3958,7 +3981,7 @@ void ui_goto(UiScreen s) {
     // Reading words keeps the camera on: a camera just woken gave blank frames, and the
     // sharp picture comes right after the still (the reading step stops it).
     if (s != UI_SCAN_SEED && s != UI_SCAN && s != UI_BACKUP_SCAN && s != UI_PAGE_FOUND) scan_stop(s != UI_PAGE_READING);
-    if (s != UI_PASSPHRASE) pass_wipe();
+    if (s != UI_PASSPHRASE) { pass_wipe(); wallet_passphrase_drop(); }
     if (s != UI_EXPORT_XPUB) key_details = false;
     // A scanned descriptor that wasn't confirmed on its screen is never used.
     if (s != UI_MULTISIG && !ms_confirmed) multisig_clear();

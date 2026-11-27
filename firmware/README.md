@@ -165,7 +165,10 @@ reading speed are unmeasured.
 Passphrase (in Wallet options) opens a keyboard for a BIP-39 passphrase (the "25th word"):
 letters, digits and all ASCII symbols, up to 64 characters, with a Show/Hide
 switch. OK shows the passphrase once more, in full, to confirm: every passphrase
-gives a wallet, so a typo can't be told from the right one afterwards. Then the
+gives a wallet, so a typo can't be told from the right one afterwards. With it comes the
+fingerprint that passphrase gives and its LifeHash, to hold against the wallet
+app's before it is used: the key is derived for that first (a few seconds on
+the board), and Use then applies it at once. Then the
 key is derived again (a few seconds on the board, like loading), back to Wallet
 with the fingerprint of seed plus passphrase, to check against the wallet app.
 An empty passphrase removes it, also once confirmed. The
