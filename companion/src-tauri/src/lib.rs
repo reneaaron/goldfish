@@ -4,6 +4,8 @@
 
 pub mod camera;
 pub mod firmware;
+pub mod p2p;
+pub mod tor;
 
 use std::sync::Arc;
 
@@ -242,7 +244,7 @@ impl Account {
 
 // ------------------------------------------------------------ chain
 
-/// Where the wallet syncs and broadcasts: an Esplora API (`https://…`) or an
+/// Where the wallet syncs (broadcasts go to peers over Tor, see [`p2p`]): an Esplora API (`https://…`) or an
 /// Electrum server (`ssl://host:port`, `tcp://host:port`), optionally through
 /// a proxy. Empty `url` means a public Electrum server for the key's network.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -332,16 +334,6 @@ impl Backend {
             Backend::Esplora(c) => c.full_scan(request, 20, 4).map_err(err),
             Backend::Electrum(c) => c.full_scan(request, 20, 10, true).map_err(err),
         }
-    }
-
-    pub fn broadcast(&self, tx: &Transaction) -> Res<Txid> {
-        match self {
-            Backend::Esplora(c) => c.broadcast(tx).map_err(err)?,
-            Backend::Electrum(c) => {
-                c.transaction_broadcast(tx).map_err(err)?;
-            }
-        }
-        Ok(tx.compute_txid())
     }
 
     /// The server's chain, from its genesis block, has to be the wallet's:

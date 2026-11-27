@@ -872,7 +872,12 @@ function openReady() {
 $("w-waiting").onclick = openReady;
 $("ready-send").onclick = async () => {
   $("ready-send").disabled = true;
+  const status = $("ready-sending");
+  status.hidden = false;
   try {
+    status.textContent = "Connecting to Tor…";
+    await call("tor_ready");
+    status.textContent = "Sending over Tor. This can take a minute or two.";
     const txid = await call("broadcast_signed");
     waiting = null;
     show("sent");
@@ -885,6 +890,7 @@ $("ready-send").onclick = async () => {
     // shown in the error line
   } finally {
     $("ready-send").disabled = false;
+    $("ready-sending").hidden = true;
   }
 };
 

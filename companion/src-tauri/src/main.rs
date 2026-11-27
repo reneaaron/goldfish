@@ -359,6 +359,14 @@ fn to_sign(app: &mut App, psbt: Psbt) -> Res<Review> {
     app.scanner = PsbtScanner::default();
     app.signed = None;
     app.sigs = Signatures { needed: app.account.as_ref().map(|a| a.threshold).unwrap_or(1), ..Default::default() };
+    // start Tor while the PSBT goes to the signer and back, so Broadcast
+    // doesn't wait for it; only once a payment is on the way, not for
+    // someone just looking at the wallet
+    std::thread::spawn(|| {
+        if let Err(e) = tor::proxy() {
+            eprintln!("tor: {e}");
+        }
+    });
     Ok(review)
 }
 
@@ -526,10 +534,23 @@ fn scan_stop(state: State<Shared>) {
     drop(camera);
 }
 
+/// Wait until Tor is up (at once if it already is), for the Signed screen to
+/// say what it's waiting on.
+#[tauri::command(async)]
+fn tor_ready() -> Res<()> {
+    tor::proxy().map(|_| ())
+}
+
 #[tauri::command(async)]
 fn broadcast_signed(state: State<Shared>) -> Res<String> {
-    let tx = state.lock().unwrap().signed.clone().ok_or("nothing signed")?;
-    let txid = backend(&state)?.broadcast(&tx)?;
+    let (tx, network, start) = {
+        let mut app = state.lock().unwrap();
+        let tx = app.signed.clone().ok_or("nothing signed")?;
+        let w = loaded(&mut app)?.1;
+        (tx, w.network(), p2p::start(w))
+    };
+    // to peers over Tor, not to the wallet's server (see p2p.rs)
+    let txid = p2p::broadcast(network, start, Some(tor::proxy()?), &tx)?;
     let mut app = state.lock().unwrap();
     if let Some(w) = app.wallet.as_mut() {
         w.apply_unconfirmed_txs([(tx, std::time::UNIX_EPOCH.elapsed().unwrap().as_secs())]);
@@ -568,6 +589,9 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .manage(Shared::default())
         .setup(|app| {
+            if let Ok(dir) = app.path().app_data_dir() {
+                tor::set_dir(dir.join("tor"));
+            }
             // Reopen the saved watch-only wallet, if any; a locked one waits
             // for the password.
             let shared = app.state::<Shared>();
@@ -602,6 +626,7 @@ fn main() {
             open_psbt,
             scan_start,
             scan_stop,
+            tor_ready,
             broadcast_signed,
             firmware_check,
             firmware_drive,
