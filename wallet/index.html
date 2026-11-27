@@ -67,7 +67,10 @@
          transition: transform .1s; }
   .cta:active { transform: scale(.98); }
   .cta svg { width: 18px; height: 18px; }
-  .hero .cta + br + .status { margin-top: 14px; }
+  .alt { margin-top: 12px; font-size: 15px; color: var(--muted); }
+  .alt a { color: inherit; }
+  .alt a:hover { color: var(--text); }
+  .hero .alt + .status { margin-top: 16px; }
   .status { display: inline-flex; align-items: center; gap: 8px; margin-top: 24px; padding: 6px 14px; border-radius: 99px;
             background: var(--raised); color: var(--muted); font-size: 14px; font-weight: 500; text-align: left; }
   .status i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--blue); }
@@ -173,8 +176,10 @@
     <div class="lockup"><b><img src="dove-mark.svg" alt="">dove</b><small>by goldfish</small></div>
     <h1>Goldfish signs.<br>Dove does the rest.</h1>
     <p class="lede">The wallet app for your Goldfish. Dove shows your balance, prepares each payment and sends it once Goldfish has signed. It never sees your seed.</p>
-    <a class="cta" href="#try">Build it from source
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M19 12l-7 7-7-7"/></svg></a><br>
+    <!-- Dove's releases are the dove-v* tags, published with --latest=false: /releases/latest is Goldfish's firmware -->
+    <a class="cta" href="https://github.com/reneaaron/goldfish/releases?q=dove-v&amp;expanded=true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Download for Linux</a>
+    <p class="alt">.deb or AppImage, x86-64 · or <a href="#try">build it from source</a></p>
     <div class="status"><i></i>Early preview for Linux. Not for real money yet.</div>
     <div class="win"><img src="img/wallet.webp" width="2000" height="840" alt="Dove's main window: the balance, Receive and Send, and recent activity, on signet"></div>
   </div>
@@ -233,8 +238,8 @@
 
   <section id="try">
     <div class="wrap">
-      <h2>Try it</h2>
-      <p class="lede">There's no package yet. On Linux, with Rust, the Tauri libraries (<code>libwebkit2gtk-4.1-dev</code> and friends) and libclang:</p>
+      <h2>Build it yourself</h2>
+      <p class="lede">On Linux, with Rust, the Tauri libraries (<code>libwebkit2gtk-4.1-dev</code> and friends) and libclang:</p>
 <pre><code>git clone https://github.com/reneaaron/goldfish
 cd goldfish/companion/src-tauri
 cargo run   <span class="c"># GOLDFISH_CAMERA=/dev/video2 for another camera</span></code></pre>
