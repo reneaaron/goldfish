@@ -1,0 +1,57 @@
+{
+  "end_date": "27 Nov",
+  "window_html": "Fri 20 Nov 13:30 to Fri 27 Nov 13:30<br>Europe/Berlin, against 13 to 20 Nov",
+  "sub_html": "The week Goldfish went public: a name, a first release, a wallet app, and a review queue that grew faster than it emptied.",
+  "header_image": "../../../../marketing/renders/out/06_lineup.png",
+  "header_crop": "scale=1600:-1,crop=1600:620:0:340",
+  "header_image_alt": "Four Goldfish devices in black, white, orange and blue cases, showing Home, New seed, Options and the watch-only wallet QR",
+  "header_note": "97 PRs later",
+  "tiles": [
+    {"label": "PRs merged", "figure": 97, "tone": "flat", "delta": "Up 185%, 93 from one author", "prior": "prior 34"},
+    {"label": "Releases", "figure": 1, "tone": "good", "delta": "First ever: v0.1.0", "prior": "prior 0, tagged 23 Nov"},
+    {"label": "Firmware unreleased", "figure": 27, "tone": "bad", "delta": "Commits to firmware/src since v0.1.0", "prior": "61 commits on main in all"},
+    {"label": "firmware.uf2 downloads", "figure": 49, "tone": "flat", "delta": "New, includes our own", "prior": "prior: no release"}
+  ],
+  "wins": [
+    {"figure": "16", "unit": "KB PSBTs", "head": "Bigger transactions sign", "body_html": "16 outputs, signed QR in up to 64 frames. #123 #74"}
+  ],
+  "lede_html": [
+    "Goldfish went public, got its name, and shipped its first release in the same week. #63"
+  ],
+  "areas_intro_html": "What the 97 pull requests add up to, and what's open in each area.",
+  "areas": [
+    {"name": "Signing and scanning", "count": 11, "needs_review": true,
+     "body_html": "Bigger transactions sign, refusals say why, QR scanning runs at 22 fps.",
+     "next_html": "Security fixes for mixed-network PSBTs #128, ready."}
+  ],
+  "contributors": [
+    {"login": "reneaaron", "count": 93, "avatar_url": "https://avatars.githubusercontent.com/u/100827540?s=96&v=4"},
+    {"login": "rolandgx", "count": 3, "avatar_url": "https://avatars.githubusercontent.com/u/315006877?s=96&v=4"}
+  ],
+  "shipped": [
+    {"group": "Signing and scanning", "rows": [
+      {"login": "reneaaron", "text_html": "Signs bigger transactions: 16 KB PSBTs, 16 outputs", "refs": [123, 74]},
+      {"login": "rolandgx", "text_html": "A test that signing is deterministic and never reuses a nonce", "refs": [134]}
+    ]}
+  ],
+  "inflight_intro_html": "23 open PRs, 14 ready.",
+  "inflight": [
+    {"login": "reneaaron", "text_html": "Security fixes from #127", "refs": [128]},
+    {"login": "reneaaron", "text_html": "Multisig gets its own screen", "refs": [177], "draft": true}
+  ],
+  "findings": [
+    {"attention": true, "head": "Every board runs a firmware a week of fixes behind the site",
+     "measure": "v0.1.0 tagged 23 Nov, 27 firmware commits since, 49 downloads",
+     "cause_html": "Only a <span class=\"mono\">v*</span> tag publishes firmware. #172 #123",
+     "so_what_html": "Tag v0.2.0 once #128 lands."}
+  ],
+  "tables": [
+    {"title": "Delivery", "columns": ["Metric", "This week#", "Prior#", "Note"],
+     "rows": [["Pull requests merged", "97", "34", "93 reneaaron"]],
+     "note_html": "Cancelled runs are superseded pushes."}
+  ],
+  "do_first_intro_html": "First review, so there is no last week's ranking to check against.",
+  "do_first": [{"head": "Merge the security fixes", "body_html": "Review #128 (tracked in #127)."}],
+  "what_if": [{"head": "Reading handwriting is the reason to pick Goldfish", "body_html": "Written words became the default #172.", "test_html": "give five people a pen and <span class=\"mono\">/sim/</span>."}],
+  "footer_html": "Sources: gh on reneaaron/goldfish and git on origin/main."
+}
