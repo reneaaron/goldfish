@@ -99,6 +99,12 @@ the guides still use Sparrow.
   require; Goldfish's QR leaves it out, and it's dropped again on the way
   back. Untested with a real device so far; hardware wallets may also need
   the multisig wallet registered on them first.
+- Address reuse: the Review screen warns, without blocking, when the
+  address you pay was paid before: one of this wallet's receive addresses
+  that already received, or one it already sent to. Paying it again links
+  those payments together. Your own unused addresses and a Speed up of the
+  same payment don't warn. It goes by the wallet's own history, so a payment
+  someone else made to that address isn't seen.
 - Fees: Fast / Normal / Slow suggestions from the server (next block, ~1 hour,
   ~1 day), fractional sat/vB, and Speed up (RBF) on a pending send, which
   Goldfish signs like any other transaction.

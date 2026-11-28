@@ -15,7 +15,7 @@ use bdk_electrum::BdkElectrumClient;
 use bdk_esplora::{esplora_client, EsploraExt};
 use bdk_wallet::bitcoin::{
     absolute, base58, bip32::Xpub, transaction, Address, Amount, BlockHash, FeeRate, Network,
-    OutPoint, Psbt, Transaction, TxIn, TxOut, Txid,
+    OutPoint, Psbt, ScriptBuf, Transaction, TxIn, TxOut, Txid,
 };
 use bdk_wallet::chain::spk_client::{FullScanRequest, FullScanResponse};
 use bdk_wallet::chain::{BlockId, ConfirmationBlockTime, TxUpdate};
@@ -737,6 +737,9 @@ pub struct Recipient {
     pub sat: u64,
     /// one of this wallet's own receive addresses (a send to yourself)
     pub yours: bool,
+    /// paid before: one of ours that already received, or one this wallet
+    /// already sent to. Paying it again links those payments together.
+    pub reused: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -814,6 +817,23 @@ fn spend_error(e: bdk_wallet::error::CreateTxError) -> String {
     }
 }
 
+/// Whether `script` already got paid in this wallet's history: any output to
+/// it if it's ours, a send of ours if it isn't. Transactions sharing an input
+/// with `psbt` don't count, so a fee bump doesn't warn about its own payment.
+fn used_before(wallet: &Wallet, psbt: &Psbt, script: &ScriptBuf, ours: bool) -> bool {
+    let spends = |tx: &Transaction| {
+        tx.input
+            .iter()
+            .any(|i| psbt.unsigned_tx.input.iter().any(|p| p.previous_output == i.previous_output))
+    };
+    wallet.transactions().any(|t| {
+        let tx = &t.tx_node.tx;
+        tx.output.iter().any(|o| &o.script_pubkey == script)
+            && !spends(tx)
+            && (ours || wallet.sent_and_received(tx).0.to_sat() > 0)
+    })
+}
+
 pub fn review(wallet: &Wallet, psbt: &Psbt, frames: usize) -> Review {
     let mut recipients = vec![];
     let mut change_sat = 0;
@@ -827,7 +847,8 @@ pub fn review(wallet: &Wallet, psbt: &Psbt, frames: usize) -> Review {
             let address = Address::from_script(&out.script_pubkey, wallet.network())
                 .map(|a| a.to_string())
                 .unwrap_or_else(|_| out.script_pubkey.to_hex_string());
-            recipients.push(Recipient { address, sat: out.value.to_sat(), yours: ours.is_some() });
+            let reused = used_before(wallet, psbt, &out.script_pubkey, ours.is_some());
+            recipients.push(Recipient { address, sat: out.value.to_sat(), yours: ours.is_some(), reused });
         }
     }
     Review {
@@ -1308,19 +1329,23 @@ mod tests {
         assert!(network_mismatch("00".repeat(32).parse::<BlockHash>().unwrap(), Network::Signet).is_none());
     }
 
-    #[test]
-    fn pending_send_can_be_bumped() {
-        // A wallet that can sign for itself stands in for Goldfish here.
+    /// A wallet that can sign for itself stands in for Goldfish here.
+    fn signing_wallet() -> Wallet {
         let seed = bdk_wallet::bip39::Mnemonic::parse(
             "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
         )
         .unwrap()
         .to_seed("");
         let root = Xpriv::new_master(NetworkKind::Test, &seed).unwrap();
-        let mut w = Wallet::create(format!("wpkh({root}/84h/1h/0h/0/*)"), format!("wpkh({root}/84h/1h/0h/1/*)"))
+        Wallet::create(format!("wpkh({root}/84h/1h/0h/0/*)"), format!("wpkh({root}/84h/1h/0h/1/*)"))
             .network(Network::Signet)
             .create_wallet_no_persist()
-            .unwrap();
+            .unwrap()
+    }
+
+    #[test]
+    fn pending_send_can_be_bumped() {
+        let mut w = signing_wallet();
         fund_for_demo(&mut w, 100_000);
         let to = "tb1q6rz28mcfaxtmd6v789l9rrlrusdprr9pqcpvkl"; // someone else
         let mut psbt = build_psbt(&mut w, to, 30_000, 1.5).unwrap();
@@ -1344,6 +1369,40 @@ mod tests {
         assert_eq!(bump.unsigned_tx.input[0].previous_output, old_input);
         assert!(bump.fee().unwrap() > old_fee);
         assert!(build_bump(&mut w, &txid.to_string(), 0.0).is_err());
+    }
+
+    #[test]
+    fn reused_addresses_are_flagged() {
+        let mut w = signing_wallet();
+        fund_for_demo(&mut w, 100_000);
+        let reused = |w: &mut Wallet, to: &str| {
+            let psbt = build_psbt(w, to, 10_000, 1.0).unwrap();
+            let r = review(w, &psbt, 1);
+            (r.recipients[0].yours, r.recipients[0].reused)
+        };
+        // our receive address 0 got the funding; address 5 never got anything
+        let funded = w.peek_address(KeychainKind::External, 0).address.to_string();
+        let fresh = w.peek_address(KeychainKind::External, 5).address.to_string();
+        assert_eq!(reused(&mut w, &funded), (true, true));
+        assert_eq!(reused(&mut w, &fresh), (true, false));
+
+        // BIP 173's test vectors: someone else, and someone never paid
+        let to = "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx";
+        let other = "tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7";
+        assert_eq!(reused(&mut w, to), (false, false));
+        let mut psbt = build_psbt(&mut w, to, 30_000, 1.5).unwrap();
+        #[allow(deprecated)]
+        let signed = w.sign(&mut psbt, SignOptions { trust_witness_utxo: true, ..Default::default() }).unwrap();
+        assert!(signed);
+        let tx = psbt.extract_tx().unwrap();
+        let txid = tx.compute_txid();
+        w.apply_unconfirmed_txs([(tx, 2)]);
+        assert_eq!(reused(&mut w, to), (false, true));
+        assert_eq!(reused(&mut w, other), (false, false));
+
+        // a fee bump pays the same recipient again by design: no warning
+        let bump = build_bump(&mut w, &txid.to_string(), 5.0).unwrap();
+        assert!(!review(&w, &bump, 1).recipients[0].reused);
     }
 
     #[test]

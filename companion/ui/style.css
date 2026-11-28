@@ -378,6 +378,7 @@ button.link.danger { color: var(--red); padding: 4px 0; font-size: 14px; justify
 .sign-body .sending .label { margin-top: 0; }
 .sign-body #review { margin: 0; }
 .kv dd .yours { display: block; margin-top: 6px; font: 600 11px/1 var(--sans); letter-spacing: .04em; text-transform: uppercase; color: var(--accent); }
+.kv dd .reused { display: table; margin: 6px 0 0 auto; padding: 4px 8px; border-radius: 999px; background: var(--amber-dim); color: var(--amber); font: 600 11px/1 var(--sans); letter-spacing: .04em; cursor: help; }
 @media (min-width: 900px) {
   body.dialog-open main > section#v-sign { width: min(800px, calc(100vw - 48px)); max-width: none; }
   #v-sign .sign-body {
