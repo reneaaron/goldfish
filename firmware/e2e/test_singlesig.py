@@ -47,8 +47,8 @@ def test_new_seed_to_signed_transaction(dev):
     dev.tap("Written down")
     mnemonic = " ".join(words)
     assert len(words) == 12 and bip39.mnemonic_is_valid(mnemonic)
-    assert "Seed ready" in dev.text()
-    assert fingerprint_on_screen(dev) == Seed(mnemonic).fingerprint
+    assert "Seed ready" in dev.text() and "One moment" not in dev.text()
+    assert fingerprint_on_screen(dev) == Seed(mnemonic).fingerprint   # there with "Seed ready", not after it
     dev.tap("Done")
     assert dev.screen == "HOME"   # a new seed is never loaded by itself
 

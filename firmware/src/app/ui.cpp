@@ -2707,35 +2707,43 @@ static void build_backup_words() {
 
 // ---------------------------------------------------------------- seed ready
 // The end of New seed. The seed isn't loaded: Done wipes it from the device.
-// The fingerprint takes seconds on the board (PBKDF2), so the screen shows
-// first and a one-shot timer fills it in.
+// The fingerprint takes seconds on the board (PBKDF2). Until it is there the
+// screen says so and nothing else: "Seed ready" with the fingerprint still to
+// come would say ready too early. A one-shot timer works it out once that is
+// on screen, then the screen is built again with it.
 static lv_timer_t *ready_timer;
-static void ready_tick(lv_timer_t *t) {
-    lv_obj_t *l = (lv_obj_t *)lv_timer_get_user_data(t);
+static char ready_fp[12];                // "xxxx xxxx" once worked out; empty: not yet
+static void ready_tick(lv_timer_t *) {
     ready_timer = nullptr;
-    char fp[9], spaced[12];
+    char fp[9];
     seed_fingerprint_hex(pending, fp);
-    snprintf(spaced, sizeof(spaced), "%.4s %.4s", fp, fp + 4);
-    lv_label_set_text(l, spaced);
+    snprintf(ready_fp, sizeof(ready_fp), "%.4s %.4s", fp, fp + 4);
+    if (ui_current() == UI_SEED_READY) ui_goto(UI_SEED_READY);
 }
 
 static void build_seed_ready() {
     lv_obj_t *scr = screen();
+    if (!ready_fp[0]) {
+        lv_obj_align(text(scr, "One moment" "\xE2\x80\xA6", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 118);
+        lv_obj_align(para(scr, "Preparing your seed.\nThis takes a few seconds."), LV_ALIGN_TOP_MID, 0, 154);
+        show(scr);
+        ready_timer = lv_timer_create(ready_tick, 200, nullptr);   // after the fade-in
+        lv_timer_set_repeat_count(ready_timer, 1);
+        return;
+    }
     lv_obj_align(icon_badge(scr, ICON_CHECK, GREEN, GREEN_DIM, 52), LV_ALIGN_TOP_MID, 0, 28);
     char title[32];
     if (child_seed) snprintf(title, sizeof(title), "Child #%s ready", child_num);
     else snprintf(title, sizeof(title), "Seed ready");
     lv_obj_align(text(scr, title, &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 92);
-    lv_obj_t *fp;
-    lv_obj_align(fingerprint_pill(scr, "\xE2\x80\xA6", &fp), LV_ALIGN_TOP_MID, 0, 136);
+    lv_obj_align(fingerprint_pill(scr, ready_fp), LV_ALIGN_TOP_MID, 0, 136);
+    ready_fp[0] = 0;                         // the next seed's is worked out again
     char note[96];
     if (child_seed) snprintf(note, sizeof(note), "Note #%s and this fingerprint with your main seed's backup.", child_num);
     else snprintf(note, sizeof(note), "Write this fingerprint on your backup. The seed is forgotten when you tap Done.");
     lv_obj_align(para(scr, note, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, 180);
     place_bottom(btn_primary(scr, "Done", to_home_cb));
     show(scr);
-    ready_timer = lv_timer_create(ready_tick, 200, fp);   // after the fade-in
-    lv_timer_set_repeat_count(ready_timer, 1);
 }
 
 static void handle_confirm_payload(QrPayload &p) {
@@ -3728,6 +3736,7 @@ void ui_goto(UiScreen s) {
     if (s != UI_PAGE_READING && page_timer) { lv_timer_delete(page_timer); page_timer = nullptr; }
     if (s != UI_PSBT_SIGNED && anim_timer) { lv_timer_delete(anim_timer); anim_timer = nullptr; }
     if (ready_timer) { lv_timer_delete(ready_timer); ready_timer = nullptr; }
+    if (s != UI_SEED_READY) ready_fp[0] = 0;
     bool no_seed_yet = s == UI_HOME || s == UI_UPDATE || s == UI_SCAN_SEED || seed_entry_screen(s);
     if (!no_seed_yet && !backup_screen(s) && !wallet_has_seed()) s = UI_HOME;
     if (no_seed_yet && wallet_has_seed()) { new_seed_wipe(); s = UI_WALLET; }
