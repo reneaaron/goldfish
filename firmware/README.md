@@ -159,7 +159,9 @@ reading speed are unmeasured.
 
 Passphrase (in Wallet options) opens a keyboard for a BIP-39 passphrase (the "25th word"):
 letters, digits and all ASCII symbols, up to 64 characters, with a Show/Hide
-switch. OK derives the key again (a few seconds on the board, like loading) and
+switch. Every key, the layer keys and OK included, acts when the finger
+lifts and doesn't repeat while held, so Del takes one character a tap; Clear
+in the field empties it. OK derives the key again (a few seconds on the board, like loading) and
 returns to Wallet with the fingerprint of seed plus passphrase, to check
 against the wallet app. An empty passphrase removes it. The
 device keeps only the derived key, not the passphrase; both go with Forget seed

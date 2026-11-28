@@ -246,9 +246,10 @@ def test_24_words_by_hand(dev):
 def test_keyboard_types_on_release(dev):
     """A letter key is typed when the finger lifts, not when it lands. While
     held, the letter is shown in a balloon above the key. Sliding to the next
-    letter corrects a miss; sliding onto a key that is off, or onto Del, keeps
-    the letter; sliding well above the keyboard calls it off. A finger that
-    slips onto the next key as it lifts still types the key it was holding."""
+    letter corrects a miss; sliding onto a key that is off keeps the letter;
+    sliding well above the keyboard calls it off. A finger that slips onto the
+    next key as it lifts still types the key it was holding. Del is a key like
+    the letters: one character on release, however long it is held."""
     dev.tap("Enter words")
     key = lambda k: next(w for w in dev.widgets() if w.kind == "key" and w.text == k)
     mid = lambda k: ((key(k).x1 + key(k).x2) // 2, (key(k).y1 + key(k).y2) // 2)
@@ -285,19 +286,50 @@ def test_keyboard_types_on_release(dev):
     dev.cmd("release")
     assert field() == "w_"
 
-    press("i")                                   # onto Del: the letter stays, nothing is deleted
-    dev.wait(200)
-    press("Del")
+    dev.key("i")
+    assert field() == "wi_"
+    press("Del")                                 # held: nothing yet, and no repeat
+    dev.wait(3000)
+    assert field() == "wi_"
+    dev.cmd("release")
+    assert field() == "w_"
+
+    dev.key("i")
+    press("Del")                                 # called off like a letter
+    dev.cmd("press 120 %d" % (above[1] - 16))
     dev.wait(200)
     dev.cmd("release")
     assert field() == "wi_"
 
-    press("Del")                                 # Del itself is as before: at once, and no letter after it
-    assert field() == "w_"
-    press("a")
+    press("n")                                   # slid onto Del: Del it is
+    dev.wait(200)
+    press("Del")
     dev.wait(200)
     dev.cmd("release")
     assert field() == "w_"
+
+
+def test_passphrase_del_takes_one_and_clear_takes_all(dev):
+    """On the passphrase keyboard Del deletes one character on release and
+    doesn't repeat while held; Clear in the field empties it."""
+    load_by_words(dev, MNEMONIC)
+    dev.tap("Wallet options")
+    dev.tap("Passphrase")
+    field = lambda: next(t for t in dev.texts() if t.endswith("_"))
+    assert not any(t == "Clear" for t in dev.texts())
+    for letter in "abcd":
+        dev.key(letter)
+    dev.key("space")
+    assert field() == "abcd _"
+    w = next(w for w in dev.widgets() if w.kind == "key" and w.text == "Del")
+    dev.cmd("press %d %d" % ((w.x1 + w.x2) // 2, (w.y1 + w.y2) // 2))
+    dev.wait(3000)
+    assert field() == "abcd _"
+    dev.cmd("release")
+    assert field() == "abcd_"
+    dev.tap("Clear")
+    assert field() == "_"
+    assert not any(t == "Clear" for t in dev.texts())
 
 
 def test_child_seed_from_the_keypad(dev):
@@ -349,15 +381,45 @@ def test_passphrase_gives_its_own_wallet(dev):
     assert fingerprint_on_screen(dev) == Seed(MNEMONIC).fingerprint
 
 
-def test_passphrase_layer_keys_type_nothing(dev):
-    """A layer key swaps the keys under the finger on touch-down; lifting the
-    finger then types nothing, whatever key now sits where it was."""
+def test_passphrase_layer_keys_and_ok_act_on_release(dev):
+    """The layer keys and OK are keys like the rest: nothing happens while one
+    is held, sliding off the keyboard calls it off, and lifting the finger
+    acts once. Switching layers types nothing. A letter slid onto OK stays the
+    letter."""
     load_by_words(dev, MNEMONIC)
     dev.tap("Wallet options")
     dev.tap("Passphrase")
+    field = lambda: next(t for t in dev.texts() if t.endswith("_"))
+    key = lambda k: next(w for w in dev.widgets() if w.kind == "key" and w.text == k)
+    mid = lambda k: ((key(k).x1 + key(k).x2) // 2, (key(k).y1 + key(k).y2) // 2)
     for k in ["123", "#+=", "123", "#+=", "abc"]:
         dev.key(k)
-    assert next(t for t in dev.texts() if t.endswith("_")) == "_"
+    assert field() == "_"
+
+    dev.cmd("press %d %d" % mid("123"))          # held: still the letters
+    dev.wait(3000)
+    assert dev.has_key("q") and not dev.has_key("1")
+    dev.cmd("release")
+    assert dev.has_key("1") and not dev.has_key("q")
+    dev.key("abc")
+
+    dev.key("x")
+    dev.cmd("press %d %d" % mid("OK"))           # held, then slid off the keyboard: not applied
+    dev.wait(3000)
+    assert dev.screen == "PASSPHRASE"
+    dev.cmd("press 120 %d" % (key("q").y1 - 60))
+    dev.wait(200)
+    dev.cmd("release")
+    assert dev.screen == "PASSPHRASE" and field() == "x_"
+
+    dev.cmd("press %d %d" % mid("m"))            # slid onto OK: the letter, not OK
+    dev.wait(200)
+    dev.cmd("press %d %d" % mid("OK"))
+    dev.wait(200)
+    dev.cmd("release")
+    assert dev.screen == "PASSPHRASE" and field() == "xm_"
+    dev.key("OK")
+    assert dev.screen == "WALLET", dev.text()
 
 
 def test_largest_transactions(dev):

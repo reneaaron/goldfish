@@ -118,5 +118,6 @@ void ui_page_use_guess();      // tap it
 void ui_child_digit(int k);           // a keypad digit 0-9, or -1 for Del
 const char *ui_child_number();        // the child number as typed
 // A key of the passphrase keyboard, by its label: one character, or "space",
-// "Del", "abc", "ABC", "123", "#+=", "OK" (derive the key, back to Wallet).
+// "Del", "abc", "ABC", "123", "#+=", "OK" (derive the key, back to Wallet); "Clear" for the control
+// in the field that empties it.
 void ui_passphrase_key(const char *key);
