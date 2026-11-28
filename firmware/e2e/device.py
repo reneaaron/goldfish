@@ -4,8 +4,10 @@ Drives the desktop simulator (SIM_CONTROL=1, see src/sim/main.cpp) with the
 only three things a person has: reading the screen, touching it, and holding
 a QR code up to the camera. Nothing here reaches into the firmware.
 """
+import queue
 import re
 import subprocess
+import threading
 from collections import namedtuple
 from pathlib import Path
 
@@ -53,22 +55,52 @@ def qr_image(payload, camera=(240, 180)):
 
 
 class Device:
-    def __init__(self, workdir):
+    # How long a command may take to answer, in real seconds. The simulator
+    # gives up on itself sooner (SIM_WATCHDOG, 30 s) and says why; this is for
+    # one that doesn't even do that.
+    REPLY_S = 60
+
+    def __init__(self, workdir, reply_s=REPLY_S, env=None):
         self.dir = Path(workdir)
-        self.proc = subprocess.Popen([str(BINARY)], cwd=FIRMWARE, env={"SIM_CONTROL": "1"},
+        self.reply_s = reply_s
+        self.proc = subprocess.Popen([str(BINARY)], cwd=FIRMWARE, env={"SIM_CONTROL": "1", **(env or {})},
                                      stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
         self.shots = 0
+        # Its replies, read on a thread: a read that can be given up on.
+        self.replies = queue.Queue()
+        threading.Thread(target=self._read, daemon=True).start()
 
-    def close(self):
-        self.proc.stdin.close()
-        self.proc.wait(timeout=10)
+    def _read(self):
+        for reply in self.proc.stdout:
+            self.replies.put(reply)
+        self.replies.put("")                     # it is gone
+
+    def close(self, grace_s=10):
+        """Ends the simulator: asked first, killed if it doesn't go (a stuck
+        one never would, and would be left running)."""
+        try:
+            self.proc.stdin.close()
+        except OSError:
+            pass
+        try:
+            self.proc.wait(timeout=grace_s)
+        except subprocess.TimeoutExpired:
+            self.proc.kill()
+            self.proc.wait()
 
     def cmd(self, line):
-        self.proc.stdin.write(line + "\n")
-        self.proc.stdin.flush()
+        try:
+            self.proc.stdin.write(line + "\n")
+            self.proc.stdin.flush()
+        except (OSError, ValueError):
+            raise RuntimeError("the simulator died on: " + line)
         out = []
         while True:
-            reply = self.proc.stdout.readline()
+            try:
+                reply = self.replies.get(timeout=self.reply_s)
+            except queue.Empty:
+                self.proc.kill()
+                raise RuntimeError("the simulator hung on: %s (no answer in %d s; killed)" % (line, self.reply_s))
             if not reply:
                 raise RuntimeError("the simulator died on: " + line)
             reply = reply.rstrip("\n")

@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
+#include <signal.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
@@ -715,8 +716,43 @@ static void dump_widgets(lv_obj_t *o, lv_area_t clip) {
     }
 }
 
+// LVGL's warnings, to stderr (stdout is run_control()'s replies). Each
+// different one is printed once and then counted: LVGL waiting for memory
+// repeats the same two as fast as it can, megabytes a second. They carry a
+// time stamp, which is left out of the comparison.
+struct LogLine { char text[160]; unsigned times; };
+static LogLine log_seen[4];
+static int log_next;
+static void log_cb(lv_log_level_t, const char *msg) {
+    const char *text = msg;                       // "[Warn]\t(0.320, +0)\t the text"
+    for (int tabs = 0; *text && tabs < 2; text++) tabs += *text == '\t';
+    for (LogLine &l : log_seen)
+        if (l.times && !strncmp(text, l.text, sizeof(l.text) - 1)) { l.times++; return; }
+    LogLine &l = log_seen[log_next++ % 4];        // the oldest makes room
+    snprintf(l.text, sizeof(l.text), "%s", text);
+    l.times = 1;
+    fprintf(stderr, "[lvgl] %s", msg);
+}
+
+// A command that doesn't come back: the simulator gives up on itself, saying
+// on which one, so a test fails within seconds and nothing is left spinning.
+// SIM_WATCHDOG is the seconds it gets (real ones; 0: as long as it likes).
+static char control_line[1024];
+static int watchdog_s = 30;
+static void watchdog(int) {
+    char msg[1400];
+    int n = snprintf(msg, sizeof(msg), "simulator: stuck for %d s on \"%s\"\n", watchdog_s, control_line);
+    for (const LogLine &l : log_seen)
+        if (l.times && n < (int)sizeof(msg))
+            n += snprintf(msg + n, sizeof(msg) - n, "  LVGL warned %u times: %s", l.times, l.text);
+    if (write(STDERR_FILENO, msg, n > (int)sizeof(msg) ? sizeof(msg) : n) < 0) {}
+    _exit(70);
+}
+
 static int run_control() {
     fake_clock = true;
+    if (const char *s = getenv("SIM_WATCHDOG")) watchdog_s = atoi(s);
+    signal(SIGALRM, watchdog);
     headless_display();
     lv_indev_t *touch = lv_indev_create();
     lv_indev_set_type(touch, LV_INDEV_TYPE_POINTER);
@@ -729,9 +765,10 @@ static int run_control() {
     ui_build();
     pump(300);
 
-    static char line[1024];
-    while (fgets(line, sizeof(line), stdin)) {
+    char *line = control_line;
+    while (fgets(line, sizeof(control_line), stdin)) {
         line[strcspn(line, "\r\n")] = 0;
+        alarm(watchdog_s);
         const char *err = nullptr;
         int a, b, c, d;
         if (!strcmp(line, "widgets")) {
@@ -772,9 +809,12 @@ static int run_control() {
             if (!save_ppm(line + 5)) err = "cannot write the screenshot";
         } else if (!strcmp(line, "screen")) {
             printf("%d\n", (int)ui_current());
+        } else if (!strcmp(line, "hang")) {   // never comes back: for testing what catches that
+            for (volatile int i = 0;; i = i + 1) {}
         } else {
             err = "unknown command";
         }
+        alarm(0);
         if (err) printf("err %s\n", err);
         else puts("ok");
         fflush(stdout);
@@ -784,6 +824,7 @@ static int run_control() {
 
 int main() {
     lv_init();
+    lv_log_register_print_cb(log_cb);
     lv_tick_set_cb(now_ms);
 
     if (const char *dir = getenv("SIM_SHOTS")) return run_shots(dir);

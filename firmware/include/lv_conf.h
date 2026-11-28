@@ -6,7 +6,15 @@
 #define LV_MEM_SIZE (96U * 1024U)   // two screens coexist during transitions
 #define LV_DEF_REFR_PERIOD 20
 #define LV_USE_OS LV_OS_NONE
+#ifdef SIM_X11
+// The simulator says what LVGL warns about (to stderr, src/sim/main.cpp):
+// "Allocating layer buffer failed" is the one line that explains a frozen screen.
+#define LV_USE_LOG 1
+#define LV_LOG_LEVEL LV_LOG_LEVEL_WARN
+#define LV_LOG_PRINTF 0
+#else
 #define LV_USE_LOG 0
+#endif
 #define LV_USE_ASSERT_NULL 1
 #define LV_USE_ASSERT_MALLOC 1
 

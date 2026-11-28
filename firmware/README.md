@@ -462,6 +462,12 @@ The simulator runs headless for this (`SIM_CONTROL=1`, commands on stdin, see
 `src/sim/main.cpp`), on a clock that only moves when the test says so. A
 failing test prints the signer's screen and saves it as `e2e/failure_*.png`.
 
+A simulator that stops answering doesn't stall the tests or stay behind: it
+gives up on itself after 30 real seconds on one command (`SIM_WATCHDOG`), saying
+which command and LVGL's last warning; a command with no answer in 60 seconds
+fails and kills it; and closing kills one that doesn't exit. LVGL's warnings go
+to stderr in the simulator. These guard the tests, not the firmware.
+
 For the board's camera, `e2e/qr_player.py --out <file>.html` writes a page that
 plays what Sparrow would: the test SeedQR, then testnet PSBTs for that seed in
 three sizes as animated UR at Sparrow's three densities, at its 200ms a frame.
