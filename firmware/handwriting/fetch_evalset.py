@@ -2,6 +2,8 @@
 evalset/labels.json into data/seedimgs/ (as PNG, with the labels), for
 eval_pages.py and train_words.py --eval. The photos belong to their sites
 (see "source"), so they aren't in the repository; a link may have gone.
+A photo whose boxes were marked on a smaller copy has that copy's "size",
+and is shrunk to it.
 
 Run from firmware/handwriting:
   uv run --with pillow python fetch_evalset.py
@@ -25,7 +27,10 @@ def main():
         try:
             req = urllib.request.Request(e["image_url"], headers={"User-Agent": "Mozilla/5.0"})
             data = urllib.request.urlopen(req, timeout=30).read()
-            Image.open(io.BytesIO(data)).convert("RGB").save(os.path.join(out, e["file"]))
+            img = Image.open(io.BytesIO(data)).convert("RGB")
+            if "size" in e:   # the boxes were marked on a smaller copy
+                img = img.resize(tuple(e["size"]), Image.LANCZOS)
+            img.save(os.path.join(out, e["file"]))
             kept.append(e)
             print("ok  ", e["file"], e["source"])
         except Exception as ex:   # gone, moved, or blocked

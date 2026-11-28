@@ -19,7 +19,7 @@ device; it needs Python with PyTorch (a GPU helps, a CPU works).
 | `page_cli.cpp`, `build.sh` | The firmware's page + word reader, built natively |
 | `eval_pages.py` | Scores the firmware end to end (photo in, words out) on labelled photos |
 | `evalset/labels.json` | 16 web photos of handwritten demo seeds (348 words): source pages, image links, word boxes |
-| `fetch_evalset.py`, `fetch_fonts.sh` | Download those photos and the fonts into `data/` |
+| `fetch_evalset.py`, `fetch_fonts.sh` | Download those photos and the fonts into `data/` (photos whose boxes were marked on a smaller copy are shrunk to its `size`) |
 | `page_strips.py` | Cuts training strips from labelled page photos (e.g. `data/gptimage2/train`), several crops per word |
 | `device_strips.py` | The same, but cut by the firmware's own page reader (`out/page_cli`), matched to the labelled boxes |
 | `fetch_gptimage2.py` | Downloads Haller's gptimage2-v2 set (1,444 AI-generated photos of handwritten test seeds, MIT) into `data/gptimage2/`: `train/` and `val/` (Haller's split, ~90/10), and by style `caps/`, `lower/`, `cursive/` |
@@ -91,6 +91,11 @@ A third run with 25% strips cut by the firmware's own page reader
 (`device_strips.py`) read more words end to end (265 real, 1,565 `val`) but
 kept the same 4 wrong and added a confidently wrong word on `val`, so it
 wasn't kept.
+
+The real-photo figures above (384 words) include photos that aren't public.
+On the 16 photos `fetch_evalset.py` downloads (348 words), `model/words.pt`
+reads 306 right with 1 wrong at word level, and 222 right with 4 wrong end to
+end at 1000 pixels.
 
 Test only on the real photos and on `data/gptimage2/val`: the other gptimage2
 pages are training data.
