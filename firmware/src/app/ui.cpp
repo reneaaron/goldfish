@@ -40,6 +40,63 @@ static void to_home_cb(lv_event_t *) { ui_goto(UI_HOME); }
 static void place_bottom(lv_obj_t *o) { lv_obj_align(o, LV_ALIGN_BOTTOM_MID, 0, -M); }
 
 // Secondary + primary side by side at the bottom.
+// A confirmation over the screen that asks, for a step that changes which
+// wallet this is or throws something away: what will happen, Cancel, and the
+// step's own word on the button. It sits on the top layer, so the screen under
+// it and its state stay as they are; any change of screen closes it.
+static lv_obj_t *ask_scrim;
+static void (*ask_run)();
+static void ask_close() {
+    if (ask_scrim) lv_obj_delete_async(ask_scrim);   // a tap on its own button gets here
+    ask_scrim = nullptr;
+    ask_run = nullptr;
+}
+void ui_confirm(bool yes) {
+    void (*run)() = ask_run;
+    if (!ask_scrim) return;
+    ask_close();
+    if (yes && run) run();
+}
+static void ask_no_cb(lv_event_t *) { ui_confirm(false); }
+static void ask_yes_cb(lv_event_t *) { ui_confirm(true); }
+// mono: text to check character by character, shown as it is (not copied: it may be a secret).
+static void ask(const char *title, const char *body, const char *yes, void (*run)(), bool danger = false,
+                const char *mono = nullptr) {
+    ask_close();
+    ask_run = run;
+    ask_scrim = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(ask_scrim);
+    lv_obj_set_size(ask_scrim, W, H);
+    lv_obj_set_style_bg_color(ask_scrim, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(ask_scrim, LV_OPA_50, 0);
+    lv_obj_add_flag(ask_scrim, LV_OBJ_FLAG_CLICKABLE);       // taps beside the card go nowhere
+    lv_obj_remove_flag(ask_scrim, LV_OBJ_FLAG_SCROLLABLE);
+    constexpr int IN = CW - 28;
+    lv_obj_t *c = card(ask_scrim, CW, LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_all(c, 14, 0);
+    lv_obj_set_style_pad_row(c, 10, 0);
+    lv_obj_set_flex_flow(c, LV_FLEX_FLOW_COLUMN);
+    lv_obj_center(c);
+    lv_obj_set_width(text(c, title, &inter_17_semi, TEXT, LV_TEXT_ALIGN_LEFT), IN);
+    if (mono) {
+        lv_obj_t *m = lv_label_create(c);
+        lv_label_set_text_static(m, mono);
+        lv_obj_set_style_text_font(m, &mono_16, 0);
+        lv_obj_set_style_text_color(m, TEXT, 0);
+        lv_obj_set_width(m, IN);
+    }
+    lv_obj_set_width(text(c, body, &inter_13, TEXT_2, LV_TEXT_ALIGN_LEFT), IN);
+    lv_obj_t *row = lv_obj_create(c);
+    lv_obj_remove_style_all(row);
+    lv_obj_set_size(row, IN, 44);
+    lv_obj_t *no = btn_ghost(row, "Cancel", ask_no_cb, nullptr, TEXT);
+    lv_obj_set_size(no, 72, 44);
+    lv_obj_align(no, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_t *go = danger ? btn_danger(row, yes, ask_yes_cb) : btn_primary(row, yes, ask_yes_cb);
+    lv_obj_set_size(go, IN - 72 - 8, 44);
+    lv_obj_align(go, LV_ALIGN_RIGHT_MID, 0, 0);
+}
+
 static void bottom_pair(lv_obj_t *secondary, lv_obj_t *primary) {
     lv_obj_set_size(secondary, 76, 48);
     lv_obj_set_width(primary, CW - 76 - 8);
@@ -829,6 +886,7 @@ static void build_wallet() {
 constexpr int PASS_MAX = 64, PASS_COLS = 18;   // 4 lines of mono_16 in the field
 static char pass_buf[PASS_MAX + 1];
 static char txt_pass[PASS_MAX + 8];            // as shown: line breaks and the cursor
+static char txt_ask[PASS_MAX + 8];             // as shown on the confirmation: line breaks only
 static bool pass_hidden;
 static int pass_layer;                         // index into pass_maps
 static lv_obj_t *pass_field, *pass_note, *pass_kb, *pass_toggle;
@@ -854,6 +912,7 @@ static const char *const pass_maps[4][36] = {
 static void pass_wipe() {
     secure_zero(pass_buf, sizeof(pass_buf));
     secure_zero(txt_pass, sizeof(txt_pass));
+    secure_zero(txt_ask, sizeof(txt_ask));
     pass_layer = 0;                            // pass_hidden stays as the user set it
 }
 
@@ -894,19 +953,38 @@ static void pass_set_layer(int layer) {
     lv_buttonmatrix_set_ctrl_map(pass_kb, ctrl);
 }
 
+// "Use" / "Remove" on the confirmation: derive the key.
+static void pass_apply() {
+    if (ui_current() != UI_PASSPHRASE) return;
+    secure_zero(txt_ask, sizeof(txt_ask));
+    lv_label_set_text_static(pass_field, "Deriving key" "\xE2\x80\xA6");
+    lv_label_set_text(pass_note, "This takes a few seconds");
+    lv_obj_align(pass_note, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+    lv_refr_now(nullptr);
+    if (wallet_set_passphrase(pass_buf)) { ui_goto(UI_WALLET); return; }   // wipes pass_buf
+    pass_refresh();                            // the old key is still loaded: say so, keep the text
+    lv_label_set_text(pass_note, "Couldn't apply it. Try again.");
+    lv_obj_align(pass_note, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+}
+
 void ui_passphrase_key(const char *k) {
     if (ui_current() != UI_PASSPHRASE) return;
     size_t n = strlen(pass_buf);
     if (!strcmp(k, "OK")) {
         if (!n && !wallet_has_passphrase()) { ui_goto(UI_WALLET); return; }   // nothing to change
-        lv_label_set_text_static(pass_field, "Deriving key" "\xE2\x80\xA6");
-        lv_label_set_text(pass_note, "This takes a few seconds");
-        lv_obj_align(pass_note, LV_ALIGN_BOTTOM_LEFT, 0, 0);
-        lv_refr_now(nullptr);
-        if (wallet_set_passphrase(pass_buf)) { ui_goto(UI_WALLET); return; }   // wipes pass_buf
-        pass_refresh();                        // the old key is still loaded: say so, keep the text
-        lv_label_set_text(pass_note, "Couldn't apply it. Try again.");
-        lv_obj_align(pass_note, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+        // Every passphrase is valid and gives a wallet, so a typo can't be told
+        // from the right one afterwards: the text to check, shown whatever
+        // Show/Hide says, before the key is derived.
+        if (!n) { ask("Remove the passphrase?", "Back to the wallet of the seed alone.", "Remove", pass_apply); return; }
+        int o = 0;
+        for (size_t i = 0; i < n; i++) {
+            if (i && i % PASS_COLS == 0) txt_ask[o++] = '\n';
+            txt_ask[o++] = pass_buf[i];
+        }
+        txt_ask[o] = 0;
+        char body[96];
+        snprintf(body, sizeof(body), "%d character%s. A typo gives another wallet, with nothing in it.", (int)n, n == 1 ? "" : "s");
+        ask("Use this passphrase?", body, "Use", pass_apply, false, txt_ask);
         return;
     }
     if (!strcmp(k, "Del")) { if (n) pass_buf[n - 1] = 0; }
@@ -959,9 +1037,24 @@ static void build_passphrase() {
 
 static void backup_existing_cb(lv_event_t *);
 
+// Leave multisig: forget the descriptor, keep the seed. Until now only Forget
+// seed or unplugging did that. Connect wallet goes back to the single-key key.
+static void ms_leave_apply() {
+    multisig_clear();
+    wallet_set_export_multisig(false);
+    ui_goto(UI_WALLET);
+}
+static void ms_leave_cb(lv_event_t *) {
+    if (!multisig_loaded()) return;
+    ask("Leave the multisig wallet?",
+        "Its transactions and addresses are refused until you scan its descriptor again. The seed stays loaded.",
+        "Leave", ms_leave_apply);
+}
+
 // Groups by importance: what most people need once (Connect wallet, Back up),
 // then the advanced ones with grey icons, then Forget seed on its own. Every row says
-// what it does. The list scrolls, so more options can join it.
+// what it does. The list scrolls, so more options can join it. Leave multisig
+// is there only while a multisig wallet is in use.
 static void build_wallet_options() {
     lv_obj_t *scr = screen();
     topbar(scr, "Options", to_wallet_cb);
@@ -986,16 +1079,19 @@ static void build_wallet_options() {
     const Row rows[] = {
         {ICON_WALLET, "Connect wallet", "Set up watch-only", go_cb, GO(UI_EXPORT_XPUB)},
         {ICON_QR, "Back up as QR", "Copy it onto a card", backup_existing_cb, nullptr},
+        {ICON_USERS, "Leave multisig", "Back to single-key", ms_leave_cb, nullptr},
         {ICON_SHIELD, "Passphrase", wallet_has_passphrase() ? "On, tap to change" : "Optional extra word", go_cb,
          GO(UI_PASSPHRASE)},
         {ICON_KEY, "Child seed", "Derived from this one", child_start_cb, nullptr},
         {ICON_COINS, "Network", wallet_testnet() ? "Testnet" : "Mainnet", go_cb, GO(UI_NETWORK)},
         {ICON_TRASH, "Forget seed", "Unplugging does it too", go_cb, GO(UI_WIPE_CONFIRM)},
     };
-    const int groups[] = {2, 3, 1};
+    const bool ms = multisig_loaded();
+    const int groups[] = {2, ms ? 4 : 3, 1};
     int at = 0;
     for (int g = 0; g < 3; g++) {
         int n = groups[g];
+        if (g == 1 && !ms) at++;   // no Leave multisig row
         lv_obj_t *c = card(list, CW, n * RH + n - 1);
         lv_obj_set_style_pad_all(c, 0, 0);
         lv_obj_set_style_clip_corner(c, true, 0);
@@ -1020,7 +1116,9 @@ static int address_chunks(lv_obj_t *parent, const char *a);
 // Connect wallet shows the QR, and under it what's in it: the start and end of
 // the key, to compare with what the wallet app imported. Tapping the card
 // swaps the QR for everything in it: fingerprint, path and the whole key.
-// Which key is a plain-words toggle; the network is in Wallet options.
+// Which key is a plain-words toggle; the network is in Wallet options. While a
+// multisig wallet is in use the key is the multisig one and there is no toggle:
+// Leave multisig, in Wallet options, is the way back to the single-key key.
 static bool key_details;   // the card shows the text instead of the QR
 
 void ui_key_details() {
@@ -1029,13 +1127,26 @@ void ui_key_details() {
     ui_goto(UI_EXPORT_XPUB);
 }
 static void key_details_cb(lv_event_t *) { ui_key_details(); }
-static void key_type_cb(lv_event_t *) {
+// The other kind of key is another wallet to a wallet app: ask first.
+static void key_type_apply() {
     wallet_set_export_multisig(!wallet_export_multisig());
     ui_goto(UI_EXPORT_XPUB);
+}
+static void key_type_cb(lv_event_t *) {
+    if (multisig_loaded()) return;
+    if (wallet_export_multisig())
+        ask("Switch to a single-key wallet?", "The QR becomes this seed's key for a wallet it signs for alone.", "Switch",
+            key_type_apply);
+    else
+        ask("Switch to a multisig wallet?",
+            "The QR becomes this seed's key for a multisig wallet, set up with other signers. It is no use for a "
+            "single-key wallet.", "Switch", key_type_apply);
 }
 
 static void build_export_xpub() {
     lv_obj_t *scr = screen();
+    const MsInfo *in_use = multisig_info();
+    if (in_use) wallet_set_export_multisig(true);
     bool tn = wallet_testnet(), ms = wallet_export_multisig();
     // In the details, Back returns to the QR.
     topbar(scr, "Watch-only wallet", key_details ? key_details_cb : to_menu_cb);
@@ -1092,7 +1203,14 @@ static void build_export_xpub() {
     lv_obj_set_ext_click_area(sk, 8);
     lv_obj_add_event_cb(sk, key_details_cb, LV_EVENT_CLICKED, nullptr);
 
-    // The other kind of key, in plain words.
+    // The other kind of key, in plain words; or why there is no choice.
+    if (in_use) {
+        char m[40];
+        snprintf(m, sizeof(m), "%d of %d multisig wallet in use", in_use->m, in_use->n);
+        lv_obj_align(text(scr, m, &inter_13, TEXT_3), LV_ALIGN_BOTTOM_MID, 0, -16);
+        show(scr);
+        return;
+    }
     lv_obj_align(quiet_link(scr, ms ? "For a single-key wallet  " ICON_RIGHT : "For a multisig wallet  " ICON_RIGHT,
                             key_type_cb, nullptr),
                  LV_ALIGN_BOTTOM_MID, 0, -6);
@@ -1102,9 +1220,20 @@ static void build_export_xpub() {
 // ---------------------------------------------------------------- network
 // Which network Connect wallet's key is for, from Wallet options. Signing and
 // Verify address read the network from what they scan, not from this.
-static void network_cb(lv_event_t *e) {
-    wallet_set_testnet(lv_event_get_user_data(e) != nullptr);
+static bool network_to;
+static void network_apply() {
+    wallet_set_testnet(network_to);
     ui_goto(UI_WALLET_OPTIONS);
+}
+static void network_cb(lv_event_t *e) {
+    network_to = lv_event_get_user_data(e) != nullptr;
+    if (network_to == wallet_testnet()) { ui_goto(UI_WALLET_OPTIONS); return; }   // as it is
+    if (network_to)
+        ask("Switch to Testnet?", "Connect wallet will show this seed's testnet key. Testnet coins are worth nothing.",
+            "Switch", network_apply);
+    else
+        ask("Switch to Mainnet?", "Connect wallet will show this seed's mainnet key, for real bitcoin.", "Switch",
+            network_apply);
 }
 
 static void build_network() {
@@ -1173,6 +1302,7 @@ static int entropy_n;
 static bool entropy_dice;
 static uint16_t word_idx[24];
 static int word_n;
+static int word_have;                    // words entered so far, of which word_n are behind the screen shown
 static char word_prefix[9];
 static uint8_t last_ok[256];             // bitmap: valid last words for word_idx
 static SeedEntropy pending;              // len 0: none
@@ -1283,7 +1413,7 @@ static void new_seed_wipe() {
     secure_zero(txt_field, sizeof(txt_field));
     secure_zero(txt_sugg, sizeof(txt_sugg));
     secure_zero(txt_tail, sizeof(txt_tail));
-    entropy_n = word_n = qr_n = block_i = 0;
+    entropy_n = word_n = word_have = qr_n = block_i = 0;
     backup_existing = drawing = final_flips = child_seed = false;
     backup_cancel = UI_NEW_SEED;
 }
@@ -1553,10 +1683,20 @@ static void words_refresh() {
 static bool load_words();
 static bool page_set_word(int idx);
 
+// The word entered on the screen about to show, if there was one (Back, and
+// forward again over words already entered): in the field, to accept as it is
+// or change. Without it Back showed an empty field, and one lost one's place.
+static void word_recall() {
+    word_prefix[0] = 0;
+    if (word_n < word_have && word_allowed(word_idx[word_n]))
+        snprintf(word_prefix, sizeof(word_prefix), "%s", seed_word(word_idx[word_n]));
+}
+
 static bool word_accept(int idx) {
     if (edit_slot >= 0) return page_set_word(idx);   // the keyboard was opened from the list
     if (idx < 0 || !word_allowed(idx)) return false;
     word_idx[word_n++] = uint16_t(idx);
+    if (word_n > word_have) word_have = word_n;
     word_prefix[0] = 0;
     if (drawing && word_n == new_words - 1) {   // the last word comes from coin flips
         final_flips = true;
@@ -1572,6 +1712,7 @@ static bool word_accept(int idx) {
         for (int i = 0; i < n; i++) last_ok[last[i] >> 3] |= 1 << (last[i] & 7);
         secure_zero(last, sizeof(last));
     }
+    word_recall();
     ui_goto(UI_ENTER_WORDS);
     return true;
 }
@@ -1581,7 +1722,7 @@ static bool load_words() {
     SeedEntropy e;
     bool ok = seed_from_words(word_idx, word_n, &e);
     secure_zero(word_idx, sizeof(word_idx));
-    word_n = 0;
+    word_n = word_have = 0;
     if (ok && word_field && ui_current() == UI_ENTER_WORDS) {
         lv_label_set_text(word_field, "Loading" "\xE2\x80\xA6");
         lv_refr_now(nullptr);
@@ -1609,11 +1750,19 @@ static void kb_cb(lv_event_t *e) {
     words_refresh();
 }
 
+static void words_leave() {
+    if (drawing) to_new_seed_cb(nullptr);
+    else ui_goto(UI_HOME);
+}
 static void words_back_cb(lv_event_t *) {
     if (edit_slot >= 0) { edit_slot = -1; word_prefix[0] = 0; ui_goto(UI_PAGE_REVIEW); return; }   // back to the list
-    if (!word_n) { if (drawing) to_new_seed_cb(nullptr); else ui_goto(UI_HOME); return; }
-    word_idx[--word_n] = 0;
-    word_prefix[0] = 0;
+    if (!word_n) {
+        if (word_have) ask("Discard these words?", "The words entered so far are forgotten.", "Discard", words_leave, true);
+        else words_leave();
+        return;
+    }
+    word_n--;
+    word_recall();
     ui_goto(UI_ENTER_WORDS);
 }
 
@@ -3708,6 +3857,7 @@ static void idle_tick(lv_timer_t *) {
 }
 
 void ui_goto(UiScreen s) {
+    ask_close();
     ui_screensaver(false);
     if (ui_current() == UI_PAGE_REVIEW) page_review_y = lv_obj_get_scroll_y(page_review_list);
     // (Words found shows preview_buf: the photo, kept there; scanning stopped before it)

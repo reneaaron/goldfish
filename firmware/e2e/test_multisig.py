@@ -8,8 +8,9 @@ All seeds here are public test seeds. Never real funds.
 import pytest
 from embit.networks import NETWORKS
 
-from flows import set_key_type, set_network, address_on_screen, connect_wallet, load_by_words, review_and_sign, verify_address
-from hostwallet import Seed, Wallet, psbt_parts, ur_parts, ur_single
+from flows import (set_key_type, set_network, address_on_screen, connect_wallet, fingerprint_on_screen, load_by_words,
+                   review_and_sign, verify_address)
+from hostwallet import Seed, Wallet, parse_key_export, psbt_parts, ur_parts, ur_single
 
 MNEMONIC = "crew marble private differ race truly blush basket crater affair prepare unique"
 SIGNER = Seed(MNEMONIC)   # the test typed these words in, so it can know the signer's keys
@@ -250,6 +251,57 @@ def test_descriptor_goes_with_the_seed(dev):
 
     loaded(dev)
     assert "2 OF 3" not in dev.text()
+    dev.tap("Scan QR")
+    dev.scan_animated(psbt_parts(psbt))
+    assert dev.screen == "PSBT_ERROR" and "needs its wallet's descriptor" in dev.text()
+
+
+def test_leave_multisig_keeps_the_seed(dev):
+    """While a multisig wallet is in use, Connect wallet shows its kind of key
+    only. Leave multisig, in Wallet options, asks first; then the wallet is
+    unknown again, with the seed still loaded and its single-key key back."""
+    wallet = two_of_three()
+    psbt = wallet.create_psbt([wallet.fund(0, 300_000)], [(STRANGER, 10_000)], fee=500)
+    loaded(dev)
+    dev.tap("Wallet options")
+    assert "Leave multisig" not in dev.texts()   # nothing to leave yet
+    dev.back()
+    dev.tap("Scan QR")
+    dev.scan(wallet.descriptor())
+    dev.tap("Use wallet")
+    dev.back()
+    assert dev.screen == "WALLET" and "2 OF 3" in dev.text()
+
+    # Connect wallet: the multisig key, though the single-key one was showing before, and no way to switch.
+    dev.tap("Wallet options")
+    set_network(dev, "Testnet")
+    dev.tap("Connect wallet")
+    assert "2 of 3 multisig wallet in use" in dev.texts()
+    assert not any(t.startswith("For a ") for t in dev.texts()), dev.text()
+    assert parse_key_export(dev.read_qr()) == (SIGNER.fingerprint, BIP48, SIGNER.key(BIP48))
+    dev.back()
+
+    # Cancel leaves everything as it is.
+    dev.tap("Leave multisig")
+    assert "Leave the multisig wallet?" in dev.text()
+    dev.tap("Cancel")
+    assert dev.screen == "WALLET_OPTIONS"
+    dev.back()
+    assert "2 OF 3" in dev.text()
+
+    dev.tap("Wallet options")
+    dev.tap("Leave multisig")
+    dev.tap("Leave")
+    assert dev.screen == "WALLET" and "2 OF 3" not in dev.text()
+    assert fingerprint_on_screen(dev) == SIGNER.fingerprint   # the same seed
+
+    dev.tap("Wallet options")
+    assert "Leave multisig" not in dev.texts()
+    dev.tap("Connect wallet")
+    assert "For a multisig wallet  {RIGHT}" in dev.texts()
+    assert parse_key_export(dev.read_qr()) == (SIGNER.fingerprint, "84h/1h/0h", SIGNER.key("84h/1h/0h"))
+    dev.back()
+    dev.back()
     dev.tap("Scan QR")
     dev.scan_animated(psbt_parts(psbt))
     assert dev.screen == "PSBT_ERROR" and "needs its wallet's descriptor" in dev.text()
