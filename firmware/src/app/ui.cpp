@@ -16,6 +16,7 @@
 #include "psbt_review.h"
 #include "seed_create.h"
 #include "entropy_check.h"
+#include "lifehash.h"
 #include "qrscan.h"
 #include "seedqr.h"
 #include "theme.h"
@@ -40,6 +41,71 @@ static void to_home_cb(lv_event_t *) { ui_goto(UI_HOME); }
 static void place_bottom(lv_obj_t *o) { lv_obj_align(o, LV_ALIGN_BOTTOM_MID, 0, -M); }
 
 // Secondary + primary side by side at the bottom.
+// A confirmation over the screen that asks, for a step that changes which
+// wallet this is or throws something away: what will happen, Cancel, and the
+// step's own word on the button. It sits on the top layer, so the screen under
+// it and its state stay as they are; any change of screen closes it.
+static lv_obj_t *ask_scrim;
+static void (*ask_run)();
+static void ask_close() {
+    if (ask_scrim) lv_obj_delete_async(ask_scrim);   // a tap on its own button gets here
+    ask_scrim = nullptr;
+    ask_run = nullptr;
+}
+void ui_confirm(bool yes) {
+    void (*run)() = ask_run;
+    if (!ask_scrim) return;
+    ask_close();
+    if (!yes) wallet_passphrase_drop();   // a key derived to show its fingerprint, not wanted after all
+    if (yes && run) run();
+}
+static void ask_no_cb(lv_event_t *) { ui_confirm(false); }
+static void ask_yes_cb(lv_event_t *) { ui_confirm(true); }
+static lv_obj_t *fingerprint_row(lv_obj_t *parent, const char *hex8, const char *spaced, lv_obj_t **label = nullptr);
+// mono: text to check character by character, shown as it is (not copied: it may be a secret).
+// fp_hex: a fingerprint (8 hex digits) the step leads to, shown with its picture.
+static void ask(const char *title, const char *body, const char *yes, void (*run)(), bool danger = false,
+                const char *mono = nullptr, const char *fp_hex = nullptr) {
+    ask_close();
+    ask_run = run;
+    ask_scrim = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(ask_scrim);
+    lv_obj_set_size(ask_scrim, W, H);
+    lv_obj_set_style_bg_color(ask_scrim, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(ask_scrim, LV_OPA_50, 0);
+    lv_obj_add_flag(ask_scrim, LV_OBJ_FLAG_CLICKABLE);       // taps beside the card go nowhere
+    lv_obj_remove_flag(ask_scrim, LV_OBJ_FLAG_SCROLLABLE);
+    constexpr int IN = CW - 28;
+    lv_obj_t *c = card(ask_scrim, CW, LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_all(c, 14, 0);
+    lv_obj_set_style_pad_row(c, 10, 0);
+    lv_obj_set_flex_flow(c, LV_FLEX_FLOW_COLUMN);
+    lv_obj_center(c);
+    lv_obj_set_width(text(c, title, &inter_17_semi, TEXT, LV_TEXT_ALIGN_LEFT), IN);
+    if (mono) {
+        lv_obj_t *m = lv_label_create(c);
+        lv_label_set_text_static(m, mono);
+        lv_obj_set_style_text_font(m, &mono_16, 0);
+        lv_obj_set_style_text_color(m, TEXT, 0);
+        lv_obj_set_width(m, IN);
+    }
+    if (fp_hex) {
+        char spaced[12];
+        snprintf(spaced, sizeof(spaced), "%.4s %.4s", fp_hex, fp_hex + 4);
+        fingerprint_row(c, fp_hex, spaced);
+    }
+    lv_obj_set_width(text(c, body, &inter_13, TEXT_2, LV_TEXT_ALIGN_LEFT), IN);
+    lv_obj_t *row = lv_obj_create(c);
+    lv_obj_remove_style_all(row);
+    lv_obj_set_size(row, IN, 44);
+    lv_obj_t *no = btn_ghost(row, "Cancel", ask_no_cb, nullptr, TEXT);
+    lv_obj_set_size(no, 72, 44);
+    lv_obj_align(no, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_t *go = danger ? btn_danger(row, yes, ask_yes_cb) : btn_primary(row, yes, ask_yes_cb);
+    lv_obj_set_size(go, IN - 72 - 8, 44);
+    lv_obj_align(go, LV_ALIGN_RIGHT_MID, 0, 0);
+}
+
 static void bottom_pair(lv_obj_t *secondary, lv_obj_t *primary) {
     lv_obj_set_size(secondary, 76, 48);
     lv_obj_set_width(primary, CW - 76 - 8);
@@ -267,6 +333,161 @@ static void kb_style(lv_obj_t *kb) {
     lv_obj_remove_flag(kb, LV_OBJ_FLAG_SCROLLABLE);   // a slide over the keys is not a scroll
     lv_obj_add_flag(kb, LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);
     lv_obj_add_event_cb(kb, kb_draw_cb, LV_EVENT_DRAW_TASK_ADDED, nullptr);
+}
+
+// ---------------------------------------------------------------- lifehash
+// A fingerprint's LifeHash: a small picture that is easier to recognise and to
+// compare than eight hex digits. It is the one Sparrow shows beside a
+// keystore's master fingerprint (lifehash.h), so the two can be held side by
+// side. Shown at its own 32 pixels (or smaller in a row); a tap shows it at
+// double size with the fingerprint under it, a tap anywhere puts that away.
+//
+// The pixels (2 KB a picture) come from the app's heap, not LVGL's pool: that
+// one has to keep a large block free for drawing. The scanner needs the same
+// heap when it starts, and the screen left behind lives on while it fades, so
+// every picture gives its pixels back the moment the screen changes
+// (life_pics_release), before the next screen is built. Nothing of a picture
+// stays in that heap then: a small block left in the middle of it is enough to
+// keep the scanner from getting its one large one. (The few bytes that say
+// where the pixels are live in LVGL's pool, with the image object.)
+constexpr size_t LIFE_PX = LIFEHASH_SIDE * LIFEHASH_SIDE * 2;   // RGB565, as the screen has it
+struct LifePic {
+    lv_image_dsc_t dsc;
+    uint8_t fp[4];
+    uint8_t *px;          // nullptr once given back
+    lv_obj_t *img;
+    LifePic *next;
+};
+static LifePic *life_pics;
+static lv_obj_t *life_zoom;
+
+static void life_pics_release() {
+    for (LifePic *p = life_pics; p; p = p->next) {
+        if (!p->px) continue;
+        lv_image_set_src(p->img, nullptr);   // keeps its place and size, shows nothing
+        free(p->px);
+        p->px = nullptr;
+    }
+}
+
+static void life_zoom_close() {
+    if (!life_zoom) return;
+    lv_obj_delete(life_zoom);
+    life_zoom = nullptr;
+}
+
+static lv_obj_t *life_image(lv_obj_t *parent, const LifePic *p, int side) {
+    lv_obj_t *img = lv_image_create(parent);
+    lv_image_set_src(img, &p->dsc);
+    lv_obj_set_size(img, side, side);
+    lv_image_set_inner_align(img, LV_IMAGE_ALIGN_STRETCH);
+    lv_obj_add_flag(img, LV_OBJ_FLAG_USER_1);            // the simulator's control names these "lifehash"
+    return img;
+}
+
+static void life_zoom_cb(lv_event_t *e) {
+    const LifePic *p = (const LifePic *)lv_event_get_user_data(e);
+    if (!p->px) return;
+    life_zoom_close();
+    life_zoom = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(life_zoom);
+    lv_obj_set_size(life_zoom, W, H);
+    lv_obj_set_style_bg_color(life_zoom, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(life_zoom, LV_OPA_50, 0);
+    lv_obj_add_flag(life_zoom, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(life_zoom, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(life_zoom, [](lv_event_t *) { life_zoom_close(); }, LV_EVENT_CLICKED, nullptr);
+    lv_obj_t *c = card(life_zoom, 2 * LIFEHASH_SIDE + 48, 2 * LIFEHASH_SIDE + 64);
+    lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);         // a tap on it closes too
+    lv_obj_center(c);
+    // Every pixel as a 2x2 square, in a picture of its own (8 KB while it is
+    // open): scaled by the image widget the edges come out soft and a little off.
+    struct Big {
+        lv_image_dsc_t dsc;
+        uint8_t px[4 * LIFE_PX];
+    };
+    if (Big *b = (Big *)malloc(sizeof(Big))) {
+        const int S = LIFEHASH_SIDE;
+        for (int y = 0; y < 2 * S; y++)
+            for (int x = 0; x < 2 * S; x++) memcpy(b->px + (y * 2 * S + x) * 2, p->px + (y / 2 * S + x / 2) * 2, 2);
+        b->dsc = p->dsc;
+        b->dsc.header.w = b->dsc.header.h = 2 * S;
+        b->dsc.header.stride = 4 * S;
+        b->dsc.data = b->px;
+        b->dsc.data_size = sizeof(b->px);
+        lv_obj_t *img = lv_image_create(c);
+        lv_image_set_src(img, &b->dsc);
+        lv_obj_add_flag(img, LV_OBJ_FLAG_USER_1);
+        lv_obj_align(img, LV_ALIGN_TOP_MID, 0, 4);
+        lv_obj_add_event_cb(img, [](lv_event_t *e) { free(lv_event_get_user_data(e)); }, LV_EVENT_DELETE, b);
+    }
+    char fp[12];
+    snprintf(fp, sizeof(fp), "%02x%02x %02x%02x", p->fp[0], p->fp[1], p->fp[2], p->fp[3]);
+    lv_obj_align(text(c, fp, &mono_16, TEXT), LV_ALIGN_BOTTOM_MID, 0, -2);
+}
+
+// The picture for a fingerprint, `side` pixels square. nullptr when there is
+// no memory for it: the fingerprint's digits are still there.
+static lv_obj_t *life_pic(lv_obj_t *parent, const uint8_t fp[4], int side = LIFEHASH_SIDE) {
+    LifePic *p = (LifePic *)lv_malloc(sizeof(LifePic));
+    uint8_t *px = (uint8_t *)malloc(LIFE_PX), *rgb = (uint8_t *)malloc(LIFEHASH_RGB);
+    if (!p || !px || !rgb || !lifehash_v2(fp, 4, rgb)) {
+        if (p) lv_free(p);
+        free(px);
+        free(rgb);
+        return nullptr;
+    }
+    p->px = px;
+    for (int i = 0; i < LIFEHASH_SIDE * LIFEHASH_SIDE; i++) {
+        uint16_t c = uint16_t((rgb[3 * i] >> 3) << 11 | (rgb[3 * i + 1] >> 2) << 5 | rgb[3 * i + 2] >> 3);
+        p->px[2 * i] = uint8_t(c);
+        p->px[2 * i + 1] = uint8_t(c >> 8);
+    }
+    free(rgb);
+    memcpy(p->fp, fp, 4);
+    memset(&p->dsc, 0, sizeof(p->dsc));
+    p->dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
+    p->dsc.header.cf = LV_COLOR_FORMAT_RGB565;
+    p->dsc.header.w = p->dsc.header.h = LIFEHASH_SIDE;
+    p->dsc.header.stride = LIFEHASH_SIDE * 2;
+    p->dsc.data = p->px;
+    p->dsc.data_size = LIFE_PX;
+    lv_obj_t *img = life_image(parent, p, side);
+    p->img = img;
+    p->next = life_pics;
+    life_pics = p;
+    lv_obj_add_flag(img, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_ext_click_area(img, 6);
+    lv_obj_add_event_cb(img, life_zoom_cb, LV_EVENT_CLICKED, p);
+    lv_obj_add_event_cb(img, [](lv_event_t *e) {
+        LifePic *gone = (LifePic *)lv_event_get_user_data(e);
+        life_zoom_close();                                // it shows these pixels
+        for (LifePic **at = &life_pics; *at; at = &(*at)->next)
+            if (*at == gone) { *at = gone->next; break; }
+        free(gone->px);
+        lv_free(gone);
+    }, LV_EVENT_DELETE, p);
+    return img;
+}
+// From the eight hex digits the screens have.
+static lv_obj_t *life_pic_hex(lv_obj_t *parent, const char *hex8, int side = LIFEHASH_SIDE) {
+    uint8_t fp[4];
+    size_t n = 0;
+    if (strlen(hex8) != 8 || wally_hex_to_bytes(hex8, fp, sizeof(fp), &n) != WALLY_OK || n != 4) return nullptr;
+    return life_pic(parent, fp, side);
+}
+
+// The fingerprint's pill with its picture before it, as one row.
+static lv_obj_t *fingerprint_row(lv_obj_t *parent, const char *hex8, const char *spaced, lv_obj_t **label) {
+    lv_obj_t *row = lv_obj_create(parent);
+    lv_obj_remove_style_all(row);
+    lv_obj_set_size(row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(row, 8, 0);
+    if (hex8) life_pic_hex(row, hex8);
+    fingerprint_pill(row, spaced, label);
+    return row;
 }
 
 static void build_home() {
@@ -789,7 +1010,7 @@ static void build_wallet() {
     char fp[9], spaced[12];
     wallet_fingerprint_hex(fp);
     snprintf(spaced, sizeof(spaced), "%.4s %.4s", fp, fp + 4);
-    lv_obj_align(fingerprint_pill(scr, spaced), LV_ALIGN_TOP_MID, 0, y + 118);
+    lv_obj_align(fingerprint_row(scr, fp, spaced), LV_ALIGN_TOP_MID, 0, y + 117);
 
     // What the fingerprint stands for, when it isn't just the seed; otherwise
     // what happens to it.
@@ -829,6 +1050,7 @@ static void build_wallet() {
 constexpr int PASS_MAX = 64, PASS_COLS = 18;   // 4 lines of mono_16 in the field
 static char pass_buf[PASS_MAX + 1];
 static char txt_pass[PASS_MAX + 8];            // as shown: line breaks and the cursor
+static char txt_ask[PASS_MAX + 8];             // as shown on the confirmation: line breaks only
 static bool pass_hidden;
 static int pass_layer;                         // index into pass_maps
 static lv_obj_t *pass_field, *pass_note, *pass_kb, *pass_toggle;
@@ -854,6 +1076,7 @@ static const char *const pass_maps[4][36] = {
 static void pass_wipe() {
     secure_zero(pass_buf, sizeof(pass_buf));
     secure_zero(txt_pass, sizeof(txt_pass));
+    secure_zero(txt_ask, sizeof(txt_ask));
     pass_layer = 0;                            // pass_hidden stays as the user set it
 }
 
@@ -894,19 +1117,53 @@ static void pass_set_layer(int layer) {
     lv_buttonmatrix_set_ctrl_map(pass_kb, ctrl);
 }
 
+// "Use" / "Remove" on the confirmation: the key is derived already (to show
+// its fingerprint there), so this is at once.
+static void pass_apply() {
+    if (ui_current() != UI_PASSPHRASE) return;
+    secure_zero(txt_ask, sizeof(txt_ask));
+    if (wallet_passphrase_use()) { ui_goto(UI_WALLET); return; }   // wipes pass_buf
+    lv_label_set_text(pass_note, "Couldn't apply it. Try again.");   // the old key is still loaded
+    lv_obj_align(pass_note, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+}
+
 void ui_passphrase_key(const char *k) {
     if (ui_current() != UI_PASSPHRASE) return;
     size_t n = strlen(pass_buf);
     if (!strcmp(k, "OK")) {
         if (!n && !wallet_has_passphrase()) { ui_goto(UI_WALLET); return; }   // nothing to change
+        // Every passphrase is valid and gives a wallet, so a typo can't be told
+        // from the right one afterwards. Before it is used: the text to check,
+        // shown whatever Show/Hide says, and the fingerprint it gives with its
+        // picture, to hold against the wallet app's. The key is derived for
+        // that now (seconds on the board), and kept aside until Use.
         lv_label_set_text_static(pass_field, "Deriving key" "\xE2\x80\xA6");
         lv_label_set_text(pass_note, "This takes a few seconds");
         lv_obj_align(pass_note, LV_ALIGN_BOTTOM_LEFT, 0, 0);
         lv_refr_now(nullptr);
-        if (wallet_set_passphrase(pass_buf)) { ui_goto(UI_WALLET); return; }   // wipes pass_buf
-        pass_refresh();                        // the old key is still loaded: say so, keep the text
-        lv_label_set_text(pass_note, "Couldn't apply it. Try again.");
-        lv_obj_align(pass_note, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+        uint8_t f[4];
+        bool derived = wallet_passphrase_try(pass_buf, f);
+        pass_refresh();                        // the field as it was, under the question
+        if (!derived) {
+            lv_label_set_text(pass_note, "Couldn't derive the key. Try again.");
+            lv_obj_align(pass_note, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+            return;
+        }
+        char fp_hex[9];
+        snprintf(fp_hex, sizeof(fp_hex), "%02x%02x%02x%02x", f[0], f[1], f[2], f[3]);
+        if (!n) {
+            ask("Remove the passphrase?", "Back to the wallet of the seed alone.", "Remove", pass_apply, false, nullptr, fp_hex);
+            return;
+        }
+        int o = 0;
+        for (size_t i = 0; i < n; i++) {
+            if (i && i % PASS_COLS == 0) txt_ask[o++] = '\n';
+            txt_ask[o++] = pass_buf[i];
+        }
+        txt_ask[o] = 0;
+        char body[96];
+        snprintf(body, sizeof(body), "%d character%s. A typo gives another wallet, with nothing in it.", (int)n, n == 1 ? "" : "s");
+        ask("Use this passphrase?", body, "Use", pass_apply, false, txt_ask, fp_hex);
         return;
     }
     if (!strcmp(k, "Del")) { if (n) pass_buf[n - 1] = 0; }
@@ -1029,9 +1286,19 @@ void ui_key_details() {
     ui_goto(UI_EXPORT_XPUB);
 }
 static void key_details_cb(lv_event_t *) { ui_key_details(); }
-static void key_type_cb(lv_event_t *) {
+// The other kind of key is another wallet to a wallet app: ask first.
+static void key_type_apply() {
     wallet_set_export_multisig(!wallet_export_multisig());
     ui_goto(UI_EXPORT_XPUB);
+}
+static void key_type_cb(lv_event_t *) {
+    if (wallet_export_multisig())
+        ask("Switch to a single-key wallet?", "The QR becomes this seed's key for a wallet it signs for alone.", "Switch",
+            key_type_apply);
+    else
+        ask("Switch to a multisig wallet?",
+            "The QR becomes this seed's key for a multisig wallet, set up with other signers. It is no use for a "
+            "single-key wallet.", "Switch", key_type_apply);
 }
 
 static void build_export_xpub() {
@@ -1064,6 +1331,7 @@ static void build_export_xpub() {
         snprintf(line, sizeof(line), ICON_FINGERPRINT " %.4s %.4s", fp, fp + 4);
         lv_obj_align(text(c, line, &inter_15, TEXT, LV_TEXT_ALIGN_LEFT), LV_ALIGN_TOP_LEFT, 0, 0);
         lv_obj_align(text(c, path, &inter_15, TEXT_2, LV_TEXT_ALIGN_LEFT), LV_ALIGN_TOP_LEFT, 0, 20);
+        if (lv_obj_t *pic = life_pic_hex(c, fp)) lv_obj_align(pic, LV_ALIGN_TOP_RIGHT, 0, 3);
         lv_obj_t *box = lv_obj_create(c);   // address_chunks puts its caption room at the top
         lv_obj_remove_style_all(box);
         lv_obj_set_size(box, lv_pct(100), LV_SIZE_CONTENT);
@@ -1102,9 +1370,20 @@ static void build_export_xpub() {
 // ---------------------------------------------------------------- network
 // Which network Connect wallet's key is for, from Wallet options. Signing and
 // Verify address read the network from what they scan, not from this.
-static void network_cb(lv_event_t *e) {
-    wallet_set_testnet(lv_event_get_user_data(e) != nullptr);
+static bool network_to;
+static void network_apply() {
+    wallet_set_testnet(network_to);
     ui_goto(UI_WALLET_OPTIONS);
+}
+static void network_cb(lv_event_t *e) {
+    network_to = lv_event_get_user_data(e) != nullptr;
+    if (network_to == wallet_testnet()) { ui_goto(UI_WALLET_OPTIONS); return; }   // as it is
+    if (network_to)
+        ask("Switch to Testnet?", "Connect wallet will show this seed's testnet key. Testnet coins are worth nothing.",
+            "Switch", network_apply);
+    else
+        ask("Switch to Mainnet?", "Connect wallet will show this seed's mainnet key, for real bitcoin.", "Switch",
+            network_apply);
 }
 
 static void build_network() {
@@ -1142,6 +1421,7 @@ static void build_wipe_confirm() {
     wallet_fingerprint_hex(fp);
     snprintf(msg, sizeof(msg), "Removes " ICON_FINGERPRINT " %.4s %.4s until you load it again.", fp, fp + 4);
     lv_obj_align(para(scr, msg), LV_ALIGN_TOP_MID, 0, 162);
+    if (lv_obj_t *pic = life_pic_hex(scr, fp)) lv_obj_align(pic, LV_ALIGN_TOP_MID, 0, 208);
     bottom_pair(btn_ghost(scr, "Cancel", go_cb, GO(UI_WALLET_OPTIONS), TEXT), btn_danger(scr, "Forget", wipe_cb));
     show(scr);
 }
@@ -1173,6 +1453,7 @@ static int entropy_n;
 static bool entropy_dice;
 static uint16_t word_idx[24];
 static int word_n;
+static int word_have;                    // words entered so far, of which word_n are behind the screen shown
 static char word_prefix[9];
 static uint8_t last_ok[256];             // bitmap: valid last words for word_idx
 static SeedEntropy pending;              // len 0: none
@@ -1283,7 +1564,7 @@ static void new_seed_wipe() {
     secure_zero(txt_field, sizeof(txt_field));
     secure_zero(txt_sugg, sizeof(txt_sugg));
     secure_zero(txt_tail, sizeof(txt_tail));
-    entropy_n = word_n = qr_n = block_i = 0;
+    entropy_n = word_n = word_have = qr_n = block_i = 0;
     backup_existing = drawing = final_flips = child_seed = false;
     backup_cancel = UI_NEW_SEED;
 }
@@ -1553,10 +1834,20 @@ static void words_refresh() {
 static bool load_words();
 static bool page_set_word(int idx);
 
+// The word entered on the screen about to show, if there was one (Back, and
+// forward again over words already entered): in the field, to accept as it is
+// or change. Without it Back showed an empty field, and one lost one's place.
+static void word_recall() {
+    word_prefix[0] = 0;
+    if (word_n < word_have && word_allowed(word_idx[word_n]))
+        snprintf(word_prefix, sizeof(word_prefix), "%s", seed_word(word_idx[word_n]));
+}
+
 static bool word_accept(int idx) {
     if (edit_slot >= 0) return page_set_word(idx);   // the keyboard was opened from the list
     if (idx < 0 || !word_allowed(idx)) return false;
     word_idx[word_n++] = uint16_t(idx);
+    if (word_n > word_have) word_have = word_n;
     word_prefix[0] = 0;
     if (drawing && word_n == new_words - 1) {   // the last word comes from coin flips
         final_flips = true;
@@ -1572,6 +1863,7 @@ static bool word_accept(int idx) {
         for (int i = 0; i < n; i++) last_ok[last[i] >> 3] |= 1 << (last[i] & 7);
         secure_zero(last, sizeof(last));
     }
+    word_recall();
     ui_goto(UI_ENTER_WORDS);
     return true;
 }
@@ -1581,7 +1873,7 @@ static bool load_words() {
     SeedEntropy e;
     bool ok = seed_from_words(word_idx, word_n, &e);
     secure_zero(word_idx, sizeof(word_idx));
-    word_n = 0;
+    word_n = word_have = 0;
     if (ok && word_field && ui_current() == UI_ENTER_WORDS) {
         lv_label_set_text(word_field, "Loading" "\xE2\x80\xA6");
         lv_refr_now(nullptr);
@@ -1609,11 +1901,19 @@ static void kb_cb(lv_event_t *e) {
     words_refresh();
 }
 
+static void words_leave() {
+    if (drawing) to_new_seed_cb(nullptr);
+    else ui_goto(UI_HOME);
+}
 static void words_back_cb(lv_event_t *) {
     if (edit_slot >= 0) { edit_slot = -1; word_prefix[0] = 0; ui_goto(UI_PAGE_REVIEW); return; }   // back to the list
-    if (!word_n) { if (drawing) to_new_seed_cb(nullptr); else ui_goto(UI_HOME); return; }
-    word_idx[--word_n] = 0;
-    word_prefix[0] = 0;
+    if (!word_n) {
+        if (word_have) ask("Discard these words?", "The words entered so far are forgotten.", "Discard", words_leave, true);
+        else words_leave();
+        return;
+    }
+    word_n--;
+    word_recall();
     ui_goto(UI_ENTER_WORDS);
 }
 
@@ -2717,6 +3017,8 @@ static void ready_tick(lv_timer_t *t) {
     seed_fingerprint_hex(pending, fp);
     snprintf(spaced, sizeof(spaced), "%.4s %.4s", fp, fp + 4);
     lv_label_set_text(l, spaced);
+    // Its picture, before the pill in their row.
+    if (lv_obj_t *pic = life_pic_hex(lv_obj_get_parent(lv_obj_get_parent(l)), fp)) lv_obj_move_to_index(pic, 0);
 }
 
 static void build_seed_ready() {
@@ -2727,7 +3029,7 @@ static void build_seed_ready() {
     else snprintf(title, sizeof(title), "Seed ready");
     lv_obj_align(text(scr, title, &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 92);
     lv_obj_t *fp;
-    lv_obj_align(fingerprint_pill(scr, "\xE2\x80\xA6", &fp), LV_ALIGN_TOP_MID, 0, 136);
+    lv_obj_align(fingerprint_row(scr, nullptr, "\xE2\x80\xA6", &fp), LV_ALIGN_TOP_MID, 0, 135);
     char note[96];
     if (child_seed) snprintf(note, sizeof(note), "Note #%s and this fingerprint with your main seed's backup.", child_num);
     else snprintf(note, sizeof(note), "Write this fingerprint on your backup. The seed is forgotten when you tap Done.");
@@ -3312,16 +3614,23 @@ static void build_multisig() {
     lv_obj_align(text(scr, "Check it against your wallet app", &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, BAR + 2);
 
     lv_obj_t *area = scroll_area(scr, BAR + 28);
-    static char keys[MS_MAX_KEYS][20], fps[MS_MAX_KEYS][12];
-    KvRow rows[MS_MAX_KEYS];
+    // A row per key: its picture, and beside it whose it is over its
+    // fingerprint. (Side by side on one line the two texts run into each other.)
+    const int RH = 44, PIC = LIFEHASH_SIDE;
+    lv_obj_t *kc = card(area, CW, ms->n * RH - (RH - PIC) + 2 * CARD_PY);
+    lv_obj_remove_flag(kc, LV_OBJ_FLAG_SCROLLABLE);
     for (int i = 0; i < ms->n; i++) {
         const uint8_t *f = ms->fingerprint[i];
-        if (i == ms->ours) snprintf(keys[i], sizeof(keys[i]), ICON_FINGERPRINT "  This seed");
-        else snprintf(keys[i], sizeof(keys[i]), ICON_FINGERPRINT "  Key %d", i + 1);
-        snprintf(fps[i], sizeof(fps[i]), "%02x%02x %02x%02x", f[0], f[1], f[2], f[3]);
-        rows[i] = {keys[i], fps[i], i == ms->ours ? GREEN : TEXT, i > 0};
+        char key[20], fp[12];
+        if (i == ms->ours) snprintf(key, sizeof(key), "This seed");
+        else snprintf(key, sizeof(key), "Key %d", i + 1);
+        snprintf(fp, sizeof(fp), "%02x%02x %02x%02x", f[0], f[1], f[2], f[3]);
+        int y = i * RH, x = PIC + 10;
+        if (i) divider(kc, y - (RH - PIC) / 2);
+        if (lv_obj_t *pic = life_pic(kc, f, PIC)) lv_obj_align(pic, LV_ALIGN_TOP_LEFT, 0, y);
+        lv_obj_align(text(kc, key, &inter_13, TEXT_2, LV_TEXT_ALIGN_LEFT), LV_ALIGN_TOP_LEFT, x, y - 1);
+        lv_obj_align(text(kc, fp, &mono_16, i == ms->ours ? GREEN : TEXT, LV_TEXT_ALIGN_LEFT), LV_ALIGN_TOP_LEFT, x, y + 14);
     }
-    lv_obj_t *kc = kv_card(area, rows, ms->n, &mono_16);
     lv_obj_update_layout(kc);
 
     char first[96] = "";
@@ -3708,13 +4017,16 @@ static void idle_tick(lv_timer_t *) {
 }
 
 void ui_goto(UiScreen s) {
+    ask_close();
+    life_zoom_close();
+    life_pics_release();
     ui_screensaver(false);
     if (ui_current() == UI_PAGE_REVIEW) page_review_y = lv_obj_get_scroll_y(page_review_list);
     // (Words found shows preview_buf: the photo, kept there; scanning stopped before it)
     // Reading words keeps the camera on: a camera just woken gave blank frames, and the
     // sharp picture comes right after the still (the reading step stops it).
     if (s != UI_SCAN_SEED && s != UI_SCAN && s != UI_BACKUP_SCAN && s != UI_PAGE_FOUND) scan_stop(s != UI_PAGE_READING);
-    if (s != UI_PASSPHRASE) pass_wipe();
+    if (s != UI_PASSPHRASE) { pass_wipe(); wallet_passphrase_drop(); }
     if (s != UI_EXPORT_XPUB) key_details = false;
     // A scanned descriptor that wasn't confirmed on its screen is never used.
     if (s != UI_MULTISIG && !ms_confirmed) multisig_clear();

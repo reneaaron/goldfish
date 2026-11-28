@@ -40,7 +40,8 @@ def set_network(dev, network):
     dev.scroll_down()
     if network not in dev.texts():   # the Network row's subline names the current one
         dev.tap("Network")
-        dev.tap(network)             # back on Wallet options, at the top
+        dev.tap(network)
+        dev.tap("Switch")            # back on Wallet options, at the top
     else:
         dev.scroll_up()
 
@@ -50,6 +51,7 @@ def set_key_type(dev, multisig):
     other = "For a single-key wallet  {RIGHT}" if multisig else "For a multisig wallet  {RIGHT}"
     if other not in dev.texts():
         dev.tap("For a multisig wallet  {RIGHT}" if multisig else "For a single-key wallet  {RIGHT}")
+        dev.tap("Switch")
 
 
 def connect_wallet(dev, multisig=False):

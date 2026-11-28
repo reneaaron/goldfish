@@ -121,6 +121,45 @@ void test_passphrase() {
     TEST_ASSERT_EQUAL_STRING("73c5da0a", fp);
 }
 
+// In two steps, for showing the fingerprint before it is used: trying a
+// passphrase gives its fingerprint and changes nothing; only using it does.
+void test_passphrase_tried_first() {
+    uint8_t f[4];
+    char fp[9];
+    wallet_wipe();
+    TEST_ASSERT_FALSE(wallet_passphrase_try("TREZOR", f));     // no seed
+    TEST_ASSERT_TRUE(wallet_load(zero_entropy_12()));
+    TEST_ASSERT_FALSE(wallet_passphrase_use());                // nothing tried
+    TEST_ASSERT_TRUE(wallet_passphrase_try("TREZOR", f));
+    const uint8_t trezor[4] = {0xb4, 0xe3, 0xf5, 0xed};
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(trezor, f, 4);
+    wallet_fingerprint_hex(fp);
+    TEST_ASSERT_EQUAL_STRING("73c5da0a", fp);                  // still the seed alone
+    TEST_ASSERT_FALSE(wallet_has_passphrase());
+
+    wallet_passphrase_drop();                                  // not wanted
+    TEST_ASSERT_FALSE(wallet_passphrase_use());
+    wallet_fingerprint_hex(fp);
+    TEST_ASSERT_EQUAL_STRING("73c5da0a", fp);
+
+    TEST_ASSERT_TRUE(wallet_passphrase_try("TREZOR", f));
+    TEST_ASSERT_TRUE(wallet_passphrase_use());
+    TEST_ASSERT_TRUE(wallet_has_passphrase());
+    wallet_fingerprint_hex(fp);
+    TEST_ASSERT_EQUAL_STRING("b4e3f5ed", fp);
+    TEST_ASSERT_FALSE(wallet_passphrase_use());                // used once
+
+    TEST_ASSERT_TRUE(wallet_passphrase_try("", f));            // and back
+    const uint8_t alone[4] = {0x73, 0xc5, 0xda, 0x0a};
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(alone, f, 4);
+    TEST_ASSERT_TRUE(wallet_passphrase_use());
+    TEST_ASSERT_FALSE(wallet_has_passphrase());
+
+    TEST_ASSERT_TRUE(wallet_passphrase_try("TREZOR", f));      // a tried key goes with the seed
+    wallet_wipe();
+    TEST_ASSERT_FALSE(wallet_passphrase_use());
+}
+
 // 24 words: all-zero 32-byte entropy = "abandon x23 art". BIP-84's vectors
 // are 12 words only, so the fingerprint and zpub were worked out by embit.
 void test_24_words() {
@@ -187,6 +226,7 @@ int main() {
     RUN_TEST(test_multisig_keys);
     RUN_TEST(test_wipe);
     RUN_TEST(test_passphrase);
+    RUN_TEST(test_passphrase_tried_first);
     RUN_TEST(test_24_words);
     RUN_TEST(test_bip39_vectors);
     RUN_TEST(test_passphrase_export);

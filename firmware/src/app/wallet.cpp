@@ -23,6 +23,7 @@ bool wallet_has_seed() { return loaded; }
 const struct ext_key *wallet_root() { return loaded ? &root : nullptr; }
 
 void wallet_wipe() {
+    wallet_passphrase_drop();
     secure_zero(&root, sizeof(root));
     loaded = false;
     seedqr_wipe(&entropy);
@@ -68,6 +69,34 @@ bool wallet_set_passphrase(const char *pass) {
 }
 
 bool wallet_has_passphrase() { return passphrase; }
+
+static struct ext_key tried;      // the key wallet_passphrase_try() derived, until used or dropped
+static bool tried_ok, tried_pass;
+
+void wallet_passphrase_drop() {
+    secure_zero(&tried, sizeof(tried));
+    tried_ok = tried_pass = false;
+}
+
+bool wallet_passphrase_try(const char *pass, uint8_t fingerprint[4]) {
+    wallet_passphrase_drop();
+    if (!loaded || !root_from_entropy(entropy, pass, &tried) ||
+        bip32_key_get_fingerprint(&tried, fingerprint, 4) != WALLY_OK) {
+        wallet_passphrase_drop();
+        return false;
+    }
+    tried_ok = true;
+    tried_pass = pass[0] != 0;
+    return true;
+}
+
+bool wallet_passphrase_use() {
+    if (!loaded || !tried_ok) return false;
+    root = tried;
+    passphrase = tried_pass;
+    wallet_passphrase_drop();
+    return true;
+}
 
 bool seed_fingerprint_hex(const SeedEntropy &e, char out[9]) {
     out[0] = 0;

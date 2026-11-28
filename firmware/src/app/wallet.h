@@ -19,6 +19,13 @@ void wallet_wipe();
 // resulting key is kept, never the passphrase; wallet_wipe() removes it too.
 bool wallet_set_passphrase(const char *pass);
 bool wallet_has_passphrase();
+// The same in two steps, so its fingerprint can be shown before it is used:
+// wallet_passphrase_try() derives the key for `pass` and keeps it aside (the
+// slow part), giving its fingerprint; wallet_passphrase_use() makes it the
+// wallet's key, at once; wallet_passphrase_drop() forgets it instead.
+bool wallet_passphrase_try(const char *pass, uint8_t fingerprint[4]);
+bool wallet_passphrase_use();
+void wallet_passphrase_drop();
 // The root key, for signing. nullptr without a seed. Don't copy it.
 const struct ext_key *wallet_root();
 

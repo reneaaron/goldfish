@@ -29,7 +29,13 @@ The seed lives in RAM only: Forget seed or unplugging removes it.
 2. Wallet: the home screen once a seed is loaded, shaped like Home: the logo,
    "Ready to sign", and the fingerprint to check against your wallet app (with
    a chip for a passphrase or a multisig wallet). A fingerprint icon marks the
-   fingerprint on every screen that shows one. Scan QR for everyday use, and
+   fingerprint on every screen that shows one, and beside it is its LifeHash:
+   a small picture made from the fingerprint, easier to recognise and compare
+   than eight hex digits. It is the picture Sparrow shows beside a keystore's
+   master fingerprint (LifeHash version 2 of the fingerprint's 4 bytes), so it
+   changes with the passphrase as the fingerprint does. Tap it for double size.
+   It is on Wallet, Seed ready, the key details, Forget seed and each key of a
+   multisig wallet. Scan QR for everyday use, and
    Wallet options for the rest:
    Connect wallet and Back up as QR, then Passphrase, Child seed and Network,
    then Forget seed on its own; the list scrolls
@@ -43,6 +49,8 @@ The seed lives in RAM only: Forget seed or unplugging removes it.
    (`[fingerprint/84h/1h/0h]vpub…`, shown in amber), which also serves signet and
    Mutinynet. The choice is kept in RAM, so every boot starts on mainnet. Signing and
    Verify address don't use it: they read the network from the PSBT or the address.
+   Switching the network, like switching the kind of key, asks first: to a
+   wallet app each is another wallet.
    "For a multisig wallet" switches to this seed's key for a multisig wallet,
    `[fingerprint/48h/0h/0h/2h]Zpub…` (BIP-48, native segwit; `48h/1h/0h/2h` and
    `Vpub…` on testnet), to add as a cosigner in the wallet app. Also RAM only
@@ -91,7 +99,10 @@ A tap brings the screen back at the set brightness and presses nothing.
 
 Enter words restores from a words backup: type each word. It starts at 12
 words; a 24-word backup taps "24 words" on the first word. The keyboard only offers letters that lead to a word and, on the last
-word, only words with a valid checksum. The seed loads right away.
+word, only words with a valid checksum. The seed loads right away. Back shows
+the word entered on the screen before, to accept again or change, and going
+forward again shows the words already entered after it; Back from the first
+word asks before they are forgotten.
 
 Experimental: Scan seed reads a handwritten backup, on any paper (plain, ruled, a printed card; one or more
 columns; numbered or not); its prompt asks for written words. A SeedQR is also read, as soon as it is in view. For written
@@ -159,9 +170,14 @@ reading speed are unmeasured.
 
 Passphrase (in Wallet options) opens a keyboard for a BIP-39 passphrase (the "25th word"):
 letters, digits and all ASCII symbols, up to 64 characters, with a Show/Hide
-switch. OK derives the key again (a few seconds on the board, like loading) and
-returns to Wallet with the fingerprint of seed plus passphrase, to check
-against the wallet app. An empty passphrase removes it. The
+switch. OK shows the passphrase once more, in full, to confirm: every passphrase
+gives a wallet, so a typo can't be told from the right one afterwards. With it comes the
+fingerprint that passphrase gives and its LifeHash, to hold against the wallet
+app's before it is used: the key is derived for that first (a few seconds on
+the board), and Use then applies it at once. Then the
+key is derived again (a few seconds on the board, like loading), back to Wallet
+with the fingerprint of seed plus passphrase, to check against the wallet app.
+An empty passphrase removes it, also once confirmed. The
 device keeps only the derived key, not the passphrase; both go with Forget seed
 or unplugging. Signing, Verify address, Connect wallet and Child seed
 then all use the passphrase wallet. Back up as QR still writes the seed alone:
@@ -384,6 +400,9 @@ pio test -e test
 - Verify address: BIP84's three addresses (receive 0 and 1, change 0), URIs and their
   amounts, testnet, foreign addresses, and a different seed loaded afterwards;
   multisig receive and change addresses, with and without the descriptor
+- LifeHash: version 2 pictures, pixel for pixel, against ones made by Sparrow's
+  Java library (toucan 0.9.0): the fingerprints of public test seeds with and
+  without passphrases, 300 more, and toucan's own "Hello" test
 - Amounts: BIP177 and legacy BTC formatting from ₿0 to the 21M cap
 - Made-up rolls: fair dice and coin sequences (rolled once, pasted in) pass;
   counting 123456…, no face twice in a row, too-even face counts, one face
