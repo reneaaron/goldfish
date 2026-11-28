@@ -9,14 +9,17 @@
 //        transaction -> Review -> each output -> Swipe to sign -> Signed QR -> Wallet
 //        address -> searching -> verified / not from this seed
 //   Wallet -> Wallet options -> Connect wallet | Back up as QR | Passphrase | Child seed | Wipe
-//   Passphrase (optional, BIP-39) -> keyboard -> Wallet with the passphrase's fingerprint
+//   Passphrase (optional, BIP-39) -> keyboard -> confirm the text -> Wallet with the passphrase's fingerprint
 //   Connect wallet: the key's QR; tap it for fingerprint, path and the whole
 //        key; "For a multisig wallet" switches to the BIP-48 key, RAM only
 //   Wallet options -> Network (Mainnet / Testnet) for that key, RAM only
+//   A confirmation over the screen comes before: a passphrase is applied or removed, the key
+//        switches kind or network, the words entered so far are dropped
 //   Multisig: show the wallet's descriptor QR to the scanner
 //        -> Multisig wallet (M of N, key fingerprints, first address) -> Use wallet
 //        -> back to the scanner, which now takes the wallet's transactions / addresses
-//   Home -> Enter words (12, or 24 from the first word) -> one screen per word -> Wallet
+//   Home -> Enter words (12, or 24 from the first word) -> one screen per word (Back shows the
+//        word entered there) -> Wallet
 //   Scan seed -> held still on written words (a photo of the backup, experimental)
 //        -> (hold still: a second, sharper picture) -> Words found (the photo, each
 //        word boxed) -> Read (or Retake: back to Scan seed) -> Reading words -> Check words (12 or 24, from how many were found): the
@@ -82,6 +85,7 @@ UiScreen ui_current();
 void ui_screensaver(bool open);
 
 // For the simulator's scripted run: the same actions as the on-screen controls.
+void ui_confirm(bool yes);     // the confirmation over the screen: its own button, or Cancel
 void ui_next_output();         // "Next" on an output screen
 bool ui_swipe_sign();          // completes the swipe; false if signing failed
 void ui_qr_full_screen();      // tap the signed QR: full screen, or back
