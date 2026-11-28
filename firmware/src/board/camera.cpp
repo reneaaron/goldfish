@@ -71,14 +71,17 @@ static const uint16_t init_regs[][2] = {
     {0x3039, 0x00}, {0x3034, 0x1a}, {0x3035, 0x11}, {0x3036, 0x0b}, {0x3037, 0x01}, {0x3108, 0x16},
     {0x3824, 0x04}, {0x460c, 0x22}, {0x3103, 0x13}, {DELAY, 50},
     // Banding filter for this line time (SCLK 41.25MHz / HTS 1896 = 46us), as
-    // ov5640_set_bandingfilter: 50Hz step 217 lines (10ms), 60Hz 180, and
-    // (VTS - 4) / step of them at most. Waveshare's 295/246 were for other clocks.
-    {0x3a08, 0x00}, {0x3a09, 0xd9}, {0x3a0a, 0x00}, {0x3a0b, 0xb4}, {0x3a0e, 0x04}, {0x3a0d, 0x05},
+    // ov5640_set_bandingfilter: 50Hz step 217 lines (10ms), 60Hz 180.
+    // Waveshare's 295/246 were for other clocks.
     // Short shutter for animated QRs (Sparrow shows a new one every 200ms):
-    // auto exposure may use at most one 50Hz step, 10ms, and makes up the
-    // rest with gain (up to 15.5x, 0x3a18/19). Not shorter: paper in room
-    // light needs the light, and below one step mains flicker stripes it.
-    {0x3a02, 0x00}, {0x3a03, 0xd9}, {0x3a14, 0x00}, {0x3a15, 0xd9},
+    // auto exposure may use at most one band, 10ms, and makes up the rest with
+    // gain (up to 15.5x, 0x3a18/19). Not shorter: paper in room light needs
+    // the light, and below one step mains flicker stripes it.
+    // The band count (0x3a0e, 0x3a0d) is what limits it: in the dark, auto
+    // exposure jumps straight to that many bands, past the max exposure
+    // registers 0x3a02/03 and 0x3a14/15 (measured on the board: 868 lines with
+    // 4 bands and those at 217), so they stay at Waveshare's VTS.
+    {0x3a08, 0x00}, {0x3a09, 0xd9}, {0x3a0a, 0x00}, {0x3a0b, 0xb4}, {0x3a0e, 0x01}, {0x3a0d, 0x01},
     // Output format Y8: one byte per pixel (Waveshare uses RGB565: 0x501f=0x01, 0x4300=0x61)
     {0x501f, 0x00}, {0x4300, 0x10}, {DELAY, 50},
 };
