@@ -564,6 +564,7 @@ $("w-settings").onclick = () => {
   $("set-proxy").value = server.proxy;
   $("set-url").placeholder = "Public server (default)";
   $("set-ok").hidden = true;
+  $("set-backup").hidden = !current?.multisig;
   passwordSection();
 };
 window.__TAURI__.app.getVersion().then((v) => { $("set-version").textContent = `Dove ${v}`; }, () => {});
@@ -1040,6 +1041,30 @@ $("unlock-reset").onclick = async () => {
   show("link");
   step("welcome");
 };
+
+// ---- multisig backup: the descriptor as a .txt, or the sheet to print (it opens in the browser)
+for (const b of document.querySelectorAll("button[data-backup]")) {
+  b.onclick = async () => {
+    const sheet = b.dataset.backup === "sheet";
+    const d = new Date();
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; // local day
+    try {
+      const path = await window.__TAURI__.dialog.save(
+        sheet
+          ? { defaultPath: `wallet-backup-${date}.html`, filters: [{ name: "Web page", extensions: ["html"] }] }
+          : { defaultPath: "wallet-descriptor.txt", filters: [{ name: "Text", extensions: ["txt"] }] },
+      );
+      if (!path) return;
+      await call(sheet ? "save_backup_sheet" : "save_descriptor", sheet ? { path, date } : { path });
+      const label = b.querySelector("span");
+      const was = label.dataset.was || (label.dataset.was = label.textContent);
+      label.textContent = sheet ? "Saved: print it from your browser" : "Saved";
+      setTimeout(() => (label.textContent = was), 2400);
+    } catch (e) {
+      error(e); // the dialog's own errors; call() has shown its already
+    }
+  };
+}
 
 // ---- start: reopen the saved wallet, if any
 invoke("startup")
