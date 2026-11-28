@@ -41,6 +41,7 @@ const char *psbt_error_text(PsbtError e) {
         case PSBT_SUSPICIOUS: return "An address claims to be your change but isn't. The transaction may have been tampered with.";
         case PSBT_NEEDS_DESCRIPTOR: return "A multisig transaction needs its wallet's descriptor QR.";
         case PSBT_WRONG_WALLET: return "This transaction doesn't spend from the multisig wallet you loaded.";
+        case PSBT_NO_PREVIOUS_TX: return "The fee can't be checked when several coins are spent at once. Spend one coin at a time.";
     }
     return "";
 }
@@ -267,6 +268,16 @@ PsbtError psbt_load(const uint8_t *data, size_t len, PsbtReview *r) {
         const struct wally_tx_output *utxo = nullptr;
         if (wally_psbt_get_input_best_utxo(psbt, i, &utxo) != WALLY_OK || !utxo || utxo->satoshi == 0)
             return r->error = PSBT_MISSING_AMOUNTS;
+        // A segwit v0 signature commits to its own input's amount only. With
+        // two inputs, a wallet app could ask twice for one payment, each time
+        // giving a different input's amount falsely (and the other's previous
+        // transaction, so it checks out), and combine the valid signature of
+        // each round into a transaction whose fee is far above what either
+        // review showed. So with more than one input, every one must come with
+        // the transaction that made its coin, to check its amount against. A
+        // lone input may come without (Sparrow's QR leaves them out): given
+        // falsely, its amount makes its only signature invalid.
+        if (!in.utxo && psbt->num_inputs > 1) return r->error = PSBT_NO_PREVIOUS_TX;
         if (in.utxo && !utxo_matches_prevout(i, utxo)) return r->error = PSBT_PARSE_FAILED;
         size_t type = 0;
         if (wally_scriptpubkey_get_type(utxo->script, utxo->script_len, &type) != WALLY_OK ||

@@ -160,10 +160,32 @@ def make_case(rng):
     if in_total > MAX_MONEY or out_total > MAX_MONEY:
         c.tags.append("over-21M"); c.must_reject.append("amounts above 21M BTC")
 
+    # Each coin comes from a transaction of its own, which a wallet app sends
+    # along: the signer checks the amount against it.
+    prevs = []
+    for i in range(n_in):
+        n = vin[i].vout
+        pad = [TransactionOutput(546, Script(b"\x6a")) for _ in range(n)]
+        prev = Transaction(version=2, vin=[TransactionInput(bytes(rng.getrandbits(8) for _ in range(32)), 0)],
+                           vout=pad + [utxos[i]])
+        vin[i] = TransactionInput(prev.txid(), n)
+        prevs.append(prev)
+
     tx = Transaction(version=2, vin=vin, vout=vout, locktime=0)
     p = PSBT(tx)
+    bare = 0
     for i in range(n_in):
         p.inputs[i].witness_utxo = utxos[i]
+        p.inputs[i].non_witness_utxo = prevs[i]
+        r = rng.random()
+        if r < 0.15:         # the amount on the wallet app's word alone: fine for a lone input only
+            p.inputs[i].non_witness_utxo = None
+            bare += 1
+            c.tags.append("no-previous-tx")
+            if bare == 1 and n_in > 1: c.must_reject.append("an input without its previous transaction among several")
+        elif r < 0.18:       # an amount the previous transaction doesn't have
+            p.inputs[i].witness_utxo = TransactionOutput(utxos[i].value + 1000, utxos[i].script_pubkey)
+            c.tags.append("false-amount"); c.must_reject.append("witness UTXO disagrees with the previous transaction")
         p.inputs[i].bip32_derivations.update(in_derivs[i])
     for i in range(n_out):
         p.outputs[i].bip32_derivations.update(out_derivs[i])

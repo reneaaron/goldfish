@@ -190,6 +190,33 @@ def test_fake_change_blocks_signing(dev):
     assert "Don't sign this" in dev.text()
 
 
+def test_several_coins_without_previous_transactions_are_refused(dev):
+    """Sparrow's QR leaves the previous transactions out. With one coin that is
+    safe: its amount is in the signature. With two, a wallet app could give a
+    different amount falsely each time it asks for a signature, and build a
+    transaction with a huge fee out of the two. Refused, saying what to do."""
+    wallet = linked_wallet(dev)
+
+    def bare(psbt):
+        for scope in psbt.inputs:
+            scope.non_witness_utxo = None
+        return psbt
+
+    two = bare(wallet.create_psbt([wallet.fund(0, 90_000), wallet.fund(1, 50_000)], [(stranger_address(), 10_000)], fee=500))
+    dev.tap("Scan QR")
+    dev.scan_animated(psbt_parts(two))
+    assert dev.screen == "PSBT_ERROR", dev.text()
+    assert "Can't sign this" in dev.text() and "one coin at a time" in dev.text()
+    dev.tap("Back to wallet")
+
+    one = bare(wallet.create_psbt([wallet.fund(0, 90_000)], [(stranger_address(), 10_000)], fee=500))
+    dev.tap("Scan QR")
+    dev.scan_animated(psbt_parts(one))
+    signed, seen = review_and_sign(dev)
+    wallet.combine(one, signed)
+    wallet.finalize(one)
+
+
 def test_psbt_joined_mid_animation(dev):
     """The camera rarely catches the first frame: the scanner has to finish
     from fountain-coded parts alone, and so does the wallet app reading the

@@ -82,7 +82,7 @@ Rules that follow from this:
 ### Security invariants (don't weaken these in passing)
 
 - Nothing is written to flash. Seed, passphrase-derived key, Connect wallet's network and key type, and the multisig descriptor are all RAM-only and go on wipe or unplug.
-- PSBT review follows SeedSigner's rules: every input must belong to the loaded seed; an output counts as change only if the seed re-derives that exact output script; an output that claims our fingerprint but doesn't verify blocks signing.
+- PSBT review follows SeedSigner's rules: every input must belong to the loaded seed; an output counts as change only if the seed re-derives that exact output script; an output that claims our fingerprint but doesn't verify blocks signing. With more than one input, every input needs its full previous transaction (amounts checked against it); otherwise false amounts over two signings could hide a fee. A lone input may come without.
 - Multisig inputs and change are checked against scripts derived from the confirmed descriptor, never the PSBT's own witness scripts. The descriptor is bound to the root key it was checked with (other seed or other passphrase = not used).
 - Native segwit only (single-sig P2WPKH, `wsh(sortedmulti)`). The network comes from the PSBT's derivation paths, the address, or the descriptor's keys, not from the Connect wallet setting.
 

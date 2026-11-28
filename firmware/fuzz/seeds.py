@@ -4,6 +4,7 @@
 import base64, re, pathlib, hashlib, random, copy, struct, zlib
 import segno
 from embit.psbt import PSBT, DerivationPath
+from embit.transaction import Transaction
 from embit.ec import PrivateKey
 
 FW = pathlib.Path(__file__).resolve().parent.parent
@@ -20,7 +21,11 @@ def cstr(name, text=None):
     m = re.search(r'%s\s*=\s*((?:"[^"]*"\s*)+);' % name, text or fixt)
     return "".join(re.findall(r'"([^"]*)"', m.group(1)))
 
-single_b64 = cstr("SINGLESIG_FRAME")
+# SeedSigner's frame with the transaction its coin comes from, as the signer
+# wants it; without it review stops at the first input.
+_ss = PSBT.parse(base64.b64decode(cstr("SINGLESIG_FRAME")))
+_ss.inputs[0].non_witness_utxo = Transaction.parse(bytes.fromhex(cstr("SINGLESIG_PREVIOUS_TX")))
+single_b64 = base64.b64encode(_ss.serialize()).decode()
 multi_b64 = cstr("UR_MULTISIG_BASE64")
 parts = re.findall(r"\"(UR:[^\"]+)\"", fixt, re.I)
 
@@ -285,6 +290,7 @@ def psbt_variants(raw, our_fp):
     yield tweak(lambda p: setattr(p.outputs[-1], "value", 0))
     yield tweak(lambda p: setattr(p.inputs[0], "witness_script", None))
     yield tweak(lambda p: setattr(p.inputs[0], "witness_utxo", None))
+    yield tweak(lambda p: setattr(p.inputs[0], "non_witness_utxo", None))
     yield tweak(lambda p: setattr(p.inputs[0], "sighash_type", 2))
     yield tweak(lambda p: setattr(p.inputs[0], "sighash_type", 0x83))
     yield tweak(lambda p: p.inputs.append(copy.deepcopy(p.inputs[0])))

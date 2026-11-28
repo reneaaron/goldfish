@@ -49,3 +49,17 @@ qr.add_data(text)
 qr.make(fit=True)
 qr.make_image().convert("1").save(OUT)
 print(OUT, len(text), "chars,", p2sh.address(NET), p2wpkh.address(NET))
+
+# Two made-up coins of the same seed in one transaction, without their previous
+# transactions, as Sparrow's QR sends them: what SIM_SHOTS shows for the
+# refusal (TWO_COINS_PSBT in src/sim/main.cpp).
+path1 = "m/84h/0h/0h/0/1"
+key1 = ours.derive(path1).key.get_public_key()
+two = PSBT(Transaction(version=2,
+                       vin=[TransactionInput(hashlib.sha256(b"sample coin %d" % i).digest(), 0, sequence=0xFFFFFFFD) for i in (0, 1)],
+                       vout=[TransactionOutput(39800, p2wpkh)]))
+two.inputs[0].witness_utxo = coin
+two.inputs[0].bip32_derivations[key] = DerivationPath(ours.my_fingerprint, bip32.parse_path(path))
+two.inputs[1].witness_utxo = TransactionOutput(15000, script.p2wpkh(key1))
+two.inputs[1].bip32_derivations[key1] = DerivationPath(ours.my_fingerprint, bip32.parse_path(path1))
+print("TWO_COINS_PSBT", two.to_string())

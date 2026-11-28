@@ -84,6 +84,15 @@ static void cam_load(const char *path) {
 
 // Script helper: show `text` as a QR code to the camera, instead of a file.
 static bool cam_override;
+// Two coins of the sample seed in one transaction, without their previous
+// transactions: printed by sim/make_mainnet_psbt.py.
+static const char *TWO_COINS_PSBT =
+    "cHNidP8BAHsCAAAAAnzAMkzxf7Qnoa0Ik761ZCsq8/vlXUMxf1WspkrvHDGIAAAAAAD9////GUAKUluNBE13cLOldpQLcbavQzHi"
+    "EwkiYodNSxYxaNMAAAAAAP3///8BeJsAAAAAAAAWABTAzrzWw9PKjHXcXsYuvlUzDvkQ4gAAAAAAAQEfqGEAAAAAAAAWABQOgq6n"
+    "lJqVX9YwlzWtLLANMKuT5SIGA3/U8GK3tl27TQ9EYgoT79iV7Rey50AstMBfoQemBJKFGIshjoFUAACAAAAAgAAAAIAAAAAAAAAA"
+    "AAABAR+YOgAAAAAAABYAFBcKZHXnmdqsELN/lci4o3aUuZEHIgYCY4PTyA8qxSksIBzK9ghRgkLZJncM8FDr4Mc9LHkQ89oYiyGO"
+    "gVQAAIAAAACAAAAAgAAAAAABAAAAAAA=";
+
 static void cam_show_qr(const char *text) {
     static uint8_t qr[qrcodegen_BUFFER_LEN_MAX], tmp[qrcodegen_BUFFER_LEN_MAX];
     if (!qrcodegen_encodeText(text, tmp, qr, qrcodegen_Ecc_LOW, qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX,
@@ -346,6 +355,13 @@ static int run_shots(const char *dir) {
     setenv("SIM_CAMERA", "sim/samples/testseed_height_demise_standard_12word.png", 1);
     for (int i = 0; i < 100 && ui_current() == UI_SCAN_SEED; i++) pump(50);
     if (ui_current() != UI_WALLET) { fprintf(stderr, "test seed was not decoded\n"); return 1; }
+    // Two coins without their previous transactions: the fee can't be checked.
+    ui_goto(UI_SCAN);
+    cam_show_qr(TWO_COINS_PSBT);
+    for (int i = 0; i < 100 && ui_current() == UI_SCAN; i++) pump(50);
+    if (ui_current() != UI_PSBT_ERROR) { fprintf(stderr, "two coins without previous transactions were not refused (screen %d)\n", ui_current()); return 1; }
+    pump(300); save(dir, "7a_psbt_no_previous_tx");
+    cam_override = false;
     ui_goto(UI_SCAN);
     setenv("SIM_CAMERA", "sim/samples/mainpsbt_height_demise_base64.png", 1);
     for (int i = 0; i < 100 && ui_current() == UI_SCAN; i++) pump(50);
