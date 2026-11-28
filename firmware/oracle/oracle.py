@@ -5,11 +5,12 @@ Generates random single-sig PSBTs (honest ones and attacks), runs them through
 oracle/out/psbt_cli (the firmware code, natively), and checks:
 
   hard  what the screen shows matches the transaction: amounts, addresses,
-        change/self/spend split, fee; bad PSBTs are refused; every signature
-        is valid for exactly the reviewed transaction.
-  soft  policy issues a careful signer would warn about (change in another
-        account, change far beyond the gap limit, mixed networks). Counted,
-        not fatal.
+        change/self/spend split, fee; bad PSBTs are refused (change in another
+        account than the inputs among them); change far beyond any gap limit
+        is marked for a warning; every signature is valid for exactly the
+        reviewed transaction.
+  soft  policy issues a careful signer would warn about (mixed networks).
+        Counted, not fatal.
 
 Usage (from firmware/):
   oracle/build.sh
@@ -113,6 +114,7 @@ def make_case(rng):
         amt = c.amount()
         r = rng.random()
         deriv = {}
+        far = False
         if r < 0.45:
             kind = rng.choice(["p2wpkh", "p2tr", "p2pkh", "p2sh", "p2wsh", "op_return"])
             sc = foreign_script(c, kind)
@@ -134,12 +136,12 @@ def make_case(rng):
             path = [84 + H, c.coin + H, rng.randint(1, 1000) + H, 1, rng.randint(0, 50)]
             pub = c.ours(path); sc = script.p2wpkh(pub)
             deriv = {pub: DerivationPath(c.fp, path)}; role = "change"
-            c.tags.append("change-other-account"); c.soft.append("change in another account")
+            c.tags.append("change-other-account"); c.must_reject.append("change in another account than the inputs")
         elif r < 0.92:       # real change, far beyond any gap limit
             path = acct + [1, rng.randint(10_000, H - 1)]
             pub = c.ours(path); sc = script.p2wpkh(pub)
             deriv = {pub: DerivationPath(c.fp, path)}; role = "change"
-            c.tags.append("change-huge-index"); c.soft.append("change index beyond gap limit")
+            c.tags.append("change-huge-index"); far = True
         elif r < 0.96:       # real change on the other network's coin type / other purpose
             path = [rng.choice([44, 49, 84, 86]) + H, (1 - c.coin) + H, H, 1, rng.randint(0, 50)]
             pub = c.ours(path); sc = script.p2wpkh(pub)
@@ -152,7 +154,7 @@ def make_case(rng):
             c.tags.append("change-wrong-script"); c.must_reject.append("change with non-p2wpkh script")
         vout.append(TransactionOutput(amt, sc))
         out_derivs.append(deriv)
-        expect.append({"role": role, "amount": amt, "script": sc})
+        expect.append({"role": role, "amount": amt, "script": sc, "far": far})
 
     out_total = sum(o.value for o in vout)
     if n_out > MAX_OUTPUTS: c.must_reject.append("too many outputs")
@@ -209,6 +211,8 @@ def check(c, got):
         role = "change" if g["change"] else "self" if g["self"] else "suspicious" if g["suspicious"] else "spend"
         if role != e["role"]:
             hard.append(f"output {i}: shown as {role}, really {e['role']}")
+        if e["far"] and not g["far"]:
+            hard.append(f"output {i}: change far beyond any gap limit shown without a warning")
         sums[e["role"]] += e["amount"]
     for k in ("spend", "self", "change"):
         if got[k] != sums[k]:

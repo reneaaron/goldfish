@@ -84,6 +84,15 @@ static void cam_load(const char *path) {
 
 // Script helper: show `text` as a QR code to the camera, instead of a file.
 static bool cam_override;
+// The sample coin spent with change that is ours, but far down its list
+// (m/84h/0h/0h/1/5000): printed by sim/make_mainnet_psbt.py.
+static const char *FAR_CHANGE_PSBT =
+    "cHNidP8BAHECAAAAAX9KSGz5oxAfUznDyYtT6nbUSau9/4aIzfxsyPwcTfyXAAAAAAD9////Apg6AAAAAAAAFgAUwM681sPTyox1"
+    "3F7GLr5VMw75EOKBJgAAAAAAABYAFCWUziq+sVDBpQ7nDa0JK6CFMwpBAAAAAAABAFICAAAAAQ1XXgnMD/ykaiPLlMe/K122Vs6S"
+    "L9a+muHCNRq/8+w2AAAAAAD/////AahhAAAAAAAAFgAUDoKup5SalV/WMJc1rSywDTCrk+UAAAAAIgYDf9TwYre2XbtND0RiChPv"
+    "2JXtF7LnQCy0wF+hB6YEkoUYiyGOgVQAAIAAAACAAAAAgAAAAAAAAAAAAAAiAgIGKLhQG0y2yeuLTKKGFlpmEBGP5k4xaJmB2wtM"
+    "V0s1XxiLIY6BVAAAgAAAAIAAAACAAQAAAIgTAAAA";
+
 static void cam_show_qr(const char *text) {
     static uint8_t qr[qrcodegen_BUFFER_LEN_MAX], tmp[qrcodegen_BUFFER_LEN_MAX];
     if (!qrcodegen_encodeText(text, tmp, qr, qrcodegen_Ecc_LOW, qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX,
@@ -358,6 +367,14 @@ static int run_shots(const char *dir) {
     pump(400); save(dir, "11_psbt_signed");
     ui_qr_full_screen(); pump(300); save(dir, "11b_psbt_signed_full");
     ui_qr_full_screen(); pump(100);
+
+    // Change far past the addresses in use: the warning, with its path.
+    ui_goto(UI_SCAN);
+    cam_show_qr(FAR_CHANGE_PSBT);
+    for (int i = 0; i < 100 && ui_current() == UI_SCAN; i++) pump(50);
+    if (ui_current() != UI_PSBT_OVERVIEW) { fprintf(stderr, "far-change PSBT was not accepted (screen %d)\n", ui_current()); return 1; }
+    ui_goto(UI_PSBT_OUTPUT);
+    ui_next_output(); pump(300); save(dir, "9b_psbt_output_far");
 
     // Verify address: one of ours (receive #7), then a foreign one.
     ui_goto(UI_WALLET); pump(300); save(dir, "12_wallet_menu");

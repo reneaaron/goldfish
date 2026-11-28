@@ -7,7 +7,7 @@ All seeds here are public test seeds. Never real funds.
 import pytest
 from embit import bip39
 
-from flows import (connect_wallet, fingerprint_on_screen, load_by_qr, load_by_words,
+from flows import (address_on_screen, connect_wallet, fingerprint_on_screen, load_by_qr, load_by_words,
                    review_and_sign, verify_address)
 from hostwallet import NET, Seed, Wallet, psbt_parts, read_psbt, seedqr
 
@@ -188,6 +188,55 @@ def test_fake_change_blocks_signing(dev):
     dev.scan_animated(psbt_parts(psbt))
     assert dev.screen == "PSBT_ERROR", dev.text()
     assert "Don't sign this" in dev.text()
+
+
+def test_change_far_down_its_list_asks_first(dev):
+    """Change that really is ours, but at an index no wallet app scans to: a
+    compromised app could park coins there and ask a ransom for the number.
+    The signer shows the path and asks; a coin from near that index is the
+    one thing that makes it ordinary."""
+    wallet = linked_wallet(dev)
+    far = 2_000_000_000
+    psbt = wallet.create_psbt([wallet.fund(0, 90_000)], [(stranger_address(), 10_000)], fee=500, change_index=far)
+    dev.tap("Scan QR")
+    dev.scan_animated(psbt_parts(psbt))
+    assert dev.screen == "PSBT_OVERVIEW", dev.text()
+    dev.tap("Check addresses")
+    dev.tap("Next address")
+    warning = dev.text()
+    assert "YOUR CHANGE" in warning and "₿79,500" in warning
+    assert "may not find these coins" in warning and "m/84h/1h/0h/1/%d" % far in warning
+    assert address_on_screen(dev) == wallet.address(far, change=True)
+    dev.tap("Cancel")
+    assert dev.screen == "WALLET", dev.text()
+
+    # Accepted, it is signed like any other.
+    dev.tap("Scan QR")
+    dev.scan_animated(psbt_parts(psbt))
+    signed, seen = review_and_sign(dev)
+    wallet.combine(psbt, signed)
+    wallet.finalize(psbt)
+
+    # Spending change 150, change 151 is where a wallet app is by now: no question.
+    psbt = wallet.create_psbt([wallet.fund(150, 90_000, change=True)], [(stranger_address(), 10_000)], fee=500, change_index=151)
+    dev.tap("Scan QR")
+    dev.scan_animated(psbt_parts(psbt))
+    signed, (overview, pay, change, confirm) = review_and_sign(dev)
+    assert "YOUR CHANGE" in change and "Cancel" not in change and "PATH" not in change
+
+
+def test_change_in_another_account_is_refused(dev):
+    """Our own key, but in an account the transaction doesn't spend from:
+    with the account free as well, nobody finds it again."""
+    wallet = linked_wallet(dev)
+    other = Wallet.singlesig(Seed(MNEMONIC).key("84h/1h/1h"))
+    psbt = wallet.create_psbt([wallet.fund(0, 90_000)], [(stranger_address(), 10_000)], fee=500)
+    theirs = other.create_psbt([other.fund(0, 90_000)], [(stranger_address(), 10_000)], fee=500)
+    psbt.outputs[-1] = theirs.outputs[-1]
+    dev.tap("Scan QR")
+    dev.scan_animated(psbt_parts(psbt))
+    assert dev.screen == "PSBT_ERROR", dev.text()
+    assert "Can't sign this" in dev.text() and "another account" in dev.text()
 
 
 def test_psbt_joined_mid_animation(dev):

@@ -58,8 +58,10 @@ signing code), and compares with what embit says is true:
 
 - **hard**: every amount, address, change/self/spend label and the fee match
   the real transaction; PSBTs the firmware is meant to refuse (inputs or
-  change that aren't really ours, change outside the BIP84 account, more than
-  8 outputs, totals above 21M BTC) are refused; every
+  change that aren't really ours, change outside the BIP84 account or in
+  another account than the inputs, more than
+  8 outputs, totals above 21M BTC) are refused; change far past any gap limit
+  is marked for the warning; every
   signature verifies for exactly the reviewed transaction with SIGHASH_ALL.
 - **soft**: policy issues that get through to signing (counted only).
 

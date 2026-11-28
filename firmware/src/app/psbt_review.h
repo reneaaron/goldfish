@@ -14,12 +14,25 @@
 
 #define PSBT_MAX_OUTPUTS 16
 
+// An output of ours is only useful where a wallet app will look for it. The
+// device keeps nothing, so it goes by the transaction itself: a wallet app
+// scans PSBT_GAP_LIMIT addresses past the last one used (BIP 44's gap limit,
+// Sparrow's default), and an input at index n shows n was used. An address of
+// ours is `far` unless its index is below PSBT_GAP_LIMIT, or no more than
+// PSBT_GAP_LIMIT past an input's on the same chain. From PSBT_SCAN_LIMIT on it
+// is far whatever the inputs say: a coin sent to a high index on purpose would
+// otherwise vouch for the next ones.
+#define PSBT_GAP_LIMIT 20
+#define PSBT_SCAN_LIMIT 1000
+
 struct PsbtOutput {
     char address[96];
     uint64_t amount;
     bool is_change;      // verified ours, internal chain (/1/n)
     bool is_self;        // verified ours, receive chain (/0/n): self-transfer
     bool suspicious;     // claims our fingerprint but doesn't verify
+    bool far;            // ours, but at an index a wallet app may not scan: shown with a warning
+    uint32_t index;      // its index on the chain, for ours
     char path[48];       // our key's derivation path for ours, e.g. m/84h/0h/0h/1/3
 };
 
@@ -36,6 +49,7 @@ enum PsbtError {
     PSBT_SUSPICIOUS,        // a "change" output failed verification
     PSBT_NEEDS_DESCRIPTOR,  // multisig inputs, but no wallet descriptor is loaded
     PSBT_WRONG_WALLET,      // multisig inputs that aren't the loaded descriptor's
+    PSBT_OTHER_ACCOUNT,     // an output of ours in an account none of the inputs is from
 };
 
 enum FeeLevel { FEE_OK = 0, FEE_HIGH, FEE_VERY_HIGH };

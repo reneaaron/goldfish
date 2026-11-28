@@ -49,3 +49,18 @@ qr.add_data(text)
 qr.make(fit=True)
 qr.make_image().convert("1").save(OUT)
 print(OUT, len(text), "chars,", p2sh.address(NET), p2wpkh.address(NET))
+
+# The same coin with change that is ours, but far down its list
+# (m/84h/0h/0h/1/5000): what SIM_SHOTS shows for the warning
+# (FAR_CHANGE_PSBT in src/sim/main.cpp). It carries the made-up transaction
+# the coin comes from.
+far_path = "m/84h/0h/0h/1/5000"
+far_key = ours.derive(far_path).key.get_public_key()
+previous = Transaction(version=2, vin=[TransactionInput(hashlib.sha256(b"sample coin").digest(), 0)], vout=[coin])
+far = PSBT(Transaction(version=2,
+                       vin=[TransactionInput(previous.txid(), 0, sequence=0xFFFFFFFD)],
+                       vout=[TransactionOutput(15000, p2wpkh), TransactionOutput(9857, script.p2wpkh(far_key))]))
+far.inputs[0].non_witness_utxo = previous
+far.inputs[0].bip32_derivations[key] = DerivationPath(ours.my_fingerprint, bip32.parse_path(path))
+far.outputs[1].bip32_derivations[far_key] = DerivationPath(ours.my_fingerprint, bip32.parse_path(far_path))
+print("FAR_CHANGE_PSBT", far.to_string())
