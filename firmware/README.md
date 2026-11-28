@@ -540,8 +540,8 @@ seed there.
 ## Flash
 
 1. Start the bootloader. A board already running this firmware: on Home, tap
-   the version in the top right corner, then Restart (`UI_UPDATE`; Home only
-   shows with no seed loaded). The first time, or when the firmware doesn't
+   the version in the top right corner, then Update firmware and Restart
+   (`UI_UPDATE`; Settings offers it only with no seed loaded). The first time, or when the firmware doesn't
    start: take the board out of the case, hold BOOT (bottom edge, right of
    USB-C seen from the back) and plug in USB-C. Either way a drive called
    `RP2350` appears.
@@ -578,6 +578,13 @@ computer, when a seed is loaded.
 
 - The home screen appears with the right colours (if colours look inverted
   or red/blue swapped, adjust `0x21`/`0x36` in `src/board/display.cpp`).
+- Touch guides, off until switched on in Settings: while a finger is down, a
+  line across and a line down the whole screen cross where the touch is
+  registered, on every screen: a thumb covers what it presses, and the lines
+  show around it.
+- Settings is behind the version in the top right corner of Home and of
+  Wallet: Update firmware (only while no seed is loaded) and Touch guides.
+  Nothing in it is saved; it starts over when the device is unplugged.
 - Buttons react where you touch. If touches are mirrored or swapped, fix the
   mapping in `src/board/touch.cpp` (marked TODO).
 - The scan screen shows the camera image. If it stays black, the line under
