@@ -4,6 +4,8 @@
 
 pub mod camera;
 pub mod firmware;
+pub mod p2p;
+pub mod tor;
 
 use std::sync::Arc;
 
@@ -240,9 +242,227 @@ impl Account {
     }
 }
 
+// ------------------------------------------------------------ backup
+
+/// One cosigner's key, as a backup lists it.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct Cosigner {
+    pub fingerprint: String,
+    /// `m/48h/1h/0h/2h`
+    pub path: String,
+    /// xpub (mainnet) or tpub (test networks) spelling
+    pub xpub: String,
+}
+
+/// What a multisig wallet's backup holds, beside the seeds: everything a
+/// wallet app needs to find the coins again, and nothing that spends them.
+#[derive(Serialize, Clone, Debug)]
+pub struct BackupSheet {
+    pub threshold: usize,
+    pub cosigners: Vec<Cosigner>,
+    /// "Mainnet" or "Signet"
+    pub network: String,
+    pub descriptor: String,
+    pub first_address: String,
+    /// the day the sheet was made, `YYYY-MM-DD`
+    pub date: String,
+}
+
+/// The backup of a multisig `account`, made on `date`.
+pub fn backup_sheet(account: &Account, date: &str) -> Res<BackupSheet> {
+    if !account.is_multisig() {
+        return Err("one signer's seed is its own backup: there's nothing else to save".into());
+    }
+    let body = account.descriptor.split('#').next().unwrap_or_default();
+    let inner = body.strip_prefix("wsh(sortedmulti(").and_then(|b| b.strip_suffix("))")).ok_or("not a sortedmulti descriptor")?;
+    let cosigners = inner
+        .split(',')
+        .skip(1)
+        .map(|k| {
+            let k = Key::parse(k)?;
+            Ok(Cosigner { fingerprint: k.fingerprint, path: format!("m/{}", k.path), xpub: k.xpub.to_string() })
+        })
+        .collect::<Res<Vec<_>>>()?;
+    let first_address = account.wallet()?.peek_address(KeychainKind::External, 0).address.to_string();
+    Ok(BackupSheet {
+        threshold: account.threshold,
+        cosigners,
+        network: if account.network == Network::Bitcoin { "Mainnet" } else { "Signet" }.into(),
+        descriptor: account.descriptor.clone(),
+        first_address,
+        date: date.to_string(),
+    })
+}
+
+fn escape(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+}
+
+impl BackupSheet {
+    /// The descriptor file: one line, with its checksum, the way wallet apps
+    /// import it.
+    pub fn text(&self) -> String {
+        format!("{}\n", self.descriptor)
+    }
+
+    /// A page to print: self-contained, no requests. It looks like Goldfish's
+    /// printable cards (`cards/index.html`): the same ink, greys, alert,
+    /// boxed strips, numbered steps and storing tips, in mm for print.
+    pub fn html(&self) -> String {
+        let (m, n) = (self.threshold, self.cosigners.len());
+        // keys in groups of four, easier to copy by hand; spans add no spaces when copied
+        let grouped = |s: &str| -> String {
+            s.as_bytes().chunks(4).map(|c| format!("<i>{}</i>", escape(std::str::from_utf8(c).unwrap_or_default()))).collect()
+        };
+        let signers: String = self
+            .cosigners
+            .iter()
+            .enumerate()
+            .map(|(i, c)| {
+                format!(
+                    r#"<div class="signer"><span class="no">{no}</span>
+  <div><span class="cap">Fingerprint</span><span class="mono fp">{fp}</span></div>
+  <div><span class="cap">Path</span><span class="mono">{path}</span></div>
+  <div><span class="cap">Held by</span><span class="line"></span></div>
+  <div class="key"><span class="cap">Public key</span><span class="mono">{xpub}</span></div>
+</div>
+"#,
+                    no = i + 1,
+                    fp = grouped(&c.fingerprint),
+                    path = escape(&c.path),
+                    xpub = grouped(&c.xpub)
+                )
+            })
+            .collect();
+        // the descriptor's QR, to scan it back in; a very long one may not fit a code
+        let qr = qr_svg(&self.descriptor).map(|s| format!("<div class=\"qr\">{s}</div>")).unwrap_or_default();
+        let fewer = if m < n { format!(" With only {m} of the {n} seeds, you need this sheet too.") } else { String::new() };
+        format!(
+            r##"<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multisig wallet backup ({m} of {n})</title>
+<style>
+  /* The look of Goldfish's printable cards (cards/index.html): ink for what
+     matters, --grey for text and labels, --line for rules and boxes. */
+  :root {{
+    --ink: #14222B; --grey: #7a766e; --line: #d2cdc4;
+    --bg: #FFFFFF; --raised: #EDF2F4; --rule: #D9E2E6; --muted: #5A6B75;
+    --sans: Inter, "Helvetica Neue", Arial, ui-sans-serif, system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    --pw: 210mm; --ph: 279.4mm; /* A4's width and Letter's height: fits either paper */
+  }}
+  * {{ box-sizing: border-box; }}
+  body {{ margin: 0; background: var(--raised); color: var(--ink); font: 15px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }}
+  .bar {{ max-width: var(--pw); margin: 0 auto; padding: 32px 0 24px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; }}
+  .bar p {{ margin: 0; color: var(--muted); }}
+  .print {{ display: inline-flex; align-items: center; gap: 10px; height: 50px; padding: 0 24px; border: 0; border-radius: 12px;
+           background: var(--ink); color: #fff; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; }}
+  .print svg {{ width: 18px; height: 18px; }}
+  .sheet {{ background: #fff; width: var(--pw); min-height: var(--ph); margin: 0 auto 72px; padding: 12mm 14mm;
+           box-shadow: 0 2px 16px rgb(20 34 43 / .14); display: flex; flex-direction: column; gap: 3.5mm; }}
+  @media (max-width: 860px) {{ .sheet {{ zoom: .5; }} .bar {{ padding: 24px 16px; }} }}
+  @media print {{
+    /* margins on the paper, so a long sheet that runs onto page 2 has them too */
+    @page {{ margin: 12mm 0; size: 210mm 279.4mm; }}
+    body {{ background: #fff; }}
+    .bar {{ display: none; }}
+    .sheet {{ box-shadow: none; margin: 0; zoom: 1; padding: 0 14mm; min-height: calc(var(--ph) - 24mm); }}
+    * {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
+  }}
+
+  .cap {{ font-size: 2.6mm; letter-spacing: .14em; text-transform: uppercase; color: var(--grey); }}
+  .mono {{ font-family: var(--mono); font-size: 3mm; color: var(--ink); word-break: break-all; }}
+  .mono i {{ font-style: normal; margin-right: .9mm; }}
+  .alert {{ display: flex; align-items: center; gap: 3mm; padding-bottom: 3.5mm; border-bottom: .3mm solid var(--ink);
+           font-size: 3.6mm; font-weight: 600; }}
+  .alert::before {{ content: "!"; flex: none; width: 5.6mm; height: 5.6mm; border-radius: 50%; background: var(--ink); color: #fff;
+                   display: flex; align-items: center; justify-content: center; font-size: 3.4mm; font-weight: 700; }}
+  .alert span {{ font-weight: 400; color: var(--grey); }}
+  h1 {{ margin: 0; font-size: 7mm; font-weight: 700; letter-spacing: -0.01em; line-height: 1.1; }}
+  .sec {{ color: var(--ink); font-weight: 600; margin: 0 0 -2mm; }}
+
+  /* boxed strips with hairline dividers, as on the cards */
+  .strip {{ display: grid; grid-template-columns: repeat(4, auto); border: .3mm solid var(--line); border-radius: 2mm; }}
+  .strip > div {{ padding: 2.6mm 4mm 3mm; display: flex; flex-direction: column; gap: 1.2mm; font-size: 3.2mm; min-width: 0; }}
+  .strip > div + div {{ border-left: .2mm solid var(--line); }}
+  .strip .wide {{ grid-column: 1 / -1; border-left: 0; border-top: .2mm solid var(--line); }}
+  .line {{ display: block; height: 5mm; border-bottom: .2mm solid var(--line); }}
+
+  .signers {{ display: flex; flex-direction: column; gap: 2mm; }}
+  .signer {{ display: grid; grid-template-columns: 9mm 32mm 38mm 1fr; border: .3mm solid var(--line); border-radius: 2mm; break-inside: avoid; }}
+  .signer > div {{ padding: 2mm 3.5mm 2.2mm; display: flex; flex-direction: column; gap: 1mm; border-left: .2mm solid var(--line); min-width: 0; }}
+  .signer .no {{ grid-row: 1 / 3; display: flex; align-items: center; justify-content: center; font-size: 3.2mm; font-weight: 600; }}
+  .signer .key {{ grid-column: 2 / -1; border-top: .2mm solid var(--line); }}
+  .signer .fp {{ font-size: 3.6mm; font-weight: 600; }}
+
+  .desc {{ display: grid; grid-template-columns: 38mm 1fr; border: .3mm solid var(--line); border-radius: 2mm; break-inside: avoid; }}
+  .desc > div {{ padding: 3mm 4mm; display: flex; flex-direction: column; gap: 1.2mm; min-width: 0; }}
+  .desc > div + div {{ border-left: .2mm solid var(--line); }}
+  .keep {{ display: flex; flex-direction: column; gap: 1.5mm; break-inside: avoid; }}
+  .keep .sec {{ margin: 0; }}
+  .qr svg {{ width: 30mm; height: auto; display: block; }}
+  .desc .mono {{ font-size: 2.7mm; line-height: 1.45; }}
+
+  .steps {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 6mm; margin: 0; padding: 0; list-style: none;
+           counter-reset: step; font-size: 2.9mm; line-height: 1.45; color: var(--grey); break-inside: avoid; }}
+  .steps li {{ counter-increment: step; display: grid; grid-template-columns: 6mm 1fr; grid-template-rows: min-content 1fr; column-gap: 2mm; }}
+  .steps li::before {{ content: counter(step); grid-row: 1 / 3; width: 5.4mm; height: 5.4mm; border-radius: 50%;
+                      border: .25mm solid var(--ink); color: var(--ink); font-size: 2.8mm; font-weight: 600;
+                      display: flex; align-items: center; justify-content: center; }}
+  .steps strong, .store strong {{ color: var(--ink); font-weight: 600; font-size: 3.1mm; }}
+  .store {{ margin-top: auto; padding-top: 3mm; border-top: .2mm solid var(--line); display: grid; grid-template-columns: repeat(3, 1fr);
+           gap: 2.5mm 6mm; font-size: 2.6mm; line-height: 1.4; color: var(--grey); break-inside: avoid; }}
+  .store > .cap {{ grid-column: 1 / -1; color: var(--ink); font-weight: 600; }}
+  .store > div {{ display: grid; grid-template-columns: 6mm 1fr; grid-template-rows: min-content 1fr; column-gap: 2.5mm; }}
+  .store svg {{ width: 6mm; height: 6mm; grid-row: 1 / 3; fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }}
+  .store strong {{ font-size: 2.85mm; }}
+</style></head><body>
+<div class="bar"><p>Print it, then keep a copy with each seed backup.</p>
+<button class="print" onclick="print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg>Print</button></div>
+<main class="sheet">
+<div class="alert">This sheet can't spend your bitcoin, but it shows all of it. <span>No seed or private key is on it. Keep it private.</span></div>
+<h1>Multisig wallet backup</h1>
+<div class="strip">
+  <div><span class="cap">Type</span><span>{m} of {n}, <span class="mono">wsh(sortedmulti)</span></span></div>
+  <div><span class="cap">Network</span><span>{network}</span></div>
+  <div><span class="cap">Made</span><span>{date}</span></div>
+  <div><span class="cap">Label</span><span class="line"></span></div>
+</div>
+<span class="cap sec">Signers</span>
+<div class="signers">
+{signers}</div>
+<div class="keep"><span class="cap sec">Descriptor</span>
+<div class="desc">
+  <div>{qr}</div>
+  <div><span class="mono">{descriptor}</span>
+  <span class="cap" style="margin-top:2mm">First address</span><span class="mono">{address}</span></div>
+</div></div>
+<ol class="steps">
+  <li><strong>Add the wallet</strong><span>In a wallet app that takes a descriptor, such as Dove or Sparrow: scan the QR or type it in.</span></li>
+  <li><strong>Check the address</strong><span>The app's first receive address must match the one on this sheet.</span></li>
+  <li><strong>Sign with any {m}</strong><span>Any {m} of the {n} seeds sign a payment.{fewer}</span></li>
+</ol>
+<div class="store">
+  <span class="cap">Storing it</span>
+  <div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 20s-4.5-4.6-4.5-8.3a4.5 4.5 0 0 1 9 0C11.5 15.4 7 20 7 20z"/><circle cx="7" cy="11.7" r="1.5"/><path d="M17 15s-4.5-4.6-4.5-8.3a4.5 4.5 0 0 1 9 0C21.5 10.4 17 15 17 15z"/><circle cx="17" cy="6.7" r="1.5"/></svg><strong>One with each seed</strong><span>Then any {m} of the places hold all you need to get your coins back.</span></div>
+  <div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.5"/><path d="M4 20 20 4"/></svg><strong>Private, not secret</strong><span>It can't move coins, but it shows your balance and every payment.</span></div>
+  <div><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9.5" r="2.5"/><path d="M15.5 14.4A5 5 0 0 1 21 19"/></svg><strong>Plan for heirs</strong><span>Someone you trust should know this sheet and the seeds exist, and where.</span></div>
+</div>
+</main>
+</body></html>
+"##,
+            network = self.network,
+            date = escape(&self.date),
+            address = grouped(&self.first_address),
+            descriptor = escape(&self.descriptor),
+        )
+    }
+}
+
 // ------------------------------------------------------------ chain
 
-/// Where the wallet syncs and broadcasts: an Esplora API (`https://…`) or an
+/// Where the wallet syncs, and broadcasts when it's your own server (else
+/// they go to peers over Tor, see [`p2p`]): an Esplora API (`https://…`) or an
 /// Electrum server (`ssl://host:port`, `tcp://host:port`), optionally through
 /// a proxy. Empty `url` means a public Electrum server for the key's network.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -283,6 +503,17 @@ fn own_host(host: &str) -> bool {
 }
 
 impl ServerConfig {
+    /// Your own server (on .onion, .local or a private address): broadcasts
+    /// go to it, not over the built-in Tor, since it already knows the
+    /// wallet and it's how a regtest or local-only setup reaches its node.
+    pub fn own_server(&self) -> bool {
+        let url = self.url.trim();
+        let rest = ["ssl://", "tcp://", "https://", "http://"].iter().find_map(|p| url.strip_prefix(p)).unwrap_or("");
+        let authority = rest.split('/').next().unwrap_or("");
+        let host = authority.rsplit_once(':').filter(|(_, port)| port.chars().all(|c| c.is_ascii_digit())).map_or(authority, |(h, _)| h);
+        !host.is_empty() && own_host(host)
+    }
+
     pub fn connect(&self, network: Network) -> Res<Backend> {
         let url = self.url.trim();
         let url = if url.is_empty() { default_server(network) } else { url };
@@ -334,6 +565,8 @@ impl Backend {
         }
     }
 
+    /// Through the server instead of over Tor: for your own server, or when
+    /// Tor or the peers can't be reached and you choose to.
     pub fn broadcast(&self, tx: &Transaction) -> Res<Txid> {
         match self {
             Backend::Esplora(c) => c.broadcast(tx).map_err(err)?,
@@ -457,6 +690,43 @@ pub fn overview(account: &Account, wallet: &Wallet) -> Overview {
         pending_sat: (b.trusted_pending + b.untrusted_pending).to_sat(),
         txs,
     }
+}
+
+// ------------------------------------------------------------ receiving
+
+/// Unused receive addresses in a row that other wallets, and a restore from
+/// the seed, keep looking through: Sparrow's default, and Dove's own scan
+/// (which also covers every address it has handed out).
+pub const GAP_LIMIT: u32 = 20;
+
+/// Receive addresses handed out after the last one that got paid.
+pub fn unused_in_a_row(wallet: &Wallet) -> u32 {
+    let Some(last) = wallet.derivation_index(KeychainKind::External) else { return 0 };
+    match wallet.spk_index().last_used_index(KeychainKind::External) {
+        Some(used) => last.saturating_sub(used),
+        None => last + 1,
+    }
+}
+
+/// The address Receive shows: the newest one handed out while nothing has
+/// paid to it, else the next one. Never an older unused one, which may
+/// already have gone to someone else.
+pub fn receive_address(wallet: &mut Wallet) -> bdk_wallet::AddressInfo {
+    if let Some(last) = wallet.derivation_index(KeychainKind::External) {
+        if !wallet.spk_index().is_used(KeychainKind::External, last) {
+            return wallet.peek_address(KeychainKind::External, last);
+        }
+    }
+    wallet.reveal_next_address(KeychainKind::External)
+}
+
+/// A fresh address for the next payer, unless GAP_LIMIT are already waiting
+/// unused: past that, a restore elsewhere could miss coins sent to it.
+pub fn new_receive_address(wallet: &mut Wallet) -> Res<bdk_wallet::AddressInfo> {
+    if unused_in_a_row(wallet) >= GAP_LIMIT {
+        return Err(format!("{GAP_LIMIT} addresses are waiting unused: use one first"));
+    }
+    Ok(wallet.reveal_next_address(KeychainKind::External))
 }
 
 // ------------------------------------------------------------ spending
@@ -1010,6 +1280,17 @@ mod tests {
         assert_eq!(got.unwrap(), psbt);
     }
     #[test]
+    fn own_server_broadcasts_itself() {
+        let own = |url: &str| ServerConfig { url: url.into(), proxy: String::new() }.own_server();
+        for u in ["ssl://abc.onion:50002", "tcp://192.168.1.20:50001", "http://umbrel.local:3002/api", "tcp://[::1]:60401", "https://[fd00::1]/api"] {
+            assert!(own(u), "{u}");
+        }
+        for u in ["", "ssl://electrum.blockstream.info:50002", "https://mempool.space/api", "ssl://8.8.8.8:50002"] {
+            assert!(!own(u), "{u}");
+        }
+    }
+
+    #[test]
     fn own_hosts_skip_domain_check() {
         for h in ["abc.onion", "umbrel.local", "localhost", "192.168.1.20", "10.0.0.5", "127.0.0.1", "[::1]", "[fd00::1]"] {
             assert!(own_host(h), "{h}");
@@ -1124,6 +1405,46 @@ mod tests {
         assert!(!review(&w, &bump, 1).recipients[0].reused);
     }
 
+    #[test]
+    fn receive_keeps_the_newest_address_until_it_is_paid() {
+        let mut w = abandon_account().wallet().unwrap();
+        assert_eq!(receive_address(&mut w).index, 0);
+        assert_eq!(receive_address(&mut w).index, 0, "showing it again hands out nothing new");
+        assert_eq!(new_receive_address(&mut w).unwrap().index, 1);
+        assert_eq!(receive_address(&mut w).index, 1, "not back to the unused #0");
+        assert_eq!(unused_in_a_row(&w), 2);
+
+        // #0 gets paid: #1 is still waiting
+        fund_for_demo(&mut w, 10_000);
+        assert_eq!(unused_in_a_row(&w), 1);
+        assert_eq!(receive_address(&mut w).index, 1);
+    }
+
+    #[test]
+    fn new_addresses_stop_at_the_gap_limit() {
+        let mut w = abandon_account().wallet().unwrap();
+        receive_address(&mut w);
+        for i in 1..GAP_LIMIT {
+            assert_eq!(new_receive_address(&mut w).unwrap().index, i);
+        }
+        assert_eq!(unused_in_a_row(&w), GAP_LIMIT);
+        assert!(new_receive_address(&mut w).is_err());
+        assert_eq!(w.derivation_index(KeychainKind::External), Some(GAP_LIMIT - 1));
+
+        // a payment to #0 makes room for one more
+        fund_for_demo(&mut w, 10_000);
+        assert_eq!(new_receive_address(&mut w).unwrap().index, GAP_LIMIT);
+        assert!(new_receive_address(&mut w).is_err());
+    }
+
+    #[test]
+    fn a_paid_newest_address_is_replaced() {
+        let mut w = abandon_account().wallet().unwrap();
+        fund_for_demo(&mut w, 10_000); // pays #0, as a sync would find it
+        assert_eq!(unused_in_a_row(&w), 0);
+        assert_eq!(receive_address(&mut w).index, 1);
+    }
+
     fn abandon_account() -> Account {
         parse_key_export(&abandon_export()).unwrap()
     }
@@ -1189,6 +1510,44 @@ mod tests {
         let bare = keys[1].split(']').nth(1).unwrap();
         assert!(multisig_from_keys(2, &[keys[0], bare]).unwrap_err().contains("fingerprint"));
         assert!(parse_key_export(keys[0]).unwrap_err().contains("multisig"));
+    }
+
+    #[test]
+    fn multisig_backup_lists_every_cosigner() {
+        let c = three_cosigners();
+        let keys: Vec<&str> = c.iter().map(|(_, k)| k.as_str()).collect();
+        let a = multisig_from_keys(2, &keys).unwrap();
+        let b = backup_sheet(&a, "2026-11-28").unwrap();
+        assert_eq!((b.threshold, b.cosigners.len(), b.network.as_str()), (2, 3, "Signet"));
+        assert_eq!(b.first_address, a.wallet().unwrap().peek_address(KeychainKind::External, 0).address.to_string());
+        for (i, k) in keys.iter().enumerate() {
+            let cs = &b.cosigners[i];
+            assert!(cs.xpub.starts_with("tpub") && cs.path == "m/48h/1h/0h/2h", "{cs:?}");
+            assert!(a.descriptor.contains(&format!("[{}/{}]{}/<0;1>/*", cs.fingerprint, &cs.path[2..], cs.xpub)));
+            assert!(k.starts_with(&format!("[{}/", cs.fingerprint)));
+        }
+
+        // the file is the descriptor with its checksum, and reads back as the same wallet
+        assert_eq!(b.text().trim(), a.descriptor);
+        assert_eq!(parse_wallet(&b.text()).unwrap().descriptor, a.descriptor);
+
+        // the sheet: every key, the first address, the descriptor (its <0;1> escaped), no secrets
+        let html = b.html();
+        // keys and address come in groups of four: strip the tags to find them whole
+        let plain = html.replace("<i>", "").replace("</i>", "");
+        for cs in &b.cosigners {
+            assert!(plain.contains(&cs.fingerprint) && plain.contains(&cs.xpub));
+        }
+        assert!(plain.contains(&b.first_address) && html.contains("2026-11-28") && html.contains("Sign with any 2"));
+        assert!(html.contains(&a.descriptor.replace('<', "&lt;").replace('>', "&gt;")) && !html.contains("<0;1>"));
+        assert!(html.contains("No seed or private key") && html.contains("only 2 of the 3 seeds") && html.contains("<svg"));
+        assert!(html.contains(&format!("<i>{}</i><i>{}</i>", &b.cosigners[0].fingerprint[..4], &b.cosigners[0].fingerprint[4..])));
+        assert!(!html.contains("tprv") && !html.contains("src=") && !html.contains("<link"));
+
+        // n of n: no "only" line; one signer: nothing to back up
+        let all = backup_sheet(&multisig_from_keys(3, &keys).unwrap(), "2026-11-28").unwrap();
+        assert!(!all.html().contains("only 3 of the 3"));
+        assert!(backup_sheet(&abandon_account(), "2026-11-28").is_err());
     }
 
     #[test]

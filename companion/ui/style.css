@@ -340,6 +340,7 @@ html, body { overflow-x: clip; }
 .addr-block .addr { margin: 0; max-width: 300px; display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 10px; font: 400 15px/1.5 var(--mono); color: var(--text); }
 .addr-block .addr .alt { color: var(--text-3); }
 #v-receive .hint { text-align: center; margin-top: 16px; }
+#ready-sending { text-align: center; margin: 0; }
 
 /* Steps done on Goldfish: the fish mark beside the instruction */
 .gf-hint { display: flex; gap: 12px; align-items: center; margin: 14px 0 0; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); color: var(--text-2); font-size: 13px; line-height: 1.45; text-align: left; }
@@ -355,8 +356,8 @@ html, body { overflow-x: clip; }
 /* Settings: Save belongs to the server fields; Forget is a quiet text action */
 #set-save { margin-top: 4px; }
 #set-form .ok { margin-top: 10px; }
-.danger-zone, .pw-zone, .fw-zone { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--border); }
-.pw-zone .hint, .fw-zone .hint { margin: 8px 0 14px; }
+.danger-zone, .pw-zone, .fw-zone, .bk-zone { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--border); }
+.pw-zone .hint, .fw-zone .hint, .bk-zone .hint { margin: 8px 0 14px; }
 #v-update { display: flex; flex-direction: column; }
 .up-body { flex: 1; display: flex; flex-direction: column; }
 #v-update .display, #v-update .para { text-align: left; }

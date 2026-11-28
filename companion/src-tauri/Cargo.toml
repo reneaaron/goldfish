@@ -41,6 +41,11 @@ bdk_electrum = "0.24"
 tauri-plugin-opener = "2.7"
 age = { version = "0.11", default-features = false }
 minreq = { version = "2.14", features = ["https-rustls", "proxy"] }
+bdk_kyoto = "0.19"
+arti-client = { version = "0.48", default-features = false, features = ["tokio", "rustls", "compression", "static-sqlite", "onion-service-client"] }
+tokio = { version = "1", features = ["net", "io-util", "rt-multi-thread", "sync", "time"] }
+tor-rtcompat = { version = "0.48", default-features = false, features = ["tokio", "rustls"] }
+tor-proto = { version = "0.48", default-features = false, features = ["stream-ctrl"] }
 tauri-plugin-dialog = "2.8"
 
 [dev-dependencies]

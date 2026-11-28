@@ -508,6 +508,8 @@ async function sync() {
     const o = await call("sync");
     syncState = "ok";
     renderOverview(o);
+    // payments just found may move Receive on, or allow more new addresses
+    if (currentView === "receive") call("receive_address").then(showReceive, () => {});
   } catch (_) {
     syncState = "failed";
     // with nothing to list, the Activity card says it; otherwise the error line does
@@ -519,12 +521,27 @@ async function sync() {
 }
 $("w-sync").onclick = sync;
 $("w-receive").onclick = async () => {
-  const r = await call("receive_address");
+  showReceive(await call("receive_address"));
   show("receive");
+};
+// a fresh address for each payer, so two payments can't be linked by it
+$("r-new").onclick = async () => {
+  button($("r-new"), "Making one…", true);
+  try {
+    showReceive(await call("new_receive_address"));
+  } catch (_) {
+    $("r-new").disabled = false;
+  } finally {
+    $("r-new").querySelector("span").textContent = "New address";
+  }
+};
+function showReceive(r) {
   $("r-label").textContent = `Address #${r.index}`;
   renderAddress(r, "r-qr", "r-addr");
   $("r-copy").dataset.text = r.address;
-};
+  $("r-new").disabled = !r.more;
+  $("r-full").hidden = r.more;
+}
 function renderAddress(r, qr, addr) {
   $(qr).innerHTML = r.qr; // SVG made by the qrcode crate from our own address
   // groups of four, every other one lighter, to compare against Goldfish's screen
@@ -547,6 +564,7 @@ $("w-settings").onclick = () => {
   $("set-proxy").value = server.proxy;
   $("set-url").placeholder = "Public server (default)";
   $("set-ok").hidden = true;
+  $("set-backup").hidden = !current?.multisig;
   passwordSection();
 };
 window.__TAURI__.app.getVersion().then((v) => { $("set-version").textContent = `Dove ${v}`; }, () => {});
@@ -876,12 +894,23 @@ function openReady() {
   show("ready");
   $("ready-txid").textContent = shortId(waiting);
   $("ready-txid").title = waiting;
+  $("ready-server").hidden = true;
 }
 $("w-waiting").onclick = openReady;
-$("ready-send").onclick = async () => {
-  $("ready-send").disabled = true;
+// viaServer: after Tor or its peers failed, through the wallet's server after all
+async function broadcast(viaServer) {
+  const buttons = [$("ready-send"), $("ready-server")];
+  buttons.forEach((b) => (b.disabled = true));
+  const status = $("ready-sending");
+  status.hidden = false;
+  let tor = false;
   try {
-    const txid = await call("broadcast_signed");
+    if (!viaServer) {
+      status.textContent = "Connecting to Tor…";
+      tor = await call("tor_ready");
+    }
+    status.textContent = tor ? "Sending over Tor. This can take a minute or two." : "Sending…";
+    const txid = await call("broadcast_signed", { viaServer });
     waiting = null;
     show("sent");
     $("sent-txid").textContent = groups(txid);
@@ -890,11 +919,15 @@ $("ready-send").onclick = async () => {
     $("sent-explorer").onclick = () => window.__TAURI__.opener.openUrl(base + txid).catch(error);
     sync();
   } catch (_) {
-    // shown in the error line
+    // shown in the error line; Tor may be blocked here, so offer the server
+    if (!viaServer) $("ready-server").hidden = false;
   } finally {
-    $("ready-send").disabled = false;
+    buttons.forEach((b) => (b.disabled = false));
+    status.hidden = true;
   }
-};
+}
+$("ready-send").onclick = () => broadcast(false);
+$("ready-server").onclick = () => broadcast(true);
 
 async function copyText(text) {
   try {
@@ -1016,6 +1049,30 @@ $("unlock-reset").onclick = async () => {
   show("link");
   step("welcome");
 };
+
+// ---- multisig backup: the descriptor as a .txt, or the sheet to print (it opens in the browser)
+for (const b of document.querySelectorAll("button[data-backup]")) {
+  b.onclick = async () => {
+    const sheet = b.dataset.backup === "sheet";
+    const d = new Date();
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; // local day
+    try {
+      const path = await window.__TAURI__.dialog.save(
+        sheet
+          ? { defaultPath: `wallet-backup-${date}.html`, filters: [{ name: "Web page", extensions: ["html"] }] }
+          : { defaultPath: "wallet-descriptor.txt", filters: [{ name: "Text", extensions: ["txt"] }] },
+      );
+      if (!path) return;
+      await call(sheet ? "save_backup_sheet" : "save_descriptor", sheet ? { path, date } : { path });
+      const label = b.querySelector("span");
+      const was = label.dataset.was || (label.dataset.was = label.textContent);
+      label.textContent = sheet ? "Saved: print it from your browser" : "Saved";
+      setTimeout(() => (label.textContent = was), 2400);
+    } catch (e) {
+      error(e); // the dialog's own errors; call() has shown its already
+    }
+  };
+}
 
 // ---- start: reopen the saved wallet, if any
 invoke("startup")
