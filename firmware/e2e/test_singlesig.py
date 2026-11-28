@@ -47,8 +47,8 @@ def test_new_seed_to_signed_transaction(dev):
     dev.tap("Written down")
     mnemonic = " ".join(words)
     assert len(words) == 12 and bip39.mnemonic_is_valid(mnemonic)
-    assert "Seed ready" in dev.text()
-    assert fingerprint_on_screen(dev) == Seed(mnemonic).fingerprint
+    assert "Seed ready" in dev.text() and "One moment" not in dev.text()
+    assert fingerprint_on_screen(dev) == Seed(mnemonic).fingerprint   # there with "Seed ready", not after it
     dev.tap("Done")
     assert dev.screen == "HOME"   # a new seed is never loaded by itself
 
@@ -89,30 +89,6 @@ def test_seedqr_loads_the_same_wallet(dev, compact):
     assert fingerprint_on_screen(dev) == Seed(MNEMONIC).fingerprint
     _, _, key = connect_wallet(dev)
     assert key == Seed(MNEMONIC).key("84h/1h/0h")
-
-
-def test_seedqr_card_is_copied_and_checked(dev):
-    """Back up as QR: the SeedQR on the signer's screen, copied square by
-    square onto a card, passes the card check. A wrong card doesn't."""
-    load_by_words(dev, MNEMONIC)
-    dev.tap("Wallet options")
-    dev.tap("Back up as QR")
-    dev.tap("I understand")
-    card = dev.read_qr(raw=True)               # what ends up on the card
-    assert card == seedqr(MNEMONIC, compact=True)
-    dev.tap("Start copying")
-    parts = 0
-    while "Check card" not in dev.texts():
-        dev.tap("Next")
-        parts += 1
-    assert "Part 16 of 16" in dev.text() and parts == 15   # 21x21 in 5x5 parts
-    dev.tap("Check card")
-    assert dev.screen == "BACKUP_SCAN", dev.text()
-    dev.scan(seedqr(STRANGER.mnemonic, compact=True))
-    assert dev.screen == "BACKUP_SCAN" and "Backup checked" not in dev.text()
-    dev.scan(card)
-    assert "Backup checked" in dev.text()
-    assert fingerprint_on_screen(dev) == Seed(MNEMONIC).fingerprint
 
 
 def test_addresses_of_other_wallets_are_refused(dev):

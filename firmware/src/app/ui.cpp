@@ -957,7 +957,7 @@ static void build_passphrase() {
     show(scr);
 }
 
-static void backup_existing_cb(lv_event_t *);
+static void backup_options_cb(lv_event_t *);
 
 // Groups by importance: what most people need once (Connect wallet, Back up),
 // then the advanced ones with grey icons, then Forget seed on its own. Every row says
@@ -985,7 +985,7 @@ static void build_wallet_options() {
     struct Row { const char *icon, *title, *sub; lv_event_cb_t cb; void *ud; };
     const Row rows[] = {
         {ICON_WALLET, "Connect wallet", "Set up watch-only", go_cb, GO(UI_EXPORT_XPUB)},
-        {ICON_QR, "Back up as QR", "Copy it onto a card", backup_existing_cb, nullptr},
+        {ICON_QR, "Back up", "QR card or numbers", backup_options_cb, nullptr},
         {ICON_SHIELD, "Passphrase", wallet_has_passphrase() ? "On, tap to change" : "Optional extra word", go_cb,
          GO(UI_PASSPHRASE)},
         {ICON_KEY, "Child seed", "Derived from this one", child_start_cb, nullptr},
@@ -1165,7 +1165,7 @@ static void build_update() {
 // words drawn by hand with coin flips for the last word, see seed_create.h),
 // then the user writes down the words. The
 // new seed is never loaded: the user loads it like any other, by Scan seed or
-// Enter words. Enter words loads straight away. "Back up as QR" runs the card
+// Enter words. Enter words loads straight away. Back up, SeedQR runs the card
 // flow for the loaded seed.
 static int new_words = 12;               // 12; Enter words can switch to 24
 static char entropy_in[257];             // dice '1'..'6' or coins '1'/'0' so far
@@ -1180,6 +1180,7 @@ static uint8_t qr_buf[qrcodegen_BUFFER_LEN_FOR_VERSION(2)];   // the pending see
 static int qr_n;                         // modules per side, 0: none
 static int block_i;
 static bool backup_existing;             // backing up the loaded seed, not a new one
+static int backup_kind;                  // what the warning leads to: 0 the words, 1 the QR card, 2 word numbers
 static bool drawing;                     // Draw words: n-1 words by hand, then coins for the last
 static bool final_flips;                 // the coin screen is collecting the last word's bits
 static bool child_seed;                  // pending is a BIP-85 child of the loaded seed
@@ -1285,6 +1286,7 @@ static void new_seed_wipe() {
     secure_zero(txt_tail, sizeof(txt_tail));
     entropy_n = word_n = qr_n = block_i = 0;
     backup_existing = drawing = final_flips = child_seed = false;
+    backup_kind = 0;
     backup_cancel = UI_NEW_SEED;
 }
 
@@ -1303,17 +1305,37 @@ static void restore_cb(lv_event_t *) { ui_seed_entry(UI_ENTER_WORDS, 12); }
 // "24 words" / "12 words" on the first word screen of Enter words.
 static void restore_length_cb(lv_event_t *) { ui_seed_entry(UI_ENTER_WORDS, new_words == 12 ? 24 : 12); }
 
-void ui_backup_loaded() {
+// The Back up menu is reached two ways: from Wallet options for the loaded
+// seed (a copy of it goes into `pending` for as long as the menu and what it
+// leads to are open), and from Seed ready for a seed just made, which is in
+// `pending` already and stays there.
+static bool backup_take_loaded() {
     new_seed_wipe();
-    if (!wallet_entropy(&pending)) return;
+    if (!wallet_entropy(&pending)) return false;
     new_words = wallet_word_count();
     backup_existing = true;
-    backup_cancel = UI_WALLET_OPTIONS;
+    return true;
+}
+void ui_backup_options() {
+    if (backup_take_loaded()) ui_goto(UI_BACKUP_OPTIONS);
+}
+static void backup_options_cb(lv_event_t *) { ui_backup_options(); }
+static void backup_start(int kind) {
+    if (!pending.len) return;
+    backup_kind = kind;
     ui_goto(UI_BACKUP_WARNING);
 }
-static void backup_existing_cb(lv_event_t *) { ui_backup_loaded(); }
-// Leaving the card flow: back to the wallet's options.
-static void backup_exit_cb(lv_event_t *) { ui_goto(UI_WALLET_OPTIONS); }
+void ui_backup_loaded() {
+    if (backup_take_loaded()) backup_start(1);
+}
+void ui_backup_numbers() {
+    if (backup_take_loaded()) backup_start(2);
+}
+static void backup_existing_cb(lv_event_t *) { backup_start(1); }
+static void backup_numbers_cb(lv_event_t *) { backup_start(2); }
+// Leaving a backup: back to where the Back up menu was opened from.
+static UiScreen backup_home() { return backup_existing ? UI_WALLET_OPTIONS : UI_SEED_READY; }
+static void backup_exit_cb(lv_event_t *) { ui_goto(backup_home()); }
 
 static void build_new_seed() {
     lv_obj_t *scr = screen();
@@ -2431,12 +2453,15 @@ static void build_backup_warning() {
     lv_obj_t *scr = screen();
     lv_obj_align(icon_badge(scr, ICON_WARNING, AMBER, AMBER_DIM, 64), LV_ALIGN_TOP_MID, 0, 36);
     lv_obj_align(text(scr, "Keep it offline", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 118);
-    lv_obj_align(para(scr, backup_existing ? "Anyone with this QR can take your bitcoin.\nNever photograph it or scan it anywhere else."
+    lv_obj_align(para(scr, backup_kind == 2 ? "Anyone with these numbers can take your bitcoin.\nNever photograph them or type them anywhere else."
+                           : backup_kind == 1 ? "Anyone with this QR can take your bitcoin.\nNever photograph it or scan it anywhere else."
                                            : "Anyone with these words can take your bitcoin.\nNever photograph them or type them anywhere else."),
                  LV_ALIGN_TOP_MID, 0, 154);
-    bottom_pair(btn_ghost(scr, backup_existing ? "Cancel" : "Discard",
-                          backup_cancel_cb, nullptr, TEXT),
-                btn_primary(scr, "I understand", go_cb, GO(backup_existing ? UI_BACKUP_QR : UI_BACKUP_WORDS)));
+    // From the Back up menu: Cancel goes back to it, and the seed stays as it is.
+    // A new seed's first warning: Discard wipes it.
+    bottom_pair(backup_kind ? btn_ghost(scr, "Cancel", go_cb, GO(UI_BACKUP_OPTIONS), TEXT)
+                            : btn_ghost(scr, "Discard", backup_cancel_cb, nullptr, TEXT),
+                btn_primary(scr, "I understand", go_cb, GO(backup_kind == 2 ? UI_BACKUP_NUMBERS : backup_kind == 1 ? UI_BACKUP_QR : UI_BACKUP_WORDS)));
     show(scr);
 }
 
@@ -2705,37 +2730,106 @@ static void build_backup_words() {
     show(scr);
 }
 
+// ---------------------------------------------------------------- backup options
+// Wallet options -> Back up, and Seed ready -> Back up: the ways to copy the
+// seed off the device. Nothing secret is shown here; each way starts with the
+// offline warning.
+static void build_backup_options() {
+    lv_obj_t *scr = screen();
+    backup_kind = 0;
+    topbar(scr, "Back up", backup_exit_cb);
+    const int RH = 58;
+    struct Row { const char *icon, *title, *sub; lv_event_cb_t cb; };
+    const Row rows[] = {
+        {ICON_QR, "SeedQR", "Copy it onto a card", backup_existing_cb},
+        {ICON_KEY, "Word numbers", "For a metal backup", backup_numbers_cb},
+    };
+    const int n = 2;
+    lv_obj_t *c = card(scr, CW, n * RH + n - 1);
+    lv_obj_set_style_pad_all(c, 0, 0);
+    lv_obj_set_style_clip_corner(c, true, 0);
+    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, BAR + 8);
+    for (int i = 0; i < n; i++) {
+        if (i) divider(c, i * (RH + 1) - 1);
+        lv_obj_t *r = list_row(c, rows[i].icon, rows[i].title, rows[i].sub, rows[i].cb, nullptr);
+        lv_obj_set_height(r, RH);
+        lv_obj_align(r, LV_ALIGN_TOP_MID, 0, i * (RH + 1));
+    }
+    show(scr);
+}
+
+// Each word as its place in the BIP-39 list, counted from 1 (abandon is 0001,
+// zoo is 2048) and always four digits, for number punches on metal. The word
+// is beside it to check against. Not the SeedQR's numbers: those count from 0.
+static void to_backup_options_cb(lv_event_t *) { ui_goto(UI_BACKUP_OPTIONS); }
+static void build_backup_numbers() {
+    lv_obj_t *scr = screen();
+    topbar(scr, "Word numbers", to_backup_options_cb);
+    uint16_t idx[24];
+    seed_word_indexes(pending, idx);
+    lv_obj_t *list = scroll_area(scr, BAR + 4);
+    lv_obj_set_style_pad_bottom(list, M - 4, 0);
+    lv_obj_align(para(list, "Each word's place in the BIP-39 list, 1 to 2048.", &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, 0);
+    lv_obj_t *c = card(list, CW, new_words * 44 + 16);
+    lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_align(c, LV_ALIGN_TOP_MID, 0, 44);
+    for (int w = 0; w < new_words; w++) {
+        char num[12];
+        snprintf(num, sizeof(num), "%d", w + 1);
+        lv_obj_t *n = text(c, num, &inter_15, TEXT_3, LV_TEXT_ALIGN_RIGHT);
+        lv_obj_set_width(n, 26);
+        lv_obj_align(n, LV_ALIGN_TOP_LEFT, 0, w * 44 + 6);
+        snprintf(txt_words[w], sizeof(txt_words[w]), "%04d", idx[w] + 1);
+        lv_obj_t *t = text(c, "", &mono_22, TEXT, LV_TEXT_ALIGN_LEFT);
+        lv_label_set_text_static(t, txt_words[w]);
+        lv_obj_align(t, LV_ALIGN_TOP_LEFT, 40, w * 44 + 2);
+        lv_obj_align(text(c, seed_word(idx[w]), &inter_13, TEXT_3, LV_TEXT_ALIGN_RIGHT), LV_ALIGN_TOP_RIGHT, 0, w * 44 + 8);
+        if (w) divider(c, w * 44 - 6);
+    }
+    secure_zero(idx, sizeof(idx));
+    place_bottom(btn_primary(scr, "Done", backup_exit_cb));
+    show(scr);
+}
+
 // ---------------------------------------------------------------- seed ready
 // The end of New seed. The seed isn't loaded: Done wipes it from the device.
-// The fingerprint takes seconds on the board (PBKDF2), so the screen shows
-// first and a one-shot timer fills it in.
+// The fingerprint takes seconds on the board (PBKDF2). Until it is there the
+// screen says so and nothing else: "Seed ready" with the fingerprint still to
+// come would say ready too early. A one-shot timer works it out once that is
+// on screen, then the screen is built again with it.
 static lv_timer_t *ready_timer;
-static void ready_tick(lv_timer_t *t) {
-    lv_obj_t *l = (lv_obj_t *)lv_timer_get_user_data(t);
+static char ready_fp[12];                // "xxxx xxxx" once worked out; empty: not yet
+static void ready_tick(lv_timer_t *) {
     ready_timer = nullptr;
-    char fp[9], spaced[12];
+    char fp[9];
     seed_fingerprint_hex(pending, fp);
-    snprintf(spaced, sizeof(spaced), "%.4s %.4s", fp, fp + 4);
-    lv_label_set_text(l, spaced);
+    snprintf(ready_fp, sizeof(ready_fp), "%.4s %.4s", fp, fp + 4);
+    if (ui_current() == UI_SEED_READY) ui_goto(UI_SEED_READY);
 }
 
 static void build_seed_ready() {
     lv_obj_t *scr = screen();
+    if (!ready_fp[0]) {
+        lv_obj_align(text(scr, "One moment" "\xE2\x80\xA6", &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 118);
+        lv_obj_align(para(scr, "Preparing your seed.\nThis takes a few seconds."), LV_ALIGN_TOP_MID, 0, 154);
+        show(scr);
+        ready_timer = lv_timer_create(ready_tick, 200, nullptr);   // after the fade-in
+        lv_timer_set_repeat_count(ready_timer, 1);
+        return;
+    }
     lv_obj_align(icon_badge(scr, ICON_CHECK, GREEN, GREEN_DIM, 52), LV_ALIGN_TOP_MID, 0, 28);
     char title[32];
     if (child_seed) snprintf(title, sizeof(title), "Child #%s ready", child_num);
     else snprintf(title, sizeof(title), "Seed ready");
     lv_obj_align(text(scr, title, &rethink_24, TEXT), LV_ALIGN_TOP_MID, 0, 92);
-    lv_obj_t *fp;
-    lv_obj_align(fingerprint_pill(scr, "\xE2\x80\xA6", &fp), LV_ALIGN_TOP_MID, 0, 136);
+    lv_obj_align(fingerprint_pill(scr, ready_fp), LV_ALIGN_TOP_MID, 0, 136);
     char note[96];
     if (child_seed) snprintf(note, sizeof(note), "Note #%s and this fingerprint with your main seed's backup.", child_num);
     else snprintf(note, sizeof(note), "Write this fingerprint on your backup. The seed is forgotten when you tap Done.");
     lv_obj_align(para(scr, note, &inter_13, TEXT_3), LV_ALIGN_TOP_MID, 0, 180);
-    place_bottom(btn_primary(scr, "Done", to_home_cb));
+    // More than the written words: the same Back up menu as in Wallet options.
+    bottom_pair(btn_ghost(scr, "Back up", go_cb, GO(UI_BACKUP_OPTIONS), TEXT), btn_primary(scr, "Done", to_home_cb));
     show(scr);
-    ready_timer = lv_timer_create(ready_tick, 200, fp);   // after the fade-in
-    lv_timer_set_repeat_count(ready_timer, 1);
 }
 
 static void handle_confirm_payload(QrPayload &p) {
@@ -2744,6 +2838,11 @@ static void handle_confirm_payload(QrPayload &p) {
     memset(&p, 0, sizeof(p));
     bool same = r == SEEDQR_OK && e.len == pending.len && memcmp(e.bytes, pending.bytes, e.len) == 0;
     seedqr_wipe(&e);
+    if (same && !backup_existing) {          // a seed just made: it isn't loaded, so back to Seed ready
+        scan_stop();
+        ui_goto(UI_SEED_READY);
+        return;
+    }
     if (same) {
         scan_stop();
         new_seed_wipe();
@@ -3346,7 +3445,8 @@ static bool seed_entry_screen(UiScreen s) {
 }
 // New seed's warning, words and Seed ready, and the QR card for the loaded seed.
 static bool backup_screen(UiScreen s) {
-    return s == UI_BACKUP_WARNING || s == UI_BACKUP_WORDS || s == UI_BACKUP_QR ||
+    return s == UI_BACKUP_WARNING || s == UI_BACKUP_WORDS || s == UI_BACKUP_QR || s == UI_BACKUP_NUMBERS ||
+           s == UI_BACKUP_OPTIONS ||
            s == UI_BACKUP_BLOCK || s == UI_BACKUP_SCAN || s == UI_SEED_READY;
 }
 
@@ -3728,6 +3828,7 @@ void ui_goto(UiScreen s) {
     if (s != UI_PAGE_READING && page_timer) { lv_timer_delete(page_timer); page_timer = nullptr; }
     if (s != UI_PSBT_SIGNED && anim_timer) { lv_timer_delete(anim_timer); anim_timer = nullptr; }
     if (ready_timer) { lv_timer_delete(ready_timer); ready_timer = nullptr; }
+    if (!backup_screen(s)) ready_fp[0] = 0;   // kept while the same seed is being backed up
     bool no_seed_yet = s == UI_HOME || s == UI_UPDATE || s == UI_SCAN_SEED || seed_entry_screen(s);
     if (!no_seed_yet && !backup_screen(s) && !wallet_has_seed()) s = UI_HOME;
     if (no_seed_yet && wallet_has_seed()) { new_seed_wipe(); s = UI_WALLET; }
@@ -3755,6 +3856,8 @@ void ui_goto(UiScreen s) {
         case UI_ENTER_WORDS: build_enter_words(); break;
         case UI_BACKUP_WARNING: build_backup_warning(); break;
         case UI_BACKUP_WORDS: build_backup_words(); break;
+        case UI_BACKUP_OPTIONS: build_backup_options(); break;
+        case UI_BACKUP_NUMBERS: build_backup_numbers(); break;
         case UI_SEED_READY: build_seed_ready(); break;
         case UI_BACKUP_QR: build_backup_qr(); break;
         case UI_BACKUP_BLOCK: build_backup_block(); break;

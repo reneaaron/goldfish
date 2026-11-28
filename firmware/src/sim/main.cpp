@@ -391,7 +391,7 @@ static int run_shots(const char *dir) {
     if (ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "dice did not make a seed\n"); return 1; }
     pump(300); save(dir, "17_backup_warning");
     ui_goto(UI_BACKUP_WORDS);   pump(300); save(dir, "18_backup_words");
-    ui_goto(UI_SEED_READY);     pump(300); save(dir, "23_seed_ready");   // "Written down"
+    ui_goto(UI_SEED_READY);     pump(900); save(dir, "23_seed_ready");   // "Written down"; past "One moment"
 
     // Coin flips, up to the count.
     cam_override = false;
@@ -422,7 +422,7 @@ static int run_shots(const char *dir) {
     if (strcmp(seed_word(all[11]), "prize")) { fprintf(stderr, "last word %s, not prize\n", seed_word(all[11])); return 1; }
     ui_goto(UI_HOME);
 
-    // Restore from words: loads straight away, then "Back up as QR" with an
+    // Restore from words: loads straight away, then Back up: word numbers, and the SeedQR with an
     // optional card check.
     ui_goto(UI_HOME);
     ui_seed_entry(UI_ENTER_WORDS, 12); pump(300); save(dir, "26_restore");
@@ -433,6 +433,11 @@ static int run_shots(const char *dir) {
     if (ui_enter_word("zoo")) { fprintf(stderr, "invalid last word accepted\n"); return 1; }
     if (!ui_enter_word("unique") || ui_current() != UI_WALLET) { fprintf(stderr, "words did not load\n"); return 1; }
     ui_goto(UI_WALLET_OPTIONS); pump(300); save(dir, "28_menu_backup");
+    ui_backup_options(); pump(300); save(dir, "28b_backup_options");
+    ui_backup_numbers();
+    if (ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "word numbers did not start\n"); return 1; }
+    ui_goto(UI_BACKUP_NUMBERS); pump(300); save(dir, "28c_backup_numbers");
+    ui_goto(UI_BACKUP_OPTIONS);
     ui_backup_loaded();
     if (ui_current() != UI_BACKUP_WARNING) { fprintf(stderr, "backup did not start\n"); return 1; }
     ui_goto(UI_BACKUP_QR);      pump(300); save(dir, "20_backup_qr");
