@@ -19,6 +19,8 @@ are then scored against that list too, without boxes or order:
   not in list  offered, not one of them (a misread, or a title read as a word)
   whole page   every word of the list offered, nothing else offered
 
+Pages with a "layout" (make_layouts.py) are also scored per layout.
+
 Usage (from firmware/, after handwriting/build.sh):
   python3 handwriting/eval_pages.py <dir> [<dir> ...] [--side 640] [--jobs 8] [--show]
 """
@@ -56,7 +58,7 @@ def main():
     ap.add_argument("--jobs", type=int, default=max(1, os.cpu_count() // 3))
     ap.add_argument("--show", action="store_true")
     args = ap.parse_args()
-    total, per_dir = Counter(), {}
+    total, per_dir, per_layout = Counter(), {}, {}
     for d in args.dirs:
         labels = json.load(open(os.path.join(d, "labels.json")))
         files = [os.path.join(d, e["file"]) for e in labels]
@@ -104,14 +106,22 @@ def main():
                 print(f"{e['file']:12} {len(e['words']):3} words: " + ", ".join(f"{k} {img_t[k]}" for k in
                       ("right", "WRONG", "none", "missed", "stray")) + f" (found {len(found)})")
             t += img_t
+            if "layout" in e:
+                per_layout[e["layout"]] = per_layout.get(e["layout"], Counter()) + img_t
         per_dir[d] = t
         total += t
-    for d, t in list(per_dir.items()) + [("total", total)]:
+    rows = list(per_dir.items()) + [("total", total)]
+    if per_layout:
+        rows += [("", None)] + sorted(per_layout.items())
+    for d, t in rows:
+        if t is None:
+            print("per layout:")
+            continue
         n = t["right"] + t["WRONG"] + t["none"] + t["missed"]
-        print(f"{os.path.basename(d.rstrip('/')):10} {n:4} words: right {t['right']} ({100 * t['right'] / max(1, n):.0f}%), "
+        print(f"{os.path.basename(d.rstrip('/')):18} {n:4} words: right {t['right']} ({100 * t['right'] / max(1, n):.0f}%), "
               f"WRONG {t['WRONG']}, none {t['none']}, missed {t['missed']}, stray offered {t['stray']}")
         if t["pages"]:
-            print(f"{'':10} {t['list']:4} listed: in list {t['in list']} ({100 * t['in list'] / t['list']:.0f}%), "
+            print(f"{'':18} {t['list']:4} listed: in list {t['in list']} ({100 * t['in list'] / t['list']:.0f}%), "
                   f"not in list {t['not in list']}, whole page {t['whole page']} of {t['pages']}")
 
 

@@ -16,6 +16,7 @@ device; it needs Python with PyTorch (a GPU helps, a CPU works).
 | `model/words.pt` | The checkpoint `word_model.h` was exported from: start fine-tuning here |
 | `make_page.py` | The synthetic test page `sim/samples/handwritten_page.png` |
 | `make_card.py` | The landing page's demo backup `sim/samples/handwritten_page_demo.png`: the project's word card (`cards/`), filled in |
+| `make_layouts.py`, `layouts.md` | A synthetic eval set of the backup layouts people write on (wallet makers' recovery cards, printable sheets, our own card), redrawn generically and filled with test seeds; `layouts.md` lists the templates and the per-layout baseline |
 | `page_cli.cpp`, `build.sh` | The firmware's page + word reader, built natively |
 | `eval_pages.py` | Scores the firmware end to end (photo in, words out) on labelled photos |
 | `evalset/labels.json` | 16 web photos of handwritten demo seeds (348 words): source pages, image links, word boxes |
@@ -62,6 +63,13 @@ Then from `firmware/`: `pio test -e test -f test_word_reader`, and the end-to-en
 ```bash
 handwriting/build.sh && python3 handwriting/eval_pages.py handwriting/data/seedimgs --side 1000
 python3 handwriting/eval_pages.py handwriting/data/gptimage2/val --side 1000
+```
+
+Per layout (`layouts.md`), from `firmware/handwriting`, then from `firmware/`:
+
+```bash
+uv run --with-requirements requirements.txt python make_layouts.py --emnist data/emnist_byclass_train.npz --fonts data/fonts --out data/layouts --per-layout 20
+python3 handwriting/eval_pages.py handwriting/data/layouts --side 1000
 ```
 
 Train only on `data/gptimage2/train`; `val` is the test set.
