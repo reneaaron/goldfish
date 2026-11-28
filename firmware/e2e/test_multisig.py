@@ -8,8 +8,9 @@ All seeds here are public test seeds. Never real funds.
 import pytest
 from embit.networks import NETWORKS
 
-from flows import set_key_type, set_network, address_on_screen, connect_wallet, load_by_words, review_and_sign, verify_address
-from hostwallet import Seed, Wallet, psbt_parts, ur_parts, ur_single
+from flows import (set_network, address_on_screen, connect_wallet, fingerprint_on_screen, load_by_words,
+                   review_and_sign, verify_address)
+from hostwallet import Seed, Wallet, parse_key_export, psbt_parts, ur_parts, ur_single
 
 MNEMONIC = "crew marble private differ race truly blush basket crater affair prepare unique"
 SIGNER = Seed(MNEMONIC)   # the test typed these words in, so it can know the signer's keys
@@ -101,16 +102,21 @@ def test_linked_key_to_broadcastable_transaction(dev):
 
 
 def test_connect_wallet_shows_either_key(dev):
-    """Single-sig and multisig keys, on both networks, as embit derives them
-    from the same words; switching back and forth doesn't mix them up. The
-    short key under the QR and the details behind it match the QR."""
+    """Single-sig keys on Connect wallet, multisig keys on Multisig's Show my
+    key, on both networks, as embit derives them from the same words;
+    switching back and forth doesn't mix them up. The short key under the QR
+    and the details behind it match the QR."""
     loaded(dev)
     dev.tap("Wallet options")
     seen = {}
     for kind, network in (("Single-sig", "Mainnet"), ("Multisig", "Mainnet"), ("Multisig", "Testnet"), ("Single-sig", "Testnet")):
         set_network(dev, network)
-        dev.tap("Connect wallet")
-        set_key_type(dev, kind == "Multisig")
+        if kind == "Multisig":
+            dev.tap("Multisig")
+            dev.tap("Show my key")
+            assert "Add it to a new multisig wallet" in dev.texts()
+        else:
+            dev.tap("Connect wallet")
         shown = dev.read_qr()
         seen[kind, network] = shown
         key = shown.split("]")[1]
@@ -120,7 +126,8 @@ def test_connect_wallet_shows_either_key(dev):
         assert "%s %s" % (SIGNER.fingerprint[:4], SIGNER.fingerprint[4:]) in text
         assert "".join(t for t in dev.texts() if len(t) <= 4 and t.isalnum()).endswith(key[-20:])
         dev.back()   # to the QR
-        dev.back()   # to Wallet options
+        while dev.screen != "WALLET_OPTIONS":
+            dev.back()
     for (kind, network), shown in seen.items():
         net = NETWORKS["main" if network == "Mainnet" else "test"]
         path = ("84h/%s/0h" if kind == "Single-sig" else "48h/%s/0h/2h") % ("0h" if network == "Mainnet" else "1h")
@@ -186,6 +193,8 @@ def test_wallets_we_are_not_in_are_refused(dev):
     # Three other people's keys.
     dev.scan(Wallet.multisig(2, [c.key(BIP48) for c in COSIGNERS[:3]]).descriptor())
     assert dev.screen == "SCAN" and "Wrong descriptor" in dev.text()
+    assert "Do you use a passphrase?" in dev.text()   # no passphrase set: the likely reason
+    dev.tap("Cancel")
     # Our fingerprint on somebody else's key: the fingerprint proves nothing.
     forged = COSIGNERS[2].key(BIP48).replace(COSIGNERS[2].fingerprint, SIGNER.fingerprint)
     dev.scan(Wallet.multisig(2, [forged] + [c.key(BIP48) for c in COSIGNERS[:2]]).descriptor())
@@ -253,6 +262,135 @@ def test_descriptor_goes_with_the_seed(dev):
     dev.tap("Scan QR")
     dev.scan_animated(psbt_parts(psbt))
     assert dev.screen == "PSBT_ERROR" and "needs its wallet's descriptor" in dev.text()
+
+
+def test_multisig_screen(dev):
+    """Wallet options -> Multisig: with no wallet, Scan wallet and Show my
+    key; the scanner comes back to it, and then it shows the wallet in use.
+    Leave multisig asks first; then the wallet is unknown again, with the
+    seed still loaded."""
+    wallet = two_of_three()
+    psbt = wallet.create_psbt([wallet.fund(0, 300_000)], [(STRANGER, 10_000)], fee=500)
+    loaded(dev)
+    dev.tap("Wallet options")
+    assert "Not in use" in dev.texts()
+    dev.tap("Multisig")
+    assert dev.screen == "MULTISIG_OPTIONS"
+    assert "Leave multisig" not in dev.texts()   # nothing to leave yet
+    dev.tap("Scan wallet")
+    assert dev.screen == "SCAN"
+    dev.back()
+    assert dev.screen == "MULTISIG_OPTIONS"
+    dev.tap("Scan wallet")
+    scan_descriptor(dev, wallet.descriptor(), wallet)
+    dev.tap("Use wallet")
+
+    # The wallet in use: its details again, and no second Scan wallet.
+    assert dev.screen == "MULTISIG_OPTIONS", dev.text()
+    text = dev.text()
+    assert "2 of 3 multisig" in text and "Scan wallet" not in text
+    assert "{FINGERPRINT}  This seed\n%s %s" % (SIGNER.fingerprint[:4], SIGNER.fingerprint[4:]) in text
+    for fingerprint in wallet.fingerprints():
+        assert "%s %s" % (fingerprint[:4], fingerprint[4:]) in text
+    assert address_on_screen(dev) == wallet.address(0)
+    dev.back()
+    assert "2 of 3 in use" in dev.texts()
+    dev.back()
+    assert dev.screen == "WALLET" and "2 OF 3" in dev.text()
+
+    # Cancel leaves everything as it is.
+    dev.tap("Wallet options")
+    dev.tap("Multisig")
+    dev.scroll_down()
+    dev.tap("Leave multisig")
+    assert "Leave the multisig wallet?" in dev.text()
+    dev.tap("Cancel")
+    assert dev.screen == "MULTISIG_OPTIONS" and "2 of 3 multisig" in dev.text()
+
+    dev.tap("Leave multisig")
+    dev.tap("Leave")
+    assert dev.screen == "MULTISIG_OPTIONS" and "Scan wallet" in dev.texts()
+    dev.back()
+    dev.back()
+    assert dev.screen == "WALLET" and "2 OF 3" not in dev.text()
+    assert fingerprint_on_screen(dev) == SIGNER.fingerprint   # the same seed
+    dev.tap("Scan QR")
+    dev.scan_animated(psbt_parts(psbt))
+    assert dev.screen == "PSBT_ERROR" and "needs its wallet's descriptor" in dev.text()
+
+
+def test_my_key_is_the_one_in_the_wallet(dev):
+    """Show my key: the standard BIP-48 key on the Network setting's network
+    with no wallet loaded; with one in use, the key at the path its
+    descriptor gives for this seed, whatever the Network setting says."""
+    path = "48h/1h/7h/2h"   # testnet, account 7: not the standard key
+    wallet = Wallet.multisig(2, [SIGNER.key(path)] + [c.key(BIP48) for c in COSIGNERS[:2]])
+    loaded(dev)
+    dev.tap("Wallet options")
+    dev.tap("Multisig")
+    dev.tap("Show my key")
+    assert parse_key_export(dev.read_qr()) == (SIGNER.fingerprint, "48h/0h/0h/2h", SIGNER.key("48h/0h/0h/2h"))
+    dev.back()
+    dev.tap("Scan wallet")
+    scan_descriptor(dev, wallet.descriptor(), wallet)
+    dev.tap("Use wallet")
+    dev.scroll_down()
+    dev.tap("Show my key")
+    assert "Your key in this wallet" in dev.texts() and "2 of 3 multisig, testnet" in dev.texts()
+    assert parse_key_export(dev.read_qr()) == (SIGNER.fingerprint, path, SIGNER.key(path))
+    dev.back()
+    assert dev.screen == "MULTISIG_OPTIONS"
+
+
+def test_one_wallet_at_a_time(dev):
+    """While a wallet is in use the scanner doesn't replace it: another
+    descriptor is refused, the same one is said to be in use."""
+    wallet = two_of_three()
+    other = Wallet.multisig(2, [SIGNER.key(BIP48)] + [c.key(BIP48) for c in COSIGNERS[2:]])
+    psbt = wallet.create_psbt([wallet.fund(0, 300_000)], [(STRANGER, 10_000)], fee=500)
+    loaded(dev)
+    dev.tap("Scan QR")
+    dev.scan(wallet.descriptor())
+    dev.tap("Use wallet")
+    assert dev.screen == "SCAN"
+    dev.scan(other.descriptor())
+    assert dev.screen == "SCAN" and "A wallet is in use" in dev.text(), dev.text()
+    dev.scan(ur_single(*wallet.descriptor_ur()))
+    assert dev.screen == "SCAN" and "Already in use" in dev.text(), dev.text()
+    dev.scan_animated(psbt_parts(psbt))
+    assert dev.screen == "PSBT_OVERVIEW" and "2 OF 3" in dev.text(), dev.text()
+
+
+def test_passphrase_is_asked_about(dev):
+    """A wallet whose key needs a passphrase, scanned without one: the
+    scanner asks once whether there is one, and leads to Passphrase and
+    back to the scanner."""
+    with_pass = Seed(MNEMONIC, "TREZOR")
+    wallet = Wallet.multisig(2, [with_pass.key(BIP48)] + [c.key(BIP48) for c in COSIGNERS[:2]])
+    loaded(dev)
+    dev.tap("Wallet options")
+    dev.tap("Multisig")
+    dev.tap("Scan wallet")
+    dev.scan(wallet.descriptor())
+    assert "Do you use a passphrase?" in dev.text()
+    dev.tap("Cancel")
+    assert dev.screen == "SCAN" and "Wrong descriptor" in dev.text()
+    dev.scan(wallet.descriptor())
+    assert "Do you use a passphrase?" not in dev.text()   # once is enough
+    dev.back()
+    dev.tap("Scan wallet")
+    dev.scan(wallet.descriptor())
+    dev.tap("Enter it")
+    assert dev.screen == "PASSPHRASE"
+    dev.key("ABC")
+    for letter in "TREZOR":
+        dev.key(letter)
+    dev.key("OK")
+    dev.tap("Use")
+    assert dev.screen == "SCAN", dev.text()
+    scan_descriptor(dev, wallet.descriptor(), wallet)
+    dev.tap("Use wallet")
+    assert dev.screen == "MULTISIG_OPTIONS" and "2 of 3 multisig" in dev.text()
 
 
 def test_big_transaction_through_a_bad_camera(dev):

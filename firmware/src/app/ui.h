@@ -8,15 +8,24 @@
 //   Wallet -> Scan QR: one scanner for a transaction or an address
 //        transaction -> Review -> each output -> Swipe to sign -> Signed QR -> Wallet
 //        address -> searching -> verified / not from this seed
-//   Wallet -> Wallet options -> Connect wallet | Back up as QR | Passphrase | Child seed | Wipe
-//   Passphrase (optional, BIP-39) -> keyboard -> Wallet with the passphrase's fingerprint
-//   Connect wallet: the key's QR; tap it for fingerprint, path and the whole
-//        key; "For a multisig wallet" switches to the BIP-48 key, RAM only
+//   Wallet -> Wallet options -> Connect wallet | Back up as QR | Passphrase | Multisig | Child seed |
+//        Network | Wipe
+//   Passphrase (optional, BIP-39) -> keyboard -> confirm the text -> Wallet with the passphrase's fingerprint
+//   Connect wallet: the single-key key's QR; tap it for fingerprint, path and the whole key
 //   Wallet options -> Network (Mainnet / Testnet) for that key, RAM only
-//   Multisig: show the wallet's descriptor QR to the scanner
+//   A confirmation over the screen comes before: a passphrase is applied or removed, the key
+//        switches network, the words entered so far are dropped, a multisig wallet is left
+//   Wallet options -> Multisig (a screen, not a mode):
+//        none loaded: Scan wallet (the scanner) | Show my key (BIP-48, the Network setting's network)
+//        one in use: its M of N, fingerprints and first address | Show my key (the one at the
+//        descriptor's path) | Leave multisig (asks first; forgets the descriptor, not the seed)
+//   Multisig wallet: the wallet's descriptor QR on the scanner (from Multisig, or Scan QR)
 //        -> Multisig wallet (M of N, key fingerprints, first address) -> Use wallet
-//        -> back to the scanner, which now takes the wallet's transactions / addresses
-//   Home -> Enter words (12, or 24 from the first word) -> one screen per word -> Wallet
+//        -> back to where the scanner came from; Scan QR now takes its transactions / addresses
+//        One at a time: while one is in use the scanner refuses another. Not one of its keys
+//        and no passphrase set: asks once whether there is one (-> Passphrase -> the scanner)
+//   Home -> Enter words (12, or 24 from the first word) -> one screen per word (Back shows the
+//        word entered there) -> Wallet
 //   Scan seed -> held still on written words (a photo of the backup, experimental)
 //        -> (hold still: a second, sharper picture) -> Words found (the photo, each
 //        word boxed) -> Read (or Retake: back to Scan seed) -> Reading words -> Check words (12 or 24, from how many were found): the
@@ -62,6 +71,8 @@ enum UiScreen {
     UI_SEED_READY,       // end of New seed: fingerprint, nothing loaded
     UI_CHILD_INDEX,      // BIP-85 child seed: child number keypad, 12 words
     UI_MULTISIG,         // a scanned multisig descriptor, to check before it is used
+    UI_MULTISIG_OPTIONS, // Multisig, from Wallet options: scan the wallet, show my key, the wallet in use
+    UI_MULTISIG_KEY,     // this seed's key for a multisig wallet, from the Multisig screen
     UI_PAGE_FOUND,       // the page's photo with the words found boxed: Read or Retake
     UI_PAGE_READING,     // progress while the page's words are read
     UI_PAGE_REVIEW,      // the words found, as one list to check against the backup
@@ -82,12 +93,13 @@ UiScreen ui_current();
 void ui_screensaver(bool open);
 
 // For the simulator's scripted run: the same actions as the on-screen controls.
+void ui_confirm(bool yes);     // the confirmation over the screen: its own button, or Cancel
 void ui_next_output();         // "Next" on an output screen
 bool ui_swipe_sign();          // completes the swipe; false if signing failed
 void ui_qr_full_screen();      // tap the signed QR: full screen, or back
 bool verify_done();            // the address check has a result
 void ui_multisig_use();        // "Use wallet" on the Multisig wallet screen
-void ui_key_details();         // tap the Connect wallet card: QR <-> its text
+void ui_key_details();         // tap the key's card (Connect wallet, multisig key): QR <-> its text
 // Start UI_ENTROPY_DICE, _COINS or UI_ENTER_WORDS; draw: the words are a new seed (last word from coins).
 void ui_seed_entry(UiScreen method, int words, bool draw = false);
 void ui_backup_loaded();       // "Back up as QR" in the seed menu

@@ -12,12 +12,9 @@ static int words;
 static SeedEntropy entropy;               // kept for the QR backup, wiped with the key
 static bool passphrase;                   // the root key was derived with one
 static bool testnet;
-static bool export_multisig;
 
 bool wallet_testnet() { return testnet; }
 void wallet_set_testnet(bool t) { testnet = t; }
-bool wallet_export_multisig() { return export_multisig; }
-void wallet_set_export_multisig(bool m) { export_multisig = m; }
 
 bool wallet_has_seed() { return loaded; }
 const struct ext_key *wallet_root() { return loaded ? &root : nullptr; }
@@ -99,14 +96,14 @@ bool wallet_entropy(SeedEntropy *out) {
     return loaded;
 }
 
-size_t wallet_export_xpub(char *out, size_t cap) {
+size_t wallet_export_xpub(char *out, size_t cap, bool multisig) {
     if (!loaded || cap == 0) return 0;
     char fp[9];
     wallet_fingerprint_hex(fp);
     const char *coin = testnet ? "1h" : "0h";
     const uint32_t H = BIP32_INITIAL_HARDENED_CHILD;
     // BIP-84 account 0, or BIP-48 account 0 with script type 2 (P2WSH).
-    const bool ms = export_multisig;
+    const bool ms = multisig;
     const uint32_t path[4] = {H | (ms ? 48u : 84u), H | (testnet ? 1u : 0u), H | 0, H | 2};
     const size_t path_len = ms ? 4 : 3;
 

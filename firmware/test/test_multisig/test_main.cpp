@@ -223,6 +223,34 @@ void test_ur_crypto_output_sparrow() {
     multisig_clear();
 }
 
+// One wallet at a time: with replace = false a loaded wallet stays, whatever is scanned.
+void test_no_replace() {
+    TEST_ASSERT_EQUAL(MS_OK, multisig_load(MS_DESCRIPTOR, strlen(MS_DESCRIPTOR), false));   // nothing loaded yet
+    std::string same = replace_all(no_checksum(), "<0;1>", "0");                             // another spelling
+    TEST_ASSERT_EQUAL(MS_SAME, multisig_load(same.c_str(), same.size(), false));
+    std::string other = replace_all(no_checksum(), "sortedmulti(2,", "sortedmulti(1,");      // a 1-of-3
+    TEST_ASSERT_EQUAL(MS_IN_USE, multisig_load(other.c_str(), other.size(), false));
+    TEST_ASSERT_EQUAL(2, multisig_info()->m);                                                // kept
+    std::string theirs = replace_all(no_checksum(), "0fb882ff", "0fb882fe");                 // not ours: says so first
+    TEST_ASSERT_EQUAL(MS_NOT_OURS, multisig_load(theirs.c_str(), theirs.size(), false));
+    TEST_ASSERT_EQUAL(MS_OK, load(other));                                                   // replace = true, as before
+    TEST_ASSERT_EQUAL(1, multisig_info()->m);
+}
+
+// Our key in the wallet: the one at the descriptor's path, as Connect wallet's multisig key.
+void test_export_key() {
+    char out[200], want[200];
+    TEST_ASSERT_EQUAL(0, multisig_export_key(out, sizeof(out)));   // no wallet
+    TEST_ASSERT_EQUAL(MS_OK, load(MS_DESCRIPTOR));
+    TEST_ASSERT_GREATER_THAN(0, multisig_export_key(out, sizeof(out)));
+    wallet_set_testnet(true);
+    wallet_export_xpub(want, sizeof(want), true);
+    wallet_set_testnet(false);
+    TEST_ASSERT_EQUAL_STRING(want, out);
+    TEST_ASSERT_EQUAL_STRING_LEN("[0fb882ff/48h/1h/0h/2h]Vpub", out, 27);
+    TEST_ASSERT_EQUAL(0, multisig_export_key(out, 40));            // doesn't fit: nothing
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_load);
@@ -240,5 +268,7 @@ int main() {
     RUN_TEST(test_dropped_with_the_seed);
     RUN_TEST(test_ur_crypto_output);
     RUN_TEST(test_ur_crypto_output_sparrow);
+    RUN_TEST(test_no_replace);
+    RUN_TEST(test_export_key);
     return UNITY_END();
 }

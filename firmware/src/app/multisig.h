@@ -20,6 +20,8 @@ enum MsResult {
     MS_UNSUPPORTED,       // valid, but not wsh(sortedmulti(...))
     MS_NO_ORIGIN,         // a key without [fingerprint/path], or with fingerprint 00000000
     MS_NOT_OURS,          // the loaded seed is not one of its keys
+    MS_IN_USE,            // replace = false: another wallet is loaded, kept as it is
+    MS_SAME,              // replace = false: this wallet is the one loaded already
 };
 
 struct MsInfo {
@@ -31,14 +33,18 @@ struct MsInfo {
 
 // Parse a descriptor and check that the loaded seed's key at the path it
 // names really is one of its keys. Replaces the loaded descriptor on MS_OK.
+// With replace = false a loaded one stays: MS_SAME or MS_IN_USE instead.
 // Accepts /<0;1>/*, /{0,1}/* and /0/* (taken as receive, with change at 1).
-MsResult multisig_load(const char *text, size_t len);
+MsResult multisig_load(const char *text, size_t len, bool replace = true);
 // The same from a crypto-output UR's CBOR (BCR-2020-010), as Sparrow shows it.
-MsResult multisig_load_ur_output(const uint8_t *cbor, size_t len);
+MsResult multisig_load_ur_output(const uint8_t *cbor, size_t len, bool replace = true);
 // A descriptor is loaded and belongs to the loaded seed.
 bool multisig_loaded();
 const MsInfo *multisig_info();        // nullptr unless multisig_loaded()
 void multisig_clear();
+// The loaded seed's key in this wallet, at the path the descriptor gives for
+// it, as "[fingerprint/path]Zpub..." (Vpub on testnet). Returns its length, 0 if none.
+size_t multisig_export_key(char *out, size_t cap);
 
 // True if `path` is our key's origin path followed by chain (0 receive,
 // 1 change) and an unhardened index.

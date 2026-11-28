@@ -15,7 +15,7 @@ COMPANION = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(COMPANION.parent / "firmware" / "e2e"))
 
 from device import BINARY, FIRMWARE, Device  # noqa: E402
-from flows import load_by_words, set_key_type, set_network  # noqa: E402
+from flows import load_by_words, set_network  # noqa: E402
 from hostwallet import Seed, Wallet  # noqa: E402
 
 MNEMONIC = "crew marble private differ race truly blush basket crater affair prepare unique"
@@ -40,7 +40,6 @@ def test_companion_psbt_is_signed_by_goldfish(tmp_path):
         dev.tap("Wallet options")
         set_network(dev, "Testnet")
         dev.tap("Connect wallet")
-        set_key_type(dev, False)
         export = dev.read_qr()
         dev.back()
         dev.back()
@@ -88,16 +87,16 @@ def test_companion_multisig_two_of_three(tmp_path):
                  Seed("legal winner thank year wave sausage worth useful legal winner thank yellow")]
     dev = Device(tmp_path)
     try:
-        # Goldfish's multisig key, as the companion scans it off Connect wallet.
+        # Goldfish's multisig key, as the companion scans it off Multisig -> Show my key.
         load_by_words(dev, MNEMONIC)
         dev.tap("Wallet options")
         set_network(dev, "Testnet")
-        dev.tap("Connect wallet")
-        set_key_type(dev, True)
+        dev.tap("Multisig")
+        dev.tap("Show my key")
         goldfish_key = dev.read_qr()
         assert "/48h/1h/0h/2h]Vpub" in goldfish_key
-        dev.back()
-        dev.back()
+        while dev.screen != "WALLET":
+            dev.back()
 
         made, _ = cli("multisig", "2", goldfish_key, *(c.key("48h/1h/0h/2h") for c in cosigners))
         descriptor = made["DESCRIPTOR"]

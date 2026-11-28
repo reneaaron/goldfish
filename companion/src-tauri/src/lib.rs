@@ -138,7 +138,7 @@ pub fn parse_key_export(text: &str) -> Res<Account> {
 }
 
 /// A `threshold`-of-n `wsh(sortedmulti)` wallet from its cosigners' keys,
-/// each `[fingerprint/path]key` (Goldfish's multisig Connect wallet key is one).
+/// each `[fingerprint/path]key` (Goldfish's key from Multisig -> Show my key is one).
 pub fn multisig_from_keys(threshold: usize, keys: &[&str]) -> Res<Account> {
     let keys = keys.iter().filter(|k| !k.trim().is_empty()).map(|k| Key::parse(k)).collect::<Res<Vec<_>>>()?;
     let n = keys.len();

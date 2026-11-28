@@ -82,7 +82,7 @@ the guides still use Sparrow.
   get it directly, without Tor.
 - Multisig: link from the wallet's descriptor (`<0;1>`, `{0,1}` or `0`
   children, checksum checked when present) or from the cosigners' keys plus
-  the signatures needed; Goldfish's multisig Connect wallet key (`Vpub`) is
+  the signatures needed; Goldfish's key from Multisig -> Show my key (`Vpub`) is
   one of them. "Connect your signers" shows the descriptor for Goldfish's Scan
   QR (a text QR, or an animated `bytes` UR when long); Goldfish keeps it in
   RAM only, so it is connected again whenever it is plugged in. Each

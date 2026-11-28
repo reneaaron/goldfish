@@ -52,17 +52,14 @@ void test_vpub() {
 // with SLIP-132's Zpub / Vpub. Expected values worked out by embit.
 void test_multisig_keys() {
     TEST_ASSERT_TRUE(wallet_load(zero_entropy_12()));
-    TEST_ASSERT_FALSE(wallet_export_multisig());   // single-sig unless asked
-    wallet_set_export_multisig(true);
     char out[200];
-    TEST_ASSERT_GREATER_THAN(0, wallet_export_xpub(out, sizeof(out)));
+    TEST_ASSERT_GREATER_THAN(0, wallet_export_xpub(out, sizeof(out), true));
     TEST_ASSERT_EQUAL_STRING(
         "[73c5da0a/48h/0h/0h/2h]Zpub74Jru6aftwwHxCUCWEvP6DgrfFsdA4U6ZRtQ5i8qJpMcC39yZGv3egBhQfV3MS9pZtH5z8iV5qWkJsK6ESs6mSzt4qvGhzJxPeeVS2e1zUG",
         out);
     wallet_set_testnet(true);
-    size_t n = wallet_export_xpub(out, sizeof(out));
+    size_t n = wallet_export_xpub(out, sizeof(out), true);
     wallet_set_testnet(false);
-    wallet_set_export_multisig(false);
     TEST_ASSERT_GREATER_THAN(0, n);
     TEST_ASSERT_EQUAL_STRING(
         "[73c5da0a/48h/1h/0h/2h]Vpub5n95dMZrDHj6SeBgJ1oz4Fae2N2eJNuWK3VTKDb2dzGpMFLUHLmtyDfen7AaQxwQ5mZnMyXdVrkEaoMLVTH8FmVBRVWPGFYWhmtDUGehGmq",

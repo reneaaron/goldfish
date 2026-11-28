@@ -40,29 +40,27 @@ def set_network(dev, network):
     dev.scroll_down()
     if network not in dev.texts():   # the Network row's subline names the current one
         dev.tap("Network")
-        dev.tap(network)             # back on Wallet options, at the top
+        dev.tap(network)
+        dev.tap("Switch")            # back on Wallet options, at the top
     else:
         dev.scroll_up()
 
 
-def set_key_type(dev, multisig):
-    """On Watch-only wallet: the toggle names the other kind of key."""
-    other = "For a single-key wallet  {RIGHT}" if multisig else "For a multisig wallet  {RIGHT}"
-    if other not in dev.texts():
-        dev.tap("For a multisig wallet  {RIGHT}" if multisig else "For a single-key wallet  {RIGHT}")
-
-
 def connect_wallet(dev, multisig=False):
-    """Wallet -> Wallet options -> Connect wallet on testnet, for a single-sig
-    or a multisig wallet. Returns the key the wallet app reads from the
-    signer's screen, and leaves the signer on Wallet."""
+    """Wallet -> Wallet options on testnet, then Connect wallet for a
+    single-sig wallet, or Multisig -> Show my key for a multisig one. Returns
+    the key the wallet app reads from the signer's screen, and leaves the
+    signer on Wallet."""
     dev.tap("Wallet options")
     set_network(dev, "Testnet")
-    dev.tap("Connect wallet")
-    set_key_type(dev, multisig)
+    if multisig:
+        dev.tap("Multisig")
+        dev.tap("Show my key")
+    else:
+        dev.tap("Connect wallet")
     export = dev.read_qr()
-    dev.back()
-    dev.back()
+    while dev.screen != "WALLET":
+        dev.back()
     return parse_key_export(export)
 
 

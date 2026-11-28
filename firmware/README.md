@@ -31,8 +31,8 @@ The seed lives in RAM only: Forget seed or unplugging removes it.
    a chip for a passphrase or a multisig wallet). A fingerprint icon marks the
    fingerprint on every screen that shows one. Scan QR for everyday use, and
    Wallet options for the rest:
-   Connect wallet and Back up as QR, then Passphrase, Child seed and Network,
-   then Forget seed on its own; the list scrolls
+   Connect wallet and Back up as QR, then Passphrase, Multisig, Child seed and
+   Network, then Forget seed on its own; the list scrolls
 3. Scan QR: one scanner for a transaction to sign, an address to verify, or a
    multisig descriptor; the device tells them apart by their format
 4. Connect wallet (the Watch-only wallet screen): shows the native segwit xpub as
@@ -43,9 +43,9 @@ The seed lives in RAM only: Forget seed or unplugging removes it.
    (`[fingerprint/84h/1h/0h]vpub…`, shown in amber), which also serves signet and
    Mutinynet. The choice is kept in RAM, so every boot starts on mainnet. Signing and
    Verify address don't use it: they read the network from the PSBT or the address.
-   "For a multisig wallet" switches to this seed's key for a multisig wallet,
-   `[fingerprint/48h/0h/0h/2h]Zpub…` (BIP-48, native segwit; `48h/1h/0h/2h` and
-   `Vpub…` on testnet), to add as a cosigner in the wallet app. Also RAM only
+   Switching the network asks first: to a wallet app it is another wallet.
+   Connect wallet is for a single-key wallet only; a multisig key is on the
+   Multisig screen
 5. Verify address: Scan QR on a receive address (plain or `bitcoin:` URI) from your
    wallet app; the device checks the first 500 receive and 100 change
    addresses of this seed and says which one it is, or that it isn't yours;
@@ -91,7 +91,10 @@ A tap brings the screen back at the set brightness and presses nothing.
 
 Enter words restores from a words backup: type each word. It starts at 12
 words; a 24-word backup taps "24 words" on the first word. The keyboard only offers letters that lead to a word and, on the last
-word, only words with a valid checksum. The seed loads right away.
+word, only words with a valid checksum. The seed loads right away. Back shows
+the word entered on the screen before, to accept again or change, and going
+forward again shows the words already entered after it; Back from the first
+word asks before they are forgotten.
 
 Experimental: Scan seed reads a handwritten backup, on any paper (plain, ruled, a printed card; one or more
 columns; numbered or not); its prompt asks for written words. A SeedQR is also read, as soon as it is in view. For written
@@ -159,9 +162,11 @@ reading speed are unmeasured.
 
 Passphrase (in Wallet options) opens a keyboard for a BIP-39 passphrase (the "25th word"):
 letters, digits and all ASCII symbols, up to 64 characters, with a Show/Hide
-switch. OK derives the key again (a few seconds on the board, like loading) and
-returns to Wallet with the fingerprint of seed plus passphrase, to check
-against the wallet app. An empty passphrase removes it. The
+switch. OK shows the passphrase once more, in full, to confirm: every passphrase
+gives a wallet, so a typo can't be told from the right one afterwards. Then the
+key is derived again (a few seconds on the board, like loading), back to Wallet
+with the fingerprint of seed plus passphrase, to check against the wallet app.
+An empty passphrase removes it, also once confirmed. The
 device keeps only the derived key, not the passphrase; both go with Forget seed
 or unplugging. Signing, Verify address, Connect wallet and Child seed
 then all use the passphrase wallet. Back up as QR still writes the seed alone:
@@ -260,9 +265,19 @@ Multisig is `wsh(sortedmulti(...))`, up to 15 keys, with the loaded seed as one
 cosigner. The device needs the wallet's output descriptor, because a PSBT alone
 can name any cosigner keys next to ours:
 
-- Connect wallet, set to Multisig, shows the key to add to the wallet in the
-  wallet app. The device only needs the finished wallet's descriptor
-- Show the descriptor QR to Scan QR: as
+- Wallet options -> Multisig is its own screen, not a mode: the rest of the
+  device works as before, and one seed can hold a single-key wallet and be a
+  cosigner. With no multisig wallet loaded it has two rows:
+  - Show my key: this seed's key to add to a new wallet in the wallet app,
+    `[fingerprint/48h/0h/0h/2h]Zpub…` (BIP-48, native segwit; `48h/1h/0h/2h`
+    and `Vpub…` on testnet, from the Network setting). Only the standard path
+  - Scan wallet: the scanner, for the finished wallet's descriptor. Scan QR on
+    the Wallet screen takes it too
+  With a wallet in use it shows that wallet: M of N, every key's fingerprint
+  with "This seed" marked, and the first address; Show my key, now the key at
+  the path the descriptor gives for this seed (not the standard one, and not
+  from the Network setting); and Leave multisig
+- Show the descriptor QR to the scanner: as
   plain text, as a `crypto-output` UR (BCR-2020-010, sortedmulti with HD keys),
   or as text in a `bytes` UR. `/<0;1>/*`, `/{0,1}/*` and `/0/*` are all read as
   receive 0, change 1, and so is a `crypto-output` key with no children, the way
@@ -271,7 +286,15 @@ can name any cosigner keys next to ours:
   descriptor gives for our fingerprint has to be the xpub written there
 - A screen then shows M of N, every key's fingerprint and the first receive
   address to check against the wallet app. Only "Use wallet" makes the device
-  use it; leaving the screen drops it
+  use it; leaving the screen drops it. Use wallet goes back to the Multisig
+  screen when the scanner came from there, otherwise to the scanner
+- One wallet at a time: while one is in use the scanner doesn't take another
+  descriptor ("A wallet is in use", leave it first) and says "Already in use"
+  for the same one, so nothing quietly changes what the device signs for
+- A passphrase has to be entered before the descriptor is scanned: the
+  descriptor names the key the seed gives with it. When the seed isn't one of
+  the keys and no passphrase is set, the scanner asks once whether there is
+  one, with a way to Passphrase and back to the scanner
 - From then on the Sign scanner takes that wallet's transactions (inputs and
   change must be scripts the descriptor derives, not the PSBT's own witness
   scripts) and the Verify scanner its addresses. A multisig transaction
@@ -281,6 +304,9 @@ can name any cosigner keys next to ours:
 - The descriptor is kept in RAM only and belongs to the key it was checked
   with: it isn't used with another seed or another passphrase, and wiping the
   seed or unplugging drops it, so it is scanned again next time
+- Leave multisig, on the Multisig screen while a wallet is in use, drops
+  the descriptor and keeps the seed. It asks first. After it the wallet's
+  transactions and addresses are refused again
 - A descriptor whose keys lack `[fingerprint/path]`, or whose fingerprints
   are `00000000` where ours should be, says "Key fingerprint missing": the
   wallet app has to add the keys again with their origin
@@ -438,13 +464,18 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
   a passphrase typed on the keyboard giving the key and signatures embit
   derives from the same words and passphrase, and removed again; the largest
   transactions the heap signs (60 inputs; 16 outputs), and 70 inputs refused as too big while signing
-- Multisig: Connect wallet's four keys (single-sig and multisig, mainnet and
-  testnet) against embit; a 2-of-3 around the linked multisig key, refused until its descriptor is
+- Multisig: the four keys of Connect wallet and Show my key (single-sig and
+  multisig, mainnet and testnet) against embit; a 2-of-3 around the linked multisig key, refused until its descriptor is
   scanned and confirmed, then signed and finalized with a cosigner; every
   spelling of the descriptor at both scanners; a 3-of-5 after a cosigner has
   signed; wallets the seed isn't in, a forged fingerprint, `multi`, keys
   without origin or with fingerprint `00000000`, a wrong
   checksum; change to another multisig; the descriptor gone after a wipe;
+  the Multisig screen (Scan wallet and back to it, the wallet in use, Leave
+  multisig: Cancel, then the descriptor gone with the seed still loaded);
+  Show my key at the descriptor's path, not the standard one; a second
+  descriptor refused while one is in use; the passphrase question, through
+  Passphrase back to the scanner;
   a 15-input transaction through a camera that reads each frame twice and
   misses three in four; a 35-input one, past 16 KB, refused as too big with
   what to do
