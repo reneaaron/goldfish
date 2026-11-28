@@ -14,6 +14,7 @@
 #include "multisig.h"
 #include "page_reader.h"
 #include "psbt_review.h"
+#include "ram_wipe.h"
 #include "seed_create.h"
 #include "entropy_check.h"
 #include "qrscan.h"
@@ -3707,7 +3708,20 @@ static void idle_tick(lv_timer_t *) {
     if (lv_display_get_inactive_time(nullptr) >= SAVER_IDLE_MS) ui_screensaver(true);
 }
 
+// After every screen change, once the fade is done: the draw buffers still
+// hold pixels of the old screen (seed words, passphrase), which this zeroes.
+static lv_timer_t *wipe_timer;
+static void wipe_timer_cb(lv_timer_t *) {
+    wipe_timer = nullptr;
+    ram_wipe_lvgl();
+}
+
 void ui_goto(UiScreen s) {
+    if (wipe_timer) lv_timer_reset(wipe_timer);
+    else {
+        wipe_timer = lv_timer_create(wipe_timer_cb, 300, nullptr);   // the fade is 120 ms
+        lv_timer_set_repeat_count(wipe_timer, 1);
+    }
     ui_screensaver(false);
     if (ui_current() == UI_PAGE_REVIEW) page_review_y = lv_obj_get_scroll_y(page_review_list);
     // (Words found shows preview_buf: the photo, kept there; scanning stopped before it)

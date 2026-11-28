@@ -34,9 +34,11 @@ bool qrscan_frame(const uint8_t *gray, QrPayload *out) {
             out->len = data.payload_len;
             found = true;
         }
-        // quirc_data can hold a seed: wipe it before it leaves the stack
+        // quirc_data can hold a seed, and quirc_code its modules: wipe both
         volatile uint8_t *v = (volatile uint8_t *)&data;
         for (size_t k = 0; k < sizeof(data); k++) v[k] = 0;
+        v = (volatile uint8_t *)&code;
+        for (size_t k = 0; k < sizeof(code); k++) v[k] = 0;
     }
     // the frame buffer holds a picture of the QR; clear it too
     memset(img, 0, size_t(w) * h);

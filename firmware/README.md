@@ -254,7 +254,8 @@ asks, by share of the amount sent and by rate (the thresholds are ours).
 50% or 500 ₿/vB turns the fee, total, card and slider red. Neither blocks
 signing, since sweeping dust can legitimately cost that much.
 Native segwit only, single-sig or multisig, mainnet or testnet (from the PSBT's
-derivation paths, or the multisig descriptor's keys). BBQr input isn't supported yet.
+derivation paths, or the multisig descriptor's keys; inputs from both networks
+in one PSBT are refused). BBQr input isn't supported yet.
 
 Multisig is `wsh(sortedmulti(...))`, up to 15 keys, with the loaded seed as one
 cosigner. The device needs the wallet's output descriptor, because a PSBT alone
@@ -374,7 +375,8 @@ pio test -e test
   script that isn't our key's, a second unverified key path with our
   fingerprint, no outputs, a finalized input, a mismatched previous
   transaction, extra redeem or witness scripts, and a multisig witness script
-  that isn't the descriptor's; and a bogus signature of ours already in the
+  that isn't the descriptor's, and inputs under both the mainnet and testnet
+  coin type, in either order; and a bogus signature of ours already in the
   PSBT, which signing refuses to hand out
 - Nonces: the same seed and PSBT give the same signature byte for byte
   (single-sig and multisig, also after wiping and loading the seed again; the
@@ -457,6 +459,8 @@ before finalizing the transaction. Coins are made up; nothing is broadcast.
   words for them; fair rolls go straight on
 - Written words: a handwritten page held still on Scan seed is read without a
   tap, and Retake waits for the view to change; a QR held still isn't
+- Wiping: the words read from a handwritten page are gone from the
+  simulator's memory once their screens are (`test_wipe.py`, Linux only)
 
 The simulator runs headless for this (`SIM_CONTROL=1`, commands on stdin, see
 `src/sim/main.cpp`), on a clock that only moves when the test says so. A

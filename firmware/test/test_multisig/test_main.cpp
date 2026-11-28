@@ -7,6 +7,7 @@
 #include <string>
 #include <wally_core.h>
 #include <wally_bip39.h>
+#include <wally_bip32.h>
 #include "../../src/app/multisig.h"
 #include "../../src/app/ur.h"
 #include "../../src/app/wallet.h"
@@ -164,6 +165,25 @@ void test_same_key_twice() {
     TEST_ASSERT_EQUAL(MS_BAD, load(s.substr(0, s.size() - 2) + "," + first + "))"));
 }
 
+// The same key again under other metadata (parent fingerprint, depth, child
+// number): a different string, but one cosigner in two places. libwally
+// refuses it, as it compares the derived keys, not the strings.
+void test_same_key_other_metadata() {
+    std::string s = no_checksum();
+    const size_t open = s.find(']') + 1, close = s.find('/', open);
+    std::string first = s.substr(s.find('['), s.find(',', s.find('[')) - s.find('['));
+    struct ext_key k;
+    TEST_ASSERT_EQUAL(WALLY_OK, bip32_key_from_base58(s.substr(open, close - open).c_str(), &k));
+    k.parent160[0] ^= 1;
+    k.depth = 5;
+    k.child_num = 7;
+    char *other = nullptr;
+    TEST_ASSERT_EQUAL(WALLY_OK, bip32_key_to_base58(&k, BIP32_FLAG_KEY_PUBLIC, &other));
+    first = replace_all(first, s.substr(open, close - open), other);
+    wally_free_string(other);
+    TEST_ASSERT_EQUAL(MS_BAD, load(s.substr(0, s.size() - 2) + "," + first + "))"));
+}
+
 // A descriptor belongs to the seed it was loaded with.
 void test_dropped_with_the_seed() {
     TEST_ASSERT_EQUAL(MS_OK, load(MS_DESCRIPTOR));
@@ -237,6 +257,7 @@ int main() {
     RUN_TEST(test_not_ours);
     RUN_TEST(test_our_fingerprint_on_another_key);
     RUN_TEST(test_same_key_twice);
+    RUN_TEST(test_same_key_other_metadata);
     RUN_TEST(test_dropped_with_the_seed);
     RUN_TEST(test_ur_crypto_output);
     RUN_TEST(test_ur_crypto_output_sparrow);
