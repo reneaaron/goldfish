@@ -17,11 +17,15 @@ def dev(tmp_path, request):
     """A freshly plugged-in signer: no seed, home screen."""
     d = Device(tmp_path)
     yield d
-    report = getattr(request.node, "rep_call", None)
-    if report is not None and report.failed:
-        print("\nsigner screen at the failure (%s):\n%s" % (d.screen, d.text()))
-        d.screenshot("failure.ppm").save(FIRMWARE / "e2e" / ("failure_%s.png" % request.node.name.replace("/", "_")))
-    d.close()
+    try:
+        report = getattr(request.node, "rep_call", None)
+        if report is not None and report.failed:
+            print("\nsigner screen at the failure (%s):\n%s" % (d.screen, d.text()))
+            d.screenshot("failure.ppm").save(FIRMWARE / "e2e" / ("failure_%s.png" % request.node.name.replace("/", "_")))
+    except RuntimeError as gone:                 # a simulator that died or hung has no screen to show
+        print("\nno screen at the failure: %s" % gone)
+    finally:
+        d.close()
 
 
 @pytest.hookimpl(hookwrapper=True)
