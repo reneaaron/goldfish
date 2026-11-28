@@ -716,16 +716,21 @@ static void dump_widgets(lv_obj_t *o, lv_area_t clip) {
     }
 }
 
-// LVGL's warnings, to stderr (stdout is run_control()'s replies). One that
-// repeats is printed once and counted: LVGL waiting for memory says the same
-// thing as fast as it can.
-static char log_last[200];
-static unsigned log_repeats;
+// LVGL's warnings, to stderr (stdout is run_control()'s replies). Each
+// different one is printed once and then counted: LVGL waiting for memory
+// repeats the same two as fast as it can, megabytes a second. They carry a
+// time stamp, which is left out of the comparison.
+struct LogLine { char text[160]; unsigned times; };
+static LogLine log_seen[4];
+static int log_next;
 static void log_cb(lv_log_level_t, const char *msg) {
-    if (!strncmp(msg, log_last, sizeof(log_last) - 1)) { log_repeats++; return; }
-    if (log_repeats) fprintf(stderr, "[lvgl] (the line before, %u more times)\n", log_repeats);
-    log_repeats = 0;
-    snprintf(log_last, sizeof(log_last), "%s", msg);
+    const char *text = msg;                       // "[Warn]\t(0.320, +0)\t the text"
+    for (int tabs = 0; *text && tabs < 2; text++) tabs += *text == '\t';
+    for (LogLine &l : log_seen)
+        if (l.times && !strncmp(text, l.text, sizeof(l.text) - 1)) { l.times++; return; }
+    LogLine &l = log_seen[log_next++ % 4];        // the oldest makes room
+    snprintf(l.text, sizeof(l.text), "%s", text);
+    l.times = 1;
     fprintf(stderr, "[lvgl] %s", msg);
 }
 
@@ -735,9 +740,11 @@ static void log_cb(lv_log_level_t, const char *msg) {
 static char control_line[1024];
 static int watchdog_s = 30;
 static void watchdog(int) {
-    char msg[1200];
-    int n = snprintf(msg, sizeof(msg), "simulator: stuck for %d s on \"%s\"; last LVGL warning (%u times): %s\n",
-                     watchdog_s, control_line, log_repeats + 1, log_last[0] ? log_last : "none\n");
+    char msg[1400];
+    int n = snprintf(msg, sizeof(msg), "simulator: stuck for %d s on \"%s\"\n", watchdog_s, control_line);
+    for (const LogLine &l : log_seen)
+        if (l.times && n < (int)sizeof(msg))
+            n += snprintf(msg + n, sizeof(msg) - n, "  LVGL warned %u times: %s", l.times, l.text);
     if (write(STDERR_FILENO, msg, n > (int)sizeof(msg) ? sizeof(msg) : n) < 0) {}
     _exit(70);
 }
